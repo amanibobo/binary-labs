@@ -16,7 +16,7 @@ from bl_worker.extract import EXTRACTORS, Extracted, ExtractionFailed, run_extra
 from bl_worker.filekind import detect
 from bl_worker.previews import PreviewFailed, PreviewStore, preview_key, render_preview
 from bl_worker.runtime import Runtime
-from bl_worker.sources import build_source
+from bl_worker.sources import build_reader
 
 log = logging.getLogger(__name__)
 
@@ -72,7 +72,7 @@ def process_location(rt: Runtime, location_id: UUID) -> Outcome:
         if loc is None:
             return Outcome.SKIPPED
         try:
-            data = build_source(loc.source, rt.settings).read(loc.external_id)
+            data = build_reader(loc.source, rt.settings, rt.previews).read(loc.external_id)
             blob = _store_blob(conn, loc, data)
             extracted = _extract(conn, blob, data)
             _write_chunks(conn, loc.lab_id, blob.sha256, extracted)

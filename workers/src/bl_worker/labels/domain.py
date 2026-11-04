@@ -101,6 +101,15 @@ def _find[T: (Experiment, Person)](items: tuple[T, ...], text: str | None) -> T 
 
 
 @dataclass(frozen=True)
+class Upload:
+    """Who first sent us a file, on which of their days, and for the experiment they picked."""
+
+    person_id: UUID | None
+    experiment_id: UUID | None
+    uploaded_on: date
+
+
+@dataclass(frozen=True)
 class FileInfo:
     """One blob in one lab, as labeling sees it."""
 
@@ -116,6 +125,7 @@ class FileInfo:
     caption: str | None = None
     # False when no extractor could read the file: an unknown format or a broken one.
     readable: bool = True
+    upload: Upload | None = None
 
     @property
     def path(self) -> str:

@@ -38,6 +38,12 @@ def preview_key(lab_id: object, sha256: str) -> str:
     return f"{lab_id}/{sha256}.webp"
 
 
+# The same store holds uploaded files whole, written by the web app. Everything a lab has
+# in the store sits under <lab_id>/, so deleting that prefix removes all of it.
+def file_key(lab_id: object, sha256: str) -> str:
+    return f"{lab_id}/files/{sha256}"
+
+
 class LocalPreviewStore:
     def __init__(self, root: Path) -> None:
         self.root = root

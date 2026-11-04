@@ -9,6 +9,8 @@ from uuid import UUID
 class SourceKind(StrEnum):
     DROPBOX = "dropbox"
     LOCAL = "local"
+    # Files people send us; the web app records them, so there is nothing to list.
+    UPLOAD = "upload"
 
 
 class FileKind(StrEnum):

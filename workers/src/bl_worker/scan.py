@@ -8,7 +8,7 @@ import psycopg
 
 from bl_worker.config import Settings
 from bl_worker.domain import CursorExpired, ListPage, SourceKind, SourceRow
-from bl_worker.sources import build_source
+from bl_worker.sources import build_source, is_listed
 
 log = logging.getLogger(__name__)
 
@@ -70,7 +70,8 @@ def scan_source(conn: psycopg.Connection, settings: Settings, source_id: UUID) -
         (source_id,),
     ).fetchone()  # type: ignore[misc]
     try:
-        cursor = _list_all(conn, row, settings, started_at)
+        # An upload source's locations are written by the web app as files arrive.
+        cursor = _list_all(conn, row, settings, started_at) if is_listed(row.kind) else None
     except Exception as e:
         conn.execute(
             "update sources set scan_error = %s where id = %s",
