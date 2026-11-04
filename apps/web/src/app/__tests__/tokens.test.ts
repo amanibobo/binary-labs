@@ -24,29 +24,30 @@ function contrast(a: string, b: string): number {
   return (hi + 0.05) / (lo + 0.05);
 }
 
-// Every text color the UI puts on each surface, plus the two non-text indicators (focus ring, focused input border).
+// Every text color the UI puts on each surface, plus the non-text focus indicators.
 type Pair = readonly [fg: string, bg: string];
 
+const SURFACES = ["background-sidebar", "background-primary", "background-raised", "background-secondary"];
+const TINTS = ["purple", "blue", "yellow", "orange", "green", "gray"];
+
 const TEXT_PAIRS: Pair[] = [
-  ...["content-primary", "content-secondary", "content-tertiary"].flatMap((fg) =>
-    ["background-primary", "background-secondary"].map((bg): Pair => [fg, bg]),
-  ),
+  ...["content-primary", "content-secondary", "content-tertiary"].flatMap((fg) => SURFACES.map((bg): Pair => [fg, bg])),
   ["content-primary", "background-tertiary"],
   ["content-secondary", "background-tertiary"],
   ["content-primary", "button-secondary-hover"],
   ["content-primary", "button-tertiary-hover"],
+  ["content-tertiary", "button-tertiary-hover"],
   ["content-accent", "background-primary"],
+  ["content-accent", "background-raised"],
   ["tag-blue-content-secondary", "tag-blue-background-secondary"],
   ["content-warning", "background-warning"],
   ["content-inverse-primary", "button-primary-fill"],
   ["content-inverse-primary", "button-primary-hover"],
   ["content-inverse-primary", "background-inverse-secondary"],
+  ...TINTS.map((tint): Pair => [`tint-${tint}-ink`, `tint-${tint}-wash`]),
 ];
 
-const INDICATOR_PAIRS: Pair[] = [
-  ["border-accent", "background-primary"],
-  ["border-selected", "background-primary"],
-];
+const INDICATOR_PAIRS: Pair[] = SURFACES.map((bg): Pair => ["border-accent", bg]);
 
 describe.each([
   ["light", light],
