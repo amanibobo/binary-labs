@@ -65,10 +65,10 @@ export function SearchHome({
         id={inputId}
         value={query}
         onChange={(e) => updateQuery(e.target.value)}
-        placeholder="Search files, like P450 gels from batch 3"
+        placeholder="Search your lab's files"
         autoFocus
       />
-      <Filters value={filters} onChange={setFilters} />
+      {source.kind === "connected" ? <Filters value={filters} onChange={setFilters} /> : null}
 
       <section aria-labelledby={`${inputId}-results`} className="mt-8">
         {searching ? (
@@ -191,7 +191,7 @@ function RecentFiles({
   if (recent.length === 0) {
     return (
       <div className="px-1">
-        <h2 id={headingId} className="mb-2 text-sm text-muted">
+        <h2 id={headingId} className={source.kind === "connected" ? "mb-2 text-sm text-muted" : "sr-only"}>
           Recent files
         </h2>
         <EmptyLab source={source} isAdmin={isAdmin} filtered={filtered} />

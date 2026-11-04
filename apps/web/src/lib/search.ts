@@ -50,7 +50,6 @@ export async function embedQuery({
   }
 }
 
-// Arguments of public.search_files, named as PostgREST expects them.
 export type SearchFilesArgs = {
   p_lab_id: LabId;
   p_query: string;
@@ -64,7 +63,6 @@ export type SearchFilesArgs = {
 
 export type SearchFilesRpc = (args: SearchFilesArgs) => Promise<unknown>;
 
-// pgvector's text input format.
 export function toVectorLiteral(embedding: readonly number[]): string {
   return `[${embedding.join(",")}]`;
 }

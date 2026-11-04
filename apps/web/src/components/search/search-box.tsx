@@ -18,7 +18,7 @@ export function SearchBox({ className, ...props }: ComponentProps<"input">) {
         type="search"
         autoComplete="off"
         spellCheck={false}
-        className="h-14 w-full rounded-panel border border-hairline bg-surface pr-4 pl-11 text-[17px] text-ink placeholder:text-muted/80 transition-colors duration-150 ease-out hover:border-ink/30 focus-visible:border-blue [&::-webkit-search-cancel-button]:hidden"
+        className="h-14 w-full rounded-panel border border-hairline bg-surface pr-4 pl-11 text-[17px] text-ink placeholder:text-muted/80 transition-colors duration-150 ease-out hover:border-ink/30 focus-visible:outline-offset-[-1px] [&::-webkit-search-cancel-button]:hidden"
         {...props}
       />
     </div>

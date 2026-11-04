@@ -73,6 +73,9 @@ export function FolderPicker({ initialPath = "" }: { initialPath?: string }) {
                 >
                   <span className="truncate">{folder.name}</span>
                   <span className="sr-only">, open folder</span>
+                  <svg viewBox="0 0 16 16" aria-hidden className="ml-auto size-4 shrink-0 text-muted">
+                    <path d="m6 3.5 4.5 4.5L6 12.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
                 </button>
               </li>
             ))}

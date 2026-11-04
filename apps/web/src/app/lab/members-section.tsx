@@ -46,7 +46,7 @@ function InviteForm() {
           aria-describedby={`${id}-status`}
           required
         />
-        <Button type="submit" disabled={pending} className="sm:w-auto">
+        <Button type="submit" variant="secondary" disabled={pending} className="sm:w-auto">
           {pending ? "Sending invite" : "Send invite"}
         </Button>
       </div>

@@ -39,11 +39,11 @@ export function AppShell({
           </Link>
           <nav aria-label="Main" className="flex items-center">
             {navLink("search", "/", "Search")}
-            {navLink("lab", "/lab", "Lab")}
+            {navLink("lab", "/lab", "Settings")}
           </nav>
           <div className="ml-auto flex items-center gap-1">
             <CommandPalette />
-            <form action={signOut}>
+            <form action={signOut} className="hidden sm:block">
               <button type="submit" className="flex min-h-11 items-center rounded-control px-3 text-sm text-muted transition-colors duration-150 ease-out hover:bg-fill hover:text-ink">
                 Sign out
               </button>

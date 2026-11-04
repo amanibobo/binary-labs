@@ -51,7 +51,6 @@ export const loadViewer = cache(async (): Promise<Viewer> => {
 
 export type Member = Extract<Viewer, { kind: "member" }>;
 
-// For lab pages: send signed-out users to sign in and lab-less users to create one.
 export async function requireMember(): Promise<Member | Extract<Viewer, { kind: "config_missing" }>> {
   const viewer = await loadViewer();
   switch (viewer.kind) {

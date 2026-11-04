@@ -1,7 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createSupabase } from "@/lib/supabase/server";
 
-// Magic links started from /sign-in come back here with a PKCE code.
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code");
   if (code !== null) {

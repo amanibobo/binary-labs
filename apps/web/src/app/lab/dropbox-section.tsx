@@ -46,7 +46,7 @@ export function DropboxSection({ initial, isAdmin }: { initial: SourceState; isA
           <Account label={source.accountLabel} />
           <dl className="mt-3">
             <dt className="text-[13px] text-muted">Folder</dt>
-            <dd className="font-mono text-[13.5px] break-all text-ink">{source.rootPath}</dd>
+            <dd className="font-mono text-[13.5px] [overflow-wrap:anywhere] text-ink">{source.rootPath}</dd>
           </dl>
           <div className="mt-5">
             <ScanBar scan={source.scan} />

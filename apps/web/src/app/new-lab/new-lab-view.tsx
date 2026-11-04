@@ -2,7 +2,7 @@ import { CreateLabForm } from "./create-lab-form";
 
 export function NewLabView({ email }: { email: string }) {
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-4 py-16">
+    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col px-4 pt-16 pb-16 sm:justify-center">
       <p className="text-[15px] font-semibold text-ink">Binary Labs</p>
       <h1 className="mt-8 text-2xl font-semibold tracking-tight text-ink">Create your lab</h1>
       <p className="mt-2 mb-6 text-[15px] text-muted">

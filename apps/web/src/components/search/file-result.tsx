@@ -74,7 +74,7 @@ export function FileResult({
                 <ul className="mt-2 grid gap-3">
                   {hit.locations.map((location) => (
                     <li key={location.id} className="min-w-0">
-                      <p className="break-all font-mono text-[12.5px] text-ink">{location.path}</p>
+                      <p className="font-mono text-[12.5px] [overflow-wrap:anywhere] text-ink">{location.path}</p>
                       <p className="text-[13px] text-muted">Modified {formatDate(location.modifiedAt)}</p>
                       {location.sourceKind === "dropbox" ? (
                         <a

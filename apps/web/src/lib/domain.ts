@@ -95,7 +95,6 @@ export const SearchFilesRows = z.array(SearchFilesRow);
 export const KeywordReason = z.enum(["embed_timeout", "embed_error", "embed_unconfigured"]);
 export type KeywordReason = z.infer<typeof KeywordReason>;
 
-// The wire shape of GET /api/search, parsed again on the client.
 const FileLocationWire = z.object({
   id: z.string(),
   sourceId: SourceId,

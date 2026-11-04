@@ -34,7 +34,6 @@ export function highlight(text: string, query: string): Segment[] {
   return segments;
 }
 
-// A window of `text` around the first match, cut on word boundaries.
 export function excerpt(text: string, query: string, maxChars = 220): string {
   const flat = text.replace(/\s+/g, " ").trim();
   if (flat.length <= maxChars) return flat;

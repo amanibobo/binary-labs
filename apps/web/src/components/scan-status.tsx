@@ -32,7 +32,7 @@ export function ScanBar({ scan }: { scan: ScanState }) {
         aria-valuemax={100}
         aria-valuenow={pct}
         aria-valuetext={line}
-        className="h-1 overflow-hidden rounded-full bg-fill"
+        className="h-1 overflow-hidden rounded-full bg-hairline"
       >
         <div
           className="h-full rounded-full bg-green transition-[width] duration-200 ease-out"
@@ -41,14 +41,13 @@ export function ScanBar({ scan }: { scan: ScanState }) {
       </div>
       <p className="mt-2 text-sm text-muted" aria-live="polite">
         {line}
-        {failed === null ? null : <span>. {failed}</span>}
       </p>
+      {failed === null ? null : <p className="text-sm text-muted">{failed}</p>}
       {scan.kind === "error" ? <p className="mt-1 text-sm text-muted">The last scan stopped: {scan.message}</p> : null}
     </div>
   );
 }
 
-// The thin bar above search while a scan is still working.
 export function ActiveScan({ initial }: { initial: SourceState }) {
   const { data } = useSourceState(initial);
   if (data.kind !== "connected" || !isScanActive(data.scan)) return null;
