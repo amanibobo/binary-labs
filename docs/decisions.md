@@ -57,3 +57,9 @@ Qwen3-Embedding-0.6B query embed over HTTP, p50 ~45 ms (three runs of 50: 41, 49
 Scan of the 51-file sample lab: 24 s, ~97% of it embedding (~1k tokens/s on MPS). Lab text runs ~3 Qwen tokens per word because digits tokenize singly; chunks are sized by a token estimate, not word count.
 
 Consequence: a CPU-only Fly/Railway worker would push every search past the 250 ms timeout into keyword-only mode. For the pilot, serve `/embed` from a machine with a GPU (the PRD's local GPU box or Modal), or swap to `bge-small-en-v1.5` per the earlier decision. Not settled yet.
+
+## 2026-11-04 — visual system: neutral, Base Web style
+
+Supersedes the PRD's color tokens and type. The look follows Uber's open-source Base Web design system (MIT): black, white and a neutral gray scale; black primary buttons; bold, tight headings; pill buttons; modals with a large title and a full-width primary action. One blue (Base accent) for search match highlights, links and focus rings. Amber stays reserved for Phase 4 flags. Light and dark modes both stay.
+
+Icons are Base Web's MIT icon set, with any missing glyphs (folder, file kinds) drawn to match its 24px grid. Type is Geist Sans and Geist Mono, the closest open match to Uber Move, which is proprietary. Nothing Uber-branded (logo, name, Uber Move) is used.
