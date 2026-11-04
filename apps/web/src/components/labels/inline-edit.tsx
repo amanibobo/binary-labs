@@ -92,7 +92,7 @@ export function InlineEdit({
           autoComplete="off"
           spellCheck={false}
           className={cn(
-            "min-w-0 rounded-[4px] border-2 border-border-selected bg-background-primary text-content-primary placeholder:text-content-tertiary focus-visible:outline-none",
+            "min-w-0 rounded-md border border-border-accent bg-background-raised text-content-primary ring-1 ring-border-accent placeholder:text-content-tertiary focus-visible:outline-none",
             inputClassName,
           )}
         />
@@ -103,7 +103,7 @@ export function InlineEdit({
               onRemove();
               close();
             }}
-            className="relative flex size-6 shrink-0 items-center justify-center rounded-[4px] text-content-secondary hover:bg-button-tertiary-hover max-sm:size-8 after:absolute after:-inset-2.5 sm:after:-inset-1"
+            className="relative flex size-6 shrink-0 items-center justify-center rounded-md text-content-secondary hover:bg-background-tertiary max-sm:size-8 after:absolute after:-inset-2.5 sm:after:-inset-1"
           >
             <DeleteIcon className="size-4" />
             <span className="sr-only">{removeLabel ?? "Remove"}</span>

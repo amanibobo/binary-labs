@@ -2,16 +2,18 @@
 
 import { AnimatePresence, motion } from "motion/react";
 import { useId, useState } from "react";
-import { FILE_KIND_ICONS } from "@/components/icons/drawn";
+import { KindIcon } from "@/components/files/kind-icon";
 import { useLabApi } from "@/components/lab-api";
 import { LabelsProvider, useLabels } from "@/components/labels/labels-context";
+import { dataRow, dataSurface } from "@/components/ui/data-table";
 import { Input } from "@/components/ui/field";
+import { cn } from "@/lib/cn";
 import type { LabeledFileHit } from "@/lib/domain";
 import { folderOf } from "@/lib/format";
 
 export function NeedsLookView({ files }: { files: LabeledFileHit[] }) {
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 pt-8 pb-24 sm:px-6 sm:pt-12">
+    <div className="mx-auto w-full max-w-4xl px-4 pt-8 pb-24 sm:px-8 sm:pt-16">
       <h1 className="text-heading-large">Needs a look</h1>
       <p className="mt-1 max-w-prose text-paragraph-medium text-content-tertiary">
         Files we couldn&apos;t read or weren&apos;t sure about. Say what each one is in a few words, and similar files will
@@ -34,9 +36,9 @@ function Queue({ files }: { files: LabeledFileHit[] }) {
         {waiting.length === 1 ? "1 file left" : `${waiting.length} files left`}
       </p>
       {waiting.length === 0 ? (
-        <p className="mt-10 text-paragraph-medium text-content-secondary">Nothing needs a look right now.</p>
+        <p className="mt-8 text-paragraph-medium text-content-secondary">Nothing needs a look right now.</p>
       ) : null}
-      <ul className="-mx-4 mt-8 sm:mx-0">
+      <ul className={cn(dataSurface, "mt-8", waiting.length === 0 && "hidden")}>
         <AnimatePresence initial={false}>
           {waiting.map((file) => (
             <motion.li
@@ -44,7 +46,7 @@ function Queue({ files }: { files: LabeledFileHit[] }) {
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: "auto", opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              className="relative overflow-hidden after:absolute after:right-0 after:bottom-0 after:left-16 after:h-px after:bg-border-opaque last:after:hidden"
+              className={cn(dataRow, "overflow-hidden")}
             >
               <QueueRow file={file} />
             </motion.li>
@@ -62,14 +64,11 @@ function QueueRow({ file }: { file: LabeledFileHit }) {
   const [error, setError] = useState<string | null>(null);
   const id = useId();
   const [primary] = file.locations;
-  const KindIcon = FILE_KIND_ICONS[file.fileKind];
 
   return (
-    <div className="flex items-start">
-      <span className="flex h-16 w-16 shrink-0 items-center justify-center">
-        <KindIcon className="text-content-secondary" />
-      </span>
-      <div className="min-w-0 flex-1 py-3 pr-4">
+    <div className="flex items-start gap-4 py-4 pr-4 pl-4 sm:pr-5 sm:pl-5">
+      <KindIcon kind={file.fileKind} className="mt-0.5" />
+      <div className="min-w-0 flex-1">
         <div className="flex items-start gap-3">
           <div className="min-w-0 flex-1">
             <p className="truncate font-mono text-label-medium text-content-primary">{primary.originalName}</p>
@@ -84,7 +83,7 @@ function QueueRow({ file }: { file: LabeledFileHit }) {
               src={api.previewUrl(file.sha256, { view: false })}
               alt={`Preview of ${primary.originalName}`}
               loading="lazy"
-              className="size-14 shrink-0 rounded-lg bg-background-secondary object-cover sm:size-16"
+              className="size-14 shrink-0 rounded-lg border border-border-opaque bg-background-secondary object-cover sm:size-16"
             />
           ) : null}
         </div>

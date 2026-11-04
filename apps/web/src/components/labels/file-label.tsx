@@ -30,10 +30,9 @@ const dayFormat = (iso: string) => formatDate(`${iso}T00:00:00Z`);
 // The row's toggle button sits underneath; everything here that takes clicks opts back in.
 const interactive = "pointer-events-auto relative";
 
-// Base Web Tag, small and secondary: 4px radius, gray50 on gray700. Phones get 32px tags
-// in rows 12px apart, with the hit area stretched to 44px.
+// Small gray tags. Phones get 32px tags in rows 12px apart, with the hit area stretched to 44px.
 const tagShape =
-  "inline-flex h-6 max-w-full items-center rounded-[4px] px-2 text-label-xsmall transition-colors duration-150 ease-out max-sm:h-8 max-sm:min-w-11 max-sm:justify-center max-sm:after:absolute max-sm:after:-inset-y-1.5 max-sm:after:inset-x-0";
+  "inline-flex h-6 max-w-full items-center rounded-md px-2 text-label-xsmall transition-colors duration-150 ease-out max-sm:h-8 max-sm:min-w-11 max-sm:justify-center max-sm:after:absolute max-sm:after:-inset-y-1.5 max-sm:after:inset-x-0";
 
 const tagInput = "h-6 w-44 px-1.5 text-label-xsmall max-sm:h-8 max-sm:text-paragraph-medium";
 
@@ -54,7 +53,7 @@ export function LabelTitle({ hit, label }: { hit: FileHit; label: Label | null }
       inputClassName="h-7 w-full px-1.5 text-label-medium max-sm:h-9"
       triggerClassName={cn(
         interactive,
-        "-mx-1 flex max-w-[calc(100%+8px)] rounded-[4px] px-1 text-left text-label-medium text-content-primary hover:bg-background-tertiary max-sm:after:absolute max-sm:after:-inset-y-3 max-sm:after:inset-x-0",
+        "-mx-1 flex max-w-[calc(100%+8px)] rounded-md px-1 text-left text-label-medium text-content-primary hover:bg-background-tertiary max-sm:after:absolute max-sm:after:-inset-y-3 max-sm:after:inset-x-0",
         !named && "font-mono",
       )}
       trigger={
@@ -113,7 +112,7 @@ export function LabelTags({ hit, label, expanded }: { hit: FileHit; label: Label
         triggerClassName={cn(
           interactive,
           tagShape,
-          "gap-1 pl-1 text-content-tertiary hover:bg-button-tertiary-hover hover:text-content-primary",
+          "gap-1 pl-1 text-content-tertiary hover:bg-background-tertiary hover:text-content-primary",
           !expanded && "max-sm:hidden pointer-coarse:hidden sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100",
         )}
         trigger={
