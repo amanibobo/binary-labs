@@ -7,7 +7,7 @@ import { useId, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import type { FileHit } from "@/lib/domain";
 import { cn } from "@/lib/cn";
-import { folderOf, formatDate, openInDropboxUrl } from "@/lib/format";
+import { folderOf, formatDate, openTarget } from "@/lib/format";
 import { authorName, isCurrent, KIND_NAMES, protocolHref, type AuthorNames, type ProtocolVersion } from "@/lib/protocols";
 import { KindIcon } from "../files/kind-icon";
 import { PreviewPanel } from "../files/preview-panel";
@@ -173,6 +173,7 @@ function LinkedFileRow({
 }) {
   const panelId = useId();
   const [primary] = hit.locations;
+  const open = openTarget(primary);
   const cleanName = hit.label?.cleanName ?? null;
   const title = cleanName ?? primary.originalName;
   return (
@@ -205,17 +206,19 @@ function LinkedFileRow({
           </span>
         </span>
         <span className="relative mt-3 mr-2 flex shrink-0 self-start sm:mt-4">
-          {primary.sourceKind === "dropbox" ? (
+          {open === null ? null : (
             <a
-              href={openInDropboxUrl(primary.path)}
+              href={open.href}
               target="_blank"
               rel="noreferrer"
               className={cn(buttonVariants({ variant: "tertiary", shape: "square" }), "text-content-secondary")}
             >
               <OpenExternalIcon />
-              <span className="sr-only">Open {primary.originalName} in Dropbox (opens in a new tab)</span>
+              <span className="sr-only">
+                {open.label}: {primary.originalName} (opens in a new tab)
+              </span>
             </a>
-          ) : null}
+          )}
           {onUnlink === null ? null : (
             <button
               type="button"

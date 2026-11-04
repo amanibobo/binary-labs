@@ -1,4 +1,4 @@
-import type { FileKind, FileLocation, MatchReason } from "./domain";
+import type { FileKind, FileLocation, MatchReason, SourceKind } from "./domain";
 
 const dateFormat = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
 
@@ -27,6 +27,20 @@ export function otherPlacesLine(count: number): string | null {
 
 export function openInDropboxUrl(path: string): string {
   return `https://www.dropbox.com/home${path.split("/").map(encodeURIComponent).join("/")}`;
+}
+
+export type OpenTarget = { href: string; label: string };
+
+// Where "Open" takes a file: Dropbox files open in Dropbox, files we hold come from our
+// store, and a local dev folder has nowhere to go.
+const OPEN_TARGETS = {
+  dropbox: (l) => ({ href: openInDropboxUrl(l.path), label: "Open in Dropbox" }),
+  upload: (l) => ({ href: `/api/files/${l.id}`, label: "Open file" }),
+  local: () => null,
+} satisfies Record<SourceKind, (location: FileLocation) => OpenTarget | null>;
+
+export function openTarget(location: FileLocation): OpenTarget | null {
+  return OPEN_TARGETS[location.sourceKind](location);
 }
 
 export const KIND_LABELS = {

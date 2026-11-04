@@ -9,6 +9,10 @@ export type SourceId = z.infer<typeof SourceId>;
 export const UserId = z.uuid().brand<"UserId">();
 export type UserId = z.infer<typeof UserId>;
 
+// file_locations.id: one place a file lives. An upload is one too, so routes take it to find the bytes.
+export const LocationId = z.uuid().brand<"LocationId">();
+export type LocationId = z.infer<typeof LocationId>;
+
 export const Sha256 = z
   .string()
   .regex(/^[0-9a-f]{64}$/, "expected a lowercase hex sha256")
