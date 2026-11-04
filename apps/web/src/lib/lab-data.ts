@@ -19,7 +19,7 @@ import {
   type Person,
 } from "./domain";
 import { FOLDER_PAGE_SIZE, FolderFilesRows, FolderTreeRows, type FolderPath, type FolderRow } from "./folders";
-import { Sha256, SourceId, type LabId, type ProtocolId } from "./ids";
+import { Sha256, SourceId, type LabId, type ProtocolId, type UserId } from "./ids";
 import {
   HISTORY_COLUMNS,
   HistoryRows,
@@ -161,6 +161,35 @@ export async function loadExperiments(supabase: Supabase, labId: LabId): Promise
   return ExperimentRows.parse(
     unwrap(await supabase.from("experiments").select("id, name, aliases").eq("lab_id", labId).order("name")),
   );
+}
+
+const RecentUploadExperiments = z.array(z.object({ experiments: z.object({ name: z.string() }).nullable() }));
+
+// The upload page's experiment choices: the ones the lab uploaded to most recently first,
+// then the rest by name. Recent ones become one-tap chips.
+export function experimentChoices(recent: readonly string[], all: readonly Experiment[]): string[] {
+  return [...new Set([...recent, ...all.map((e) => e.name)])];
+}
+
+export async function loadUploadChoices(
+  supabase: Supabase,
+  labId: LabId,
+  userId: UserId,
+): Promise<{ experiments: string[]; personName: string | null }> {
+  const [recent, all, me] = await Promise.all([
+    supabase
+      .from("uploads")
+      .select("experiments(name)")
+      .eq("lab_id", labId)
+      .not("experiment_id", "is", null)
+      .order("uploaded_at", { ascending: false })
+      .limit(50),
+    loadExperiments(supabase, labId),
+    supabase.from("people").select("display_name").eq("lab_id", labId).eq("member_user_id", userId).limit(1),
+  ]);
+  const recentNames = RecentUploadExperiments.parse(unwrap(recent)).flatMap((r) => (r.experiments === null ? [] : [r.experiments.name]));
+  const person = z.array(z.object({ display_name: z.string() })).parse(unwrap(me))[0];
+  return { experiments: experimentChoices(recentNames, all), personName: person?.display_name ?? null };
 }
 
 export async function loadPeople(supabase: Supabase, labId: LabId): Promise<Person[]> {

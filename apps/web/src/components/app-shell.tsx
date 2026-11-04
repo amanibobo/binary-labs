@@ -4,7 +4,7 @@ import { cn } from "@/lib/cn";
 import type { ShellData } from "@/lib/shell-data";
 import { AccountMenu } from "./account-menu";
 import { CommandPalette, PaletteTrigger } from "./command-palette";
-import { SearchOutlineIcon } from "./icons/drawn";
+import { SearchOutlineIcon, UploadIcon } from "./icons/drawn";
 import { NeedsLookCountProvider, NeedsLookCountText } from "./labels/needs-look-count";
 import { NAV, type ShellLocation } from "./nav";
 import { buttonVariants } from "./ui/button";
@@ -44,6 +44,14 @@ export function AppShell({ shell, location, children }: { shell: ShellData; loca
                 ))}
               </nav>
               <div className="ml-auto flex items-center gap-1 sm:gap-2">
+                <Link
+                  href="/upload"
+                  aria-current={location.section === "upload" ? "page" : undefined}
+                  className={cn(buttonVariants({ variant: "secondary", size: "compact" }), "gap-1.5 pl-2.5")}
+                >
+                  <UploadIcon className="size-5" />
+                  Upload
+                </Link>
                 <PaletteTrigger
                   className={cn(buttonVariants({ variant: "tertiary", size: "compact" }), "gap-2 max-sm:w-11 max-sm:px-0")}
                 >

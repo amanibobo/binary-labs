@@ -153,6 +153,23 @@ export function OpenExternalIcon(props: IconProps) {
   );
 }
 
+export function UploadIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path {...line} d="M12 15V4M7.5 8.5 12 4l4.5 4.5M5 14v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4" />
+    </Svg>
+  );
+}
+
+export function CameraIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path {...line} d="M4 9a2 2 0 0 1 2-2h2l1.5-2h5L16 7h2a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" />
+      <circle {...line} cx="12" cy="13" r="3.25" />
+    </Svg>
+  );
+}
+
 export const FILE_KIND_ICONS = {
   pdf: FilePdfIcon,
   spreadsheet: FileSpreadsheetIcon,

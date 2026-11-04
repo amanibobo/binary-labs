@@ -3,7 +3,8 @@ import type { FolderPath } from "@/lib/folders";
 import type { IconProps } from "./icons/svg";
 import { BrowseIcon, NeedsLookIcon, ProtocolIcon, SearchOutlineIcon, SettingsIcon } from "./icons/drawn";
 
-export type Section = "search" | "browse" | "protocols" | "needs-look" | "lab";
+// "upload" is an action in the top bar rather than a tab.
+export type Section = "search" | "browse" | "protocols" | "needs-look" | "lab" | "upload";
 
 export type ShellLocation = { section: Section; folder?: FolderPath };
 
