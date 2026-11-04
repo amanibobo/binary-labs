@@ -34,15 +34,15 @@ export function FileResult({
 
   return (
     <li className="relative after:absolute after:right-0 after:bottom-0 after:left-16 after:h-px after:bg-border-opaque last:after:hidden">
-      <div className="flex items-stretch">
+      <div className={cn("flex items-stretch", expanded && "bg-background-secondary")}>
         <button
           type="button"
           aria-expanded={expanded}
           aria-controls={panelId}
           onClick={onToggle}
           className={cn(
-            "flex min-h-16 min-w-0 flex-1 items-start text-left transition-colors duration-150 ease-out hover:bg-button-tertiary-hover focus-visible:outline-offset-[-2px]",
-            expanded && "bg-background-secondary hover:bg-background-secondary",
+            "flex min-h-16 min-w-0 flex-1 items-start text-left transition-colors duration-150 ease-out focus-visible:outline-offset-[-2px]",
+            !expanded && "hover:bg-button-tertiary-hover",
           )}
         >
           <span className="flex h-16 w-16 shrink-0 items-center justify-center">
