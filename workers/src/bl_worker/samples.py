@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import random
+from datetime import UTC, datetime
 
 from PIL import Image, ImageDraw
 
@@ -12,6 +13,8 @@ def pdf(lines: list[str], *, pages: int = 1) -> bytes:
     from fpdf import FPDF
 
     doc = FPDF()
+    # A fixed date keeps the bytes, and so the sha256, the same from run to run.
+    doc.set_creation_date(datetime(2026, 1, 1, tzinfo=UTC))
     doc.set_font("helvetica", size=11)
     per_page = max(1, len(lines) // pages)
     for i in range(pages):
