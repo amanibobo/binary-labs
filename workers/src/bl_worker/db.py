@@ -13,7 +13,7 @@ from bl_worker.config import WORKERS_DIR
 REPO_DIR = WORKERS_DIR.parent
 MIGRATIONS_DIR = REPO_DIR / "db" / "migrations"
 AUTH_STUB = REPO_DIR / "db" / "test" / "auth_stub.sql"
-MIGRATE_LOCK = 0x626C6D67  # "blmg"
+MIGRATE_LOCK = 0x626C6D67
 
 
 def configure(conn: psycopg.Connection) -> None:
