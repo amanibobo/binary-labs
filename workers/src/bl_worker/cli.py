@@ -73,6 +73,9 @@ def cmd_scan_local(args: argparse.Namespace) -> None:
 
 def main(argv: list[str] | None = None) -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+    # Hugging Face's hub client logs every HEAD request it makes at startup.
+    for noisy in ("httpx", "httpx2"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
     parser = argparse.ArgumentParser(prog="bl")
     sub = parser.add_subparsers(required=True)
 
