@@ -9,6 +9,8 @@ const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"]
 export const metadata: Metadata = {
   title: { default: "Binary Labs", template: "%s · Binary Labs" },
   description: "Search everything your lab has made.",
+  appleWebApp: { capable: true, title: "Binary Labs", statusBarStyle: "default" },
+  icons: { apple: "/icons/apple-touch-icon.png" },
 };
 
 export const viewport: Viewport = {
