@@ -9,7 +9,7 @@ const eslintConfig = defineConfig([
     rules: {
       "@typescript-eslint/no-explicit-any": "error",
       "@typescript-eslint/consistent-type-assertions": ["error", { assertionStyle: "never" }],
-      "no-console": "error",
+      "no-console": ["error", { allow: ["error"] }],
     },
   },
   globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts", "screenshots/**"]),
