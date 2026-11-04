@@ -29,6 +29,7 @@ def cmd_worker(args: argparse.Namespace) -> None:
                 concurrency=args.concurrency,
                 additional_context={"runtime": rt},
                 delete_jobs="successful",
+                wait=not args.until_idle,
             )
     finally:
         rt.close()
@@ -71,6 +72,49 @@ def cmd_scan_local(args: argparse.Namespace) -> None:
     print(f"scan requested for source {row[0]} ({folder})")
 
 
+def cmd_sample_lab(args: argparse.Namespace) -> None:
+    import uuid
+
+    from procrastinate import PsycopgConnector
+
+    from bl_worker.db import connect
+    from bl_worker.jobs import app
+    from bl_worker.labels.evaluate import load_expected, seed_lab
+
+    folder = Path(args.folder).resolve()
+    settings = load_settings()
+    with connect(settings.database_url) as conn:
+        user = uuid.uuid4()
+        conn.execute("insert into auth.users (id, email) values (%s, 'sample@lab.edu')", (user,))
+        (lab_id,) = conn.execute(
+            "insert into labs (name) values ('Sample lab') returning id"
+        ).fetchone()  # type: ignore[misc]
+        conn.execute("insert into members values (%s, %s, 'admin')", (lab_id, user))
+        (source_id,) = conn.execute(
+            "insert into sources (lab_id, kind, root_path, account_label, scan_requested_at)"
+            " values (%s, 'local', %s, %s, now()) returning id",
+            (lab_id, str(folder), folder.name),
+        ).fetchone()  # type: ignore[misc]
+        seed_lab(conn, lab_id, load_expected())
+    with app.replace_connector(PsycopgConnector(conninfo=settings.database_url)) as a, a.open():
+        a.configure_task("scan_source").defer(source_id=str(source_id))
+    print(lab_id)
+
+
+def cmd_eval_labels(args: argparse.Namespace) -> None:
+    from bl_worker.db import connect
+    from bl_worker.labels.evaluate import load_expected, score
+
+    with connect(args.db) as conn:
+        lab_id = args.lab
+        if lab_id is None:
+            labs = conn.execute("select id from labs").fetchall()
+            if len(labs) != 1:
+                raise SystemExit(f"{len(labs)} labs in this database; pass --lab")
+            lab_id = labs[0][0]
+        print(score(conn, lab_id, load_expected()).text())
+
+
 def main(argv: list[str] | None = None) -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
     # Hugging Face's hub client logs every HEAD request it makes at startup.
@@ -85,6 +129,7 @@ def main(argv: list[str] | None = None) -> None:
 
     p = sub.add_parser("worker", help="run jobs and the scan scheduler")
     p.add_argument("--concurrency", type=int, default=4)
+    p.add_argument("--until-idle", action="store_true", help="exit once no job is left")
     p.set_defaults(func=cmd_worker)
 
     p = sub.add_parser("serve-embed", help="serve POST /embed for search queries")
@@ -95,6 +140,15 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("lab_id", type=UUID)
     p.add_argument("folder")
     p.set_defaults(func=cmd_scan_local)
+
+    p = sub.add_parser("sample-lab", help="dev: a lab over a sample folder, with its lists")
+    p.add_argument("folder")
+    p.set_defaults(func=cmd_sample_lab)
+
+    p = sub.add_parser("eval-labels", help="score stored labels against evals/labels_expected.json")
+    p.add_argument("db", help="database URL")
+    p.add_argument("--lab", type=UUID)
+    p.set_defaults(func=cmd_eval_labels)
 
     args = parser.parse_args(argv)
     args.func(args)

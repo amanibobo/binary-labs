@@ -3,6 +3,7 @@ from dataclasses import replace
 
 import pytest
 from conftest import committed_as_user, run_scan, search
+from test_tier1 import CTX, LYSO, P450_3, file
 
 from bl_worker import samples
 from bl_worker.domain import FileKind
@@ -13,8 +14,6 @@ from bl_worker.labels.learning import learn_pending
 from bl_worker.labels.prompt import CaptionOutput, InvalidOutput, parse_label
 from bl_worker.labels.tier1 import Tier1
 from bl_worker.models import TIER2_MODEL, TIER3_MODEL, FakeModels, Image
-
-from test_tier1 import CTX, LYSO, P450_3, file
 
 
 def label_json(**overrides):

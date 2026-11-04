@@ -112,7 +112,7 @@ def test_a_member_cannot_write_labels_rules_or_model_calls_directly(conn, labele
 
 
 def test_a_member_cannot_correct_or_add_to_another_lab(conn, labeled):
-    (a, _, _), (b, sha_b, exp_b) = labeled
+    (a, _, _), (b, sha_b, _) = labeled
     with as_user(conn, a.user_id), pytest.raises(psycopg.errors.InsufficientPrivilege):
         conn.execute(
             "select * from correct_label(%s, %s, 'stolen', null, null, null, null, '{}')",
