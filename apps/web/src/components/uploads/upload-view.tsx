@@ -11,11 +11,11 @@ import { dataRow, dataSurface } from "@/components/ui/data-table";
 import { Input, Label } from "@/components/ui/field";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/cn";
-import { needsCheck, type Label as FileLabel } from "@/lib/domain";
+import { needsCheck, type FileKind, type Label as FileLabel } from "@/lib/domain";
 import { formatDate } from "@/lib/format";
 import type { LocationId } from "@/lib/ids";
 import { labelTags } from "@/lib/label-edit";
-import { EMPTY_QUEUE, nextToSend, queueReducer, unsent, type NewItem, type QueueItem } from "@/lib/upload-queue";
+import { EMPTY_QUEUE, nextToSend, queueReducer, unsent, type NewItem, type QueueAction, type QueueItem } from "@/lib/upload-queue";
 import { capturedName, isSettled, localDay, UPLOAD_MAX_BYTES, type UploadRow } from "@/lib/uploads";
 
 const POLL_MS = 2_000;
@@ -283,7 +283,7 @@ function Pickers({ onFiles }: { onFiles: (files: readonly File[], source: "camer
   );
 }
 
-function Thumb({ src, kind }: { src: string | null; kind: Parameters<typeof KindIcon>[0]["kind"] | null }) {
+function Thumb({ src, kind }: { src: string | null; kind: FileKind | null }) {
   return (
     <span className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border-opaque bg-background-secondary">
       {src !== null ? (
@@ -301,7 +301,7 @@ function Thumb({ src, kind }: { src: string | null; kind: Parameters<typeof Kind
 const rowShell = "flex items-start gap-3 px-4 py-3 sm:gap-4 sm:px-5";
 const smallAction = cn(buttonVariants({ variant: "secondary", size: "compact" }), "shrink-0");
 
-function QueuedUpload({ item, row, dispatch }: { item: QueueItem; row: UploadRow | undefined; dispatch: (a: Parameters<typeof queueReducer>[1]) => void }) {
+function QueuedUpload({ item, row, dispatch }: { item: QueueItem; row: UploadRow | undefined; dispatch: (action: QueueAction) => void }) {
   const { state } = item;
   if (state.kind === "stored") {
     if (row !== undefined) return <StoredUpload row={row} thumb={item.thumb} duplicate={state.duplicate} />;
