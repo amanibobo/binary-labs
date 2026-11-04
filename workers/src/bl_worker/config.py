@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     embed_api_key: SecretStr | None = None
     embed_model: str = "Qwen/Qwen3-Embedding-0.6B"
     embed_port: int = 8787
+    anthropic_api_key: SecretStr | None = None
 
     dropbox_app_key: str | None = None
     dropbox_app_secret: SecretStr | None = None

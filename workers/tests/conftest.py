@@ -44,6 +44,7 @@ def settings(database_url: str, tmp_path: Path) -> Settings:
         database_url=database_url,
         token_encryption_key=base64.b64encode(KEY).decode(),  # type: ignore[arg-type]
         embed_model="hash-1024",
+        anthropic_api_key=None,
         preview_store="local",
         preview_dir=tmp_path / "previews",
     )

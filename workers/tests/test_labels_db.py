@@ -119,12 +119,10 @@ def test_a_member_cannot_correct_or_add_to_another_lab(conn, labeled):
             (b.id, sha_b),
         )
     with as_user(conn, a.user_id), pytest.raises(psycopg.errors.InsufficientPrivilege):
-        conn.execute(
-            "insert into experiments (lab_id, name) values (%s, 'planted')", (b.id,)
-        )
-    assert conn.execute(
-        "select clean_name from labels where lab_id = %s", (b.id,)
-    ).fetchone() == ("renamed",)
+        conn.execute("insert into experiments (lab_id, name) values (%s, 'planted')", (b.id,))
+    assert conn.execute("select clean_name from labels where lab_id = %s", (b.id,)).fetchone() == (
+        "renamed",
+    )
 
 
 def test_correct_label_records_the_acting_user_and_both_states(conn, labeled, make_lab):
@@ -183,8 +181,7 @@ def test_accepting_unchanged_values_is_an_acceptance(conn, rt, make_lab):
     add_label(conn, lab, sha, status="check", confidence=0.6)
     with as_user(conn, lab.user_id):
         _, label = conn.execute(
-            "select * from correct_label(%s, %s, 'P450 batch 3 gel', null, null, null, null,"
-            " '{}')",
+            "select * from correct_label(%s, %s, 'P450 batch 3 gel', null, null, null, null, '{}')",
             (lab.id, sha),
         ).fetchone()
     assert label["status"] == "accepted" and label["confidence"] == 1

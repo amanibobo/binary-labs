@@ -9,6 +9,8 @@ from procrastinate import App, JobContext, PsycopgConnector, RetryStrategy
 from procrastinate.exceptions import AlreadyEnqueued
 
 from bl_worker import process, scan
+from bl_worker.labels import job as labels
+from bl_worker.labels.learning import learn_pending
 from bl_worker.runtime import Runtime
 
 log = logging.getLogger(__name__)
@@ -76,5 +78,44 @@ def scan_source(context: JobContext, source_id: str) -> None:
 
 @app.task(name="process_location", pass_context=True, retry=RetryStrategy(max_attempts=3, wait=5))
 def process_location(context: JobContext, location_id: str) -> None:
-    outcome = process.process_location(_runtime(context), UUID(location_id))
+    rt = _runtime(context)
+    outcome = process.process_location(rt, UUID(location_id))
     log.info("location %s: %s", location_id, outcome)
+    with rt.pool.connection() as conn:
+        row = conn.execute(
+            "select lab_id, sha256 from file_locations where id = %s and sha256 is not null"
+            " and index_state <> 'pending'",
+            (UUID(location_id),),
+        ).fetchone()
+    if row is not None:
+        defer_label(row[0], row[1])
+
+
+def defer_label(lab_id: UUID, sha256: str) -> bool:
+    return _defer_locked(
+        "label_blob", f"label:{lab_id}:{sha256}", lab_id=str(lab_id), sha256=sha256
+    )
+
+
+@app.task(name="label_blob", pass_context=True, retry=RetryStrategy(max_attempts=3, wait=10))
+def label_blob(context: JobContext, lab_id: str, sha256: str) -> None:
+    draft = labels.label_blob(_runtime(context), UUID(lab_id), sha256)
+    log.info("label %s: %s", sha256[:12], draft.status if draft else "skipped")
+
+
+@app.periodic(cron="* * * * * */10")
+@app.task(name="tend_labels", pass_context=True, queueing_lock="tend_labels")
+async def tend_labels(context: JobContext, timestamp: int) -> None:
+    """Learns from settled corrections, then queues labels for blobs that have none
+    (files indexed before labels existed, or jobs that were lost)."""
+    rt = _runtime(context)
+
+    def tend() -> int:
+        learn_pending(rt)
+        with rt.pool.connection() as conn:
+            todo = labels.unlabeled(conn, models=rt.models is not None)
+        return sum(defer_label(lab_id, sha) for lab_id, sha in todo)
+
+    deferred = await asyncio.to_thread(tend)
+    if deferred:
+        log.info("deferred %d label jobs", deferred)

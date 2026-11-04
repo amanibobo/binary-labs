@@ -31,6 +31,8 @@ class PreviewFailed(Exception):
 class PreviewStore(Protocol):
     def put(self, key: str, data: bytes) -> None: ...
 
+    def get(self, key: str) -> bytes | None: ...
+
 
 def preview_key(lab_id: object, sha256: str) -> str:
     return f"{lab_id}/{sha256}.webp"
@@ -46,6 +48,10 @@ class LocalPreviewStore:
         tmp = path.with_suffix(".tmp")
         tmp.write_bytes(data)
         tmp.replace(path)
+
+    def get(self, key: str) -> bytes | None:
+        path = self.root / key
+        return path.read_bytes() if path.is_file() else None
 
 
 class R2PreviewStore:
@@ -63,6 +69,12 @@ class R2PreviewStore:
 
     def put(self, key: str, data: bytes) -> None:
         self._s3.put_object(Bucket=self.bucket, Key=key, Body=data, ContentType="image/webp")
+
+    def get(self, key: str) -> bytes | None:
+        try:
+            return self._s3.get_object(Bucket=self.bucket, Key=key)["Body"].read()
+        except self._s3.exceptions.NoSuchKey:
+            return None
 
 
 def build_preview_store(settings: Settings) -> PreviewStore:
