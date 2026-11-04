@@ -17,6 +17,7 @@ import {
   type LabMember,
   type Person,
 } from "./domain";
+import { FOLDER_PAGE_SIZE, FolderFilesRows, FolderTreeRows, type FolderPath, type FolderRow } from "./folders";
 import { Sha256, SourceId, type LabId } from "./ids";
 import { deriveScan, type SourceState } from "./source-state";
 import { unwrap, type Supabase } from "./supabase/server";
@@ -159,4 +160,21 @@ export async function loadPeople(supabase: Supabase, labId: LabId): Promise<Pers
 
 export async function loadMembers(supabase: Supabase, labId: LabId): Promise<LabMember[]> {
   return LabMemberRows.parse(unwrap(await supabase.rpc("lab_members", { p_lab_id: labId })));
+}
+
+export async function loadFolderTree(supabase: Supabase, labId: LabId): Promise<FolderRow[]> {
+  return FolderTreeRows.parse(unwrap(await supabase.rpc("folder_tree", { p_lab_id: labId })));
+}
+
+export async function loadFolderFiles(
+  supabase: Supabase,
+  labId: LabId,
+  path: FolderPath,
+  offset: number,
+): Promise<FileHit[]> {
+  return FolderFilesRows.parse(
+    unwrap(
+      await supabase.rpc("folder_files", { p_lab_id: labId, p_path: path, p_limit: FOLDER_PAGE_SIZE, p_offset: offset }),
+    ),
+  );
 }

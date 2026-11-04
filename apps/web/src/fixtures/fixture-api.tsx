@@ -48,6 +48,7 @@ export function FixtureLabApi({
       await wait(150, signal);
       return { path, folders: folders[path] ?? [] };
     },
+    folderFiles: async () => [],
     previewUrl: (sha) => PREVIEW_BY_FIRST_CHAR[sha.charAt(0)] ?? "",
     fileLabels: async (shas, signal) => {
       await wait(80, signal);

@@ -2,9 +2,10 @@
 
 import { createContext, use } from "react";
 import { z } from "zod";
-import { CorrectionWire, FileLabelsWire, SearchResponse, type Correction, type FileLabel, type SearchParams } from "@/lib/domain";
+import { CorrectionWire, FileLabelsWire, SearchResponse, type Correction, type FileHit, type FileLabel, type SearchParams } from "@/lib/domain";
 import { correctRequest } from "@/lib/labels";
 import type { LabelDraft } from "@/lib/label-edit";
+import { BrowseResponse, type FolderPath } from "@/lib/folders";
 import { SourceStateWire, type SourceState } from "@/lib/source-state";
 import type { CorrectionId, Sha256 } from "@/lib/ids";
 
@@ -16,6 +17,7 @@ export type LabApi = {
   search: (params: SearchParams, signal: AbortSignal) => Promise<SearchResponse>;
   sourceState: (signal: AbortSignal) => Promise<SourceState>;
   folders: (path: string, signal: AbortSignal) => Promise<DropboxFolderList>;
+  folderFiles: (path: FolderPath, offset: number, signal: AbortSignal) => Promise<FileHit[]>;
   previewUrl: (sha: Sha256, opts: { view: boolean }) => string;
   fileLabels: (shas: readonly Sha256[], signal: AbortSignal) => Promise<FileLabel[]>;
   // Both reject with an Error whose message can be shown to the person.
@@ -60,6 +62,9 @@ export const httpLabApi: LabApi = {
   sourceState: async (signal) => SourceStateWire.parse(await getJson("/api/progress", signal)),
   folders: async (path, signal) =>
     FolderList.parse(await getJson(`/api/dropbox/folders?${new URLSearchParams({ path })}`, signal)),
+  folderFiles: async (path, offset, signal) =>
+    BrowseResponse.parse(await getJson(`/api/browse?${new URLSearchParams({ path, offset: String(offset) })}`, signal))
+      .files,
   previewUrl: (sha, { view }) => `/api/previews/${sha}${view ? "?view=1" : ""}`,
   fileLabels: async (shas, signal) =>
     FileLabelsWire.parse(await getJson(`/api/labels?${new URLSearchParams({ shas: shas.join(",") })}`, signal)),

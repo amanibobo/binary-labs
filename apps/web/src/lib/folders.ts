@@ -124,5 +124,5 @@ const FolderFilesRow = z
   );
 export const FolderFilesRows = z.array(FolderFilesRow);
 
-export const BrowseResponse = z.object({ files: z.array(FileHitWire) });
 export type BrowseResponse = { files: FileHit[] };
+export const BrowseResponse = z.object({ files: z.array(FileHitWire) }) satisfies z.ZodType<BrowseResponse>;
