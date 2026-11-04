@@ -1,0 +1,52 @@
+[project]
+name = "bl-worker"
+version = "0.1.0"
+description = "Binary Labs file worker: sources, scan, extract, embed, /embed"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "boto3>=1.35",
+  "cryptography>=43",
+  "fastapi>=0.115",
+  "filetype>=1.2",
+  "httpx>=0.27",
+  "openpyxl>=3.1",
+  "pdfplumber>=0.11",
+  "pgvector>=0.3",
+  "pillow>=11",
+  "procrastinate>=3.0",
+  "psycopg[binary,pool]>=3.2",
+  "pydantic-settings>=2.6",
+  "pypdfium2>=4.30",
+  "python-docx>=1.1",
+  "sentence-transformers>=3.3",
+  "uvicorn>=0.32",
+]
+
+[project.scripts]
+bl = "bl_worker.cli:main"
+
+[dependency-groups]
+dev = [
+  "fpdf2>=2.8",
+  "pytest>=8.3",
+  "ruff>=0.8",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/bl_worker"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["slow: loads the real embedding model"]
+addopts = "-m 'not slow'"
