@@ -3,7 +3,8 @@
 /*
   Base Web semantic color tokens (github.com/uber/baseui, MIT), light theme:
   src/themes/light-theme/color-semantic-tokens.ts over src/tokens/color-primitive-tokens.ts.
-  Warning stays defined for Phase 4 flags and is unused for now.
+  Warning (amber) is only for the "Check this" label marker. It is Base's yellow secondary
+  tag pair, not contentWarning on backgroundWarning, which measure 2.8:1 light and 2.0:1 dark.
 */
 :root {
   --background-primary: #ffffff;
@@ -12,14 +13,14 @@
   --background-inverse-secondary: #282828;
   --tag-blue-background-secondary: #eff4fe;
   --tag-blue-content-secondary: #175bcc;
-  --background-warning: #f6bc2f;
+  --background-warning: #fdf2dc; /* yellow50 */
   --background-overlay: rgb(0 0 0 / 0.5);
   --content-primary: #000000;
   --content-secondary: #4b4b4b;
   --content-tertiary: #5e5e5e;
   --content-inverse-primary: #ffffff;
   --content-accent: #276ef1;
-  --content-warning: #9f6402;
+  --content-warning: #845201; /* yellow700 */
   --border-opaque: #f3f3f3;
   --border-selected: #000000;
   --border-accent: #276ef1;
@@ -42,14 +43,14 @@
     --background-inverse-secondary: #ababab;
     --tag-blue-background-secondary: #182946;
     --tag-blue-content-secondary: #93b4ee;
-    --background-warning: #7a5616;
+    --background-warning: #39240a; /* yellow100Dark */
     --background-overlay: rgb(0 0 0 / 0.7);
     --content-primary: #dedede;
     --content-secondary: #c4c4c4;
     --content-tertiary: #ababab;
     --content-inverse-primary: #000000;
     --content-accent: #5e8bdb;
-    --content-warning: #ae8523;
+    --content-warning: #f3dcae; /* yellow900Dark */
     --border-opaque: #292929;
     --border-selected: #dedede;
     --border-accent: #3f6ec5;

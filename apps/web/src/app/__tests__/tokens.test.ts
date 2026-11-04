@@ -36,6 +36,7 @@ const TEXT_PAIRS: Pair[] = [
   ["content-primary", "button-tertiary-hover"],
   ["content-accent", "background-primary"],
   ["tag-blue-content-secondary", "tag-blue-background-secondary"],
+  ["content-warning", "background-warning"],
   ["content-inverse-primary", "button-primary-fill"],
   ["content-inverse-primary", "button-primary-hover"],
   ["content-inverse-primary", "background-inverse-secondary"],

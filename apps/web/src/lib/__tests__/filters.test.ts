@@ -23,6 +23,7 @@ const [hit] = SearchFilesRows.parse([
         modified_at: "2026-10-14T23:30:00+00:00",
       },
     ],
+    label: null,
   },
 ]);
 
