@@ -30,7 +30,7 @@ class Extractor(Protocol):
     def extract(self, data: bytes) -> Extracted: ...
 
 
-def _clean(text: str) -> str:
+def clean_text(text: str) -> str:
     # Postgres text can't hold NUL.
     return text.replace("\x00", "")
 
@@ -45,7 +45,7 @@ class PdfExtractor:
         with pdfplumber.open(io.BytesIO(data)) as pdf:
             pages = [page.extract_text() or "" for page in pdf.pages]
         return Extracted(
-            ExtractionKind.TEXT, _clean("\n\n".join(pages).strip()), {"pages": len(pages)}
+            ExtractionKind.TEXT, clean_text("\n\n".join(pages).strip()), {"pages": len(pages)}
         )
 
 
@@ -84,7 +84,7 @@ class SpreadsheetExtractor:
         parts = [_table_text(name, rows) for name, rows in sheets]
         return Extracted(
             ExtractionKind.TABLE,
-            _clean("\n\n".join(text for text, _ in parts)),
+            clean_text("\n\n".join(text for text, _ in parts)),
             {"sheets": [meta for _, meta in parts]},
         )
 
@@ -135,7 +135,7 @@ class DocxExtractor:
         for table in doc.tables:
             for row in table.rows:
                 parts.append(" | ".join(c.text.strip() for c in row.cells))
-        return Extracted(ExtractionKind.TEXT, _clean("\n".join(parts)), {})
+        return Extracted(ExtractionKind.TEXT, clean_text("\n".join(parts)), {})
 
 
 class TextExtractor:
@@ -144,7 +144,7 @@ class TextExtractor:
 
     def extract(self, data: bytes) -> Extracted:
         text = data.decode("utf-8", errors="replace")
-        return Extracted(ExtractionKind.TEXT, _clean(text), {})
+        return Extracted(ExtractionKind.TEXT, clean_text(text), {})
 
 
 EXIF_FIELDS = {
@@ -172,7 +172,7 @@ class ImageMetaExtractor:
                 for tag_id, value in ifd.items():
                     tag = ExifTags.TAGS.get(tag_id)
                     if tag in EXIF_FIELDS and not isinstance(value, bytes):
-                        tags[tag] = _clean(str(value).strip())
+                        tags[tag] = clean_text(str(value).strip())
             size = img.size
         lines = [f"{EXIF_FIELDS[t]}: {v}" for t, v in tags.items() if v]
         lines.append(f"Size: {size[0]}x{size[1]}")
@@ -195,5 +195,7 @@ EXTRACTORS: dict[FileKind, Extractor] = {
 def run_extractor(extractor: Extractor, data: bytes) -> Extracted:
     try:
         return extractor.extract(data)
+    except ExtractionFailed:
+        raise
     except Exception as e:
         raise ExtractionFailed(f"{extractor.name}: {type(e).__name__}: {e}") from e

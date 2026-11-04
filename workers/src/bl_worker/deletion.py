@@ -35,6 +35,7 @@ LAB_TABLES = (
     "protocols",
     "protocol_versions",
     "protocol_files",
+    "talk_throughs",
     "audit_log",
 )
 

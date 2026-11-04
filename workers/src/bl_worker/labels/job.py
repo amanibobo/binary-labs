@@ -10,7 +10,6 @@ from uuid import UUID
 
 import psycopg
 from psycopg.rows import dict_row
-from psycopg.types.json import Jsonb
 
 from bl_worker import process
 from bl_worker.domain import ExtractionKind, FileKind
@@ -44,6 +43,7 @@ from bl_worker.labels.prompt import (
     parse_label,
 )
 from bl_worker.labels.tier1 import Tier1, tier1
+from bl_worker.model_cache import cached_call
 from bl_worker.models import TIER2_MODEL, TIER3_MODEL, Image, ModelRequest
 from bl_worker.previews import preview_key
 from bl_worker.runtime import Runtime
@@ -154,63 +154,6 @@ def _shown(ctx: LabContext, state: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def cached_call(
-    conn: psycopg.Connection,
-    rt: Runtime,
-    f: FileInfo,
-    purpose: str,
-    request: ModelRequest,
-    version: int,
-    *,
-    call_models: bool = True,
-) -> str | None:
-    """The model's JSON text for this file, from the cache or from one new call."""
-    key = (f.lab_id, f.sha256, purpose, request.model, version)
-    row = conn.execute(
-        "select output from model_calls where lab_id = %s and sha256 = %s and purpose = %s"
-        " and model = %s and prompt_version = %s",
-        key,
-    ).fetchone()
-    if row is not None:
-        return row[0].get("text")
-    if rt.models is None or not call_models:
-        return None
-    reply = rt.models.call(request)
-    cost = reply.usage.cost_usd(request.model)
-    conn.execute(
-        "insert into model_calls (lab_id, sha256, purpose, model, prompt_version, output,"
-        " input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, cost_usd)"
-        " values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) on conflict do nothing",
-        (
-            *key,
-            Jsonb({"text": reply.text, "stop_reason": reply.stop_reason}),
-            reply.usage.input_tokens,
-            reply.usage.output_tokens,
-            reply.usage.cache_read_tokens,
-            reply.usage.cache_write_tokens,
-            cost,
-        ),
-    )
-    (total,) = conn.execute(
-        "select coalesce(sum(cost_usd), 0) from model_calls where lab_id = %s", (f.lab_id,)
-    ).fetchone()  # type: ignore[misc]
-    log.info(
-        "model %s %s for %s: in %d (cache read %d, write %d), out %d tokens, $%s;"
-        " lab %s running total $%s",
-        request.model,
-        purpose,
-        f.sha256[:12],
-        reply.usage.input_tokens,
-        reply.usage.cache_read_tokens,
-        reply.usage.cache_write_tokens,
-        reply.usage.output_tokens,
-        cost,
-        f.lab_id,
-        total,
-    )
-    return reply.text
-
-
 def ensure_caption(conn: psycopg.Connection, rt: Runtime, f: FileInfo) -> FileInfo:
     """Images get a Tier 2 description once per blob, stored as an extraction and chunked
     so search finds the image by what it shows."""
@@ -225,7 +168,9 @@ def ensure_caption(conn: psycopg.Connection, rt: Runtime, f: FileInfo) -> FileIn
         content=(Image(thumbnail, "image/webp"), f"File: {f.path}"),
         schema=CaptionOutput,
     )
-    text = cached_call(conn, rt, f, "caption", request, CAPTION_PROMPT_VERSION)
+    text = cached_call(
+        conn, rt.models, f.lab_id, f.sha256, "caption", request, CAPTION_PROMPT_VERSION
+    )
     if text is None:
         return f
     try:
@@ -266,7 +211,16 @@ def _ask(
         effort="low" if model == TIER2_MODEL else "medium",
         max_tokens=4000 if model == TIER2_MODEL else 8000,
     )
-    text = cached_call(conn, rt, f, "label", request, LABEL_PROMPT_VERSION, call_models=call_models)
+    text = cached_call(
+        conn,
+        rt.models,
+        f.lab_id,
+        f.sha256,
+        "label",
+        request,
+        LABEL_PROMPT_VERSION,
+        call_models=call_models,
+    )
     if text is None:
         return None
     try:

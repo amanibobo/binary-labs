@@ -19,6 +19,8 @@ class FileKind(StrEnum):
     DOCUMENT = "document"
     TEXT = "text"
     IMAGE = "image"
+    # Only talk-throughs are transcribed; other audio is indexed by name.
+    AUDIO = "audio"
     OTHER = "other"
 
 
@@ -33,6 +35,7 @@ class ExtractionKind(StrEnum):
     TABLE = "table"
     IMAGE_META = "image_meta"
     IMAGE_CAPTION = "image_caption"
+    TRANSCRIPT = "transcript"
 
 
 @dataclass(frozen=True)

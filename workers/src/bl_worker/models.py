@@ -72,6 +72,11 @@ class ModelReply:
     stop_reason: str
 
 
+class ModelUnavailable(Exception):
+    """The provider couldn't be reached or refused the request itself (after the client's
+    own retries). A label job lets it fail the job; a talk-through shows it with Retry."""
+
+
 class Models(Protocol):
     def call(self, request: ModelRequest) -> ModelReply: ...
 
@@ -99,12 +104,15 @@ class AnthropicModels:
                 },
             },
         }
-        if request.model == TIER3_MODEL:
-            response = self._client.beta.messages.create(
-                **params, betas=["server-side-fallback-2026-07-01"], fallbacks="default"
-            )
-        else:
-            response = self._client.messages.create(**params)
+        try:
+            if request.model == TIER3_MODEL:
+                response = self._client.beta.messages.create(
+                    **params, betas=["server-side-fallback-2026-07-01"], fallbacks="default"
+                )
+            else:
+                response = self._client.messages.create(**params)
+        except self._anthropic.APIError as e:
+            raise ModelUnavailable(f"{type(e).__name__}: {e}") from e
         u = response.usage
         usage = Usage(
             input_tokens=u.input_tokens,

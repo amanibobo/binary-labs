@@ -8,7 +8,7 @@ import psycopg
 from procrastinate import App, JobContext, PsycopgConnector, RetryStrategy
 from procrastinate.exceptions import AlreadyEnqueued
 
-from bl_worker import deletion, process, scan
+from bl_worker import deletion, process, scan, talk_throughs
 from bl_worker.labels import job as labels
 from bl_worker.labels.learning import learn_pending
 from bl_worker.runtime import Runtime
@@ -89,6 +89,11 @@ def process_location(context: JobContext, location_id: str) -> None:
         ).fetchone()
     if row is not None:
         defer_label(row[0], row[1])
+        with rt.pool.connection() as conn:
+            for talk_through_id in talk_throughs.waiting_for_steps(
+                conn, location_id=UUID(location_id)
+            ):
+                defer_steps(row[0], talk_through_id)
 
 
 def defer_label(lab_id: UUID, sha256: str) -> bool:
@@ -119,6 +124,42 @@ async def tend_labels(context: JobContext, timestamp: int) -> None:
     deferred = await asyncio.to_thread(tend)
     if deferred:
         log.info("deferred %d label jobs", deferred)
+
+
+# lab_id rides along so a lab's deletion clears its queued jobs (deletion.LAB_JOBS).
+def defer_steps(lab_id: UUID, talk_through_id: UUID) -> bool:
+    return _defer_locked(
+        "draft_steps",
+        f"steps:{talk_through_id}",
+        lab_id=str(lab_id),
+        talk_through_id=str(talk_through_id),
+    )
+
+
+@app.task(name="draft_steps", pass_context=True, retry=RetryStrategy(max_attempts=3, wait=10))
+def draft_steps(context: JobContext, lab_id: str, talk_through_id: str) -> None:
+    outcome = talk_throughs.draft_steps(_runtime(context), UUID(talk_through_id))
+    log.info("steps for talk-through %s: %s", talk_through_id, outcome or "skipped")
+
+
+@app.periodic(cron="* * * * * */10")
+@app.task(name="tend_talk_throughs", pass_context=True, queueing_lock="tend_talk_throughs")
+async def tend_talk_throughs(context: JobContext, timestamp: int) -> None:
+    """Queues steps for transcribed talk-throughs that have none, so a retry or a lost job
+    is picked up again."""
+    rt = _runtime(context)
+
+    def tend() -> int:
+        with rt.pool.connection() as conn:
+            todo = conn.execute(
+                "select t.lab_id, t.id from talk_throughs t where t.id = any(%s)",
+                (talk_throughs.waiting_for_steps(conn),),
+            ).fetchall()
+        return sum(defer_steps(lab_id, talk_through_id) for lab_id, talk_through_id in todo)
+
+    deferred = await asyncio.to_thread(tend)
+    if deferred:
+        log.info("deferred %d talk-through drafts", deferred)
 
 
 @app.task(name="delete_lab", pass_context=True, retry=RetryStrategy(max_attempts=3, wait=30))

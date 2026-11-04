@@ -37,6 +37,11 @@ class Settings(BaseSettings):
     embed_port: int = 8787
     anthropic_api_key: SecretStr | None = None
 
+    # Talk-throughs: ElevenLabs Scribe by default, or faster-whisper on this machine.
+    transcriber: Literal["elevenlabs", "whisper"] = "elevenlabs"
+    elevenlabs_api_key: SecretStr | None = None
+    whisper_model: str = "small"
+
     dropbox_app_key: str | None = None
     dropbox_app_secret: SecretStr | None = None
 

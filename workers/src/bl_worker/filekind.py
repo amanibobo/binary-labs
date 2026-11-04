@@ -27,6 +27,16 @@ EXTENSION_KINDS: dict[str, tuple[FileKind, str]] = {
     ".txt": (FileKind.TEXT, "text/plain"),
     ".md": (FileKind.TEXT, "text/markdown"),
     ".log": (FileKind.TEXT, "text/plain"),
+    # WebM and MP4 sniff as video; the extension says which recordings hold only sound. The
+    # web recorder names its WebM recordings .weba for that reason.
+    ".weba": (FileKind.AUDIO, "audio/webm"),
+    ".m4a": (FileKind.AUDIO, "audio/mp4"),
+    ".aac": (FileKind.AUDIO, "audio/aac"),
+    ".mp3": (FileKind.AUDIO, "audio/mpeg"),
+    ".wav": (FileKind.AUDIO, "audio/wav"),
+    ".ogg": (FileKind.AUDIO, "audio/ogg"),
+    ".opus": (FileKind.AUDIO, "audio/ogg"),
+    ".flac": (FileKind.AUDIO, "audio/flac"),
 }
 
 
@@ -38,6 +48,8 @@ def detect(name: str, data: bytes) -> tuple[FileKind, str]:
             return MAGIC_KINDS[guess.mime], guess.mime
         if guess.mime.startswith("image/"):
             return FileKind.IMAGE, guess.mime
+        if guess.mime.startswith("audio/"):
+            return FileKind.AUDIO, guess.mime
     ext = PurePosixPath(name).suffix.lower()
     if ext in EXTENSION_KINDS:
         return EXTENSION_KINDS[ext]

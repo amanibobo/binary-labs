@@ -23,6 +23,10 @@ dependencies = [
   "uvicorn>=0.32",
 ]
 
+[project.optional-dependencies]
+# TRANSCRIBER=whisper: local speech-to-text, off by default (`uv sync --extra whisper`).
+whisper = ["faster-whisper>=1.1"]
+
 [project.scripts]
 bl = "bl_worker.cli:main"
 

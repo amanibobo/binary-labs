@@ -11,14 +11,15 @@ from psycopg.types.json import Jsonb
 
 from bl_worker.chunking import name_chunk, text_chunks
 from bl_worker.db import lab_lock
-from bl_worker.domain import FileKind, SourceKind, SourceReadError, SourceRow
+from bl_worker.domain import ExtractionKind, FileKind, SourceKind, SourceReadError, SourceRow
 from bl_worker.embed import Embedder
-from bl_worker.extract import EXTRACTORS, Extracted, ExtractionFailed, run_extractor
+from bl_worker.extract import EXTRACTORS, Extracted, ExtractionFailed, Extractor, run_extractor
 from bl_worker.filekind import detect
 from bl_worker.previews import PreviewFailed, PreviewStore, preview_key, render_preview
 from bl_worker.runtime import Runtime
 from bl_worker.scan import LIVE_SOURCE
 from bl_worker.sources import build_reader
+from bl_worker.transcribe import TranscriptExtractor
 
 log = logging.getLogger(__name__)
 
@@ -86,7 +87,7 @@ def _process(rt: Runtime, conn: psycopg.Connection, loc: Location) -> Outcome:
     try:
         data = build_reader(loc.source, rt.settings, rt.previews).read(loc.external_id)
         blob = _store_blob(conn, loc, data)
-        extracted = _extract(conn, blob, data)
+        extracted = _extract(conn, extractor_for(rt, loc.source.kind, blob), loc, blob, data)
         _write_chunks(conn, loc.lab_id, blob.sha256, extracted)
         _embed_chunks(conn, rt.embedder, loc.lab_id, blob.sha256)
         _write_preview(conn, rt.previews, loc.lab_id, blob, data)
@@ -119,27 +120,74 @@ def _store_blob(conn: psycopg.Connection, loc: Location, data: bytes) -> Blob:
     return Blob(sha, FileKind(stored[0]), stored[1])
 
 
-def _extract(conn: psycopg.Connection, blob: Blob, data: bytes) -> Extracted | None:
-    extractor = EXTRACTORS.get(blob.kind)
+def extractor_for(rt: Runtime, source: SourceKind, blob: Blob) -> Extractor | None:
+    # Audio reaches the upload source only as a talk-through someone recorded, so only that
+    # is transcribed. Audio in a lab's Dropbox is indexed by name: nobody pays to transcribe
+    # an archive of recordings by accident.
+    if blob.kind is FileKind.AUDIO:
+        return (
+            TranscriptExtractor(rt.transcriber, blob.mime) if source is SourceKind.UPLOAD else None
+        )
+    return EXTRACTORS.get(blob.kind)
+
+
+def _extract(
+    conn: psycopg.Connection, extractor: Extractor | None, loc: Location, blob: Blob, data: bytes
+) -> Extracted | None:
+    """Cached by (sha256, extractor, version), so no file is read twice, nor any audio heard
+    twice by the same transcriber."""
     if extractor is None:
         return None
-    cached = stored_extraction(conn, blob.sha256, blob.kind)
-    if cached is not None:
-        return cached
+    row = conn.execute(
+        "select kind, content, meta from extractions"
+        " where sha256 = %s and extractor = %s and extractor_version = %s",
+        (blob.sha256, extractor.name, extractor.version),
+    ).fetchone()
+    if row is not None:
+        return Extracted(row[0], row[1], row[2])
     extracted = run_extractor(extractor, data)
+    with conn.transaction():
+        conn.execute(
+            "insert into extractions (sha256, extractor, extractor_version, kind, content, meta)"
+            " values (%s, %s, %s, %s, %s, %s) on conflict do nothing",
+            (
+                blob.sha256,
+                extractor.name,
+                extractor.version,
+                extracted.kind,
+                extracted.content,
+                Jsonb(extracted.meta),
+            ),
+        )
+        if extracted.kind is ExtractionKind.TRANSCRIPT:
+            _record_transcription(conn, loc.lab_id, blob.sha256, extractor, extracted)
+    return extracted
+
+
+def _record_transcription(
+    conn: psycopg.Connection, lab_id: UUID, sha256: str, extractor: Extractor, t: Extracted
+) -> None:
+    """Transcription goes in the cost ledger beside model calls, for the lab that paid."""
     conn.execute(
-        "insert into extractions (sha256, extractor, extractor_version, kind, content, meta)"
-        " values (%s, %s, %s, %s, %s, %s) on conflict do nothing",
+        "insert into model_calls (lab_id, sha256, purpose, model, prompt_version, output,"
+        " input_tokens, output_tokens, cost_usd)"
+        " values (%s, %s, 'transcript', %s, %s, %s, 0, 0, %s) on conflict do nothing",
         (
-            blob.sha256,
+            lab_id,
+            sha256,
             extractor.name,
             extractor.version,
-            extracted.kind,
-            extracted.content,
-            Jsonb(extracted.meta),
+            Jsonb({"duration_s": t.meta.get("duration_s"), "chars": len(t.content)}),
+            t.meta.get("cost_usd", "0"),
         ),
     )
-    return extracted
+    log.info(
+        "transcribed %s with %s: %ss of audio, $%s",
+        sha256[:12],
+        extractor.name,
+        t.meta.get("duration_s"),
+        t.meta.get("cost_usd"),
+    )
 
 
 # An unchanged chunk keeps its embedding; a changed one drops it so the embed step redoes it.
@@ -193,6 +241,13 @@ def caption_text(conn: psycopg.Connection, sha256: str) -> str:
 
 
 def stored_extraction(conn: psycopg.Connection, sha256: str, kind: FileKind) -> Extracted | None:
+    if kind is FileKind.AUDIO:
+        row = conn.execute(
+            "select kind, content, meta from extractions where sha256 = %s and kind = 'transcript'"
+            " order by created_at desc limit 1",
+            (sha256,),
+        ).fetchone()
+        return Extracted(row[0], row[1], row[2]) if row else None
     extractor = EXTRACTORS.get(kind)
     if extractor is None:
         return None

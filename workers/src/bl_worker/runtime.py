@@ -9,6 +9,7 @@ from bl_worker.db import configure
 from bl_worker.embed import Embedder, build_embedder
 from bl_worker.models import Models, build_models
 from bl_worker.previews import PreviewStore, build_preview_store
+from bl_worker.transcribe import Transcriber, build_transcriber
 
 
 @dataclass(frozen=True)
@@ -19,6 +20,7 @@ class Runtime:
     pool: ConnectionPool
     embedder: Embedder
     previews: PreviewStore
+    transcriber: Transcriber
     # None without ANTHROPIC_API_KEY: labels then come from Tier 1 rules alone.
     models: Models | None = None
 
@@ -44,6 +46,7 @@ def build_runtime(
     embedder: Embedder | None = None,
     previews: PreviewStore | None = None,
     models: Models | None = None,
+    transcriber: Transcriber | None = None,
     pool_size: int = 6,
 ) -> Runtime:
     key = settings.anthropic_api_key
@@ -52,5 +55,6 @@ def build_runtime(
         pool=open_pool(settings.database_url, pool_size),
         embedder=embedder or build_embedder(settings.embed_model),
         previews=previews or build_preview_store(settings),
+        transcriber=transcriber or build_transcriber(settings),
         models=models or build_models(key.get_secret_value() if key else None),
     )
