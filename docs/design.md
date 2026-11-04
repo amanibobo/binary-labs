@@ -80,3 +80,11 @@ See `.env.example` at the repo root. The web app reads `apps/web/.env.local`, an
 `folder_tree(p_lab_id)` and `folder_files(p_lab_id, p_path, p_limit, p_offset)` (migration 0005) are `security invoker`, so RLS applies. Folder paths are relative to the source root (`""`, `P450`, `P450/batch3`) and only live, indexed locations count. The sidebar tree and the browse page both read `folder_tree`; `/api/browse` pages through `folder_files` 100 rows at a time.
 
 Folder tints come from `apps/web/src/lib/tints.ts`: a top-level folder's path hashes to one of six muted tints, and its subfolders use the lighter shade of the same tint.
+
+## Protocols
+
+Migration 0006 adds `protocols`, immutable `protocol_versions` and `protocol_files`. Members write through `create_protocol`, `save_protocol`, `link_protocol_file` and `unlink_protocol_file`; admins through `archive_protocol`. All are `security invoker`, and triggers do the checks: a version names the one it was edited from (`based_on`), must start from the current one or fail with `BL101`, and gets the next number. `unique (protocol_id, based_on)` keeps history a line even if two saves race. Triggers also write every create, save, archive, link and unlink to `audit_log`.
+
+`file_text` (`security definer`, membership checked) hands a page the extracted text of a file it starts from, since `extractions` are closed to members. `search_protocols` matches current titles and bodies with the same prefix query as file search; `/api/search` returns its hits as `protocols` beside the files, and none when a file filter is set.
+
+Pages render Markdown with react-markdown and remark-gfm. Raw HTML stays text, and images render as links.
