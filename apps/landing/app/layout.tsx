@@ -1,17 +1,17 @@
 import type { Metadata, Viewport } from "next";
-import { DM_Sans, JetBrains_Mono } from "next/font/google";
+import { Geist, Geist_Mono } from "next/font/google";
 import type { ReactNode } from "react";
 import "./globals.css";
 
-const dmSans = DM_Sans({
+const geistSans = Geist({
   subsets: ["latin"],
-  variable: "--font-dm-sans",
+  variable: "--font-geist-sans",
   display: "swap",
 });
 
-const jetbrainsMono = JetBrains_Mono({
+const geistMono = Geist_Mono({
   subsets: ["latin"],
-  variable: "--font-jetbrains-mono",
+  variable: "--font-geist-mono",
   display: "swap",
 });
 
@@ -21,13 +21,13 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#070e10",
-  colorScheme: "dark",
+  themeColor: "#ffffff",
+  colorScheme: "light",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" className={`${dmSans.variable} ${jetbrainsMono.variable}`}>
+    <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
       <body className="font-sans antialiased">{children}</body>
     </html>
   );

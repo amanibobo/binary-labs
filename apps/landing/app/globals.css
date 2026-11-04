@@ -1,49 +1,31 @@
 @import "tailwindcss";
 
-:root {
-  --ground: #070e10;
-  --panel: #0f1e21;
-  --surface: #16292d;
-  --ink: #e8efee;
-  --muted: #a9bdbd;
-  --blue: #7cc4f0;
-  --line: rgb(232 239 238 / 0.1);
-  --gel: #0f1e21;
-  color-scheme: dark;
+@theme inline {
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 }
 
-@theme inline {
-  --color-ground: var(--ground);
-  --color-panel: var(--panel);
-  --color-surface: var(--surface);
-  --color-ink: var(--ink);
-  --color-muted: var(--muted);
-  --color-blue: var(--blue);
-  --color-line: var(--line);
-  --color-gel: var(--gel);
-  --font-sans: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
+:root {
+  color-scheme: light;
 }
 
 body {
-  background: var(--ground);
-  color: var(--ink);
+  background: #ffffff;
+  color: #000000;
 }
 
-/* The result arrives a beat after the query so the mock reads as a search that answered. */
-@keyframes result-in {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
+@keyframes float {
+  50% {
+    transform: translateY(-8px);
   }
 }
 
-.result-in {
-  animation: result-in 220ms ease-out 400ms both;
+.float {
+  animation: float 6s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .result-in {
+  .float {
     animation: none;
   }
 }

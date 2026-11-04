@@ -4,7 +4,7 @@ import { chromium } from "playwright";
 const url = process.env.LANDING_URL ?? "http://localhost:3200";
 const outDir = new URL("../screenshots/", import.meta.url);
 const widths = [1440, 390];
-const expectedGround = "rgb(7, 14, 16)";
+const expectedGround = "rgb(255, 255, 255)";
 
 await mkdir(outDir, { recursive: true });
 // The full Chromium build in new headless mode, so no separate headless-shell download is needed.
