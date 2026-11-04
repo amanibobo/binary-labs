@@ -39,7 +39,69 @@ const shots = [
   { name: "new-lab", path: "/dev/fixtures/new-lab", width: 1440, scheme: "dark" },
   { name: "lab-folder", path: "/dev/fixtures/folder", width: 1440, scheme: "dark" },
   { name: "search-palette", path: "/dev/fixtures/search?state=empty", palette: "p450", width: 1440, scheme: "dark" },
+  ...protocolShots(),
 ];
+
+// Every protocol screen in both schemes, at desktop and phone width.
+function protocolShots() {
+  const p = (view) => `/dev/fixtures/protocols?view=${view}`;
+  const views = [
+    { name: "protocols-list", path: p("list") },
+    { name: "protocols-page", path: p("page") },
+    { name: "protocols-edit", path: p("edit") },
+    { name: "protocols-history", path: p("history") },
+    { name: "search-protocols", path: "/dev/fixtures/search?state=results&q=gel" },
+  ];
+  const extras = [
+    { name: "protocols-old-version", path: p("old"), width: 1440, scheme: "dark" },
+    { name: "protocols-new-from-file", path: p("from"), width: 1440, scheme: "dark" },
+    { name: "protocols-empty", path: p("empty"), width: 1440, scheme: "dark" },
+    {
+      name: "protocols-preview",
+      path: p("edit"),
+      steps: (page) => page.getByRole("tab", { name: "Preview" }).click(),
+      width: 1440,
+      scheme: "dark",
+    },
+    {
+      name: "protocols-stale",
+      path: p("stale"),
+      steps: async (page) => {
+        await page.getByRole("textbox", { name: "Text", exact: true }).fill("1. Thaw the pellet on ice for 30 min.");
+        await page.getByRole("button", { name: "Save version" }).click();
+        await page.getByRole("button", { name: "Load their version" }).click();
+        await page.getByText("Show their text").waitFor();
+      },
+      width: 1440,
+      scheme: "dark",
+    },
+    {
+      name: "protocols-picker",
+      path: p("page"),
+      steps: async (page) => {
+        await page.getByRole("button", { name: "Link a file" }).click();
+        await page.getByPlaceholder("Search files").fill("gel");
+        await page.getByRole("button", { name: /^Link Batch 3 gel densitometry/ }).waitFor();
+      },
+      full: false,
+      width: 1440,
+      scheme: "dark",
+    },
+    {
+      name: "search-make-protocol",
+      path: "/dev/fixtures/search?state=results&q=purification",
+      steps: (page) => page.getByRole("button", { name: "Details for P450 BM3 purification protocol, v3" }).click(),
+      width: 1440,
+      scheme: "dark",
+    },
+  ];
+  return [
+    ...views.flatMap((v) =>
+      ["dark", "light"].flatMap((scheme) => [1440, 390].map((width) => ({ ...v, width, scheme }))),
+    ),
+    ...extras,
+  ];
+}
 const only = process.argv[2];
 
 const browser = await chromium.launch({ headless: true, channel: "chromium" });
