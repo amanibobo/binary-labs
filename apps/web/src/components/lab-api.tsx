@@ -7,6 +7,8 @@ import { correctRequest } from "@/lib/labels";
 import type { LabelDraft } from "@/lib/label-edit";
 import { BrowseResponse, type FolderPath } from "@/lib/folders";
 import { SourceStateWire, type SourceState } from "@/lib/source-state";
+import { resultOf, type UploadResult } from "@/lib/upload-queue";
+import { uploadHeaders, UploadRowsWire, type UploadMeta, type UploadRow } from "@/lib/uploads";
 import type { CorrectionId, ProtocolId, Sha256 } from "@/lib/ids";
 import {
   ProtocolVersionWire,
@@ -41,7 +43,28 @@ export type LabApi = {
   archiveProtocol: (id: ProtocolId) => Promise<void>;
   linkProtocolFile: (id: ProtocolId, sha: Sha256) => Promise<void>;
   unlinkProtocolFile: (id: ProtocolId, sha: Sha256) => Promise<void>;
+  // Never rejects: a failed upload comes back as a result the queue knows how to retry.
+  uploadFile: (file: Blob, meta: UploadMeta, onProgress: (sent: number) => void, signal: AbortSignal) => Promise<UploadResult>;
+  myUploads: (signal: AbortSignal) => Promise<UploadRow[]>;
 };
+
+// XMLHttpRequest, not fetch: only it reports upload progress.
+function sendFile(file: Blob, meta: UploadMeta, onProgress: (sent: number) => void, signal: AbortSignal): Promise<UploadResult> {
+  return new Promise((resolve) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", "/api/uploads");
+    xhr.responseType = "json";
+    xhr.setRequestHeader("content-type", file.type || "application/octet-stream");
+    for (const [name, value] of Object.entries(uploadHeaders(meta))) xhr.setRequestHeader(name, value);
+    xhr.upload.onprogress = (e) => onProgress(e.loaded);
+    xhr.onload = () => resolve(resultOf(xhr.status, xhr.response));
+    xhr.onerror = () => resolve(resultOf(0, null));
+    xhr.ontimeout = () => resolve(resultOf(0, null));
+    xhr.onabort = () => resolve({ kind: "interrupted", message: "The upload was stopped." });
+    signal.addEventListener("abort", () => xhr.abort(), { once: true });
+    xhr.send(file);
+  });
+}
 
 async function getJson(url: string, signal: AbortSignal): Promise<unknown> {
   const res = await fetch(url, { signal, headers: { accept: "application/json" } });
@@ -106,6 +129,8 @@ export const httpLabApi: LabApi = {
   archiveProtocol: async (id) => void (await postJson(`/api/protocols/${id}/archive`, {})),
   linkProtocolFile: async (id, sha) => void (await postJson(`/api/protocols/${id}/files`, { sha256: sha })),
   unlinkProtocolFile: async (id, sha) => void (await postJson(`/api/protocols/${id}/files`, { sha256: sha }, "DELETE")),
+  uploadFile: sendFile,
+  myUploads: async (signal) => UploadRowsWire.parse(await getJson("/api/uploads", signal)),
 };
 
 const LabApiContext = createContext<LabApi>(httpLabApi);

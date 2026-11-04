@@ -4,7 +4,8 @@ create schema if not exists auth;
 
 create table if not exists auth.users (
   id uuid primary key,
-  email text unique
+  email text unique,
+  raw_user_meta_data jsonb
 );
 
 create or replace function auth.uid() returns uuid

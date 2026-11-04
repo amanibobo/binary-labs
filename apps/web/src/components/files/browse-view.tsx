@@ -7,7 +7,7 @@ import { useId, useState } from "react";
 import type { FileHit } from "@/lib/domain";
 import { cn } from "@/lib/cn";
 import { folderAncestors, folderHref, folderName, type FolderNode } from "@/lib/folders";
-import { countLine, formatDate, formatSize, KIND_LABELS, openInDropboxUrl } from "@/lib/format";
+import { countLine, formatDate, formatSize, KIND_LABELS, openTarget } from "@/lib/format";
 import type { SourceState } from "@/lib/source-state";
 import { OpenExternalIcon } from "../icons/drawn";
 import { useLabApi } from "../lab-api";
@@ -157,6 +157,7 @@ function FilesTable({ folder, initialFiles }: { folder: FolderNode; initialFiles
 function FileRow({ hit, expanded, onToggle }: { hit: FileHit; expanded: boolean; onToggle: () => void }) {
   const panelId = useId();
   const location = hit.locations[0];
+  const open = openTarget(location);
   return (
     <>
       <tr className={cn(dataRow, dataRowInteractive, "group")}>
@@ -181,9 +182,9 @@ function FileRow({ hit, expanded, onToggle }: { hit: FileHit; expanded: boolean;
         <DataCell className="text-paragraph-small text-content-secondary tabular-nums max-sm:hidden">{formatDate(location.modifiedAt)}</DataCell>
         <DataCell className="text-right text-paragraph-small text-content-secondary tabular-nums max-md:hidden">{formatSize(hit.size)}</DataCell>
         <DataCell className="py-0 pr-2 sm:pr-3">
-          {location.sourceKind === "dropbox" ? (
+          {open === null ? null : (
             <a
-              href={openInDropboxUrl(location.path)}
+              href={open.href}
               target="_blank"
               rel="noreferrer"
               className={cn(
@@ -192,9 +193,11 @@ function FileRow({ hit, expanded, onToggle }: { hit: FileHit; expanded: boolean;
               )}
             >
               <OpenExternalIcon className="size-5" />
-              <span className="sr-only">Open {location.originalName} in Dropbox (opens in a new tab)</span>
+              <span className="sr-only">
+                {open.label}: {location.originalName} (opens in a new tab)
+              </span>
             </a>
-          ) : null}
+          )}
         </DataCell>
       </tr>
       {expanded ? (

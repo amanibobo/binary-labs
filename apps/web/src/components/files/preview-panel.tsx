@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { isTextBearing, type FileHit } from "@/lib/domain";
 import { cn } from "@/lib/cn";
-import { formatDate, openInDropboxUrl } from "@/lib/format";
+import { formatDate, openTarget } from "@/lib/format";
 import { newProtocolHref } from "@/lib/protocols";
 import { OpenExternalIcon, ProtocolIcon } from "../icons/drawn";
 import { useLabApi } from "../lab-api";
@@ -31,24 +31,27 @@ export function PreviewPanel({
       <div className="min-w-0">
         <h3 className="text-label-medium text-content-primary">{hit.locations.length === 1 ? "Location" : "Locations"}</h3>
         <ul className="mt-3 grid gap-4">
-          {hit.locations.map((location) => (
-            <li key={location.id} className="min-w-0">
-              <p className="font-mono text-paragraph-small [overflow-wrap:anywhere] text-content-primary">{location.path}</p>
-              <p className="mt-1 text-paragraph-small text-content-tertiary">Modified {formatDate(location.modifiedAt)}</p>
-              {location.sourceKind === "dropbox" ? (
-                <a
-                  href={openInDropboxUrl(location.path)}
-                  target="_blank"
-                  rel="noreferrer"
-                  className={cn(buttonVariants({ variant: "secondary", size: "compact" }), "mt-3")}
-                >
-                  <OpenExternalIcon className="size-5" />
-                  Open in Dropbox
-                  <span className="sr-only"> (opens in a new tab)</span>
-                </a>
-              ) : null}
-            </li>
-          ))}
+          {hit.locations.map((location) => {
+            const open = openTarget(location);
+            return (
+              <li key={location.id} className="min-w-0">
+                <p className="font-mono text-paragraph-small [overflow-wrap:anywhere] text-content-primary">{location.path}</p>
+                <p className="mt-1 text-paragraph-small text-content-tertiary">Modified {formatDate(location.modifiedAt)}</p>
+                {open === null ? null : (
+                  <a
+                    href={open.href}
+                    target="_blank"
+                    rel="noreferrer"
+                    className={cn(buttonVariants({ variant: "secondary", size: "compact" }), "mt-3")}
+                  >
+                    <OpenExternalIcon className="size-5" />
+                    {open.label}
+                    <span className="sr-only"> (opens in a new tab)</span>
+                  </a>
+                )}
+              </li>
+            );
+          })}
         </ul>
         {offerNewPage && isTextBearing(hit.fileKind) ? (
           <Link

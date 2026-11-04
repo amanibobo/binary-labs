@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useId } from "react";
 import type { FileHit } from "@/lib/domain";
 import { excerpt } from "@/lib/highlight";
-import { folderOf, formatDate, matchLine, openInDropboxUrl, otherPlacesLine } from "@/lib/format";
+import { folderOf, formatDate, matchLine, openTarget, otherPlacesLine } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { useLabApi } from "../lab-api";
 import { KindIcon } from "../files/kind-icon";
@@ -36,6 +36,7 @@ export function FileResult({
   const label = labelOf(hit);
   const panelId = useId();
   const [primary, ...others] = hit.locations;
+  const open = openTarget(primary);
   const named = label !== null && label.cleanName !== null;
   const title = label?.cleanName ?? primary.originalName;
   const meta = [matchLine(hit.matchedBy), `Modified ${formatDate(primary.modifiedAt)}`, otherPlacesLine(others.length)]
@@ -85,17 +86,19 @@ export function FileResult({
             className="pointer-events-none relative my-4 hidden size-12 shrink-0 rounded-lg border border-border-opaque bg-background-secondary object-cover sm:block"
           />
         ) : null}
-        {primary.sourceKind === "dropbox" ? (
+        {open === null ? null : (
           <a
-            href={openInDropboxUrl(primary.path)}
+            href={open.href}
             target="_blank"
             rel="noreferrer"
             className={cn(buttonVariants({ variant: "tertiary", shape: "square" }), "relative mx-2 mt-3 shrink-0 self-start text-content-secondary sm:mt-4")}
           >
             <OpenExternalIcon />
-            <span className="sr-only">Open {primary.originalName} in Dropbox (opens in a new tab)</span>
+            <span className="sr-only">
+              {open.label}: {primary.originalName} (opens in a new tab)
+            </span>
           </a>
-        ) : null}
+        )}
       </div>
       <AnimatePresence initial={false}>
         {expanded ? (

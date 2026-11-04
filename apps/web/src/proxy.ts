@@ -44,6 +44,8 @@ export async function proxy(request: NextRequest) {
   return response;
 }
 
+// /api/uploads is left out: with a proxy, Next buffers request bodies in memory and cuts
+// them off at 10 MB. That route reads the session itself.
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|webp|ico)$).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/uploads$|manifest.webmanifest$|.*\\.(?:svg|png|jpg|webp|ico)$).*)"],
 };

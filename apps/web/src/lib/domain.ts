@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { CorrectionId, ExperimentId, LabId, PersonId, Sha256, SourceId, UserId } from "./ids";
+import { CorrectionId, ExperimentId, LabId, LocationId, PersonId, Sha256, SourceId, UserId } from "./ids";
 import { ProtocolHitWire } from "./protocols";
 
 // Mirrors of the enums in db/migrations/0001_core.sql.
@@ -15,7 +15,8 @@ export function isTextBearing(kind: FileKind): boolean {
 export const MemberRole = z.enum(["admin", "member"]);
 export type MemberRole = z.infer<typeof MemberRole>;
 
-export const SourceKind = z.enum(["dropbox", "local"]);
+export const SourceKind = z.enum(["dropbox", "local", "upload"]);
+export type SourceKind = z.infer<typeof SourceKind>;
 
 export const AuditAction = z.enum([
   "lab.create",
@@ -33,6 +34,8 @@ export const AuditAction = z.enum([
   "protocol.export",
   "source.disconnect",
   "lab.delete",
+  "file.upload",
+  "file.download",
 ]);
 export type AuditAction = z.infer<typeof AuditAction>;
 
@@ -40,7 +43,7 @@ const Timestamp = z.string().refine((s) => !Number.isNaN(Date.parse(s)), "expect
 
 export const FileLocation = z
   .object({
-    id: z.uuid(),
+    id: LocationId,
     source_id: SourceId,
     source_kind: SourceKind,
     path: z.string(),
@@ -232,7 +235,7 @@ export const KeywordReason = z.enum(["embed_timeout", "embed_error", "embed_unco
 export type KeywordReason = z.infer<typeof KeywordReason>;
 
 const FileLocationWire = z.object({
-  id: z.string(),
+  id: LocationId,
   sourceId: SourceId,
   sourceKind: SourceKind,
   path: z.string(),

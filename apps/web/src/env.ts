@@ -43,7 +43,8 @@ const PreviewEnv = z.discriminatedUnion("PREVIEW_STORE", [
     R2_SECRET_ACCESS_KEY: nonEmpty,
     R2_BUCKET: nonEmpty,
   }),
-  z.object({ PREVIEW_STORE: z.literal("local") }),
+  // The worker's PREVIEW_DIR, which the worker resolves from workers/; unset means the same default.
+  z.object({ PREVIEW_STORE: z.literal("local"), PREVIEW_DIR: nonEmpty.optional() }),
 ]);
 
 const EmbedEnv = z.object({ EMBED_URL: z.url(), EMBED_API_KEY: nonEmpty });

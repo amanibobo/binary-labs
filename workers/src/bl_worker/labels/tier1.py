@@ -82,6 +82,19 @@ def exif_date(f: FileInfo, _ctx: LabContext) -> Iterable[Finding]:
             return
 
 
+def upload_facts(f: FileInfo, ctx: LabContext) -> Iterable[Finding]:
+    """An upload says who sent it, on which day, and for which experiment. A camera's own
+    capture time still wins the date, since a photo can be sent days after it was taken."""
+    if f.upload is None:
+        return
+    if (person := ctx.person(f.upload.person_id)) is not None:
+        yield "person", Fact(person, "uploaded by them", Strength.STRONG)
+    if (experiment := ctx.experiment(f.upload.experiment_id)) is not None:
+        yield "experiment", Fact(experiment, "picked when uploading", Strength.STRONG)
+    if next(iter(exif_date(f, ctx)), None) is None:
+        yield "date", Fact(f.upload.uploaded_on, "upload date", Strength.STRONG)
+
+
 def name_date(f: FileInfo, _ctx: LabContext) -> Iterable[Finding]:
     for path in f.paths:
         stem = PurePosixPath(path).stem
@@ -330,6 +343,7 @@ def kind_what(f: FileInfo, _ctx: LabContext) -> Iterable[Finding]:
 
 RULES: list[Rule] = [
     taught_rules,
+    upload_facts,
     exif_date,
     name_date,
     folder_date,
