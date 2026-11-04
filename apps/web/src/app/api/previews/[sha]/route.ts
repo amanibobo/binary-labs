@@ -2,7 +2,7 @@ import { after, NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { auditQuietly } from "@/lib/audit";
 import { Sha256 } from "@/lib/ids";
-import { deliverPreview } from "@/lib/previews";
+import { deliverObject } from "@/lib/object-store";
 import { routeAccess } from "@/lib/route-auth";
 import { unwrap } from "@/lib/supabase/server";
 
@@ -28,13 +28,13 @@ export async function GET(request: NextRequest, ctx: RouteContext<"/api/previews
     after(() => auditQuietly(supabase, { labId: lab.id, actor: user.id, action: "preview.view", target: sha.data }));
   }
 
-  const delivery = await deliverPreview(row.storage_key);
+  const delivery = await deliverObject(row.storage_key, { contentType: "image/webp", disposition: "inline" });
   switch (delivery.kind) {
     case "redirect":
       return NextResponse.redirect(delivery.url, { status: 302, headers: { "cache-control": "private, max-age=50" } });
     case "bytes":
-      return new NextResponse(new Uint8Array(delivery.body), {
-        headers: { "content-type": delivery.contentType, "cache-control": "private, max-age=300" },
+      return new NextResponse(delivery.body, {
+        headers: { "content-type": "image/webp", "cache-control": "private, max-age=300" },
       });
     case "missing":
       return NextResponse.json({ error: "preview file missing" }, { status: 404 });
