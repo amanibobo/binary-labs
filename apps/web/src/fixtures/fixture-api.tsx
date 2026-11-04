@@ -8,6 +8,7 @@ import { folderFixtureFiles, folders, laterLabels, needsLookFiles, recentFiles, 
 import { createFixtureLabels } from "./fixture-labels";
 import { PREVIEW_BY_FIRST_CHAR } from "./previews";
 import { protocolHits, purification, purificationTheirs } from "./protocols";
+import { createFixtureUploads } from "./uploads";
 
 export type FixtureSearchMode = "hybrid" | "keyword";
 
@@ -31,13 +32,16 @@ export function FixtureLabApi({
   mode,
   source,
   saves = "saved",
+  earlierUploads = true,
   children,
 }: {
   mode: FixtureSearchMode;
   source: SourceState;
   saves?: FixtureSaves;
+  earlierUploads?: boolean;
   children: ReactNode;
 }) {
+  const [uploads] = useState(() => createFixtureUploads({ earlier: earlierUploads }));
   const [labels] = useState(() =>
     createFixtureLabels({ initial: [...searchHits, ...recentFiles, ...needsLookFiles], later: laterLabels }),
   );
@@ -87,6 +91,8 @@ export function FixtureLabApi({
     archiveProtocol: async () => wait(150),
     linkProtocolFile: async () => wait(150),
     unlinkProtocolFile: async () => wait(150),
+    uploadFile: uploads.uploadFile,
+    myUploads: uploads.myUploads,
   };
   return <LabApiProvider value={api}>{children}</LabApiProvider>;
 }

@@ -30,4 +30,4 @@ ${Array.from({ length: 48 }, (_, i) => `<circle cx="${78 + (i % 8) * 46}" cy="${
 
 const toUri = (svg: string) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 
-export const PREVIEW_BY_FIRST_CHAR: Record<string, string> = { a: toUri(gel), b: toUri(page), "2": toUri(plate) };
+export const PREVIEW_BY_FIRST_CHAR: Record<string, string> = { a: toUri(gel), b: toUri(page), "2": toUri(plate), c: toUri(gel) };

@@ -26,6 +26,13 @@ const loc = (path: string, modified: string) => ({
   modified_at: modified,
 });
 
+// Uploads live on the lab's upload source and open from our store, not Dropbox.
+const uploadLoc = (path: string, modified: string) => ({
+  ...loc(path, modified),
+  source_id: "6f1c2c39-5a4e-4c55-9d7b-0c3c1a7a0004",
+  source_kind: "upload",
+});
+
 export const experiments = ExperimentRows.parse([
   { id: "6f1c2c39-5a4e-4c55-9d7b-0c3c1a7ae001", name: "P450 BM3", aliases: ["BM3", "CYP102A1"] },
   { id: "6f1c2c39-5a4e-4c55-9d7b-0c3c1a7ae002", name: "Solubility screen", aliases: ["sol screen"] },
@@ -98,6 +105,17 @@ export const searchHits = SearchFilesRows.parse([
     v: 1,
     locations: [loc("/Lab/Gels/2026-10 Batch 3/IMG_4821.jpg", "2026-10-14T16:12:00Z")],
     label: label({ status: "suggested", clean_name: "Batch 3 SDS-PAGE gel", date: "2026-10-14", experiment: bm3, person: priya, instrument: "ChemiDoc", tags: ["batch 3"] }),
+  }),
+  row({
+    c: "c",
+    kind: "image",
+    mime: "image/jpeg",
+    preview: true,
+    snippet: "SDS-PAGE gel of P450 BM3 batch 4 after the nickel column: a strong band near 119 kDa in lanes 2 to 7, ladder in lane 1.",
+    k: 2,
+    v: 2,
+    locations: [uploadLoc("/Uploads/P450 BM3/Photo 2026-11-03 16.20.41.jpg", "2026-11-03T21:20:41Z")],
+    label: label({ status: "suggested", clean_name: "Batch 4 SDS-PAGE gel", date: "2026-11-03", experiment: bm3, person: priya, tags: ["batch 4"] }),
   }),
   row({
     c: "b",
