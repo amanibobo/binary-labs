@@ -1,4 +1,4 @@
-import { Tube } from "./tube";
+import { Dish } from "./dish";
 
 const PILOT_MAILTO = "mailto:hello@binarylabs.example?subject=Pilot%20request";
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
@@ -33,8 +33,8 @@ export default function Home() {
         </p>
       </main>
 
-      <figure className="float mx-auto mt-[14vh] w-[min(260px,62vw)] pb-20">
-        <Tube />
+      <figure className="float mx-auto mt-[14vh] w-[min(380px,82vw)] pb-20">
+        <Dish />
       </figure>
     </div>
   );
