@@ -18,6 +18,7 @@ No pnpm workspace. Each app has its own `package.json`.
 
 - The **worker** writes every row derived from files: `blobs`, `file_locations`, `extractions`, `chunks`, `previews`, and the scan state on `sources`. It connects as the table owner, so RLS doesn't apply to it.
 - The **web app** writes `labs` and `members` (through `create_lab`), the `sources` row on connect, `scan_requested_at`, and `audit_log`. It reads through Supabase with the user's session, so RLS always applies. The service role key is used only to invite members.
+- **Uploads** are the one place the web app writes a location: `record_upload` (`security definer`, membership checked) inserts the `file_locations` row and its `uploads` row after the route has put the bytes in the object store. The worker still writes the `blobs` row, as for any other file.
 - The web app **never enqueues jobs**. It sets `sources.scan_requested_at = now()`. A periodic worker task picks up sources where `scan_requested_at > coalesce(scan_started_at, '-infinity')` and defers `scan_source` with `queueing_lock = source_id`.
 
 ## Identity
@@ -88,3 +89,21 @@ Migration 0006 adds `protocols`, immutable `protocol_versions` and `protocol_fil
 `file_text` (`security definer`, membership checked) hands a page the extracted text of a file it starts from, since `extractions` are closed to members. `search_protocols` matches current titles and bodies with the same prefix query as file search; `/api/search` returns its hits as `protocols` beside the files, and none when a file filter is set.
 
 Pages render Markdown with react-markdown and remark-gfm. Raw HTML stays text, and images render as links.
+
+## Uploads
+
+Migration 0008. Each lab has one `upload` source (`root_path` `/`), created by the first `record_upload`; a partial unique index keeps it to one. An upload is a `file_locations` row on it whose `external_id` and `source_rev` are the file's sha256, so the same bytes sent twice, by anyone in the lab, are one location, and a retry after a dropped answer is harmless. Its path is `/Uploads/<experiment>/<name>`, which is where Browse shows it. The `uploads` row keeps who sent it (`uploaded_by` and their `people` row), when (`uploaded_at`, plus `uploaded_on`, the sender's own calendar day) and the experiment they picked, which `record_upload` matches by name or alias or creates.
+
+```
+phone ──POST /api/uploads (raw body, x-upload-* headers)──▶ route
+  route: stream to a temp file, sha256, cap 50 MB ──▶ object store <lab_id>/files/<sha256>
+  route: record_upload ──▶ file_locations (pending) + uploads; sources.scan_requested_at = clock_timestamp()
+worker: schedule_scans ──▶ scan_source (an upload source isn't listed; it returns its pending locations)
+  ──▶ process_location (UploadReader reads the store and checks the hash) ──▶ label_blob
+```
+
+- `proxy.ts` skips `/api/uploads`, because with a proxy Next buffers request bodies in memory and cuts them at 10 MB. The route needs `Content-Length` and answers 408 for a body that ends short of it.
+- Tier 1 reads the `uploads` row: the sender is the person and the picked experiment is the experiment, both strong; the upload day is the date unless the photo carries an EXIF capture time.
+- `/api/files/<location id>` opens an uploaded file: RLS finds the location, the key is built from the viewer's lab, and only images, PDFs and plain text are served inline (everything else downloads, with `nosniff`). Each open is `file.download` in `audit_log`. Search, Browse and protocol pages pick "Open file" or "Open in Dropbox" from `openTarget` in `lib/format.ts`, keyed by source kind.
+- The upload page sends one file at a time from a queue kept for the page's life (`lib/upload-queue.ts`): a dropped upload retries after 2, 5 and 15 s, then waits for Retry or for the browser to come back online, and the page warns before closing while anything is unsent.
+- `scripts/e2e-upload.sh` runs the route's core (`lib/upload-accept.ts`) and the real worker on local Postgres and a local store.

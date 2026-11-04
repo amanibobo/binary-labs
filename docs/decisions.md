@@ -113,3 +113,19 @@ The sidebar goes; the app returns to the earlier top bar: "Binary Labs", then Se
 Phase 2 starts at the operator's call, before the Phase 1 pilot gates in the PRD have been measured in a real lab. Build order: uploads and storage first (they decide Phase 2's "done when"), then voice talk-through to steps, then procedure videos.
 
 Uploaded files are stored whole, content-addressed, in the same object store as previews (R2 in the pilot, a local folder in dev and tests), under `<lab_id>/files/<sha256>`, so lab deletion's prefix delete covers them. The PRD's ~2 MiB content-defined shards and manifests wait for Phase 3: they pay off for large instrument files and resumable uploads, not for bench photos and screenshots. Each lab gets one `upload` source; an uploaded file is a `file_locations` row on it and goes through the same scan, extract, label and search pipeline as a Dropbox file. Uploads are the first data we hold that the lab has no other copy of, so they count toward deletion and need a download path.
+
+## 2026-11-04 — uploads: the first slice
+
+Phones and desktops upload into our store; videos wait for a later slice. Choices made while building it, beyond the entry above:
+
+- **50 MB per file.** Phone photos run 2–12 MB and lab PDFs and screenshots less; the cap keeps one request finishable on bench Wi-Fi (about 80 s at 5 Mbps) and bounds the worker, which reads a whole file into memory. Video and audio are refused outright.
+- **The web app records the location, the worker writes the blob.** `record_upload` inserts the `file_locations` row; the worker computes the file kind and MIME type from the bytes as it does for Dropbox files, so that logic stays in one place.
+- **One location per content per lab.** `external_id` is the sha256, so a retried or repeated upload returns the first location and keeps the first sender and experiment.
+- **No new job.** The web app still never enqueues: `record_upload` sets `scan_requested_at` on the upload source, and a scan of an upload source lists nothing and hands its pending locations to `process_location`. Uploads are labeled within about 30 s of arriving on a laptop worker.
+- **The sender and their day are label facts.** The sender becomes a `people` row linked to their membership, named from their profile or email. The day is the sender's local date, so an evening upload isn't dated tomorrow.
+- **Uploads browse under "Uploads", one folder per experiment.**
+- **Uploaded files open from our store** through `/api/files/<location>`, inline only for types that can't run script, and each open is audited.
+- **Installable without a service worker.** Chromium reports the app installable with the manifest alone, and nothing of a lab's is cached offline.
+- **Env names stay** `PREVIEW_STORE` and `PREVIEW_DIR`, now meaning the object store; renaming them would touch every deployment for no behavior change.
+
+Open: the route takes the file through our server. On a host with a small request limit (Vercel functions take 4.5 MB) uploads would need a presigned PUT straight to R2 instead. HEIC files upload but the worker can't render them yet, so they fail at the preview step; iOS usually hands the browser a JPEG.
