@@ -129,3 +129,12 @@ def as_user(conn: psycopg.Connection, user_id: uuid.UUID) -> Iterator[psycopg.Co
         conn.execute("set local role authenticated")
         conn.execute("select set_config('request.jwt.claim.sub', %s, true)", (str(user_id),))
         yield conn
+
+
+@contextmanager
+def committed_as_user(conn: psycopg.Connection, user_id: uuid.UUID) -> Iterator[psycopg.Connection]:
+    """Like as_user, but commits, for fixtures that act as a member."""
+    with conn.transaction():
+        conn.execute("set local role authenticated")
+        conn.execute("select set_config('request.jwt.claim.sub', %s, true)", (str(user_id),))
+        yield conn

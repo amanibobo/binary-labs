@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Binary Labs file worker: sources, scan, extract, embed, /embed"
 requires-python = ">=3.12,<3.13"
 dependencies = [
+  "anthropic>=2.4",
   "boto3>=1.35",
   "cryptography>=43",
   "fastapi>=0.115",
