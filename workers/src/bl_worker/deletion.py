@@ -23,6 +23,7 @@ LAB_TABLES = (
     "members",
     "sources",
     "file_locations",
+    "uploads",
     "chunks",
     "previews",
     "labels",

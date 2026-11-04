@@ -17,7 +17,7 @@ from bl_worker.domain import Entry, ListPage, SourceKind
 from bl_worker.jobs import app, due_sources
 from bl_worker.labels import job as labels
 from bl_worker.previews import LocalPreviewStore, R2PreviewStore, lab_prefix
-from bl_worker.sources import SOURCE_FACTORIES
+from bl_worker.sources import LISTED_SOURCES
 
 SHARED = "Shared/buffer recipe.txt", "Tris 50 mM, NaCl 300 mM, the buffer both labs use"
 
@@ -361,7 +361,7 @@ def test_a_disconnect_mid_scan_stops_it_before_the_next_page(rt, conn, make_lab,
     lab = make_lab()
     source = add_dropbox(conn, lab.id)
     fake = TwoPages(rt, source)
-    monkeypatch.setitem(SOURCE_FACTORIES, SourceKind.DROPBOX, lambda row, settings: fake)
+    monkeypatch.setitem(LISTED_SOURCES, SourceKind.DROPBOX, lambda row, settings: fake)
     with rt.pool.connection() as c:
         assert scan.scan_source(c, rt.settings, source) == []
     assert conn.execute(
