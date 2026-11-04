@@ -135,13 +135,6 @@ export function SettingsIcon(props: IconProps) {
   );
 }
 
-export function ChevronUpDownIcon(props: IconProps) {
-  return (
-    <Svg {...props}>
-      <path {...line} d="m8.5 9.5 3.5-3.5 3.5 3.5M8.5 14.5l3.5 3.5 3.5-3.5" />
-    </Svg>
-  );
-}
 
 export function ChevronSmallIcon(props: IconProps) {
   return (
@@ -151,13 +144,6 @@ export function ChevronSmallIcon(props: IconProps) {
   );
 }
 
-export function SignOutIcon(props: IconProps) {
-  return (
-    <Svg {...props}>
-      <path {...line} d="M14 5H7a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h7M11 12h9M17 9l3 3-3 3" />
-    </Svg>
-  );
-}
 
 export function OpenExternalIcon(props: IconProps) {
   return (

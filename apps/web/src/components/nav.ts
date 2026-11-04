@@ -1,8 +1,11 @@
 import type { ReactNode } from "react";
+import type { FolderPath } from "@/lib/folders";
 import type { IconProps } from "./icons/svg";
 import { BrowseIcon, NeedsLookIcon, ProtocolIcon, SearchOutlineIcon, SettingsIcon } from "./icons/drawn";
 
 export type Section = "search" | "browse" | "protocols" | "needs-look" | "lab";
+
+export type ShellLocation = { section: Section; folder?: FolderPath };
 
 export const NAV = [
   { section: "search", href: "/", label: "Search", Icon: SearchOutlineIcon },
