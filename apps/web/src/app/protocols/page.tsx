@@ -3,7 +3,7 @@ import { z } from "zod";
 import { AppShell } from "@/components/app-shell";
 import { ConfigMissing } from "@/components/config-missing";
 import { ProtocolListView } from "@/components/protocols/protocol-list-view";
-import { loadAuthorNames, loadProtocols } from "@/lib/lab-data";
+import { loadAuthorNames, loadOpenTalkThroughs, loadProtocols } from "@/lib/lab-data";
 import { ProtocolKind } from "@/lib/protocols";
 import { loadShell } from "@/lib/shell-data";
 import { requireMember } from "@/lib/viewer";
@@ -17,14 +17,15 @@ export default async function ProtocolsPage({ searchParams }: PageProps<"/protoc
   if (viewer.kind === "config_missing") return <ConfigMissing missing={viewer.missing} />;
   const { supabase, lab } = viewer;
   const { kind } = await searchParams;
-  const [shell, protocols, authors] = await Promise.all([
+  const [shell, protocols, authors, talkThroughs] = await Promise.all([
     loadShell(viewer),
     loadProtocols(supabase, lab.id),
     loadAuthorNames(supabase, lab.id),
+    loadOpenTalkThroughs(supabase, lab.id, null),
   ]);
   return (
     <AppShell shell={shell} location={{ section: "protocols" }}>
-      <ProtocolListView protocols={protocols} authors={authors} initialFilter={Filter.parse(kind)} />
+      <ProtocolListView protocols={protocols} authors={authors} initialFilter={Filter.parse(kind)} talkThroughs={talkThroughs} />
     </AppShell>
   );
 }

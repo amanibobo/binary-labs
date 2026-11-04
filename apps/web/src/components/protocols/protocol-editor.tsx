@@ -7,6 +7,7 @@ import { useEffect, useId, useState } from "react";
 import { toast } from "sonner";
 import type { FileHit } from "@/lib/domain";
 import { cn } from "@/lib/cn";
+import type { TalkThroughId } from "@/lib/ids";
 import { folderOf, formatDate } from "@/lib/format";
 import {
   authorName,
@@ -19,6 +20,7 @@ import {
   type AuthorNames,
   type ProtocolVersion,
 } from "@/lib/protocols";
+import { recordHref, talkThroughHref, ApplyTalkThroughRequest } from "@/lib/talk-throughs";
 import { KindIcon } from "../files/kind-icon";
 import { useLabApi } from "../lab-api";
 import { Button, buttonVariants } from "../ui/button";
@@ -28,8 +30,21 @@ import { Markdown } from "./markdown";
 
 export type StartFile = { hit: FileHit; text: string | null };
 
-// A new page, possibly started from a file, or the next version of an existing one.
-export type EditorMode = { kind: "create"; from: StartFile | null; title: string } | { kind: "edit"; page: ProtocolVersion };
+// A new page, possibly started from a file, or the next version of an existing one, or
+// either of those from a talk-through's steps (or its transcript, when no steps came).
+export type EditorMode =
+  | { kind: "create"; from: StartFile | null; title: string }
+  | { kind: "edit"; page: ProtocolVersion }
+  | {
+      kind: "talk_through";
+      talkThroughId: TalkThroughId;
+      // The version the recording was made against; null for a new page.
+      base: ProtocolVersion | null;
+      pageKind: ProtocolKind;
+      title: string;
+      body: string;
+      from: "steps" | "transcript";
+    };
 
 type Draft = { kind: ProtocolKind; title: string; body: string; note: string };
 
@@ -50,6 +65,8 @@ function initialDraft(mode: EditorMode): Draft {
       return { kind: "protocol", title: mode.title, body: mode.from?.text ?? "", note: "" };
     case "edit":
       return { kind: mode.page.kind, title: mode.page.title, body: mode.page.body, note: "" };
+    case "talk_through":
+      return { kind: mode.pageKind, title: mode.title, body: mode.body, note: mode.base === null ? "" : "From a talk-through" };
     default: {
       const _exhaustive: never = mode;
       return _exhaustive;
@@ -62,7 +79,7 @@ export function ProtocolEditor({ mode, authors }: { mode: EditorMode; authors: A
   const router = useRouter();
   const [draft, setDraft] = useState<Draft>(() => initialDraft(mode));
   // The version this edit builds on; it moves when the person loads someone else's save.
-  const [base, setBase] = useState<ProtocolVersion | null>(mode.kind === "edit" ? mode.page : null);
+  const [base, setBase] = useState<ProtocolVersion | null>(mode.kind === "edit" ? mode.page : mode.kind === "talk_through" ? mode.base : null);
   const [state, setState] = useState<SaveState>({ kind: "idle" });
   const [done, setDone] = useState(false);
   const ids = useId();
@@ -86,6 +103,31 @@ export function ProtocolEditor({ mode, authors }: { mode: EditorMode; authors: A
   };
 
   async function save() {
+    if (mode.kind === "talk_through") {
+      const req = ApplyTalkThroughRequest.safeParse({ kind: draft.kind, baseVersionId: base?.id ?? null, title: draft.title, body: draft.body, note: draft.note });
+      if (!req.success) return setState({ kind: "invalid", message: req.error.issues[0]?.message ?? "Check the page." });
+      setState({ kind: "saving" });
+      try {
+        const outcome = await api.applyTalkThrough(mode.talkThroughId, req.data);
+        switch (outcome.kind) {
+          case "saved":
+            setDone(true);
+            toast(outcome.version === 1 ? `Saved ${draft.title.trim()}` : `Saved version ${outcome.version}`);
+            router.push(protocolHref(outcome.protocolId));
+            return;
+          case "stale":
+            setState({ kind: "stale" });
+            return;
+          default: {
+            const _exhaustive: never = outcome;
+            return _exhaustive;
+          }
+        }
+      } catch (error) {
+        setState({ kind: "failed", message: error instanceof Error ? error.message : "We couldn't save that. Try again." });
+      }
+      return;
+    }
     if (mode.kind === "create") {
       const req = CreateProtocolRequest.safeParse({ ...draft, fromSha256: mode.from?.hit.sha256 ?? null });
       if (!req.success) return setState({ kind: "invalid", message: req.error.issues[0]?.message ?? "Check the page." });
@@ -138,23 +180,27 @@ export function ProtocolEditor({ mode, authors }: { mode: EditorMode; authors: A
     }
   }
 
-  const crumbs =
-    mode.kind === "create"
-      ? [{ label: "New page", href: "/protocols/new" }]
-      : [
-          { label: mode.page.title, href: protocolHref(mode.page.protocolId) },
-          { label: "Edit", href: `${protocolHref(mode.page.protocolId)}/edit` },
-        ];
-  const cancelHref = mode.kind === "create" ? "/protocols" : protocolHref(mode.page.protocolId);
+  const crumbs = crumbsFor(mode);
+  const cancelHref =
+    mode.kind === "create" ? "/protocols" : mode.kind === "edit" ? protocolHref(mode.page.protocolId) : talkThroughHref(mode.talkThroughId);
+  const creating = mode.kind === "create" || (mode.kind === "talk_through" && mode.base === null);
 
   return (
     <>
       <CrumbBar items={crumbs} />
       <div className="mx-auto w-full max-w-3xl px-4 pt-8 pb-24 sm:px-8 sm:pt-12">
-        <h1 className="text-heading-medium">{mode.kind === "create" ? "New page" : "Edit page"}</h1>
-        {mode.kind === "edit" ? (
+        <h1 className="text-heading-medium">{creating ? "New page" : "Edit page"}</h1>
+        {!creating && base !== null ? (
           <p className="mt-1 text-paragraph-small text-content-tertiary">
-            Saving makes version {(base?.version ?? mode.page.version) + 1}. Earlier versions stay in the history.
+            Saving makes version {base.version + 1}. Earlier versions stay in the history.
+          </p>
+        ) : null}
+        {mode.kind === "create" && mode.from === null ? (
+          <p className="mt-1 text-paragraph-small text-content-tertiary">
+            Rather say it out loud?{" "}
+            <Link href={recordHref({ pageKind: draft.kind })} className="text-content-accent underline underline-offset-2">
+              Record a talk-through
+            </Link>
           </p>
         ) : null}
 
@@ -166,8 +212,9 @@ export function ProtocolEditor({ mode, authors }: { mode: EditorMode; authors: A
           }}
         >
           {mode.kind === "create" && mode.from !== null ? <StartFileCard from={mode.from} /> : null}
+          {mode.kind === "talk_through" ? <TalkThroughCard from={mode.from} href={talkThroughHref(mode.talkThroughId)} /> : null}
 
-          {mode.kind === "create" ? (
+          {creating ? (
             <div>
               <p id={`${ids}-kind`} className="text-label-medium text-content-primary">
                 Kind
@@ -259,7 +306,7 @@ export function ProtocolEditor({ mode, authors }: { mode: EditorMode; authors: A
             </Tabs.Content>
           </Tabs.Root>
 
-          {mode.kind === "edit" ? (
+          {!creating ? (
             <div className="grid gap-2">
               <Label htmlFor={`${ids}-note`}>What changed</Label>
               <Input
@@ -286,7 +333,7 @@ export function ProtocolEditor({ mode, authors }: { mode: EditorMode; authors: A
 
           <div className="flex flex-wrap items-center gap-3">
             <Button type="submit" disabled={busy || !changed}>
-              {state.kind === "saving" ? "Saving" : mode.kind === "create" ? "Create page" : "Save version"}
+              {state.kind === "saving" ? "Saving" : creating ? "Create page" : "Save version"}
             </Button>
             <Link href={cancelHref} className={buttonVariants({ variant: "tertiary" })}>
               Cancel
@@ -300,6 +347,45 @@ export function ProtocolEditor({ mode, authors }: { mode: EditorMode; authors: A
         </form>
       </div>
     </>
+  );
+}
+
+function crumbsFor(mode: EditorMode): { label: string; href: string }[] {
+  switch (mode.kind) {
+    case "create":
+      return [{ label: "New page", href: "/protocols/new" }];
+    case "edit":
+      return [
+        { label: mode.page.title, href: protocolHref(mode.page.protocolId) },
+        { label: "Edit", href: `${protocolHref(mode.page.protocolId)}/edit` },
+      ];
+    case "talk_through":
+      return [
+        mode.base === null ? { label: "New page", href: "/protocols/new" } : { label: mode.base.title, href: protocolHref(mode.base.protocolId) },
+        { label: "Talk-through", href: talkThroughHref(mode.talkThroughId) },
+        { label: mode.base === null ? "New page" : "Edit", href: `${talkThroughHref(mode.talkThroughId)}/edit` },
+      ];
+    default: {
+      const _exhaustive: never = mode;
+      return _exhaustive;
+    }
+  }
+}
+
+function TalkThroughCard({ from, href }: { from: "steps" | "transcript"; href: string }) {
+  return (
+    <div className="rounded-control border border-border-opaque bg-background-raised p-4">
+      <p className="text-label-medium text-content-primary">{from === "steps" ? "Steps drafted from your talk-through" : "The transcript of your talk-through"}</p>
+      <p className="mt-1 text-paragraph-small text-content-secondary">
+        {from === "steps"
+          ? "Check every amount, time and temperature against what you meant before you save. "
+          : "Turn it into steps here before you save. "}
+        The recording will be linked to the page.{" "}
+        <Link href={href} className="text-content-accent underline underline-offset-2">
+          Back to the talk-through
+        </Link>
+      </p>
+    </div>
   );
 }
 

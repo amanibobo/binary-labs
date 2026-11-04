@@ -7,6 +7,7 @@ import { ProtocolView } from "@/components/protocols/protocol-view";
 import { doneSource, fixtureShell } from "@/fixtures/data";
 import { FixtureLabApi } from "@/fixtures/fixture-api";
 import { requireFixtures, type FixtureProps } from "@/fixtures/gate";
+import { openForPage, openNewPage } from "@/fixtures/talk-throughs";
 import { authors, history, linkedFiles, protocolList, purification, purificationV2, startFile } from "@/fixtures/protocols";
 
 // One fixture route for every protocol screen: ?view=list|empty|page|old|edit|stale|new|from|history.
@@ -27,13 +28,13 @@ export default async function ProtocolsFixture({ searchParams }: FixtureProps) {
 function Screen({ view }: { view: z.infer<typeof View> }) {
   switch (view) {
     case "list":
-      return <ProtocolListView protocols={protocolList} authors={authors} initialFilter="all" />;
+      return <ProtocolListView protocols={protocolList} authors={authors} initialFilter="all" talkThroughs={openNewPage} />;
     case "empty":
-      return <ProtocolListView protocols={[]} authors={authors} initialFilter="all" />;
+      return <ProtocolListView protocols={[]} authors={authors} initialFilter="all" talkThroughs={[]} />;
     case "page":
-      return <ProtocolView page={purification} files={linkedFiles} authors={authors} isAdmin />;
+      return <ProtocolView page={purification} files={linkedFiles} authors={authors} isAdmin talkThroughs={openForPage} />;
     case "old":
-      return <ProtocolView page={purificationV2} files={linkedFiles} authors={authors} isAdmin />;
+      return <ProtocolView page={purificationV2} files={linkedFiles} authors={authors} isAdmin talkThroughs={[]} />;
     case "edit":
     case "stale":
       return <ProtocolEditor mode={{ kind: "edit", page: purification }} authors={authors} />;

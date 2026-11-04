@@ -9,16 +9,18 @@ import type { FileHit } from "@/lib/domain";
 import { cn } from "@/lib/cn";
 import { folderOf, formatDate, openTarget } from "@/lib/format";
 import { authorName, isCurrent, KIND_NAMES, protocolHref, type AuthorNames, type ProtocolVersion } from "@/lib/protocols";
+import { recordHref, type OpenTalkThrough } from "@/lib/talk-throughs";
 import { KindIcon } from "../files/kind-icon";
 import { PreviewPanel } from "../files/preview-panel";
 import { DeleteIcon } from "../icons/base-web";
-import { LinkIcon, OpenExternalIcon } from "../icons/drawn";
+import { LinkIcon, MicIcon, OpenExternalIcon } from "../icons/drawn";
 import { useLabApi } from "../lab-api";
 import { Button, buttonVariants } from "../ui/button";
 import { dataRow, dataSurface } from "../ui/data-table";
 import { Dialog, DialogContent, DialogDock } from "../ui/dialog";
 import { CrumbBar } from "./crumb-bar";
 import { FilePicker } from "./file-picker";
+import { OpenTalkThroughs } from "../talk-throughs/open-list";
 import { Markdown } from "./markdown";
 
 export function ProtocolView({
@@ -26,11 +28,14 @@ export function ProtocolView({
   files,
   authors,
   isAdmin,
+  talkThroughs,
 }: {
   page: ProtocolVersion;
   files: FileHit[];
   authors: AuthorNames;
   isAdmin: boolean;
+  // Recordings for this page whose steps nobody has used yet.
+  talkThroughs: readonly OpenTalkThrough[];
 }) {
   const current = isCurrent(page);
   const editable = current && !page.archived;
@@ -59,6 +64,12 @@ export function ProtocolView({
               Edit
             </Link>
           ) : null}
+          {editable ? (
+            <Link href={recordHref({ protocolId: page.protocolId })} className={buttonVariants({ variant: "secondary", size: "compact" })}>
+              <MicIcon className="size-5" />
+              Record a talk-through
+            </Link>
+          ) : null}
           <Link
             href={`${protocolHref(page.protocolId)}/history`}
             className={buttonVariants({ variant: editable ? "tertiary" : "secondary", size: "compact" })}
@@ -66,6 +77,8 @@ export function ProtocolView({
             History
           </Link>
         </div>
+
+        {editable ? <OpenTalkThroughs items={talkThroughs} authors={authors} heading="Talk-throughs to check" className="mt-8" /> : null}
 
         {page.body.trim() === "" ? (
           <p className="mt-10 text-paragraph-medium text-content-tertiary">This page has no text yet.</p>

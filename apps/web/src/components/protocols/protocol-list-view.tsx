@@ -13,7 +13,9 @@ import {
   type ProtocolKind,
   type ProtocolSummary,
 } from "@/lib/protocols";
-import { ProtocolIcon } from "../icons/drawn";
+import { recordHref, type OpenTalkThrough } from "@/lib/talk-throughs";
+import { MicIcon, ProtocolIcon } from "../icons/drawn";
+import { OpenTalkThroughs } from "../talk-throughs/open-list";
 import { buttonVariants } from "../ui/button";
 import { dataRow, dataSurface } from "../ui/data-table";
 
@@ -25,10 +27,13 @@ export function ProtocolListView({
   protocols,
   authors,
   initialFilter,
+  talkThroughs,
 }: {
   protocols: ProtocolSummary[];
   authors: AuthorNames;
   initialFilter: Filter;
+  // The viewer's recordings for new pages, waiting to be used.
+  talkThroughs: readonly OpenTalkThrough[];
 }) {
   const [filter, setFilter] = useState<Filter>(initialFilter);
   const shown = filter === "all" ? protocols : protocols.filter((p) => p.kind === filter);
@@ -51,10 +56,18 @@ export function ProtocolListView({
             technique.
           </p>
         </div>
-        <Link href="/protocols/new" className={buttonVariants()}>
-          New page
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link href={recordHref({ pageKind: filter === "tutorial" ? "tutorial" : "protocol" })} className={buttonVariants({ variant: "secondary" })}>
+            <MicIcon className="size-5" />
+            Record a talk-through
+          </Link>
+          <Link href="/protocols/new" className={buttonVariants()}>
+            New page
+          </Link>
+        </div>
       </div>
+
+      <OpenTalkThroughs items={talkThroughs} authors={authors} heading="Your talk-throughs" className="mt-8" />
 
       {protocols.length === 0 ? (
         <p className="mt-10 max-w-prose text-paragraph-medium text-content-secondary">

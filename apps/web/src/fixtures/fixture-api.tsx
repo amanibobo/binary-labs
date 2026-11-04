@@ -4,10 +4,12 @@ import { useState, type ReactNode } from "react";
 import { LabApiProvider, type LabApi } from "@/components/lab-api";
 import type { FileHit } from "@/lib/domain";
 import type { SourceState } from "@/lib/source-state";
+import type { TalkThrough } from "@/lib/talk-throughs";
 import { folderFixtureFiles, folders, laterLabels, needsLookFiles, recentFiles, searchHits } from "./data";
 import { createFixtureLabels } from "./fixture-labels";
 import { PREVIEW_BY_FIRST_CHAR } from "./previews";
 import { protocolHits, purification, purificationTheirs } from "./protocols";
+import { fixtureUploadTalkThrough, fixtureApplyTalkThrough, talkThrough as fixtureTalkThrough } from "./talk-throughs";
 import { createFixtureUploads } from "./uploads";
 
 export type FixtureSearchMode = "hybrid" | "keyword";
@@ -33,12 +35,15 @@ export function FixtureLabApi({
   source,
   saves = "saved",
   earlierUploads = true,
+  talkThrough,
   children,
 }: {
   mode: FixtureSearchMode;
   source: SourceState;
   saves?: FixtureSaves;
   earlierUploads?: boolean;
+  // What polling a talk-through answers; it stays put, so a screenshot holds one state.
+  talkThrough?: TalkThrough;
   children: ReactNode;
 }) {
   const [uploads] = useState(() => createFixtureUploads({ earlier: earlierUploads }));
@@ -93,6 +98,13 @@ export function FixtureLabApi({
     unlinkProtocolFile: async () => wait(150),
     uploadFile: uploads.uploadFile,
     myUploads: uploads.myUploads,
+    uploadTalkThrough: fixtureUploadTalkThrough,
+    talkThrough: async (_id, signal) => {
+      await wait(80, signal);
+      return talkThrough ?? fixtureTalkThrough("ready");
+    },
+    retryTalkThrough: async () => wait(150),
+    applyTalkThrough: fixtureApplyTalkThrough,
   };
   return <LabApiProvider value={api}>{children}</LabApiProvider>;
 }
