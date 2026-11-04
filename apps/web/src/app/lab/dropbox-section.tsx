@@ -2,13 +2,17 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { ScanBar, useSourceState } from "@/components/scan-status";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDock } from "@/components/ui/dialog";
 import type { SourceState } from "@/lib/source-state";
 import { cn } from "@/lib/cn";
-import { requestRescan } from "./actions";
+import { disconnectDropbox, requestRescan } from "./actions";
+
+const count = new Intl.NumberFormat("en-US");
 
 export function DropboxSection({ initial, isAdmin }: { initial: SourceState; isAdmin: boolean }) {
   const { data: source } = useSourceState(initial);
@@ -34,9 +38,12 @@ export function DropboxSection({ initial, isAdmin }: { initial: SourceState; isA
           <Account label={source.accountLabel} />
           <p className="mt-3 text-paragraph-medium text-content-primary">Pick the folder to index.</p>
           {isAdmin ? (
-            <Link href="/lab/folder" className={cn(buttonVariants(), "mt-4")}>
-              Choose folder
-            </Link>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Link href="/lab/folder" className={buttonVariants()}>
+                Choose folder
+              </Link>
+              <DisconnectButton />
+            </div>
           ) : null}
         </div>
       );
@@ -57,8 +64,36 @@ export function DropboxSection({ initial, isAdmin }: { initial: SourceState; isA
               <Link href="/lab/folder" className={buttonVariants({ variant: "secondary" })}>
                 Change folder
               </Link>
+              <DisconnectButton />
             </div>
           ) : null}
+        </div>
+      );
+    case "disconnected":
+      return (
+        <div>
+          <p className="text-paragraph-medium text-content-primary">
+            Disconnected{source.accountLabel === null ? "" : " from "}
+            {source.accountLabel === null ? null : <span className="font-medium">{source.accountLabel}</span>}
+          </p>
+          {source.rootPath === null ? null : (
+            <dl className="mt-3">
+              <dt className="text-paragraph-small text-content-tertiary">Folder</dt>
+              <dd className="font-mono text-paragraph-small [overflow-wrap:anywhere] text-content-primary">{source.rootPath}</dd>
+            </dl>
+          )}
+          <p className="mt-3 max-w-prose text-paragraph-medium text-content-secondary">
+            {source.indexed === 0
+              ? "Nothing new is read until Dropbox is connected again."
+              : `The ${count.format(source.indexed)} ${source.indexed === 1 ? "file" : "files"} already indexed stay searchable. Nothing new is read until Dropbox is connected again.`}
+          </p>
+          {isAdmin ? (
+            <a href="/api/dropbox/start" className={cn(buttonVariants(), "mt-4")}>
+              Connect again
+            </a>
+          ) : (
+            <p className="mt-3 text-paragraph-medium text-content-secondary">An admin can connect it again.</p>
+          )}
         </div>
       );
     default: {
@@ -95,5 +130,53 @@ function RescanButton() {
     >
       {pending ? "Requesting rescan" : "Rescan"}
     </Button>
+  );
+}
+
+function DisconnectButton() {
+  const [open, setOpen] = useState(false);
+  const [pending, startTransition] = useTransition();
+  const queryClient = useQueryClient();
+  const router = useRouter();
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <Button variant="tertiary" onClick={() => setOpen(true)}>
+        Disconnect
+      </Button>
+      <DialogContent title="Disconnect Dropbox?" aria-describedby={undefined}>
+        <div className="grid gap-3 px-4 pt-3 text-paragraph-medium text-content-secondary sm:px-6">
+          <p>
+            Binary Labs stops reading the folder and gives up its access to your Dropbox. Nothing in Dropbox changes.
+          </p>
+          <p>
+            Files already indexed stay searchable, with their previews and labels. New and changed files aren&apos;t picked
+            up until you connect again.
+          </p>
+        </div>
+        <DialogDock className="pt-6">
+          <Button
+            disabled={pending}
+            onClick={() =>
+              startTransition(async () => {
+                const result = await disconnectDropbox();
+                if (result.kind === "error") {
+                  toast.error(result.message);
+                  return;
+                }
+                setOpen(false);
+                toast("Dropbox disconnected");
+                await queryClient.invalidateQueries({ queryKey: ["source-state"] });
+                router.refresh();
+              })
+            }
+          >
+            {pending ? "Disconnecting" : "Disconnect Dropbox"}
+          </Button>
+          <Button variant="secondary" onClick={() => setOpen(false)}>
+            Cancel
+          </Button>
+        </DialogDock>
+      </DialogContent>
+    </Dialog>
   );
 }
