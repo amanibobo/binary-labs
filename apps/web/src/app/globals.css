@@ -1,0 +1,84 @@
+@import "tailwindcss";
+
+/* PRD Design and UX tokens. Amber is reserved for flags and unused in this slice. */
+:root {
+  --ground: #f7f8f6;
+  --surface: #ffffff;
+  --ink: #142529;
+  --muted: #4a5a5c;
+  --green: #1f6b5c;
+  --blue: #2563a6;
+  --amber: #8a5e12;
+  --on-green: #ffffff;
+  --hairline: color-mix(in srgb, var(--ink) 13%, transparent);
+  --fill: color-mix(in srgb, var(--ink) 5%, var(--surface));
+  --mark: color-mix(in srgb, var(--blue) 12%, transparent);
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ground: #0f1e21;
+    --surface: #16292d;
+    --ink: #e8efee;
+    --muted: #a9bdbd;
+    --green: #4fc1a8;
+    --blue: #7cc4f0;
+    --amber: #e8b04b;
+    --on-green: #0f1e21;
+    --hairline: color-mix(in srgb, var(--ink) 14%, transparent);
+    --fill: color-mix(in srgb, var(--ink) 6%, var(--surface));
+    --mark: color-mix(in srgb, var(--blue) 16%, transparent);
+    color-scheme: dark;
+  }
+}
+
+@theme inline {
+  --color-ground: var(--ground);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-green: var(--green);
+  --color-blue: var(--blue);
+  --color-amber: var(--amber);
+  --color-on-green: var(--on-green);
+  --color-hairline: var(--hairline);
+  --color-fill: var(--fill);
+  --color-mark: var(--mark);
+  --font-sans: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
+  --radius-control: 10px;
+  --radius-panel: 12px;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --animate-skeleton: skeleton 1.4s ease-in-out infinite;
+
+  @keyframes skeleton {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.55; }
+  }
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    background: var(--ground);
+    color: var(--ink);
+  }
+  :focus-visible {
+    outline: 2px solid var(--blue);
+    outline-offset: 2px;
+  }
+  ::selection {
+    background: var(--mark);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
