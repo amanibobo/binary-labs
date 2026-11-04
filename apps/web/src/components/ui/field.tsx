@@ -24,6 +24,10 @@ export function Input({ className, size, ...props }: InputProps) {
   return <input className={cn(inputVariants({ size }), className)} {...props} />;
 }
 
+export function Textarea({ className, ...props }: ComponentProps<"textarea">) {
+  return <textarea className={cn(inputVariants(), "block resize-y py-3", className)} {...props} />;
+}
+
 export function Label({ className, ...props }: ComponentProps<typeof LabelPrimitive.Root>) {
   return <LabelPrimitive.Root className={cn("text-label-medium text-content-primary", className)} {...props} />;
 }

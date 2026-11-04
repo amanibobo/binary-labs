@@ -105,6 +105,25 @@ export function NeedsLookIcon(props: IconProps) {
   );
 }
 
+// A clipboard of steps: protocols and tutorials.
+export function ProtocolIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path {...line} d="M9 5H7a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
+      <rect {...line} x="9" y="3.5" width="6" height="3" rx="1" />
+      <path {...line} d="M9 11h6M9 14.5h4" />
+    </Svg>
+  );
+}
+
+export function LinkIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path {...line} d="M10.5 13.5a3.5 3.5 0 0 0 5 0l3-3a3.5 3.5 0 0 0-5-5l-1 1M13.5 10.5a3.5 3.5 0 0 0-5 0l-3 3a3.5 3.5 0 0 0 5 5l1-1" />
+    </Svg>
+  );
+}
+
 export function SettingsIcon(props: IconProps) {
   return (
     <Svg {...props}>

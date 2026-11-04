@@ -14,6 +14,7 @@ import { ActiveScan } from "../scan-status";
 import { buttonVariants } from "../ui/button";
 import { dataSurface } from "../ui/data-table";
 import { Skeleton } from "../ui/skeleton";
+import { ProtocolResults } from "../protocols/protocol-results";
 import { FileResult } from "./file-result";
 import { Filters } from "./filters";
 import { SearchBox } from "./search-box";
@@ -129,11 +130,14 @@ function SearchResults({
     );
   }
   const count = data.results.length;
+  // With pages above, the count below says what it counts.
+  const noun = data.protocols.length > 0 ? ["file", "files"] : ["result", "results"];
   return (
     <>
+      <ProtocolResults hits={data.protocols} query={query} />
       <div className="mb-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <h2 id={headingId} className="text-heading-xsmall" aria-live="polite">
-          {count === 0 ? "No results" : count === 1 ? "1 result" : `${count} results`}
+          {count === 0 ? `No ${noun[1]}` : count === 1 ? `1 ${noun[0]}` : `${count} ${noun[1]}`}
         </h2>
         {data.kind === "keyword" ? (
           <p className="text-paragraph-small text-content-tertiary">Results are keyword-only right now.</p>
@@ -141,7 +145,7 @@ function SearchResults({
       </div>
       {count === 0 ? (
         <p className="pt-2 text-paragraph-medium text-content-secondary">
-          Nothing matches &ldquo;{query}&rdquo;{filtered ? " with these filters" : ""}.
+          {data.protocols.length > 0 ? "No files match" : "Nothing matches"} &ldquo;{query}&rdquo;{filtered ? " with these filters" : ""}.
         </p>
       ) : (
         <ul className={dataSurface}>

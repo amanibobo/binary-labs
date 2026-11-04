@@ -1,15 +1,30 @@
 "use client";
 
-import type { FileHit } from "@/lib/domain";
+import Link from "next/link";
+import { isTextBearing, type FileHit } from "@/lib/domain";
 import { cn } from "@/lib/cn";
 import { formatDate, openInDropboxUrl } from "@/lib/format";
-import { OpenExternalIcon } from "../icons/drawn";
+import { newProtocolHref } from "@/lib/protocols";
+import { OpenExternalIcon, ProtocolIcon } from "../icons/drawn";
 import { useLabApi } from "../lab-api";
 import { Highlighted } from "../search/highlighted";
 import { buttonVariants } from "../ui/button";
 
 // The opened state of a file row: preview on the left, every place it lives on the right.
-export function PreviewPanel({ hit, query, id, className }: { hit: FileHit; query: string; id: string; className?: string }) {
+// A file with text can also start a protocol page.
+export function PreviewPanel({
+  hit,
+  query,
+  id,
+  className,
+  offerNewPage = true,
+}: {
+  hit: FileHit;
+  query: string;
+  id: string;
+  className?: string;
+  offerNewPage?: boolean;
+}) {
   return (
     <div id={id} className={cn("grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]", className)}>
       <Preview hit={hit} query={query} />
@@ -35,6 +50,15 @@ export function PreviewPanel({ hit, query, id, className }: { hit: FileHit; quer
             </li>
           ))}
         </ul>
+        {offerNewPage && isTextBearing(hit.fileKind) ? (
+          <Link
+            href={newProtocolHref(hit.sha256)}
+            className={cn(buttonVariants({ variant: "tertiary", size: "compact" }), "mt-5 -ml-3 text-content-secondary")}
+          >
+            <ProtocolIcon className="size-5" />
+            Make a protocol from this file
+          </Link>
+        ) : null}
       </div>
     </div>
   );
