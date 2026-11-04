@@ -37,7 +37,7 @@ class QwenEmbedder:
 
     def embed_documents(self, texts: list[str]) -> list[list[float]]:
         with self._lock:
-            vectors = self._model.encode(texts, batch_size=16, normalize_embeddings=True)
+            vectors = self._model.encode(texts, batch_size=4, normalize_embeddings=True)
         return [v.tolist() for v in vectors]
 
     def embed_query(self, text: str) -> list[float]:
