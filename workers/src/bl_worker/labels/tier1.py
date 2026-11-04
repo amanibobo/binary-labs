@@ -345,7 +345,7 @@ RULES: list[Rule] = [
     kind_what,
 ]
 
-SERIAL = re.compile(r"(?i)\b(run|read|lane|rep|replicate)[ _-]?(\d+)")
+SERIAL = re.compile(r"(?i)(?<![a-z])(run|read|lane|rep|replicate)[ _-]?(\d+)")
 
 
 @dataclass(frozen=True)
@@ -371,7 +371,9 @@ class Tier1:
             subject = self.person.value.name
         if subject is None:
             return None
-        name = f"{subject} {self.what.value}"
+        known = set(norm(subject).split())
+        what = " ".join(w for w in self.what.value.split() if norm(w) not in known)
+        name = f"{subject} {what}"
         if self.serial and self.serial.lower() not in name.lower():
             name = f"{name}, {self.serial}"
         return name[:1].upper() + name[1:]
@@ -384,7 +386,9 @@ class Tier1:
             return 0.9
         score = 0.3 if self.what and self.what.strength >= Strength.MEDIUM else 0.2
         if self.experiment:
-            score += 0.25 if self.experiment.strength >= Strength.STRONG else 0.1
+            score += {Strength.TAUGHT: 0.35, Strength.STRONG: 0.25}.get(
+                self.experiment.strength, 0.1
+            )
         if self.date and self.date.strength >= Strength.STRONG:
             score += 0.1
         if self.person and self.person.strength >= Strength.STRONG:

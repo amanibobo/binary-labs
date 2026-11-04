@@ -35,7 +35,10 @@ def tier3_reason(f: FileInfo, t1: Tier1, t2: Proposal | None) -> str | None:
             ("person", t1.person, t2.person),
             ("date", t1.date, t2.date),
         ]
-        if fact is not None and fact.strength >= Strength.STRONG and value != fact.value
+        if fact is not None
+        and fact.strength >= Strength.STRONG
+        and value is not None
+        and value != fact.value
     ]
     if disagreements:
         return "tier 2 disagrees with rules on " + ", ".join(disagreements)
