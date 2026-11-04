@@ -49,14 +49,16 @@ def test_scheduler_scans_and_worker_indexes_everything(rt, conn, make_lab, job_a
     ).fetchall()
     assert states == [("indexed", 3)]
     assert due_sources(conn) == []
-    jobs = conn.execute(
-        "select task_name, status, count(*) from procrastinate_jobs group by 1, 2 order by 1"
-    ).fetchall()
-    assert jobs == [
-        ("process_location", "succeeded", 3),
-        ("scan_source", "succeeded", 1),
-        ("schedule_scans", "succeeded", 1),
-    ]
+    jobs = dict(
+        conn.execute(
+            "select task_name || ':' || status, count(*) from procrastinate_jobs group by 1"
+        ).fetchall()
+    )
+    # The worker's own periodic deferrer may add a scheduler run when the clock crosses a
+    # 10-second mark; a second run must find nothing due and start no second scan.
+    schedule_runs = jobs.pop("schedule_scans:succeeded")
+    assert schedule_runs >= 1
+    assert jobs == {"process_location:succeeded": 3, "scan_source:succeeded": 1}
 
 
 def test_a_queued_scan_is_not_queued_twice(conn, make_lab, job_app):
