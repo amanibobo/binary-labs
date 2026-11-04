@@ -89,3 +89,11 @@ The PRD reserves amber for flags and "check this" labels; the earlier visual-sys
 ## 2026-11-04 — measured: label eval on the sample lab
 
 `sh workers/scripts/eval_labels.sh` (real models, clean database, 51 files, 46 unique): 89.1% accepted without edits (41/46). Name 89.1%, date 89.1%, experiment 97.8%, person 95.7%, instrument 93.5%. Every miss was a file sent to Needs a look (three unreadable formats, one unlabeled phone photo, one file whose folder and content disagree); no suggested label was wrong. Cost $0.0029 per file, 93% of it Tier 3: Haiku rates itself under 0.85 on most files, so 34 of 46 went on to Sonnet. 29 of 46 labels carry the "check this" marker. A run on the same code a few minutes earlier scored 87.0%, so expect a few points of run-to-run spread. The thresholds remain the PRD's starting guesses.
+
+## 2026-11-04 — protocols and tutorials
+
+Protocols and tutorials live in our database, not in Dropbox, because Dropbox access is read-only. One `protocols` table with `kind` (`protocol` or `tutorial`); a tutorial is a how-to page that never carries expected values. Every save inserts an immutable `protocol_versions` row (title, Markdown body, `expected_values` JSON left empty until Phase 4, author, note) and moves `protocols.current_version_id`, so a Phase 4 flag can cite the exact version it checked against. A save names the version it started from and fails if someone saved in between, so two people never overwrite each other silently.
+
+The body is Markdown, rendered without raw HTML. Steps are a numbered list in that Markdown; a structured step model waits for Phase 2's voice-to-steps. A page links files from the index (a demo video, an example gel, the original .docx), each opening in Dropbox like any search result. "Start from a file" fills a new page with an indexed file's extracted text and links that file, so a lab's existing protocol documents become pages without retyping; no model rewrites them. `experiments.protocol_id` now points at `protocols`.
+
+Members create and edit; admins archive. Archiving hides a page but keeps its versions, since flags may cite them. Search shows matching protocols (keyword match on title and body) above files. Every create, edit and archive goes to `audit_log`.
