@@ -604,7 +604,10 @@
         "/EF/thermal_shift/screen_plate_07/hits.xlsx"
       ],
       "name_terms": [
-        "hits"
+        [
+          "hits",
+          "hit"
+        ]
       ],
       "date": "modified",
       "experiment": "Thermal shift screen plate 07",

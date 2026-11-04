@@ -164,7 +164,7 @@ class Draft:
     reason: str | None
 
 
-SEPARATORS = re.compile(r"[_./\\\-\s]+")
+SEPARATORS = re.compile(r"[\W_]+")
 ALPHA_DIGIT = re.compile(r"(?<=[a-z])(?=\d)|(?<=\d)(?=[a-z])")
 
 
