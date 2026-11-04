@@ -69,14 +69,6 @@ export function FileImageIcon(props: IconProps) {
   );
 }
 
-export function FolderIcon(props: IconProps) {
-  return (
-    <Svg {...props}>
-      <path {...line} d="M4 8a2 2 0 0 1 2-2h3.5l2 2H18a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" />
-    </Svg>
-  );
-}
-
 // Filled so it takes a folder tint; the tab sits a shade back from the front panel.
 export function FolderFilledIcon(props: IconProps) {
   return (

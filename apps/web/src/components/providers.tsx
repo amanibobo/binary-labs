@@ -15,7 +15,6 @@ export function Providers({ children }: { children: ReactNode }) {
       <MotionConfig reducedMotion="user" transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}>
         {children}
       </MotionConfig>
-      {/* Base Web Snackbar: backgroundInverseSecondary, 12px radius, deep shadow, 320 to 540px wide. */}
       <Toaster
         position="bottom-center"
         icons={{ success: <CheckIcon />, error: <AlertIcon /> }}
@@ -23,7 +22,7 @@ export function Providers({ children }: { children: ReactNode }) {
           unstyled: true,
           classNames: {
             toast:
-              "flex w-full min-w-[min(320px,calc(100vw-32px))] max-w-[540px] items-center gap-3 rounded-xl bg-background-inverse-secondary px-4 py-4 font-sans text-paragraph-medium text-content-inverse-primary shadow-deep-below",
+              "flex w-full min-w-[min(320px,calc(100vw-32px))] max-w-[540px] items-center gap-3 rounded-xl bg-background-inverse-secondary px-4 py-3.5 font-sans text-paragraph-medium text-content-inverse-primary shadow-deep-below",
             icon: "shrink-0",
             content: "min-w-0 flex-1",
             actionButton:

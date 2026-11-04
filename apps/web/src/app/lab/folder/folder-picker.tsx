@@ -4,7 +4,9 @@ import { useQuery } from "@tanstack/react-query";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { ChevronRightIcon } from "@/components/icons/base-web";
-import { FolderIcon } from "@/components/icons/drawn";
+import { FolderFilledIcon } from "@/components/icons/drawn";
+import { dataSurface } from "@/components/ui/data-table";
+import { cn } from "@/lib/cn";
 import { useLabApi } from "@/components/lab-api";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -26,8 +28,8 @@ export function FolderPicker({ initialPath = "" }: { initialPath?: string }) {
   const trail = crumbs(path);
 
   return (
-    <div className="-mx-4 border-y border-border-opaque sm:mx-0 sm:rounded-lg sm:border">
-      <nav aria-label="Folder path" className="border-b border-border-opaque px-4 py-3">
+    <div className={cn(dataSurface, "rounded-card")}>
+      <nav aria-label="Folder path" className="border-b border-border-opaque px-5 py-3">
         <ol className="flex flex-wrap items-center gap-x-1 gap-y-1 font-mono text-paragraph-small">
           {trail.map((crumb, i) => (
             <li key={crumb.path} className="flex items-center gap-1">
@@ -37,7 +39,7 @@ export function FolderPicker({ initialPath = "" }: { initialPath?: string }) {
                   {crumb.name}
                 </span>
               ) : (
-                <button type="button" onClick={() => setPath(crumb.path)} className="min-h-11 rounded px-1 text-content-accent underline-offset-2 hover:underline">
+                <button type="button" onClick={() => setPath(crumb.path)} className="min-h-11 rounded px-1 text-content-accent underline-offset-2 hover:underline sm:min-h-8">
                   {crumb.name}
                 </button>
               )}
@@ -71,10 +73,10 @@ export function FolderPicker({ initialPath = "" }: { initialPath?: string }) {
                 <button
                   type="button"
                   onClick={() => setPath(folder.path)}
-                  className="flex min-h-14 w-full items-center text-left transition-colors duration-150 ease-out hover:bg-button-tertiary-hover focus-visible:outline-offset-[-2px]"
+                  className="flex min-h-12 w-full items-center text-left transition-colors duration-150 ease-out hover:bg-background-secondary focus-visible:outline-offset-[-2px]"
                 >
-                  <span className="flex w-16 shrink-0 justify-center">
-                    <FolderIcon className="text-content-secondary" />
+                  <span className="flex w-14 shrink-0 justify-center">
+                    <FolderFilledIcon className="size-5 text-tint-gray" />
                   </span>
                   <span className="min-w-0 flex-1 truncate font-mono text-label-small text-content-primary">{folder.name}</span>
                   <span className="sr-only">, open folder</span>
@@ -86,7 +88,7 @@ export function FolderPicker({ initialPath = "" }: { initialPath?: string }) {
         )}
       </div>
 
-      <div className="flex flex-col gap-3 border-t border-border-opaque px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 border-t border-border-opaque px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
         <p className="min-w-0 text-paragraph-small text-content-tertiary">
           {path === "" ? (
             "Open the folder your lab keeps its work in."

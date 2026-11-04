@@ -3,6 +3,8 @@
 import { useActionState, useId, useTransition } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { dataRow } from "@/components/ui/data-table";
+import { cn } from "@/lib/cn";
 import { Input, Label } from "@/components/ui/field";
 import { addListEntry, removeListEntry, type LabListKind, type ListAddState } from "./actions";
 
@@ -30,11 +32,11 @@ export function LabListSection({ kind, entries, isAdmin }: { kind: LabListKind; 
   return (
     <div>
       {entries.length === 0 ? (
-        <p className="text-paragraph-medium text-content-tertiary">{copy.empty}</p>
+        <p className="px-5 pb-4 text-paragraph-medium text-content-tertiary sm:px-6">{copy.empty}</p>
       ) : (
-        <ul className="divide-y divide-border-opaque rounded-lg border border-border-opaque bg-background-primary">
+        <ul className="border-t border-border-opaque">
           {entries.map((entry) => (
-            <li key={entry.id} className="flex min-h-14 items-center gap-4 py-2 pr-2 pl-4">
+            <li key={entry.id} className={cn(dataRow, "flex min-h-14 items-center gap-4 py-2 pr-3 pl-5 sm:pl-6")}>
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-paragraph-medium text-content-primary">{entry.name}</span>
                 {entry.aliases.length === 0 ? null : (
@@ -79,7 +81,7 @@ function AddForm({ kind }: { kind: LabListKind }) {
   // A new key after each add clears the fields.
   const formKey = state.kind === "added" ? state.name : "draft";
   return (
-    <form action={action} className="mt-4 grid gap-1.5" key={formKey}>
+    <form action={action} className="grid gap-1.5 border-t border-border-opaque bg-background-primary/40 px-5 pt-5 pb-4 sm:px-6" key={formKey}>
       <div className="grid gap-2 sm:grid-cols-[minmax(0,2fr)_minmax(0,3fr)_auto] sm:items-end">
         <div className="grid gap-1.5">
           <Label htmlFor={`${id}-name`}>Name</Label>

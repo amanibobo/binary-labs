@@ -7,7 +7,7 @@ import { hasFilters } from "@/lib/filters";
 import { formatDate, KIND_LABELS } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { CheckIcon, ChevronDownIcon } from "../icons/base-web";
-import { FILE_KIND_ICONS } from "../icons/drawn";
+import { KindIcon } from "../files/kind-icon";
 import { buttonVariants } from "../ui/button";
 import { Input, Label } from "../ui/field";
 import { menuItem, menuSurface } from "../ui/menu";
@@ -23,14 +23,13 @@ function dateLabel({ from, to }: SearchFilters): string | null {
   return null;
 }
 
-// Base Web Tag at its medium size (32px, 24px radius) used as filter chips; a
-// set filter fills like a selected Base button. Chips grow to 44px on phones.
+// 32px pill chips (44px on phones); a set filter fills like a primary button.
 function chipClass(active: boolean) {
   return cn(
-    "inline-flex min-h-11 max-w-64 shrink-0 items-center gap-1 rounded-3xl pr-2 pl-3 text-label-small transition-colors duration-150 ease-out sm:min-h-8",
+    "inline-flex min-h-11 max-w-64 shrink-0 items-center gap-1 rounded-full border pr-2 pl-3 text-label-small transition-colors duration-150 ease-out sm:min-h-8",
     active
-      ? "bg-button-primary-fill text-content-inverse-primary hover:bg-button-primary-hover"
-      : "bg-background-secondary text-content-primary hover:bg-button-secondary-hover",
+      ? "border-transparent bg-button-primary-fill text-content-inverse-primary hover:bg-button-primary-hover"
+      : "border-border-opaque bg-background-raised text-content-secondary hover:bg-background-secondary hover:text-content-primary",
   );
 }
 
@@ -47,7 +46,7 @@ export function Filters({ value, onChange }: { value: SearchFilters; onChange: (
   const id = useId();
   const dates = dateLabel(value);
   return (
-    <div role="group" aria-label="Filters" className="-mx-4 mt-4 flex items-center gap-2 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:px-0">
+    <div role="group" aria-label="Filters" className="-mx-4 mt-3 flex items-center gap-2 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:px-0">
       <DropdownMenu.Root>
         <DropdownMenu.Trigger className={chipClass(value.kind !== undefined)}>
           <ChipLabel>{value.kind === undefined ? "Kind" : KIND_LABELS[value.kind]}</ChipLabel>
@@ -62,10 +61,9 @@ export function Filters({ value, onChange }: { value: SearchFilters; onChange: (
               }}
             >
               {(["", ...FILE_KINDS] as const).map((kind) => {
-                const KindIcon = kind === "" ? null : FILE_KIND_ICONS[kind];
                 return (
                   <DropdownMenu.RadioItem key={kind} value={kind} className={menuItem}>
-                    {KindIcon === null ? <span className="size-6" /> : <KindIcon className="text-content-secondary" />}
+                    {kind === "" ? <span className="size-5" /> : <KindIcon kind={kind} className="size-5" />}
                     <span className="flex-1">{kind === "" ? "Any kind" : KIND_LABELS[kind]}</span>
                     <DropdownMenu.ItemIndicator>
                       <CheckIcon />

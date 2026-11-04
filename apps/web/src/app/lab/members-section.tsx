@@ -1,7 +1,9 @@
 "use client";
 
 import { useActionState, useId } from "react";
+import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { dataRow } from "@/components/ui/data-table";
 import { Input, Label } from "@/components/ui/field";
 import type { LabMember } from "@/lib/domain";
 import { formatDate } from "@/lib/format";
@@ -10,13 +12,15 @@ import { inviteMember, type InviteState } from "./actions";
 export function MembersSection({ members, isAdmin }: { members: LabMember[]; isAdmin: boolean }) {
   return (
     <div>
-      <ul className="divide-y divide-border-opaque rounded-lg border border-border-opaque bg-background-primary">
+      <ul className="border-t border-border-opaque">
         {members.map((member) => (
-          <li key={member.userId} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5 px-4 py-3">
-            <span className="min-w-0 truncate text-paragraph-medium text-content-primary">{member.email ?? "Unknown address"}</span>
-            <span className="text-paragraph-small text-content-tertiary">
+          <li key={member.userId} className={`${dataRow} flex items-center gap-3 px-5 py-3 sm:px-6`}>
+            <Avatar label={member.email ?? "?"} tintKey={member.email ?? member.userId} />
+            <span className="min-w-0 flex-1 truncate text-paragraph-medium text-content-primary">{member.email ?? "Unknown address"}</span>
+            <span className="shrink-0 text-paragraph-small text-content-tertiary max-sm:hidden">
               {member.role === "admin" ? "Admin" : "Member"} since {formatDate(member.joinedAt)}
             </span>
+            <span className="shrink-0 text-paragraph-small text-content-tertiary sm:hidden">{member.role === "admin" ? "Admin" : "Member"}</span>
           </li>
         ))}
       </ul>
@@ -30,7 +34,7 @@ function InviteForm() {
   const id = useId();
   const error = state.kind === "error" ? state : null;
   return (
-    <form action={action} className="mt-6 grid gap-1.5">
+    <form action={action} className="grid gap-1.5 border-t border-border-opaque bg-background-primary/40 px-5 pt-5 pb-4 sm:px-6">
       <Label htmlFor={`${id}-email`}>Invite by email</Label>
       <div className="flex flex-col gap-2 sm:flex-row">
         <Input

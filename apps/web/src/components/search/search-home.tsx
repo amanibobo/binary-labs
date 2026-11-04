@@ -12,6 +12,7 @@ import { cn } from "@/lib/cn";
 import { LabelsProvider, LabListsProvider, useLabelPolling } from "../labels/labels-context";
 import { ActiveScan } from "../scan-status";
 import { buttonVariants } from "../ui/button";
+import { dataSurface } from "../ui/data-table";
 import { Skeleton } from "../ui/skeleton";
 import { FileResult } from "./file-result";
 import { Filters } from "./filters";
@@ -63,9 +64,9 @@ export function SearchHome({
   return (
     <LabListsProvider value={lists}>
       <LabelsProvider>
-        <div className="mx-auto w-full max-w-3xl px-4 pt-8 pb-24 sm:px-6 sm:pt-16">
+        <div className="mx-auto w-full max-w-4xl px-4 pt-8 pb-24 sm:px-8 sm:pt-16">
           <ActiveScan initial={source} />
-          <h1 className="mb-6 text-heading-medium sm:text-heading-xlarge">{labName}</h1>
+          <h1 className="mb-6 text-heading-medium sm:text-heading-large">{labName}</h1>
           <label htmlFor={inputId} className="sr-only">
             Search your lab&apos;s files
           </label>
@@ -78,7 +79,7 @@ export function SearchHome({
           />
           {source.kind === "connected" ? <Filters value={filters} onChange={setFilters} /> : null}
 
-          <section aria-labelledby={`${inputId}-results`} className="mt-10">
+          <section aria-labelledby={`${inputId}-results`} className="mt-12">
             {searching ? (
               <SearchResults search={search} query={search.settledQuery} expanded={expanded} onToggle={toggle} headingId={`${inputId}-results`} filtered={hasFilters(filters)} />
             ) : (
@@ -130,7 +131,7 @@ function SearchResults({
   const count = data.results.length;
   return (
     <>
-      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+      <div className="mb-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <h2 id={headingId} className="text-heading-xsmall" aria-live="polite">
           {count === 0 ? "No results" : count === 1 ? "1 result" : `${count} results`}
         </h2>
@@ -143,7 +144,7 @@ function SearchResults({
           Nothing matches &ldquo;{query}&rdquo;{filtered ? " with these filters" : ""}.
         </p>
       ) : (
-        <ul className="-mx-4 sm:mx-0">
+        <ul className={dataSurface}>
           {data.results.map((hit) => (
             <FileResult key={hit.sha256} hit={hit} query={query} expanded={expanded === hit.sha256} onToggle={() => onToggle(hit.sha256)} />
           ))}
@@ -168,13 +169,11 @@ function SearchError({ headingId, onRetry }: { headingId: string; onRetry: () =>
 
 function ResultSkeleton() {
   return (
-    <div className="-mx-4 sm:mx-0" aria-hidden>
+    <div className={dataSurface} aria-hidden>
       {[0, 1, 2, 3].map((i) => (
-        <div key={i} className="flex">
-          <div className="flex h-16 w-16 shrink-0 items-center justify-center">
-            <Skeleton className="size-6 rounded-md" />
-          </div>
-          <div className="flex-1 space-y-2.5 border-b border-border-opaque py-4 pr-4">
+        <div key={i} className="flex gap-4 border-t border-border-opaque py-4 pr-4 pl-4 first:border-t-0 sm:pl-5">
+          <Skeleton className="size-6 shrink-0 rounded-md" />
+          <div className="flex-1 space-y-2.5">
             <Skeleton className="h-4 w-2/5" />
             <Skeleton className="h-3 w-1/3" />
             <Skeleton className="h-3 w-4/5" />
@@ -215,10 +214,10 @@ function RecentFiles({
   }
   return (
     <>
-      <h2 id={headingId} className="mb-2 text-heading-xsmall">
+      <h2 id={headingId} className="mb-4 text-heading-xsmall">
         Recent files
       </h2>
-      <ul className="-mx-4 sm:mx-0">
+      <ul className={dataSurface}>
         {recent.map((hit) => (
           <FileResult key={hit.sha256} hit={hit} query="" expanded={expanded === hit.sha256} onToggle={() => onToggle(hit.sha256)} />
         ))}

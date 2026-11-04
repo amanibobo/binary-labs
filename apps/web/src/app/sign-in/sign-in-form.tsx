@@ -11,7 +11,7 @@ export function SignInForm() {
 
   if (state.kind === "sent") {
     return (
-      <div role="status" className="rounded-lg border border-border-opaque bg-background-primary p-5">
+      <div role="status" className="rounded-xl border border-border-opaque bg-background-secondary p-4">
         <h2 className="text-label-medium">Check your email</h2>
         <p className="mt-1 text-paragraph-medium text-content-tertiary">
           We sent a sign-in link to <span className="text-content-primary">{state.email}</span>. Open it on this device to sign in.

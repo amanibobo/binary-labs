@@ -23,7 +23,7 @@ export function ScanBar({ scan }: { scan: ScanState }) {
   const line = progressLine(scan);
   const failed = failedLine(scan);
   const pct = Math.round(progressFraction(scan) * 100);
-  // Base Web ProgressBar at its medium size (4px, 2px radius). The fill is contentPrimary rather than Base's accent blue, which this app keeps for matches, links and focus.
+  // Gray, not blue: blue is kept for matches, links and focus.
   return (
     <div>
       <div
@@ -33,10 +33,10 @@ export function ScanBar({ scan }: { scan: ScanState }) {
         aria-valuemax={100}
         aria-valuenow={pct}
         aria-valuetext={line}
-        className="h-1 overflow-hidden rounded-[2px] bg-background-tertiary"
+        className="h-1 overflow-hidden rounded-full bg-background-tertiary"
       >
         <div
-          className="h-full rounded-[2px] bg-content-primary transition-[width] duration-200 ease-out"
+          className="h-full rounded-full bg-content-secondary transition-[width] duration-200 ease-out"
           style={{ width: `${Math.max(pct, scan.counts.pending > 0 || scan.kind === "running" ? 2 : 0)}%` }}
         />
       </div>

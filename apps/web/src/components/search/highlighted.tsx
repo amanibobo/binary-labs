@@ -1,7 +1,7 @@
 import { highlight } from "@/lib/highlight";
 
 // Renders matches as text nodes inside <mark>; the snippet is never parsed as HTML.
-// Colors are Base Web's blue secondary tag pair, the one pairing of its blues that passes 4.5:1 on a tint.
+// Blue is reserved for matches, links and focus; the tag pair passes 4.5:1.
 export function Highlighted({ text, query }: { text: string; query: string }) {
   return highlight(text, query).map((segment, i) =>
     segment.match ? (
