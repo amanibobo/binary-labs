@@ -5,9 +5,10 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { audit } from "@/lib/audit";
 import { folderPath } from "@/lib/dropbox";
-import { sourceAccessToken } from "@/lib/dropbox-session";
+import { holdTokens, revokeHeldTokens, sourceAccessToken } from "@/lib/dropbox-session";
 import { UserId } from "@/lib/ids";
 import { loadSourceState } from "@/lib/lab-data";
+import { deletionFailure } from "@/lib/lab-deletion";
 import { logError } from "@/lib/log";
 import { requestOrigin } from "@/lib/origin";
 import { createServiceSupabase, unwrap } from "@/lib/supabase/server";
@@ -37,6 +38,7 @@ export async function setFolder(rawPath: string): Promise<ActionResult> {
 
   const source = await loadSourceState(supabase, lab.id);
   if (source.kind === "not_connected") return { kind: "error", message: "Connect Dropbox first." };
+  if (source.kind === "disconnected") return { kind: "error", message: "Connect Dropbox again first." };
   try {
     const canonical = await folderPath(await sourceAccessToken({ labId: lab.id, sourceId: source.sourceId }), path.data);
     if (canonical === null) return { kind: "error", message: "That folder isn't in Dropbox any more." };
@@ -82,6 +84,50 @@ export async function requestRescan(): Promise<ActionResult> {
   }
   revalidatePath("/", "layout");
   return { kind: "ok" };
+}
+
+// The database drops the token, stops scans and writes the audit row (0007_deletion.sql);
+// the index stays searchable. The token is revoked with Dropbox once it's gone from ours.
+export async function disconnectDropbox(): Promise<ActionResult> {
+  const { supabase, lab } = await requireAdmin();
+  const source = await loadSourceState(supabase, lab.id);
+  if (source.kind === "not_connected" || source.kind === "disconnected") return { kind: "ok" };
+  try {
+    const held = await holdTokens({ labId: lab.id, sourceId: source.sourceId });
+    unwrap(await supabase.rpc("disconnect_source", { p_source_id: source.sourceId }));
+    await revokeHeldTokens(held);
+  } catch (error) {
+    logError("source.disconnect_failed", { labId: lab.id, error });
+    return { kind: "error", message: "We couldn't disconnect Dropbox. Try again." };
+  }
+  revalidatePath("/", "layout");
+  return { kind: "ok" };
+}
+
+export type DeleteLabState = { kind: "idle" } | { kind: "wrong_name"; typed: string } | { kind: "error"; message: string; typed: string };
+
+// The database checks the typed name and the admin role, hides the lab from every member,
+// drops the Dropbox tokens and writes lab_deletions and the audit row in one statement.
+// The worker deletes the rest within minutes.
+export async function deleteLab(_prev: DeleteLabState, form: FormData): Promise<DeleteLabState> {
+  const { supabase, lab } = await requireAdmin();
+  const typed = String(form.get("name") ?? "");
+  try {
+    const held = await holdTokens({ labId: lab.id });
+    const { error } = await supabase.rpc("request_lab_deletion", { p_lab_id: lab.id, p_confirm_name: typed });
+    if (error !== null) {
+      const failure = deletionFailure(error);
+      if (failure.kind === "wrong_name") return { kind: "wrong_name", typed };
+      logError("lab.delete_failed", { labId: lab.id, error });
+      return { kind: "error", message: failure.message, typed };
+    }
+    await revokeHeldTokens(held);
+  } catch (error) {
+    logError("lab.delete_failed", { labId: lab.id, error });
+    return { kind: "error", message: "We couldn't delete the lab. Try again.", typed };
+  }
+  revalidatePath("/", "layout");
+  redirect(`/deleted?lab=${lab.id}`);
 }
 
 export type InviteState =

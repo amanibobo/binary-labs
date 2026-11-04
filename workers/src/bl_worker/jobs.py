@@ -8,7 +8,7 @@ import psycopg
 from procrastinate import App, JobContext, PsycopgConnector, RetryStrategy
 from procrastinate.exceptions import AlreadyEnqueued
 
-from bl_worker import process, scan
+from bl_worker import deletion, process, scan
 from bl_worker.labels import job as labels
 from bl_worker.labels.learning import learn_pending
 from bl_worker.runtime import Runtime
@@ -18,10 +18,10 @@ log = logging.getLogger(__name__)
 # The real connector is swapped in at startup with app.replace_connector, once settings exist.
 app = App(connector=PsycopgConnector())
 
-DUE_SOURCES = """
-select id from sources
-where root_path is not null and scan_requested_at > coalesce(scan_started_at, '-infinity')
-order by scan_requested_at
+DUE_SOURCES = f"""
+select s.id from sources s
+where {scan.LIVE_SOURCE} and s.scan_requested_at > coalesce(s.scan_started_at, '-infinity')
+order by s.scan_requested_at
 """
 
 
@@ -119,3 +119,28 @@ async def tend_labels(context: JobContext, timestamp: int) -> None:
     deferred = await asyncio.to_thread(tend)
     if deferred:
         log.info("deferred %d label jobs", deferred)
+
+
+@app.task(name="delete_lab", pass_context=True, retry=RetryStrategy(max_attempts=3, wait=30))
+def delete_lab(context: JobContext, lab_id: str) -> None:
+    deletion.delete_lab(_runtime(context), UUID(lab_id))
+
+
+@app.periodic(cron="* * * * * */10")
+@app.task(name="sweep_deletions", pass_context=True, queueing_lock="sweep_deletions")
+async def sweep_deletions(context: JobContext, timestamp: int) -> None:
+    """Queues delete_lab for every lab marked for deletion and not finished, so a deletion
+    that crashed or never got queued is picked up again."""
+    rt = _runtime(context)
+
+    def sweep() -> int:
+        with rt.pool.connection() as conn:
+            pending = deletion.pending_deletions(conn)
+        return sum(
+            _defer_locked("delete_lab", f"delete_lab:{lab_id}", lab_id=str(lab_id))
+            for lab_id in pending
+        )
+
+    deferred = await asyncio.to_thread(sweep)
+    if deferred:
+        log.info("deferred %d lab deletions", deferred)

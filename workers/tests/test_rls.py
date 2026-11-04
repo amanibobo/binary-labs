@@ -15,7 +15,10 @@ def two_labs(rt, conn, make_lab):
         lab.write(f"{tag}/gel_{tag}.jpg", samples.gel_jpeg(seed=hash(tag) % 100))
         lab.write(f"{tag}/protocol_{tag}.pdf", samples.pdf([f"P450 gel protocol {tag}"]))
         run_scan(rt, lab.source_id)
-    conn.execute("update sources set token_ciphertext = '\\x0102' where id = %s", (b.source_id,))
+    conn.execute(
+        "update sources set kind = 'dropbox', token_ciphertext = '\\x0102' where id = %s",
+        (b.source_id,),
+    )
     return a, b
 
 

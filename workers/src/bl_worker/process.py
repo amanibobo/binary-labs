@@ -10,12 +10,14 @@ import psycopg
 from psycopg.types.json import Jsonb
 
 from bl_worker.chunking import name_chunk, text_chunks
+from bl_worker.db import lab_lock
 from bl_worker.domain import FileKind, SourceKind, SourceReadError, SourceRow
 from bl_worker.embed import Embedder
 from bl_worker.extract import EXTRACTORS, Extracted, ExtractionFailed, run_extractor
 from bl_worker.filekind import detect
 from bl_worker.previews import PreviewFailed, PreviewStore, preview_key, render_preview
 from bl_worker.runtime import Runtime
+from bl_worker.scan import LIVE_SOURCE
 from bl_worker.sources import build_source
 
 log = logging.getLogger(__name__)
@@ -50,12 +52,12 @@ class Blob:
 
 def load_pending(conn: psycopg.Connection, location_id: UUID) -> Location | None:
     row = conn.execute(
-        """
+        f"""
         select fl.id, fl.lab_id, fl.external_id, fl.original_name, fl.source_rev,
           s.id, s.lab_id, s.kind, s.root_path, s.token_ciphertext, s.cursor
         from file_locations fl join sources s on s.id = fl.source_id
         where fl.id = %s and fl.index_state = 'pending' and fl.deleted_at is null
-          and s.root_path is not null
+          and {LIVE_SOURCE}
         """,
         (location_id,),
     ).fetchone()
@@ -68,22 +70,32 @@ def load_pending(conn: psycopg.Connection, location_id: UUID) -> Location | None
 def process_location(rt: Runtime, location_id: UUID) -> Outcome:
     """design.md "Processing one location". Safe to re-run from any point."""
     with rt.pool.connection() as conn:
-        loc = load_pending(conn, location_id)
-        if loc is None:
+        found = conn.execute(
+            "select lab_id from file_locations where id = %s", (location_id,)
+        ).fetchone()
+        if found is None:
             return Outcome.SKIPPED
-        try:
-            data = build_source(loc.source, rt.settings).read(loc.external_id)
-            blob = _store_blob(conn, loc, data)
-            extracted = _extract(conn, blob, data)
-            _write_chunks(conn, loc.lab_id, blob.sha256, extracted)
-            _embed_chunks(conn, rt.embedder, loc.lab_id, blob.sha256)
-            _write_preview(conn, rt.previews, loc.lab_id, blob, data)
-        except FILE_ERRORS as e:
-            log.info("location %s failed: %s", loc.id, e)
-            _mark_failed(conn, loc, str(e))
-            return Outcome.FAILED
-        _mark_indexed(conn, loc)
-        return Outcome.INDEXED
+        with lab_lock(conn, found[0], exclusive=False):
+            loc = load_pending(conn, location_id)
+            if loc is None:
+                return Outcome.SKIPPED
+            return _process(rt, conn, loc)
+
+
+def _process(rt: Runtime, conn: psycopg.Connection, loc: Location) -> Outcome:
+    try:
+        data = build_source(loc.source, rt.settings).read(loc.external_id)
+        blob = _store_blob(conn, loc, data)
+        extracted = _extract(conn, blob, data)
+        _write_chunks(conn, loc.lab_id, blob.sha256, extracted)
+        _embed_chunks(conn, rt.embedder, loc.lab_id, blob.sha256)
+        _write_preview(conn, rt.previews, loc.lab_id, blob, data)
+    except FILE_ERRORS as e:
+        log.info("location %s failed: %s", loc.id, e)
+        _mark_failed(conn, loc, str(e))
+        return Outcome.FAILED
+    _mark_indexed(conn, loc)
+    return Outcome.INDEXED
 
 
 def _store_blob(conn: psycopg.Connection, loc: Location, data: bytes) -> Blob:

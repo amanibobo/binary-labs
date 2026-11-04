@@ -5,6 +5,7 @@ import { dataSurface } from "@/components/ui/data-table";
 import { cn } from "@/lib/cn";
 import type { Experiment, LabMember, Person } from "@/lib/domain";
 import type { SourceState } from "@/lib/source-state";
+import { DeleteLabSection } from "./delete-lab-section";
 import { DropboxSection } from "./dropbox-section";
 import { LabListSection } from "./lab-list-section";
 import { MembersSection } from "./members-section";
@@ -85,6 +86,14 @@ export function LabView({
           </Button>
         </form>
       </section>
+      {isAdmin ? (
+        <section aria-labelledby="delete-heading" className={dataSurface}>
+          <h2 id="delete-heading" className="px-5 pt-5 pb-3 text-heading-xsmall sm:px-6 sm:pt-6">
+            Delete this lab
+          </h2>
+          <DeleteLabSection labName={labName} />
+        </section>
+      ) : null}
     </div>
   );
 }

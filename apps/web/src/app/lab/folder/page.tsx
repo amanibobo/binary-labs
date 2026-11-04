@@ -15,7 +15,7 @@ export default async function FolderPage() {
   const { supabase, lab } = viewer;
   if (lab.role !== "admin") redirect("/lab");
   const [shell, source] = await Promise.all([loadShell(viewer), loadSourceState(supabase, lab.id)]);
-  if (source.kind === "not_connected") redirect("/lab");
+  if (source.kind === "not_connected" || source.kind === "disconnected") redirect("/lab");
   return (
     <AppShell shell={shell} location={{ section: "lab" }}>
       <FolderView accountLabel={source.accountLabel} />

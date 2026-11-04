@@ -41,6 +41,7 @@ const SourceRow = z.object({
   scan_started_at: z.string().nullable(),
   scan_finished_at: z.string().nullable(),
   scan_error: z.string().nullable(),
+  disconnected_at: z.string().nullable(),
 });
 
 // The lab's newest Dropbox source; one per lab in this slice.
@@ -49,7 +50,7 @@ export async function loadSourceState(supabase: Supabase, labId: LabId): Promise
     unwrap(
       await supabase
         .from("sources")
-        .select("id, root_path, account_label, scan_requested_at, scan_started_at, scan_finished_at, scan_error")
+        .select("id, root_path, account_label, scan_requested_at, scan_started_at, scan_finished_at, scan_error, disconnected_at")
         .eq("lab_id", labId)
         .eq("kind", "dropbox")
         .order("created_at", { ascending: false })
@@ -58,12 +59,21 @@ export async function loadSourceState(supabase: Supabase, labId: LabId): Promise
   );
   const source = sources[0];
   if (source === undefined) return { kind: "not_connected" };
-  if (source.root_path === null) {
-    return { kind: "needs_folder", sourceId: source.id, accountLabel: source.account_label };
-  }
   const progress = ProgressRows.parse(unwrap(await supabase.rpc("source_progress", { p_lab_id: labId })));
   const row = progress.find((p) => p.source_id === source.id);
   const counts = { pending: row?.pending ?? 0, indexed: row?.indexed ?? 0, failed: row?.failed ?? 0 };
+  if (source.disconnected_at !== null) {
+    return {
+      kind: "disconnected",
+      sourceId: source.id,
+      accountLabel: source.account_label,
+      rootPath: source.root_path,
+      indexed: counts.indexed,
+    };
+  }
+  if (source.root_path === null) {
+    return { kind: "needs_folder", sourceId: source.id, accountLabel: source.account_label };
+  }
   return {
     kind: "connected",
     sourceId: source.id,

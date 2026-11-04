@@ -81,8 +81,9 @@ def learn_pending(rt: Runtime, *, settle: timedelta = SETTLE) -> int:
     """Learns from every settled correction not yet learned; returns how many it handled."""
     with rt.pool.connection() as conn:
         pending = conn.execute(
-            "select id, lab_id, sha256, before, after, undoes from corrections"
-            " where learned_at is null and at <= now() - %s order by id",
+            "select c.id, c.lab_id, c.sha256, c.before, c.after, c.undoes from corrections c"
+            " join labs l on l.id = c.lab_id and l.deletion_requested_at is null"
+            " where c.learned_at is null and c.at <= now() - %s order by c.id",
             (settle,),
         ).fetchall()
     for cid, lab_id, sha, before, after, undoes in pending:

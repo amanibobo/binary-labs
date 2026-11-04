@@ -58,10 +58,12 @@ def caption_extractor(model: str) -> str:
 
 def load_file(conn: psycopg.Connection, lab_id: UUID, sha256: str) -> FileInfo | None:
     blob = conn.execute("select file_kind, mime from blobs where sha256 = %s", (sha256,)).fetchone()
+    # A lab marked for deletion has no files to label, so no model is paid to label one.
     locations = conn.execute(
-        "select path, modified_at from file_locations"
-        " where lab_id = %s and sha256 = %s and deleted_at is null"
-        " order by modified_at desc, path",
+        "select fl.path, fl.modified_at from file_locations fl join labs l on l.id = fl.lab_id"
+        " where fl.lab_id = %s and fl.sha256 = %s and fl.deleted_at is null"
+        " and l.deletion_requested_at is null"
+        " order by fl.modified_at desc, fl.path",
         (lab_id, sha256),
     ).fetchall()
     if blob is None or not locations:
@@ -337,6 +339,7 @@ def write_label(conn: psycopg.Connection, lab_id: UUID, sha256: str, d: Draft) -
 # configured. A blob whose model call already ran (even a refusal) is done.
 UNLABELED = """
 select distinct fl.lab_id, fl.sha256 from file_locations fl
+join labs lab on lab.id = fl.lab_id and lab.deletion_requested_at is null
 left join labels l on l.lab_id = fl.lab_id and l.sha256 = fl.sha256
 where fl.sha256 is not null and fl.deleted_at is null and fl.index_state <> 'pending'
   and (l.sha256 is null or (%(models)s and l.source = 'rules'

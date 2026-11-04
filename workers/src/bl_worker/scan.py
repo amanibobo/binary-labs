@@ -47,10 +47,22 @@ where source_id = %s and deleted_at is null and seen_at < %s
 """
 
 
+# A source `s` the worker may read: it has a folder, Dropbox is still connected, and its lab
+# isn't being deleted. Every job that reads a source checks this when it starts.
+LIVE_SOURCE = """
+s.root_path is not null and s.disconnected_at is null
+and not exists (select 1 from labs l where l.id = s.lab_id and l.deletion_requested_at is not null)
+"""
+
+
+class ScanStopped(Exception):
+    """The source was disconnected or its lab marked for deletion mid-scan."""
+
+
 def load_source(conn: psycopg.Connection, source_id: UUID) -> SourceRow | None:
     row = conn.execute(
-        "select id, lab_id, kind, root_path, token_ciphertext, cursor from sources"
-        " where id = %s and root_path is not null",
+        "select s.id, s.lab_id, s.kind, s.root_path, s.token_ciphertext, s.cursor from sources s"
+        f" where s.id = %s and {LIVE_SOURCE}",
         (source_id,),
     ).fetchone()
     if row is None:
@@ -62,7 +74,7 @@ def scan_source(conn: psycopg.Connection, settings: Settings, source_id: UUID) -
     """Lists the source into file_locations; returns every pending location to process."""
     row = load_source(conn, source_id)
     if row is None:
-        log.info("source %s is gone or has no folder; nothing to scan", source_id)
+        log.info("source %s is gone, disconnected or has no folder; nothing to scan", source_id)
         return []
     (started_at,) = conn.execute(
         "update sources set scan_started_at = now(), scan_error = null where id = %s"
@@ -71,6 +83,9 @@ def scan_source(conn: psycopg.Connection, settings: Settings, source_id: UUID) -
     ).fetchone()  # type: ignore[misc]
     try:
         cursor = _list_all(conn, row, settings, started_at)
+    except ScanStopped:
+        log.info("source %s was disconnected or its lab deleted; scan stopped", source_id)
+        return []
     except Exception as e:
         conn.execute(
             "update sources set scan_error = %s where id = %s",
@@ -117,6 +132,13 @@ def _list_all(
 
 def _apply_page(conn: psycopg.Connection, row: SourceRow, page: ListPage) -> None:
     with conn.transaction(), conn.cursor() as cur:
+        # Locking the source row orders this page against a disconnect or a lab deletion,
+        # which both update it: either the page lands first, or the scan stops here.
+        live = cur.execute(
+            f"select 1 from sources s where s.id = %s and {LIVE_SOURCE} for share of s", (row.id,)
+        ).fetchone()
+        if live is None:
+            raise ScanStopped
         cur.executemany(
             UPSERT_LOCATION,
             [

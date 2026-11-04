@@ -214,9 +214,11 @@ function EmptyLab({ source, isAdmin }: { source: SourceState; isAdmin: boolean }
   const message =
     source.kind === "connected"
       ? "Folders show up here as files are indexed."
-      : isAdmin
-        ? "Connect your lab's Dropbox and pick a folder to start."
-        : "Your lab hasn't picked a Dropbox folder yet. An admin can do it from Settings.";
+      : source.kind === "disconnected"
+        ? "Dropbox is disconnected, so no new files are read."
+        : isAdmin
+          ? "Connect your lab's Dropbox and pick a folder to start."
+          : "Your lab hasn't picked a Dropbox folder yet. An admin can do it from Settings.";
   return (
     <div>
       <p className="max-w-prose text-paragraph-medium text-content-secondary">{message}</p>
