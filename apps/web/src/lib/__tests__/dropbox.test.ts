@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
-import { DROPBOX_ENDPOINTS, DROPBOX_SCOPES, authorizeUrl, createPkce } from "../dropbox";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { DROPBOX_ENDPOINTS, DROPBOX_SCOPES, DropboxError, authorizeUrl, createPkce, revokeRefreshToken } from "../dropbox";
 import { openInDropboxUrl } from "../format";
 
 const srcRoot = join(__dirname, "../..");
@@ -49,5 +49,34 @@ describe("dropbox surface", () => {
 
   it("links to the file's place in Dropbox", () => {
     expect(openInDropboxUrl("/Lab/Gels 2026/IMG #1.jpg")).toBe("https://www.dropbox.com/home/Lab/Gels%202026/IMG%20%231.jpg");
+  });
+});
+
+describe("revoking a token", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function stubDropbox(revokeStatus: number) {
+    const calls: { url: string; init: RequestInit | undefined }[] = [];
+    vi.stubGlobal("fetch", async (url: string, init?: RequestInit) => {
+      calls.push({ url, init });
+      if (url === DROPBOX_ENDPOINTS.token) return Response.json({ access_token: "short-lived" });
+      return new Response(revokeStatus === 200 ? "null" : "error", { status: revokeStatus });
+    });
+    return calls;
+  }
+
+  it("mints an access token from the refresh token and revokes it, which ends the refresh token too", async () => {
+    const calls = stubDropbox(200);
+    await revokeRefreshToken({ appKey: "key", appSecret: "secret", refreshToken: "refresh-1" });
+    expect(calls.map((c) => c.url)).toEqual([DROPBOX_ENDPOINTS.token, DROPBOX_ENDPOINTS.revokeToken]);
+    expect(String(calls[0]?.init?.body)).toContain("refresh_token=refresh-1");
+    expect(new Headers(calls[1]?.init?.headers).get("authorization")).toBe("Bearer short-lived");
+  });
+
+  it("throws when Dropbox refuses, for the caller to log", async () => {
+    stubDropbox(401);
+    await expect(revokeRefreshToken({ appKey: "key", appSecret: "secret", refreshToken: "refresh-1" })).rejects.toBeInstanceOf(DropboxError);
   });
 });
