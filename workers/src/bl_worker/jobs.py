@@ -39,7 +39,8 @@ def _defer_locked(name: str, lock: str, **kwargs: str) -> bool:
     return True
 
 
-@app.periodic(cron="*/10 * * * * *")
+# croniter reads a sixth field as seconds, at the end.
+@app.periodic(cron="* * * * * */10")
 @app.task(name="schedule_scans", pass_context=True, queueing_lock="schedule_scans")
 async def schedule_scans(context: JobContext, timestamp: int) -> None:
     rt = _runtime(context)

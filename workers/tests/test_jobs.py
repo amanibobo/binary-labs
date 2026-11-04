@@ -1,3 +1,5 @@
+import itertools
+
 import pytest
 from procrastinate import PsycopgConnector
 from procrastinate.exceptions import AlreadyEnqueued
@@ -65,3 +67,11 @@ def test_a_queued_scan_is_not_queued_twice(conn, make_lab, job_app):
         job_app.configure_task("scan_source", queueing_lock=str(lab.source_id)).defer(
             source_id=str(lab.source_id)
         )
+
+
+def test_scheduler_fires_every_10_seconds():
+    (periodic,) = app.periodic_registry.periodic_tasks.values()
+    it = periodic.croniter
+    it.set_current(start_time=1_800_000_003)  # an arbitrary instant, mid-minute
+    fires = [round(it.get_next(ret_type=float)) for _ in range(8)]
+    assert [b - a for a, b in itertools.pairwise(fires)] == [10] * 7
