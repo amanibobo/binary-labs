@@ -167,7 +167,8 @@ def test_a_correction_cannot_be_logged_as_someone_else(conn, labeled, make_lab):
         )
         with pytest.raises(psycopg.errors.InsufficientPrivilege), conn.transaction():
             conn.execute(
-                "insert into corrections (lab_id, sha256, user_id, after) values (%s, %s, %s, '{}')",
+                "insert into corrections (lab_id, sha256, user_id, after)"
+                " values (%s, %s, %s, '{}')",
                 (a.id, sha, other),
             )
         users = conn.execute(
