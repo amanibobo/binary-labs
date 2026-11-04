@@ -1,3 +1,4 @@
+import type { z } from "zod";
 import type { LocationId } from "./ids";
 import { refusedKind, UPLOAD_MAX_BYTES, UploadReceipt, type UploadMeta } from "./uploads";
 
@@ -5,8 +6,10 @@ import { refusedKind, UPLOAD_MAX_BYTES, UploadReceipt, type UploadMeta } from ".
 // spends itself on one file instead of splitting across many. A dropped request waits and
 // tries again by itself a few times, then waits for a tap. The queue lives as long as the page.
 
-export type UploadResult =
-  | { kind: "stored"; receipt: UploadReceipt }
+export type UploadResult = SendResult<UploadReceipt>;
+
+export type SendResult<R> =
+  | { kind: "stored"; receipt: R }
   // The server said no (too large, a video, signed out); trying again won't help.
   | { kind: "refused"; message: string }
   // The network or the server failed; the same request may well work in a moment.
@@ -134,10 +137,15 @@ export function unsent(queue: Queue): number {
 
 // What an HTTP answer means for the queue.
 export function resultOf(status: number, body: unknown): UploadResult {
+  return answerOf(status, body, UploadReceipt);
+}
+
+// The same reading for any upload; a talk-through's receipt names the talk-through too.
+export function answerOf<R>(status: number, body: unknown, receiptSchema: z.ZodType<R>): SendResult<R> {
   const message =
     typeof body === "object" && body !== null && "error" in body && typeof body.error === "string" ? body.error : null;
   if (status === 200 || status === 201) {
-    const receipt = UploadReceipt.safeParse(body);
+    const receipt = receiptSchema.safeParse(body);
     return receipt.success
       ? { kind: "stored", receipt: receipt.data }
       : { kind: "interrupted", message: "The server's answer was garbled." };

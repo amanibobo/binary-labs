@@ -19,7 +19,7 @@ import {
   type Person,
 } from "./domain";
 import { FOLDER_PAGE_SIZE, FolderFilesRows, FolderTreeRows, type FolderPath, type FolderRow } from "./folders";
-import { Sha256, SourceId, type LabId, type ProtocolId, type UserId } from "./ids";
+import { Sha256, SourceId, type LabId, type ProtocolId, type TalkThroughId, type UserId } from "./ids";
 import {
   HISTORY_COLUMNS,
   HistoryRows,
@@ -32,6 +32,7 @@ import {
 } from "./protocols";
 import { deriveScan, type SourceState } from "./source-state";
 import { unwrap, type Supabase } from "./supabase/server";
+import { OpenTalkThroughRows, TalkThroughRows, type OpenTalkThrough, type TalkThrough } from "./talk-throughs";
 
 const SourceRow = z.object({
   id: SourceId,
@@ -279,6 +280,16 @@ export async function loadStartFile(
   const hit = hits[0];
   if (hit === undefined) return null;
   return { hit, text: z.string().nullable().parse(unwrap(text)) };
+}
+
+// Null when it isn't there or isn't this lab's.
+export async function loadTalkThrough(supabase: Supabase, id: TalkThroughId): Promise<TalkThrough | null> {
+  return TalkThroughRows.parse(unwrap(await supabase.rpc("talk_through", { p_id: id })));
+}
+
+// Recordings nobody has used yet: a page's, or with no page, the viewer's own new-page ones.
+export async function loadOpenTalkThroughs(supabase: Supabase, labId: LabId, protocolId: ProtocolId | null): Promise<OpenTalkThrough[]> {
+  return OpenTalkThroughRows.parse(unwrap(await supabase.rpc("open_talk_throughs", { p_lab_id: labId, p_protocol_id: protocolId })));
 }
 
 export async function loadAuthorNames(supabase: Supabase, labId: LabId): Promise<AuthorNames> {

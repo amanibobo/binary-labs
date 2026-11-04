@@ -170,6 +170,23 @@ export function CameraIcon(props: IconProps) {
   );
 }
 
+export function FileAudioIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path {...line} d="M12 4v16M8 8v8M16 7v10M4 11v2M20 10v4" />
+    </Svg>
+  );
+}
+
+export function MicIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <rect {...line} x="9" y="3.5" width="6" height="11" rx="3" />
+      <path {...line} d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v2.5" />
+    </Svg>
+  );
+}
+
 export const FILE_KIND_ICONS = {
   pdf: FilePdfIcon,
   spreadsheet: FileSpreadsheetIcon,
@@ -177,4 +194,5 @@ export const FILE_KIND_ICONS = {
   text: FileTextIcon,
   image: FileImageIcon,
   other: FileIcon,
+  audio: FileAudioIcon,
 } satisfies Record<FileKind, (props: IconProps) => ReactNode>;

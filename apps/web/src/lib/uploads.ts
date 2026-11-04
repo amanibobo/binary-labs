@@ -65,7 +65,7 @@ export function parseUploadHeaders(headers: Headers): UploadMeta | null {
 // Videos wait for the procedure-video slice; everything else under the cap is welcome.
 export function refusedKind(mime: string): string | null {
   if (mime.startsWith("video/")) return "Videos can't be uploaded yet.";
-  if (mime.startsWith("audio/")) return "Audio can't be uploaded yet.";
+  if (mime.startsWith("audio/")) return "Audio goes in as a talk-through, from a protocol page.";
   return null;
 }
 
@@ -98,6 +98,14 @@ const INLINE_TYPES = new Set([
   "application/pdf",
   "text/plain",
   "text/csv",
+  // Talk-through recordings play in the page.
+  "audio/webm",
+  "audio/mp4",
+  "audio/mpeg",
+  "audio/aac",
+  "audio/ogg",
+  "audio/wav",
+  "audio/flac",
 ]);
 
 export type Delivery = { contentType: string; disposition: string };

@@ -33,6 +33,10 @@ export type ProtocolId = z.infer<typeof ProtocolId>;
 export const ProtocolVersionId = z.uuid().brand<"ProtocolVersionId">();
 export type ProtocolVersionId = z.infer<typeof ProtocolVersionId>;
 
+// talk_throughs.id: one recording someone made to explain a procedure.
+export const TalkThroughId = z.uuid().brand<"TalkThroughId">();
+export type TalkThroughId = z.infer<typeof TalkThroughId>;
+
 // corrections.id is a bigint; JSON carries it as a number well inside 2^53.
 export const CorrectionId = z.number().int().positive().brand<"CorrectionId">();
 export type CorrectionId = z.infer<typeof CorrectionId>;

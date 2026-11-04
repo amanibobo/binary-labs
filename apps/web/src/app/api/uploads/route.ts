@@ -1,15 +1,19 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { routeAccess } from "@/lib/route-auth";
 import { unwrap } from "@/lib/supabase/server";
-import { acceptUpload } from "@/lib/upload-accept";
+import { isTalkThroughUpload } from "@/lib/talk-throughs";
+import { acceptTalkThrough, acceptUpload } from "@/lib/upload-accept";
 import { MyUploadsRows } from "@/lib/uploads";
 
 // The file is the raw body; proxy.ts skips this path so Next doesn't buffer it in memory.
+// A talk-through recording comes the same way, marked by its x-upload-purpose header.
 export async function POST(request: NextRequest) {
   const access = await routeAccess({ admin: false });
   if (access.kind === "denied") return access.response;
   const { supabase, lab } = access.member;
-  const accepted = await acceptUpload(request, lab.id, async (args) => await supabase.rpc("record_upload", args));
+  const accepted = isTalkThroughUpload(request.headers)
+    ? await acceptTalkThrough(request, lab.id, async (args) => await supabase.rpc("record_talk_through", args))
+    : await acceptUpload(request, lab.id, async (args) => await supabase.rpc("record_upload", args));
   return "receipt" in accepted
     ? NextResponse.json(accepted.receipt, { status: accepted.status })
     : NextResponse.json({ error: accepted.error }, { status: accepted.status });

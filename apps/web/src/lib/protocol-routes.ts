@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import type { z } from "zod";
 import type { LabId } from "./ids";
 import { logError } from "./log";
-import { protocolFailure, type SaveOutcome } from "./protocols";
+import { protocolFailure, type ProtocolFailure, type SaveOutcome } from "./protocols";
 
 const NO_STORE = { "cache-control": "private, no-store" };
 
@@ -16,8 +16,12 @@ export function badRequest(error: z.ZodError): NextResponse {
 }
 
 // A database error from a protocol function, as the browser should see it.
-export function protocolError(error: { code?: string; message: string }, ctx: { event: string; labId: LabId }): NextResponse {
-  const failure = protocolFailure(error);
+export function protocolError(
+  error: { code?: string; message: string },
+  ctx: { event: string; labId: LabId },
+  classify: (error: { code?: string; message: string }) => ProtocolFailure = protocolFailure,
+): NextResponse {
+  const failure = classify(error);
   switch (failure.kind) {
     case "stale":
       return NextResponse.json(

@@ -7,9 +7,17 @@ import { correctRequest } from "@/lib/labels";
 import type { LabelDraft } from "@/lib/label-edit";
 import { BrowseResponse, type FolderPath } from "@/lib/folders";
 import { SourceStateWire, type SourceState } from "@/lib/source-state";
-import { resultOf, type UploadResult } from "@/lib/upload-queue";
+import { answerOf, resultOf, type SendResult, type UploadResult } from "@/lib/upload-queue";
 import { uploadHeaders, UploadRowsWire, type UploadMeta, type UploadRow } from "@/lib/uploads";
-import type { CorrectionId, ProtocolId, Sha256 } from "@/lib/ids";
+import type { CorrectionId, ProtocolId, Sha256, TalkThroughId } from "@/lib/ids";
+import {
+  talkThroughHeaders,
+  TalkThroughReceipt,
+  TalkThroughWire,
+  type TalkThrough,
+  type TalkThroughMeta,
+  type ApplyTalkThroughRequest,
+} from "@/lib/talk-throughs";
 import {
   ProtocolVersionWire,
   SavedVersionWire,
@@ -46,20 +54,37 @@ export type LabApi = {
   // Never rejects: a failed upload comes back as a result the queue knows how to retry.
   uploadFile: (file: Blob, meta: UploadMeta, onProgress: (sent: number) => void, signal: AbortSignal) => Promise<UploadResult>;
   myUploads: (signal: AbortSignal) => Promise<UploadRow[]>;
+  // Never rejects, like uploadFile.
+  uploadTalkThrough: (
+    file: Blob,
+    meta: TalkThroughMeta,
+    onProgress: (sent: number) => void,
+    signal: AbortSignal,
+  ) => Promise<SendResult<TalkThroughReceipt>>;
+  talkThrough: (id: TalkThroughId, signal: AbortSignal) => Promise<TalkThrough>;
+  // These reject with an Error whose message can be shown; a stale save resolves as { kind: "stale" }.
+  retryTalkThrough: (id: TalkThroughId) => Promise<void>;
+  applyTalkThrough: (id: TalkThroughId, req: ApplyTalkThroughRequest) => Promise<SaveOutcome>;
 };
 
 // XMLHttpRequest, not fetch: only it reports upload progress.
-function sendFile(file: Blob, meta: UploadMeta, onProgress: (sent: number) => void, signal: AbortSignal): Promise<UploadResult> {
+function sendFile<R>(
+  file: Blob,
+  headers: Record<string, string>,
+  read: (status: number, body: unknown) => SendResult<R>,
+  onProgress: (sent: number) => void,
+  signal: AbortSignal,
+): Promise<SendResult<R>> {
   return new Promise((resolve) => {
     const xhr = new XMLHttpRequest();
     xhr.open("POST", "/api/uploads");
     xhr.responseType = "json";
     xhr.setRequestHeader("content-type", file.type || "application/octet-stream");
-    for (const [name, value] of Object.entries(uploadHeaders(meta))) xhr.setRequestHeader(name, value);
+    for (const [name, value] of Object.entries(headers)) xhr.setRequestHeader(name, value);
     xhr.upload.onprogress = (e) => onProgress(e.loaded);
-    xhr.onload = () => resolve(resultOf(xhr.status, xhr.response));
-    xhr.onerror = () => resolve(resultOf(0, null));
-    xhr.ontimeout = () => resolve(resultOf(0, null));
+    xhr.onload = () => resolve(read(xhr.status, xhr.response));
+    xhr.onerror = () => resolve(read(0, null));
+    xhr.ontimeout = () => resolve(read(0, null));
     xhr.onabort = () => resolve({ kind: "interrupted", message: "The upload was stopped." });
     signal.addEventListener("abort", () => xhr.abort(), { once: true });
     xhr.send(file);
@@ -129,8 +154,19 @@ export const httpLabApi: LabApi = {
   archiveProtocol: async (id) => void (await postJson(`/api/protocols/${id}/archive`, {})),
   linkProtocolFile: async (id, sha) => void (await postJson(`/api/protocols/${id}/files`, { sha256: sha })),
   unlinkProtocolFile: async (id, sha) => void (await postJson(`/api/protocols/${id}/files`, { sha256: sha }, "DELETE")),
-  uploadFile: sendFile,
+  uploadFile: (file, meta, onProgress, signal) => sendFile(file, uploadHeaders(meta), resultOf, onProgress, signal),
   myUploads: async (signal) => UploadRowsWire.parse(await getJson("/api/uploads", signal)),
+  uploadTalkThrough: (file, meta, onProgress, signal) =>
+    sendFile(file, talkThroughHeaders(meta), (status, body) => answerOf(status, body, TalkThroughReceipt), onProgress, signal),
+  talkThrough: async (id, signal) => TalkThroughWire.parse(await getJson(`/api/talk-throughs/${id}`, signal)),
+  retryTalkThrough: async (id) => void (await postJson(`/api/talk-throughs/${id}/retry`, {})),
+  applyTalkThrough: async (id, req) => {
+    const { status, json } = await sendJson(`/api/talk-throughs/${id}/use`, "POST", req);
+    if (status !== 200 && status !== 409) throw failure(json);
+    const outcome = SaveOutcomeWire.safeParse(json);
+    if (!outcome.success) throw failure(json);
+    return outcome.data;
+  },
 };
 
 const LabApiContext = createContext<LabApi>(httpLabApi);
