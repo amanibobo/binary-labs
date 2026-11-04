@@ -10,8 +10,8 @@ export const inputVariants = cva(
   {
     variants: {
       size: {
-        compact: "min-h-11 px-3.5 py-1.5 text-paragraph-small sm:min-h-9",
-        default: "min-h-12 px-3.5 py-2.5 text-paragraph-medium",
+        compact: "min-h-11 px-3 py-1.5 text-paragraph-small sm:min-h-8",
+        default: "min-h-11 px-3.5 py-2 text-paragraph-medium sm:min-h-10",
         large: "min-h-15 px-3.5 py-3.5 text-paragraph-large",
       },
     },
