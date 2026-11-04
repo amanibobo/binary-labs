@@ -73,7 +73,7 @@ export function FileResult({
             href={openInDropboxUrl(primary.path)}
             target="_blank"
             rel="noreferrer"
-            className={cn(buttonVariants({ variant: "tertiary", shape: "square" }), "my-2 mr-2 shrink-0 text-content-secondary")}
+            className={cn(buttonVariants({ variant: "tertiary", shape: "square" }), "mt-3 mr-2 shrink-0 self-start text-content-secondary sm:mt-4")}
           >
             <OpenExternalIcon />
             <span className="sr-only">

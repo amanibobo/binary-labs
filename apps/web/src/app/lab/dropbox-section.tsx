@@ -54,7 +54,7 @@ export function DropboxSection({ initial, isAdmin }: { initial: SourceState; isA
           {isAdmin ? (
             <div className="mt-5 flex flex-wrap gap-2">
               <RescanButton />
-              <Link href="/lab/folder" className={buttonVariants({ variant: "tertiary" })}>
+              <Link href="/lab/folder" className={buttonVariants({ variant: "secondary" })}>
                 Change folder
               </Link>
             </div>
