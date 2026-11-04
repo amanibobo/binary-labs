@@ -32,6 +32,7 @@ const TEXT_PAIRS: Pair[] = [
     ["background-primary", "background-secondary"].map((bg): Pair => [fg, bg]),
   ),
   ["content-primary", "background-tertiary"],
+  ["content-secondary", "background-tertiary"],
   ["content-primary", "button-secondary-hover"],
   ["content-primary", "button-tertiary-hover"],
   ["content-accent", "background-primary"],

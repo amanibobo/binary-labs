@@ -249,26 +249,6 @@ export function labelTags(label: Label, formatDate: (iso: string) => string): Ta
   return views;
 }
 
-// The text an editor starts from: the stored value, not the display form, for dates.
-export function tagEditText(label: Label, ref: TagRef): string {
-  switch (ref.kind) {
-    case "date":
-      return label.date ?? "";
-    case "experiment":
-      return label.experiment?.name ?? "";
-    case "person":
-      return label.person?.name ?? "";
-    case "instrument":
-      return label.instrument ?? "";
-    case "free":
-      return label.tags[ref.index] ?? "";
-    default: {
-      const _exhaustive: never = ref;
-      return _exhaustive;
-    }
-  }
-}
-
 export function sameLabel(a: Label | null, b: Label | null): boolean {
   if (a === null || b === null) return a === b;
   return a.status === b.status && sameDraft({ ...a, cleanName: a.cleanName ?? "" }, { ...b, cleanName: b.cleanName ?? "" });
