@@ -130,7 +130,7 @@ function recordAs(userId: string) {
   };
 }
 
-function request(bytes: Uint8Array, meta: Partial<UploadMeta> = {}, headers: Record<string, string> = {}) {
+function request(bytes: Uint8Array<ArrayBuffer>, meta: Partial<UploadMeta> = {}, headers: Record<string, string> = {}) {
   const full: UploadMeta = { name: "gel.png", experiment: "P450 BM3", uploadedOn: today, modifiedAt: null, ...meta };
   return {
     headers: new Headers({ "content-type": "image/png", "content-length": String(bytes.byteLength), ...uploadHeaders(full), ...headers }),
