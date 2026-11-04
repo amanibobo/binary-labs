@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { FileHitWire, FileKind, FileLocation, type FileHit } from "./domain";
+import { FileHitWire, FileKind, FileLocation, LabelRow, type FileHit } from "./domain";
 import { Sha256 } from "./ids";
 
 // A folder relative to the source root: "" is the root, then "P450", "P450/batch3".
@@ -109,6 +109,7 @@ const FolderFilesRow = z
     has_preview: z.boolean(),
     snippet: z.string().nullable(),
     locations: z.tuple([FileLocation], FileLocation),
+    label: LabelRow.nullable(),
   })
   .transform(
     (r): FileHit => ({
@@ -120,6 +121,7 @@ const FolderFilesRow = z
       snippet: r.snippet,
       locations: r.locations,
       matchedBy: [],
+      label: r.label,
     }),
   );
 export const FolderFilesRows = z.array(FolderFilesRow);

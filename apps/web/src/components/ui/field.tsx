@@ -3,16 +3,15 @@ import { Label as LabelPrimitive } from "radix-ui";
 import type { ComponentProps } from "react";
 import { cn } from "@/lib/cn";
 
-// Base Web Input: a gray filled field whose 2px border turns contentPrimary on
-// focus, so it needs no separate focus ring.
+// A filled field with a hairline edge that turns blue on focus, standing in for the focus ring.
 export const inputVariants = cva(
-  "w-full rounded-lg border-2 border-background-secondary bg-background-secondary text-content-primary placeholder:text-content-tertiary transition-colors duration-200 ease-out focus:border-border-selected focus:bg-background-primary focus-visible:outline-none",
+  "w-full rounded-control border border-border-opaque bg-background-secondary text-content-primary placeholder:text-content-tertiary transition-colors duration-150 ease-out focus:border-border-accent focus:ring-1 focus:ring-border-accent focus-visible:outline-none",
   {
     variants: {
       size: {
         compact: "min-h-11 px-3 py-1.5 text-paragraph-small sm:min-h-8",
         default: "min-h-11 px-3.5 py-2 text-paragraph-medium sm:min-h-10",
-        large: "min-h-15 px-3.5 py-3.5 text-paragraph-large",
+        large: "min-h-12 px-4 py-3 text-paragraph-large sm:min-h-14",
       },
     },
     defaultVariants: { size: "default" },

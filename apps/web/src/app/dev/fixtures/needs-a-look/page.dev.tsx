@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { NeedsLookView } from "@/app/needs-a-look/needs-look-view";
 import { AppShell } from "@/components/app-shell";
-import { doneSource, needsLookFiles } from "@/fixtures/data";
+import { doneSource, fixtureShell, needsLookFiles } from "@/fixtures/data";
 import { FixtureLabApi } from "@/fixtures/fixture-api";
 import { requireFixtures, type FixtureProps } from "@/fixtures/gate";
 
@@ -12,7 +12,7 @@ export default async function NeedsLookFixture({ searchParams }: FixtureProps) {
   const files = State.parse((await searchParams).state) === "empty" ? [] : needsLookFiles;
   return (
     <FixtureLabApi mode="hybrid" source={doneSource}>
-      <AppShell labName="Okafor Lab" email="a.okafor@university.edu" current="needs-look" needsLookCount={files.length}>
+      <AppShell shell={{ ...fixtureShell, needsLookCount: files.length }} location={{ section: "needs-look" }}>
         <NeedsLookView files={files} />
       </AppShell>
     </FixtureLabApi>

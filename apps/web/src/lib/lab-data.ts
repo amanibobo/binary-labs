@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { z } from "zod";
 import {
   ExperimentRows,
@@ -158,9 +159,10 @@ export async function loadPeople(supabase: Supabase, labId: LabId): Promise<Pers
   );
 }
 
-export async function loadMembers(supabase: Supabase, labId: LabId): Promise<LabMember[]> {
-  return LabMemberRows.parse(unwrap(await supabase.rpc("lab_members", { p_lab_id: labId })));
-}
+// Cached per request: the sidebar's member count and the settings list share one call.
+export const loadMembers = cache(async (supabase: Supabase, labId: LabId): Promise<LabMember[]> =>
+  LabMemberRows.parse(unwrap(await supabase.rpc("lab_members", { p_lab_id: labId }))),
+);
 
 export async function loadFolderTree(supabase: Supabase, labId: LabId): Promise<FolderRow[]> {
   return FolderTreeRows.parse(unwrap(await supabase.rpc("folder_tree", { p_lab_id: labId })));

@@ -334,6 +334,9 @@ describe("labels through the web app's args and parsers", () => {
     expect((await db.query("select 1 from experiments where id = $1", [id])).rowCount).toBe(1);
     expect((await asUser(alice, () => db.query(del, [id, labA]))).rowCount).toBe(1);
     await expect(add("p450 bm3")).rejects.toThrow(/experiments_lab_name_idx/);
+  });
+});
+
 // Runs last and adds its own rows, so the search and progress counts above stay as they are.
 describe("folder_tree and folder_files", () => {
   const tree = (userId: string, labId: LabId) =>

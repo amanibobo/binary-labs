@@ -2,21 +2,25 @@
 
 import { Command } from "cmdk";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { createContext, use, useCallback, useEffect, useState, type ComponentProps, type ReactNode } from "react";
 import { cn } from "@/lib/cn";
 import { folderOf } from "@/lib/format";
 import { SearchIcon } from "./icons/base-web";
 import { FILE_KIND_ICONS } from "./icons/drawn";
+import { KIND_TINT, TINT_STYLE } from "@/lib/tints";
 import { useFileSearch } from "./search/use-file-search";
 import { buttonVariants } from "./ui/button";
-import { Dialog, DialogContent, DialogDock, DialogTrigger } from "./ui/dialog";
+import { Dialog, DialogContent, DialogDock } from "./ui/dialog";
 import { inputVariants } from "./ui/field";
 
 function isPaletteShortcut(e: KeyboardEvent): boolean {
   return e.key.toLowerCase() === "k" && (e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey;
 }
 
-export function CommandPalette() {
+const OpenPalette = createContext<(() => void) | null>(null);
+
+// One palette per page: the sidebar, the phone header and ⌘K all open the same dialog.
+export function CommandPalette({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -27,24 +31,26 @@ export function CommandPalette() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
+  const show = useCallback(() => setOpen(true), []);
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger
-        className={cn(
-          buttonVariants({ variant: "tertiary", shape: "square", size: "compact" }),
-          "sm:w-56 sm:justify-start sm:gap-2 sm:bg-background-secondary sm:px-3 sm:text-paragraph-small sm:text-content-tertiary sm:hover:bg-button-secondary-hover",
-        )}
-      >
-        <SearchIcon className="sm:size-5" />
-        <span className="hidden sm:inline">Search</span>
-        <kbd className="ml-auto hidden font-sans text-label-xsmall sm:inline">⌘K</kbd>
-        <span className="sr-only sm:hidden">Search</span>
-      </DialogTrigger>
-      <DialogContent title="Search" aria-describedby={undefined}>
-        {open ? <PaletteBody onDone={() => setOpen(false)} /> : null}
-      </DialogContent>
-    </Dialog>
+    <OpenPalette value={show}>
+      {children}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent title="Search" aria-describedby={undefined}>
+          {open ? <PaletteBody onDone={() => setOpen(false)} /> : null}
+        </DialogContent>
+      </Dialog>
+    </OpenPalette>
+  );
+}
+
+export function PaletteTrigger({ className, children, ...props }: Omit<ComponentProps<"button">, "onClick" | "type">) {
+  const show = use(OpenPalette);
+  return (
+    <button type="button" aria-haspopup="dialog" onClick={() => show?.()} className={className} {...props}>
+      {children}
+    </button>
   );
 }
 
@@ -101,9 +107,9 @@ function PaletteBody({ onDone }: { onDone: () => void }) {
                         key={hit.sha256}
                         value={hit.sha256}
                         onSelect={() => go(`/?q=${encodeURIComponent(settledQuery)}&open=${hit.sha256}`)}
-                        className="flex min-h-16 cursor-pointer items-center gap-4 px-4 py-2 data-[selected=true]:bg-background-secondary sm:px-6"
+                        className="flex min-h-16 cursor-pointer items-center gap-4 px-4 py-2 data-[selected=true]:bg-background-secondary sm:mx-2 sm:rounded-control sm:px-4"
                       >
-                        <KindIcon className="text-content-secondary" />
+                        <KindIcon className={TINT_STYLE[KIND_TINT[hit.fileKind]].icon} />
                         <span className="min-w-0 flex-1">
                           <span className={cn("block truncate text-label-small text-content-primary", cleanName === null && "font-mono")}>
                             {cleanName ?? primary.originalName}

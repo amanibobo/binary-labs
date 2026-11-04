@@ -1,8 +1,7 @@
-// Base Web Menu and Popover: an 8px-radius surface on backgroundPrimary with a
-// shallow shadow; options highlight to backgroundSecondary. The ring keeps the
-// edge visible in dark mode, where the surface matches the page.
+// Menus and popovers: a raised surface with a hairline edge; options highlight
+// to the control fill.
 export const menuSurface =
-  "z-50 min-w-56 overflow-hidden rounded-lg bg-background-primary py-2 text-content-primary shadow-shallow-below ring-1 ring-border-opaque";
+  "z-50 min-w-56 overflow-hidden rounded-xl border border-border-raised bg-background-raised p-1 text-content-primary shadow-deep-below";
 
 export const menuItem =
-  "flex min-h-11 w-full cursor-pointer items-center gap-3 px-4 text-left text-paragraph-medium outline-none select-none data-[highlighted]:bg-background-secondary";
+  "flex min-h-11 w-full cursor-pointer items-center gap-3 rounded-lg px-3 text-left text-paragraph-medium outline-none select-none sm:min-h-9 data-[highlighted]:bg-background-secondary";

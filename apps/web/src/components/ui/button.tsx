@@ -3,18 +3,18 @@ import { Slot } from "radix-ui";
 import type { ComponentProps } from "react";
 import { cn } from "@/lib/cn";
 
-// Base Web Button kinds on a tighter scale than Base: compact 32px, default 40px, large 48px,
-// 8px radius. Compact and default grow to 44px on phones for touch.
+// Compact 32px, default 40px, large 48px, 10px radius. Compact and default grow
+// to 44px on phones for touch.
 export const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 rounded-lg whitespace-nowrap transition-colors duration-150 ease-out disabled:cursor-not-allowed",
+  "inline-flex items-center justify-center gap-2 rounded-control whitespace-nowrap transition-colors duration-150 ease-out disabled:cursor-not-allowed",
   {
     variants: {
       variant: {
         primary:
-          "bg-button-primary-fill text-content-inverse-primary hover:bg-button-primary-hover disabled:bg-background-secondary disabled:text-content-tertiary",
+          "bg-button-primary-fill text-content-inverse-primary hover:bg-button-primary-hover disabled:bg-background-tertiary disabled:text-content-secondary",
         secondary:
-          "bg-background-secondary text-content-primary hover:bg-button-secondary-hover disabled:bg-background-secondary disabled:text-content-tertiary",
-        tertiary: "text-content-primary hover:bg-button-tertiary-hover disabled:bg-transparent disabled:text-content-tertiary",
+          "bg-background-secondary text-content-primary ring-1 ring-border-opaque ring-inset hover:bg-button-secondary-hover disabled:text-content-tertiary",
+        tertiary: "text-content-primary hover:bg-button-secondary-hover disabled:bg-transparent disabled:text-content-tertiary",
       },
       size: {
         compact: "min-h-11 px-3 text-label-small sm:min-h-8",

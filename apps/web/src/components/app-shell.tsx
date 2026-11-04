@@ -1,66 +1,34 @@
-import Link from "next/link";
 import type { ReactNode } from "react";
-import { cn } from "@/lib/cn";
-import { AccountMenu } from "./account-menu";
+import type { ShellData } from "@/lib/shell-data";
 import { CommandPalette } from "./command-palette";
-import { NeedsLookCountProvider, NeedsLookCountText } from "./labels/needs-look-count";
-import { NAV, type Section } from "./nav";
+import { NeedsLookCountProvider } from "./labels/needs-look-count";
+import { PhoneHeader } from "./phone-header";
+import { SidebarContent, type ShellLocation } from "./sidebar";
 
-export function AppShell({
-  labName,
-  email,
-  current,
-  needsLookCount,
-  children,
-}: {
-  labName: string;
-  email: string;
-  current: Section;
-  needsLookCount: number;
-  children: ReactNode;
-}) {
+export function AppShell({ shell, location, children }: { shell: ShellData; location: ShellLocation; children: ReactNode }) {
   return (
-    <NeedsLookCountProvider initial={needsLookCount}>
-      <div className="flex min-h-dvh flex-col">
-        <a
-          href="#main"
-          className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-lg focus:bg-background-primary focus:px-3 focus:py-2"
-        >
-          Skip to content
-        </a>
-        <header className="border-b border-border-opaque bg-background-primary">
-          <div className="mx-auto flex h-16 w-full max-w-6xl items-center gap-2 px-4 sm:gap-6 sm:px-6">
-            <Link href="/" className="flex min-h-11 shrink-0 items-center text-heading-xsmall text-content-primary">
-              Binary Labs
-            </Link>
-            <nav aria-label="Main" className="hidden h-full items-stretch gap-1 sm:flex">
-              {NAV.map((item) => (
-                <Link
-                  key={item.section}
-                  href={item.href}
-                  aria-current={current === item.section ? "page" : undefined}
-                  className={cn(
-                    "flex items-center border-b-2 px-3 pt-0.5 text-label-medium transition-colors duration-150 ease-out",
-                    current === item.section
-                      ? "border-border-selected text-content-primary"
-                      : "border-transparent text-content-tertiary hover:text-content-primary",
-                  )}
-                >
-                  {item.label}
-                  {item.section === "needs-look" ? <NeedsLookCountText className="ml-1.5 text-content-tertiary" /> : null}
-                </Link>
-              ))}
-            </nav>
-            <div className="ml-auto flex items-center gap-1 sm:gap-2">
-              <CommandPalette />
-              <AccountMenu labName={labName} email={email} current={current} />
-            </div>
+    <NeedsLookCountProvider initial={shell.needsLookCount}>
+    <CommandPalette>
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-control focus:bg-background-raised focus:px-3 focus:py-2"
+      >
+        Skip to content
+      </a>
+      <div className="flex min-h-dvh">
+        <aside className="hidden w-[280px] shrink-0 border-r border-border-opaque bg-background-sidebar md:block">
+          <div className="sticky top-0 flex h-dvh flex-col">
+            <SidebarContent shell={shell} location={location} />
           </div>
-        </header>
-        <main id="main" className="flex-1">
-          {children}
-        </main>
+        </aside>
+        <div className="flex min-w-0 flex-1 flex-col">
+          <PhoneHeader shell={shell} location={location} />
+          <main id="main" className="flex-1">
+            {children}
+          </main>
+        </div>
       </div>
+    </CommandPalette>
     </NeedsLookCountProvider>
   );
 }

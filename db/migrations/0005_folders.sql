@@ -41,7 +41,8 @@ returns table (
   size bigint,
   has_preview boolean,
   snippet text,
-  locations jsonb
+  locations jsonb,
+  label jsonb
 )
 language sql stable security invoker set search_path = public as $$
   with live as (
@@ -80,7 +81,8 @@ language sql stable security invoker set search_path = public as $$
       ) order by l.id <> p.id, l.modified_at desc, l.id)
       from live l
       where l.sha256 = p.sha256
-    ) as locations
+    ) as locations,
+    label_json(p_lab_id, p.sha256) as label
   from page p
   join blobs b on b.sha256 = p.sha256
   order by lower(p.original_name), p.id

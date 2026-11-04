@@ -4,7 +4,7 @@ import { DropdownMenu, Popover } from "radix-ui";
 import { useId, type ReactNode } from "react";
 import { FILE_KINDS, FileKind, type SearchFilters } from "@/lib/domain";
 import { hasFilters } from "@/lib/filters";
-import { formatDate } from "@/lib/format";
+import { formatDate, KIND_LABELS } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { CheckIcon, ChevronDownIcon } from "../icons/base-web";
 import { FILE_KIND_ICONS } from "../icons/drawn";
@@ -12,14 +12,6 @@ import { buttonVariants } from "../ui/button";
 import { Input, Label } from "../ui/field";
 import { menuItem, menuSurface } from "../ui/menu";
 
-const KIND_LABELS = {
-  pdf: "PDF",
-  spreadsheet: "Spreadsheet",
-  document: "Document",
-  text: "Text",
-  image: "Image",
-  other: "Other",
-} satisfies Record<FileKind, string>;
 
 const optional = (value: string) => (value === "" ? undefined : value);
 const day = (iso: string) => formatDate(`${iso}T00:00:00Z`);

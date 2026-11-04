@@ -1,22 +1,23 @@
 import { AppShell } from "@/components/app-shell";
 import { ConfigMissing } from "@/components/config-missing";
 import { SearchHome } from "@/components/search/search-home";
-import { loadExperiments, loadNeedsLookCount, loadPeople, loadRecentFiles, loadSourceState } from "@/lib/lab-data";
+import { loadExperiments, loadPeople, loadRecentFiles, loadSourceState } from "@/lib/lab-data";
+import { loadShell } from "@/lib/shell-data";
 import { requireMember } from "@/lib/viewer";
 
 export default async function HomePage() {
   const viewer = await requireMember();
   if (viewer.kind === "config_missing") return <ConfigMissing missing={viewer.missing} />;
-  const { supabase, lab, user } = viewer;
-  const [recent, source, needsLook, experiments, people] = await Promise.all([
+  const { supabase, lab } = viewer;
+  const [shell, recent, source, experiments, people] = await Promise.all([
+    loadShell(viewer),
     loadRecentFiles(supabase, lab.id),
     loadSourceState(supabase, lab.id),
-    loadNeedsLookCount(supabase, lab.id),
     loadExperiments(supabase, lab.id),
     loadPeople(supabase, lab.id),
   ]);
   return (
-    <AppShell labName={lab.name} email={user.email} current="search" needsLookCount={needsLook}>
+    <AppShell shell={shell} location={{ section: "search" }}>
       <SearchHome
         labName={lab.name}
         recent={recent}

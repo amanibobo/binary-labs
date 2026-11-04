@@ -8,6 +8,8 @@ import {
   type FileHit,
   type Label,
 } from "@/lib/domain";
+import { FOLDER_PAGE_SIZE, FolderFilesRows, FolderTreeRows, type FolderPath } from "@/lib/folders";
+import type { ShellData } from "@/lib/shell-data";
 import { SourceId } from "@/lib/ids";
 import type { SourceState } from "@/lib/source-state";
 
@@ -240,3 +242,92 @@ export const folders: Record<string, { name: string; path: string }[]> = {
   ],
   "/Lab": ["Archive", "Data", "Gels", "Instruments", "People", "Protocols"].map((name) => ({ name, path: `/Lab/${name}` })),
 };
+
+// A lab folder tree: each entry is [direct files, subfolders]. Totals are summed below.
+type Spec = [direct: number, children?: Record<string, Spec>];
+
+const TREE: Spec = [
+  3,
+  {
+    P450: [5, { batch1: [12], batch2: [9], batch3: [5, { raw: [14], gels: [6] }] }],
+    "Thermal shift": [2, { "2026-09": [18], "2026-10": [22], analysis: [6] }],
+    Protocols: [14, { Archive: [8] }],
+    Crystallography: [1, { Screens: [24], Diffraction: [31], Models: [7] }],
+    People: [0, { AO: [11], JM: [9], PN: [13] }],
+    Shared: [2, { Instruments: [0, { "Plate reader": [40], AKTA: [16] }], Templates: [5] }],
+  },
+];
+
+function treeRows(spec: Spec, path: string, parent: string | null): { rows: object[]; total: number } {
+  const [direct, children = {}] = spec;
+  const nested = Object.entries(children).map(([name, child]) => treeRows(child, path === "" ? name : `${path}/${name}`, path));
+  const total = direct + nested.reduce((n, c) => n + c.total, 0);
+  return { rows: [{ path, parent, direct_files: direct, total_files: total }, ...nested.flatMap((c) => c.rows)], total };
+}
+
+export const folderRows = FolderTreeRows.parse(treeRows(TREE, "", null).rows);
+
+export const fixtureShell: ShellData = {
+  labName: "Okafor Lab",
+  memberCount: members.length,
+  email: "a.okafor@university.edu",
+  folders: folderRows,
+  needsLookCount: needsLookFiles.length,
+};
+
+const NAMED_FILES: Record<string, [name: string, kind: string, mime: string, size: number][]> = {
+  "": [
+    ["Lab inventory.xlsx", "spreadsheet", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 84_200],
+    ["README.md", "text", "text/markdown", 3_100],
+    ["Safety plan 2026.pdf", "pdf", "application/pdf", 1_240_000],
+  ],
+  P450: [
+    ["Expression log.xlsx", "spreadsheet", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 126_000],
+    ["P450 purification v3.pdf", "pdf", "application/pdf", 2_310_000],
+    ["Plasmid map pET28-BM3.png", "image", "image/png", 412_000],
+    ["Project summary.docx", "document", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", 58_400],
+    ["primers.txt", "text", "text/plain", 1_900],
+  ],
+  "P450/batch3": [
+    ["2026-10-14 SDS-PAGE.jpg", "image", "image/jpeg", 3_820_000],
+    ["Batch 3 yields.xlsx", "spreadsheet", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 47_300],
+    ["Nickel column notes.docx", "document", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", 31_000],
+    ["SEC_trace_141026.csv", "spreadsheet", "text/csv", 268_000],
+    ["final_v2_REAL.xlsx", "spreadsheet", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 182_000],
+  ],
+};
+
+const GENERIC: [suffix: string, kind: string, mime: string][] = [
+  [".csv", "spreadsheet", "text/csv"],
+  [".pdf", "pdf", "application/pdf"],
+  [".jpg", "image", "image/jpeg"],
+  [".txt", "text", "text/plain"],
+  [".docx", "document", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
+];
+
+const hexOf = (text: string) =>
+  Array.from({ length: 64 }, (_, i) => ((text.charCodeAt(i % text.length) * (i + 7)) % 16).toString(16)).join("");
+
+export function folderFixtureFiles(path: FolderPath, offset: number): FileHit[] {
+  const direct = folderRows.find((r) => r.path === path)?.directFiles ?? 0;
+  const named = NAMED_FILES[path];
+  const base = path === "" ? "" : `${path.split("/").at(-1)}`;
+  const all = Array.from({ length: direct }, (_, i) => {
+    const pick = named?.[i];
+    const [suffix, kind, mime] = GENERIC[i % GENERIC.length] ?? GENERIC[0];
+    const name = pick?.[0] ?? `${base.replace(/\s+/g, "_")}_${String(i + 1).padStart(2, "0")}${suffix}`;
+    const day = String(28 - (i % 27)).padStart(2, "0");
+    const full = `/Lab/${path === "" ? "" : `${path}/`}${name}`;
+    return {
+      sha256: hexOf(full),
+      file_kind: pick?.[1] ?? kind,
+      mime: pick?.[2] ?? mime,
+      size: pick?.[3] ?? 20_000 + ((i * 7919) % 900_000),
+      has_preview: false,
+      snippet: null,
+      locations: [loc(full, `2026-10-${day}T10:${String(i % 60).padStart(2, "0")}:00Z`)],
+      label: null,
+    };
+  });
+  return FolderFilesRows.parse(all.slice(offset, offset + FOLDER_PAGE_SIZE));
+}

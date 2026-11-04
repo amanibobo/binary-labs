@@ -11,16 +11,11 @@ const results = "/dev/fixtures/search?state=results&q=p450%20gels";
 const expandGel = (page) => page.getByRole("button", { name: "Details for Batch 3 SDS-PAGE gel" }).click();
 
 const shots = [
-  { name: "search-results", path: results, steps: expandGel, width: 1440, scheme: "light" },
+  { name: "browse-root", path: "/dev/fixtures/browse", width: 1440, scheme: "dark" },
+  { name: "browse-subfolder", path: "/dev/fixtures/browse?path=P450%2Fbatch3", steps: (page) => page.getByRole("button", { name: "Batch 3 yields.xlsx" }).click(), width: 1440, scheme: "dark" },
+  { name: "browse-root", path: "/dev/fixtures/browse", width: 1440, scheme: "light" },
+  { name: "browse-sheet", path: "/dev/fixtures/browse?path=P450", steps: (page) => page.getByRole("button", { name: "Menu" }).click(), full: false, width: 390, scheme: "dark" },
   { name: "search-results", path: results, steps: expandGel, width: 1440, scheme: "dark" },
-  { name: "search-results", path: results, width: 390, scheme: "light" },
-  {
-    name: "search-check",
-    path: results,
-    steps: (page) => page.getByRole("button", { name: "Check this label" }).click(),
-    width: 390,
-    scheme: "light",
-  },
   {
     name: "search-check",
     path: results,
@@ -36,26 +31,14 @@ const shots = [
       await page.keyboard.type("Batch 3 densitometry, lanes 1 to 8");
     },
     width: 1440,
-    scheme: "light",
+    scheme: "dark",
   },
-  {
-    name: "search-tag-editor",
-    path: results,
-    steps: async (page) => {
-      await page.getByRole("button", { name: /^Experiment:? *P450 BM3$/ }).first().click();
-      await page.keyboard.press("ControlOrMeta+a");
-      await page.keyboard.type("P450");
-      await page.keyboard.press("Enter");
-    },
-    width: 390,
-    scheme: "light",
-  },
-  { name: "search-empty", path: "/dev/fixtures/search?state=empty", width: 1440, scheme: "light" },
-  { name: "search-palette", path: "/dev/fixtures/search?state=empty", palette: "p450", width: 390, scheme: "light" },
-  { name: "needs-a-look", path: "/dev/fixtures/needs-a-look", width: 390, scheme: "light" },
   { name: "needs-a-look", path: "/dev/fixtures/needs-a-look", width: 1440, scheme: "dark" },
-  { name: "lab-settings", path: "/dev/fixtures/lab", width: 1440, scheme: "light" },
-  { name: "lab-folder", path: "/dev/fixtures/folder", width: 1440, scheme: "light" },
+  { name: "settings", path: "/dev/fixtures/lab", width: 1440, scheme: "dark" },
+  { name: "sign-in", path: "/sign-in", width: 1440, scheme: "dark" },
+  { name: "new-lab", path: "/dev/fixtures/new-lab", width: 1440, scheme: "dark" },
+  { name: "lab-folder", path: "/dev/fixtures/folder", width: 1440, scheme: "dark" },
+  { name: "search-palette", path: "/dev/fixtures/search?state=empty", palette: "p450", width: 1440, scheme: "dark" },
 ];
 const only = process.argv[2];
 
@@ -80,7 +63,7 @@ try {
     }
     await page.waitForTimeout(400);
     const file = join(out, `${tag}.png`);
-    await page.screenshot({ path: file, fullPage: !shot.palette });
+    await page.screenshot({ path: file, fullPage: !shot.palette && shot.full !== false });
     process.stdout.write(`${file}\n`);
     await context.close();
   }

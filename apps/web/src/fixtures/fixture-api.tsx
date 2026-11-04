@@ -4,7 +4,7 @@ import { useState, type ReactNode } from "react";
 import { LabApiProvider, type LabApi } from "@/components/lab-api";
 import type { FileHit } from "@/lib/domain";
 import type { SourceState } from "@/lib/source-state";
-import { folders, laterLabels, needsLookFiles, recentFiles, searchHits } from "./data";
+import { folderFixtureFiles, folders, laterLabels, needsLookFiles, recentFiles, searchHits } from "./data";
 import { createFixtureLabels } from "./fixture-labels";
 import { PREVIEW_BY_FIRST_CHAR } from "./previews";
 
@@ -48,7 +48,10 @@ export function FixtureLabApi({
       await wait(150, signal);
       return { path, folders: folders[path] ?? [] };
     },
-    folderFiles: async () => [],
+    folderFiles: async (path, offset, signal) => {
+      await wait(150, signal);
+      return folderFixtureFiles(path, offset);
+    },
     previewUrl: (sha) => PREVIEW_BY_FIRST_CHAR[sha.charAt(0)] ?? "",
     fileLabels: async (shas, signal) => {
       await wait(80, signal);

@@ -1,6 +1,6 @@
 import { cn } from "@/lib/cn";
 
-// Base Web Skeleton: a backgroundTertiary block with a backgroundSecondary shimmer.
+// A tertiary block with a secondary shimmer.
 export function Skeleton({ className }: { className?: string }) {
   return (
     <div
