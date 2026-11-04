@@ -41,4 +41,11 @@ describe("matchesFilters", () => {
     expect(matchesFilters(hit, { from: "2026-10-15" })).toBe(false);
     expect(matchesFilters(hit, { to: "2026-10-13" })).toBe(false);
   });
+
+  it("compares in UTC whatever offset the timestamp carries", () => {
+    const [first] = hit.locations;
+    const shifted = { ...hit, locations: [{ ...first, modifiedAt: "2026-10-14T21:30:00-04:00" }] } satisfies typeof hit;
+    expect(matchesFilters(shifted, { to: "2026-10-14" })).toBe(false);
+    expect(matchesFilters(shifted, { from: "2026-10-15", to: "2026-10-15" })).toBe(true);
+  });
 });

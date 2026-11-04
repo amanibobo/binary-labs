@@ -11,7 +11,8 @@ export function matchesFilters(hit: FileHit, filters: SearchFilters): boolean {
   return hit.locations.some((location) => {
     const prefix = filters.prefix?.toLowerCase();
     if (prefix !== undefined && !location.path.toLowerCase().startsWith(prefix)) return false;
-    const day = location.modifiedAt.slice(0, 10);
+    // UTC days, matching search_files and how dates are shown.
+    const day = new Date(location.modifiedAt).toISOString().slice(0, 10);
     if (filters.from !== undefined && day < filters.from) return false;
     if (filters.to !== undefined && day > filters.to) return false;
     return true;
