@@ -1,0 +1,16 @@
+import { FolderView } from "@/app/lab/folder/folder-view";
+import { AppShell } from "@/components/app-shell";
+import { scanningSource } from "@/fixtures/data";
+import { FixtureLabApi } from "@/fixtures/fixture-api";
+import { requireFixtures } from "@/fixtures/gate";
+
+export default function FolderFixture() {
+  requireFixtures();
+  return (
+    <FixtureLabApi mode="hybrid" source={scanningSource}>
+      <AppShell labName="Okafor Lab" current="lab">
+        <FolderView accountLabel="a.okafor@university.edu" />
+      </AppShell>
+    </FixtureLabApi>
+  );
+}

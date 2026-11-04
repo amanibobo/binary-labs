@@ -5,6 +5,7 @@ import type { NextConfig } from "next";
 const isDev = process.env.NODE_ENV === "development";
 
 const nextConfig: NextConfig = {
+  devIndicators: false,
   pageExtensions: isDev ? ["dev.tsx", "tsx", "ts"] : ["tsx", "ts"],
   turbopack: {
     rules: {
