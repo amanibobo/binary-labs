@@ -65,3 +65,9 @@ Supersedes the PRD's color tokens and type. The look follows Uber's open-source 
 Icons are Base Web's MIT icon set, with any missing glyphs (folder, file kinds) drawn to match its 24px grid. Type is Geist Sans and Geist Mono, the closest open match to Uber Move, which is proprietary. Nothing Uber-branded (logo, name, Uber Move) is used.
 
 Match highlights use Base's blue secondary tag pair (blue700 #175BCC on blue50 light, blue700Dark #93B4EE on blue100Dark dark) instead of accent, because accent text on its light tint measures 4.15:1 and 4.29:1, under 4.5:1.
+
+## 2026-11-04 — visual system: dark file-browser shell (supersedes Base Web style)
+
+Supersedes "visual system: neutral, Base Web style". The app becomes a dark-first file browser (light mode kept, following the system): a left sidebar with the lab switcher, search (⌘K), nav and a folder tree with softly colored folder icons and counts; a main area with breadcrumbs, a "Folders" grid of illustrated SVG folders (each tinted, with file and subfolder counts), and a "Files" table. Neutral grays carry the UI; color is slight and comes from folder tints and file-kind icons. One blue for focus, links and match highlights; amber stays reserved for "check this" labels and Phase 4 flags. Geist Sans and Geist Mono stay. Sentence case everywhere, including sidebar group labels; no decorative badges.
+
+Browsing by folder is new behavior: a `folder_tree` SQL function returns folders with direct and total file counts per lab, under RLS.
