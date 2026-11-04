@@ -9,7 +9,6 @@ import { cn } from "@/lib/cn";
 import { folderAncestors, folderHref, folderName, type FolderNode } from "@/lib/folders";
 import { countLine, formatDate, formatSize, KIND_LABELS, openInDropboxUrl } from "@/lib/format";
 import type { SourceState } from "@/lib/source-state";
-import { folderTint } from "@/lib/tints";
 import { OpenExternalIcon } from "../icons/drawn";
 import { useLabApi } from "../lab-api";
 import { ActiveScan } from "../scan-status";
@@ -82,7 +81,7 @@ function FolderCard({ folder }: { folder: FolderNode }) {
       href={folderHref(folder.path)}
       className="group flex flex-col items-center rounded-card border border-transparent px-3 pt-4 pb-5 text-center transition-colors duration-150 ease-out hover:border-border-opaque hover:bg-background-raised focus-visible:bg-background-raised sm:px-6 sm:pt-6"
     >
-      <FolderArt tint={folderTint(folder.path)} className="w-full max-w-52 transition-transform duration-200 ease-out group-hover:-translate-y-0.5" />
+      <FolderArt tint={folder.tint} className="w-full max-w-52 transition-transform duration-200 ease-out group-hover:-translate-y-0.5" />
       <span className="mt-4 w-full truncate text-label-large text-content-primary">{folder.name}</span>
       <span className="mt-1 text-paragraph-small text-content-tertiary">{meta.join(" · ")}</span>
     </Link>

@@ -1,5 +1,4 @@
 import type { FileKind } from "./domain";
-import { folderAncestors, type FolderPath } from "./folders";
 
 export const TINTS = ["purple", "blue", "yellow", "orange", "green", "gray"] as const;
 export type Tint = (typeof TINTS)[number];
@@ -40,13 +39,8 @@ export function tintFor(key: string): Tint {
 
 export type FolderTint = { tint: Tint; shade: Shade };
 
-// Top-level folders hash their own path; anything deeper takes its top-level
-// folder's tint in the lighter shade.
-export function folderTint(path: FolderPath): FolderTint {
-  const [, top, second] = folderAncestors(path);
-  if (top === undefined) return { tint: "gray", shade: "base" };
-  return { tint: tintFor(top), shade: second === undefined ? "base" : "soft" };
-}
+// Top-level folders take these in name order, so the first six in a lab never share a color.
+export const FOLDER_TINTS = ["blue", "purple", "green", "orange", "yellow", "gray"] as const satisfies readonly Tint[];
 
 export function folderIconClass({ tint, shade }: FolderTint): string {
   return shade === "base" ? TINT_STYLE[tint].icon : TINT_STYLE[tint].iconSoft;

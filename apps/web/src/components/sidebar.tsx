@@ -6,7 +6,7 @@ import { useId, useMemo, useState } from "react";
 import { signOut } from "@/app/actions";
 import { cn } from "@/lib/cn";
 import { buildFolderTree, folderAncestors, folderHref, type FolderNode, type FolderPath } from "@/lib/folders";
-import { folderIconClass, folderTint } from "@/lib/tints";
+import { folderIconClass } from "@/lib/tints";
 import type { ShellData } from "@/lib/shell-data";
 import { PaletteTrigger } from "./command-palette";
 import { CheckIcon } from "./icons/base-web";
@@ -172,7 +172,7 @@ function TreeLevel({
                 aria-current={active ? "page" : undefined}
                 className="flex min-h-11 min-w-0 flex-1 items-center gap-2.5 rounded-md md:min-h-9"
               >
-                <FolderFilledIcon className={cn("size-5", folderIconClass(folderTint(node.path)))} />
+                <FolderFilledIcon className={cn("size-5", folderIconClass(node.tint))} />
                 <span className="truncate">{node.name}</span>
                 <SidebarCount value={node.totalFiles} />
               </Link>

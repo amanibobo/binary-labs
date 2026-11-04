@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { FileHitWire, FileKind, FileLocation, LabelRow, type FileHit } from "./domain";
 import { Sha256 } from "./ids";
+import { FOLDER_TINTS, type FolderTint } from "./tints";
 
 // A folder relative to the source root: "" is the root, then "P450", "P450/batch3".
 export const FolderPath = z
@@ -68,6 +69,7 @@ export type FolderNode = {
   depth: number;
   directFiles: number;
   totalFiles: number;
+  tint: FolderTint;
   children: FolderNode[];
 };
 export type FolderTree = { root: FolderNode; byPath: ReadonlyMap<FolderPath, FolderNode> };
@@ -87,6 +89,7 @@ export function buildFolderTree(rows: readonly FolderRow[]): FolderTree {
       depth: segmentsOf(path).length,
       directFiles: row?.directFiles ?? 0,
       totalFiles: row?.totalFiles ?? 0,
+      tint: { tint: "gray", shade: "base" },
       children: [],
     };
     byPath.set(path, node);
@@ -97,6 +100,14 @@ export function buildFolderTree(rows: readonly FolderRow[]): FolderTree {
   const root = nodeFor(ROOT_FOLDER);
   for (const row of rows) nodeFor(row.path);
   for (const node of byPath.values()) node.children.sort((a, b) => byName.compare(a.name, b.name));
+  root.children.forEach((top, i) => {
+    const tint = FOLDER_TINTS[i % FOLDER_TINTS.length] ?? "gray";
+    const paint = (node: FolderNode, shade: FolderTint["shade"]) => {
+      node.tint = { tint, shade };
+      for (const child of node.children) paint(child, "soft");
+    };
+    paint(top, "base");
+  });
   return { root, byPath };
 }
 
