@@ -349,7 +349,9 @@ class TwoPages:
             datetime.now(UTC),
             "h",
         )
-        return ListPage(entries=[entry], deleted=[], next_cursor=f"c{self.calls}", has_more=True)
+        return ListPage(
+            entries=[entry], deleted=[], next_cursor=f"c{self.calls}", has_more=self.calls < 2
+        )
 
     def read(self, external_id):
         raise AssertionError("nothing is read from a disconnected source")
