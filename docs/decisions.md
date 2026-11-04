@@ -49,3 +49,11 @@ Why: enough to test "find X in under 10 seconds" on real files without the cost 
 Dev uses the existing Supabase project `binarylabs` (us-east-1, ref `hstjkkdgvotrrqnmqppu`). The worker connects through the session pooler (port 5432), not the transaction pooler, because Procrastinate needs session features. Site URL is `http://localhost:3000`.
 
 The free tier blocks email template edits on the default email sender, and that sender only allows a few emails an hour. Until a custom SMTP provider (likely Resend) is set up, invited people follow the default invite link and then sign in with a magic link; their `members` row already exists. Before the pilot: add SMTP and point the invite template at `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=invite`.
+
+## 2026-11-04 — measured: query embedding and scan
+
+Qwen3-Embedding-0.6B query embed over HTTP, p50 ~45 ms (three runs of 50: 41, 49, 48 ms) on an M4 Mac with MPS; ~563 ms on CPU for the same short query. Cost grows with query length (41 ms at 6 tokens, 97 ms at 84).
+
+Scan of the 51-file sample lab: 24 s, ~97% of it embedding (~1k tokens/s on MPS). Lab text runs ~3 Qwen tokens per word because digits tokenize singly; chunks are sized by a token estimate, not word count.
+
+Consequence: a CPU-only Fly/Railway worker would push every search past the 250 ms timeout into keyword-only mode. For the pilot, serve `/embed` from a machine with a GPU (the PRD's local GPU box or Modal), or swap to `bge-small-en-v1.5` per the earlier decision. Not settled yet.
