@@ -88,3 +88,13 @@ Migration 0006 adds `protocols`, immutable `protocol_versions` and `protocol_fil
 `file_text` (`security definer`, membership checked) hands a page the extracted text of a file it starts from, since `extractions` are closed to members. `search_protocols` matches current titles and bodies with the same prefix query as file search; `/api/search` returns its hits as `protocols` beside the files, and none when a file filter is set.
 
 Pages render Markdown with react-markdown and remark-gfm. Raw HTML stays text, and images render as links.
+
+## Deleting a lab and disconnecting Dropbox
+
+Migration 0007. Both actions are `security invoker` functions an admin calls, and the database does the rest: `request_lab_deletion(p_lab_id, p_confirm_name)` checks the typed name (`BL201`), sets `labs.deletion_requested_at`, nulls every token, stops scans, and writes `lab_deletions` and a `lab.delete` audit row. `is_lab_member` and `is_lab_admin` are false from then on, so RLS hides every row at once. `disconnect_source(p_source_id)` nulls the token; a trigger sets `disconnected_at`, clears the cursor and writes `source.disconnect`. Writing a new token to the same row reconnects it and requests a fresh scan.
+
+The web app reads the refresh tokens with the service role before calling either function, then revokes them with Dropbox (`/2/auth/token/revoke`) once the call succeeds. A failed revoke is logged and never undoes the request.
+
+The worker's `sweep_deletions` (every 10 s) queues `delete_lab` for each unfinished `lab_deletions` row, one per lab. `delete_lab` takes the lab's advisory lock exclusively (file processing holds it shared), deletes `<lab_id>/` from the preview store, deletes the lab row so lab tables cascade, deletes blobs and extractions no other lab references, and stamps `completed_at` and `counts` in the same transaction. `counts` has one key per lab table plus `jobs`, `blobs`, `extractions` and `preview_files`; the confirmation page at `/deleted?lab=<id>` reads it (only the requester can).
+
+Every job that reads a source checks `scan.LIVE_SOURCE`: a folder, no `disconnected_at`, and a lab not marked for deletion. A disconnected source keeps its rows, so search, previews and labels keep working on the existing index.
