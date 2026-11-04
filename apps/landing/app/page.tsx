@@ -47,10 +47,19 @@ function TextLink({ href, children }: { href: string; children: string }) {
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="mt-[1.9em]">
-      <h2 className="text-neutral-500">{title}</h2>
-      <div className="mt-[0.6em]">{children}</div>
-    </section>
+    <details className="disclosure group border-t border-neutral-200 last:border-b">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-[0.7em] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-black [&::-webkit-details-marker]:hidden">
+        <h2>{title}</h2>
+        <svg
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+          className="size-5 shrink-0 text-neutral-500 transition-transform duration-200 ease-out group-open:rotate-45 motion-reduce:transition-none"
+        >
+          <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+        </svg>
+      </summary>
+      <div className="pb-[1.1em]">{children}</div>
+    </details>
   );
 }
 
@@ -82,7 +91,7 @@ export default function Home() {
         <Dish />
       </figure>
 
-      <div className="mx-auto w-full max-w-[640px] px-4 pt-[10vh] pb-24 text-[20px] leading-[1.3] tracking-[-0.012em] sm:text-[22px]">
+      <div className="mx-auto w-full max-w-[640px] px-4 pt-[10vh] pb-24 [&>details:first-child]:mt-0 text-[20px] leading-[1.3] tracking-[-0.012em] sm:text-[22px]">
         <Section title="How it works">
           <ol className="space-y-[1em]">
             {STEPS.map((step) => (

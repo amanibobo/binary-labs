@@ -29,3 +29,26 @@ body {
     animation: none;
   }
 }
+
+/* Open and close the landing accordions smoothly where the browser can animate to auto height. */
+.disclosure {
+  interpolate-size: allow-keywords;
+}
+
+.disclosure::details-content {
+  block-size: 0;
+  overflow: hidden;
+  transition:
+    block-size 220ms ease-out,
+    content-visibility 220ms allow-discrete;
+}
+
+.disclosure[open]::details-content {
+  block-size: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .disclosure::details-content {
+    transition: none;
+  }
+}
