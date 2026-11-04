@@ -27,6 +27,20 @@ def connect(url: str) -> Iterator[psycopg.Connection]:
         yield conn
 
 
+@contextmanager
+def lab_lock(conn: psycopg.Connection, lab_id: object, *, exclusive: bool) -> Iterator[None]:
+    """A session lock per lab. Processing a file holds it shared, because it writes things
+    no lab row guards (a blob, a preview file); deleting the lab holds it exclusively, so it
+    starts only after those finish and none starts until it's done."""
+    kind = "" if exclusive else "_shared"
+    key = f"lab:{lab_id}"
+    conn.execute(f"select pg_advisory_lock{kind}(hashtextextended(%s, 0))", (key,))
+    try:
+        yield
+    finally:
+        conn.execute(f"select pg_advisory_unlock{kind}(hashtextextended(%s, 0))", (key,))
+
+
 @dataclass(frozen=True)
 class Migration:
     version: str

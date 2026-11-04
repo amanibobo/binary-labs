@@ -52,7 +52,8 @@ class DropboxSource:
             raise RuntimeError("a dropbox source needs DROPBOX_APP_KEY and DROPBOX_APP_SECRET")
         if settings.token_encryption_key is None:
             raise RuntimeError("a dropbox source needs TOKEN_ENCRYPTION_KEY")
-        assert row.token_ciphertext is not None  # a check constraint on sources guarantees it
+        if row.token_ciphertext is None:
+            raise RuntimeError(f"dropbox source {row.id} is disconnected")
         return cls(
             root_path=row.root_path,
             refresh_token=decrypt_token(settings.token_encryption_key, row.token_ciphertext),

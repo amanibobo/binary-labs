@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import shutil
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -33,9 +34,17 @@ class PreviewStore(Protocol):
 
     def get(self, key: str) -> bytes | None: ...
 
+    def delete_prefix(self, prefix: str) -> int:
+        """Deletes every object under the prefix; returns how many it deleted."""
+        ...
+
+
+def lab_prefix(lab_id: object) -> str:
+    return f"{lab_id}/"
+
 
 def preview_key(lab_id: object, sha256: str) -> str:
-    return f"{lab_id}/{sha256}.webp"
+    return f"{lab_prefix(lab_id)}{sha256}.webp"
 
 
 class LocalPreviewStore:
@@ -52,6 +61,14 @@ class LocalPreviewStore:
     def get(self, key: str) -> bytes | None:
         path = self.root / key
         return path.read_bytes() if path.is_file() else None
+
+    def delete_prefix(self, prefix: str) -> int:
+        folder = self.root / prefix
+        if not folder.is_dir():
+            return 0
+        count = sum(1 for p in folder.rglob("*") if p.is_file())
+        shutil.rmtree(folder)
+        return count
 
 
 class R2PreviewStore:
@@ -75,6 +92,24 @@ class R2PreviewStore:
             return self._s3.get_object(Bucket=self.bucket, Key=key)["Body"].read()
         except self._s3.exceptions.NoSuchKey:
             return None
+
+    def delete_prefix(self, prefix: str) -> int:
+        count = 0
+        pages = self._s3.get_paginator("list_objects_v2").paginate(
+            Bucket=self.bucket, Prefix=prefix
+        )
+        for page in pages:
+            # A listing page holds at most 1000 keys, the most one delete_objects call takes.
+            keys = [{"Key": o["Key"]} for o in page.get("Contents", [])]
+            if not keys:
+                continue
+            resp = self._s3.delete_objects(
+                Bucket=self.bucket, Delete={"Objects": keys, "Quiet": True}
+            )
+            if resp.get("Errors"):
+                raise RuntimeError(f"{len(resp['Errors'])} previews under {prefix} weren't deleted")
+            count += len(keys)
+        return count
 
 
 def build_preview_store(settings: Settings) -> PreviewStore:
