@@ -36,8 +36,10 @@ export function BrowseView({
   const filesId = useId();
   return (
     <>
-      <div className="flex h-16 items-center border-b border-border-opaque px-4 sm:px-8">
-        <Breadcrumbs items={crumbs} />
+      <div className="border-b border-border-opaque">
+        <div className="mx-auto flex h-14 w-full max-w-6xl items-center px-4 sm:px-6">
+          <Breadcrumbs items={crumbs} />
+        </div>
       </div>
       <h1 className="sr-only">{folder.path === "" ? labName : folder.name}</h1>
       <div className="mx-auto w-full max-w-[1240px] px-4 pt-8 pb-24 sm:px-8 sm:pt-10">
