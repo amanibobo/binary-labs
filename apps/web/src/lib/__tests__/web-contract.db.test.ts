@@ -14,12 +14,14 @@ import {
   PersonRows,
   ProgressRows,
   SearchFilesRows,
+  type FileHit,
   type Label,
   type SearchParams,
 } from "../domain";
 import { ExperimentId, LabId, Sha256, type CorrectionId } from "../ids";
 import { applyEdit, type LabLists } from "../label-edit";
 import { correctionFailure, correctLabelArgs, correctRequest } from "../labels";
+import { FolderFilesRows, FolderTreeRows } from "../folders";
 import { searchFilesArgs, toVectorLiteral } from "../search";
 import { decryptToken, fromPgBytea, toPgBytea } from "../token-crypto";
 
@@ -332,5 +334,132 @@ describe("labels through the web app's args and parsers", () => {
     expect((await db.query("select 1 from experiments where id = $1", [id])).rowCount).toBe(1);
     expect((await asUser(alice, () => db.query(del, [id, labA]))).rowCount).toBe(1);
     await expect(add("p450 bm3")).rejects.toThrow(/experiments_lab_name_idx/);
+// Runs last and adds its own rows, so the search and progress counts above stay as they are.
+describe("folder_tree and folder_files", () => {
+  const tree = (userId: string, labId: LabId) =>
+    asUser(userId, async () => FolderTreeRows.parse(await rpcJson("folder_tree($1)", [labId])));
+  const files = async (userId: string, labId: LabId, path: string, limitOffset: [number, number] | null = null) =>
+    asUser(userId, async () =>
+      FolderFilesRows.parse(
+        limitOffset === null
+          ? await rpcJson("folder_files($1, $2)", [labId, path])
+          : await rpcJson("folder_files($1, $2, $3, $4)", [labId, path, ...limitOffset]),
+      ),
+    );
+  const brief = (hits: FileHit[]) =>
+    hits.map((h) => ({ sha: h.sha256, paths: h.locations.map((l) => l.path), snippet: h.snippet, preview: h.hasPreview }));
+
+  beforeAll(async () => {
+    const sourceB = z
+      .string()
+      .parse(
+        (await db.query("insert into sources (lab_id, kind, root_path) values ($1, 'local', '/') returning id", [labB])).rows[0]?.id,
+      );
+    await db.query("update sources set root_path = '/Lab' where id = $1", [sourceA]);
+    await db.query(
+      `insert into blobs (sha256, size, mime, file_kind)
+       select s, 10, 'application/octet-stream', 'other' from unnest($1::text[]) as s`,
+      [["d", "e", "f", "1", "2", "3", "4", "5", "6"].map(sha)],
+    );
+    const loc = (
+      labId: LabId,
+      sourceId: string,
+      path: string,
+      s: string | null,
+      opts: { modified?: string; state?: string; deleted?: boolean } = {},
+    ) =>
+      db.query(
+        `insert into file_locations (lab_id, source_id, external_id, path, original_name, size, modified_at, source_rev, sha256, index_state, index_error, deleted_at)
+         values ($1, $2, 'folder:' || $3::text, $3, regexp_replace($3, '^.*/', ''), 10, $4, 'rev', $5, $6::index_state,
+           case when $6::index_state = 'failed' then 'unreadable' end, case when $7::boolean then now() end)`,
+        [labId, sourceId, path, opts.modified ?? "2026-10-01T00:00:00Z", s, opts.state ?? "indexed", opts.deleted ?? false],
+      );
+    await loc(labA, sourceA, "/Lab/P450/batch3/gel.jpg", sha("d"));
+    await loc(labA, sourceA, "/Lab/P450/batch3/Blot.png", sha("e"));
+    await loc(labA, sourceA, "/Lab/P450/batch3/ladder.pdf", sha("b"), { modified: "2026-10-03T00:00:00Z" });
+    await loc(labA, sourceA, "/Lab/P450/batch3/old.jpg", sha("2"), { deleted: true });
+    await loc(labA, sourceA, "/Lab/P450/batch3/pending.pdf", null, { state: "pending" });
+    await loc(labA, sourceA, "/Lab/P450/batch3/broken.pdf", null, { state: "failed" });
+    await loc(labA, sourceA, "/Lab/P450/batch3/raw/run1.csv", sha("f"));
+    await loc(labA, sourceA, "/Lab/P450/summary.txt", sha("1"));
+    await loc(labA, sourceA, "/Lab/Pending/only.pdf", null, { state: "pending" });
+    await loc(labA, sourceA, "/lab/readme.txt", sha("4"));
+    await loc(labA, sourceA, "/Archive/readme.txt", sha("4"), { modified: "2026-09-01T00:00:00Z" });
+    await loc(labA, sourceA, "/Lab2/outside.pdf", sha("3"));
+    await loc(labB, sourceB, "/Shared/plate.pdf", sha("5"));
+    await loc(labB, sourceB, "/top.txt", sha("6"));
+    await db.query(
+      `insert into chunks (lab_id, sha256, ord, text) values
+         ($1, $2, 0, 'Lab P450 summary.txt'), ($1, $2, 1, 'Batch 3 ran clean.'), ($1, $2, 2, 'Second window.')`,
+      [labA, sha("1")],
+    );
+  });
+
+  it("builds the tree under the source root for a lab member", async () => {
+    expect(await tree(carol, labA)).toEqual([
+      { path: "", parent: null, directFiles: 1, totalFiles: 9 },
+      { path: "Gels", parent: "", directFiles: 1, totalFiles: 1 },
+      { path: "Old", parent: "", directFiles: 1, totalFiles: 1 },
+      { path: "P450", parent: "", directFiles: 1, totalFiles: 5 },
+      { path: "P450/batch3", parent: "P450", directFiles: 3, totalFiles: 4 },
+      { path: "P450/batch3/raw", parent: "P450/batch3", directFiles: 1, totalFiles: 1 },
+      { path: "Protocols", parent: "", directFiles: 1, totalFiles: 1 },
+    ]);
+  });
+
+  it("treats a root of / as the whole account", async () => {
+    expect(await tree(bob, labB)).toEqual([
+      { path: "", parent: null, directFiles: 1, totalFiles: 2 },
+      { path: "Shared", parent: "", directFiles: 1, totalFiles: 1 },
+    ]);
+  });
+
+  it("lists a folder's live indexed files by name, each with its own location first", async () => {
+    expect(brief(await files(carol, labA, "P450/batch3"))).toEqual([
+      { sha: sha("e"), paths: ["/Lab/P450/batch3/Blot.png"], snippet: null, preview: false },
+      { sha: sha("d"), paths: ["/Lab/P450/batch3/gel.jpg"], snippet: null, preview: false },
+      {
+        sha: sha("b"),
+        paths: ["/Lab/P450/batch3/ladder.pdf", "/Lab/Protocols/P450 purification.pdf", "/Lab/Old/P450 purification copy.pdf"],
+        snippet: "Purify P450 on the SEC column, then run gels for batch 3.",
+        preview: false,
+      },
+    ]);
+    expect(brief(await files(carol, labA, "Protocols"))[0]?.paths).toEqual([
+      "/Lab/Protocols/P450 purification.pdf",
+      "/Lab/P450/batch3/ladder.pdf",
+      "/Lab/Old/P450 purification copy.pdf",
+    ]);
+    expect(brief(await files(carol, labA, "P450"))).toEqual([
+      { sha: sha("1"), paths: ["/Lab/P450/summary.txt"], snippet: "Batch 3 ran clean.", preview: false },
+    ]);
+    expect(brief(await files(carol, labA, "Gels"))[0]?.preview).toBe(true);
+  });
+
+  it("lists the root folder, including other locations outside the root", async () => {
+    expect(brief(await files(carol, labA, ""))).toEqual([
+      { sha: sha("4"), paths: ["/lab/readme.txt", "/Archive/readme.txt"], snippet: null, preview: false },
+    ]);
+    expect(brief(await files(bob, labB, "")).map((h) => h.paths)).toEqual([["/top.txt"]]);
+  });
+
+  it("pages with limit and offset", async () => {
+    expect((await files(carol, labA, "P450/batch3", [1, 0])).map((h) => h.sha256)).toEqual([sha("e")]);
+    expect((await files(carol, labA, "P450/batch3", [2, 1])).map((h) => h.sha256)).toEqual([sha("d"), sha("b")]);
+    expect(await files(carol, labA, "P450/batch3", [10, 3])).toEqual([]);
+  });
+
+  it("returns nothing for folders with no live indexed files", async () => {
+    expect(await files(carol, labA, "Pending")).toEqual([]);
+    expect(await files(carol, labA, "Notes")).toEqual([]);
+  });
+
+  it("returns nothing across labs", async () => {
+    expect(await tree(bob, labA)).toEqual([]);
+    expect(await files(bob, labA, "P450/batch3")).toEqual([]);
+    expect(await files(bob, labA, "")).toEqual([]);
+    expect(await tree(alice, labB)).toEqual([]);
+    expect(await files(alice, labB, "Shared")).toEqual([]);
+    expect(await files(alice, labB, "")).toEqual([]);
   });
 });
