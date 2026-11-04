@@ -40,7 +40,32 @@ const shots = [
   { name: "lab-folder", path: "/dev/fixtures/folder", width: 1440, scheme: "dark" },
   { name: "search-palette", path: "/dev/fixtures/search?state=empty", palette: "p450", width: 1440, scheme: "dark" },
   ...protocolShots(),
+  ...deletionShots(),
 ];
+
+// Deleting a lab and disconnecting Dropbox, in both schemes.
+function deletionShots() {
+  const both = (shot) => ["dark", "light"].map((scheme) => ({ width: 1440, ...shot, scheme }));
+  const openDelete = async (page) => {
+    await page.getByRole("button", { name: "Delete lab" }).click();
+    await page.getByLabel("Type Okafor Lab to confirm").fill("Okafor Lab");
+  };
+  return [
+    ...both({ name: "settings-delete-section", path: "/dev/fixtures/lab?state=connect" }),
+    ...both({ name: "settings-delete-dialog", path: "/dev/fixtures/lab", steps: openDelete, full: false }),
+    { name: "settings-delete-dialog", path: "/dev/fixtures/lab", steps: openDelete, full: false, width: 390, scheme: "dark" },
+    ...both({
+      name: "settings-disconnect-dialog",
+      path: "/dev/fixtures/lab",
+      steps: (page) => page.getByRole("button", { name: "Disconnect", exact: true }).click(),
+      full: false,
+    }),
+    ...both({ name: "settings-disconnected", path: "/dev/fixtures/lab?state=disconnected" }),
+    { name: "settings-member", path: "/dev/fixtures/lab?role=member", width: 1440, scheme: "dark" },
+    ...both({ name: "lab-deleted-pending", path: "/dev/fixtures/deleted?state=pending" }),
+    ...both({ name: "lab-deleted-done", path: "/dev/fixtures/deleted?state=done" }),
+  ];
+}
 
 // Every protocol screen in both schemes, at desktop and phone width.
 function protocolShots() {

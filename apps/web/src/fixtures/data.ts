@@ -228,6 +228,14 @@ export const doneSource: SourceState = {
   scan: { kind: "done", counts: { pending: 0, indexed: 1977, failed: 3 } },
 };
 
+export const disconnectedSource: SourceState = {
+  kind: "disconnected",
+  sourceId: SourceId.parse(source),
+  accountLabel: "a.okafor@university.edu",
+  rootPath: "/Lab",
+  indexed: 1977,
+};
+
 export const members = LabMemberRows.parse([
   { user_id: "00000000-0000-4000-8000-00000000000a", email: "a.okafor@university.edu", role: "admin", joined_at: "2026-11-04T09:00:00Z" },
   { user_id: "00000000-0000-4000-8000-00000000000b", email: "priya.n@university.edu", role: "member", joined_at: "2026-11-04T09:20:00Z" },
