@@ -1,13 +1,19 @@
+from pathlib import Path
+
 import psycopg
 
 from bl_worker.db import migrate
+
+MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "db" / "migrations"
 
 
 def test_rerun_applies_nothing(database_url):
     assert migrate(database_url, test_stub=True) == []
     with psycopg.connect(database_url) as conn:
-        versions = [r[0] for r in conn.execute("select version from schema_migrations order by 1")]
-    assert versions == ["0001_core", "0002_search", "procrastinate", "test/auth_stub"]
+        versions = {r[0] for r in conn.execute("select version from schema_migrations")}
+    on_disk = {p.stem for p in MIGRATIONS_DIR.glob("*.sql")}
+    assert len(on_disk) >= 3
+    assert versions == on_disk | {"procrastinate", "test/auth_stub"}
 
 
 def test_job_queue_is_closed_to_web_roles(database_url):
