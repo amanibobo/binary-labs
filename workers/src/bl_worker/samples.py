@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import io
 import random
+import re
+import zipfile
 from datetime import UTC, datetime
 
 from PIL import Image, ImageDraw
@@ -14,7 +16,7 @@ def pdf(lines: list[str], *, pages: int = 1) -> bytes:
 
     doc = FPDF()
     # A fixed date keeps the bytes, and so the sha256, the same from run to run.
-    doc.set_creation_date(datetime(2026, 1, 1, tzinfo=UTC))
+    doc.set_creation_date(FIXED_DATE)
     doc.set_font("helvetica", size=11)
     per_page = max(1, len(lines) // pages)
     for i in range(pages):
@@ -25,10 +27,28 @@ def pdf(lines: list[str], *, pages: int = 1) -> bytes:
     return bytes(doc.output())
 
 
+FIXED_DATE = datetime(2026, 1, 1, tzinfo=UTC)
+
+
+def _stable_zip(data: bytes) -> bytes:
+    """Office files are zips stamped with the current time; pin it so bytes repeat."""
+    out = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(data)) as src, zipfile.ZipFile(out, "w") as dst:
+        for info in src.infolist():
+            fixed = zipfile.ZipInfo(info.filename, date_time=(2026, 1, 1, 0, 0, 0))
+            fixed.compress_type = zipfile.ZIP_DEFLATED
+            body = src.read(info)
+            if info.filename == "docProps/core.xml":
+                body = re.sub(rb">\d{4}-\d\d-\d\dT[\d:.]+Z<", b">2026-01-01T00:00:00Z<", body)
+            dst.writestr(fixed, body)
+    return out.getvalue()
+
+
 def xlsx(sheets: dict[str, list[list[object]]]) -> bytes:
     import openpyxl
 
     wb = openpyxl.Workbook()
+    wb.properties.created = wb.properties.modified = FIXED_DATE.replace(tzinfo=None)
     wb.remove(wb.active)
     for name, rows in sheets.items():
         ws = wb.create_sheet(name)
@@ -36,13 +56,14 @@ def xlsx(sheets: dict[str, list[list[object]]]) -> bytes:
             ws.append(row)
     out = io.BytesIO()
     wb.save(out)
-    return out.getvalue()
+    return _stable_zip(out.getvalue())
 
 
 def docx(paragraphs: list[str], table: list[list[str]] | None = None) -> bytes:
     import docx as python_docx
 
     doc = python_docx.Document()
+    doc.core_properties.created = doc.core_properties.modified = FIXED_DATE
     for i, text in enumerate(paragraphs):
         if i == 0:
             doc.add_heading(text, level=1)
@@ -55,7 +76,7 @@ def docx(paragraphs: list[str], table: list[list[str]] | None = None) -> bytes:
                 t.cell(r, c).text = value
     out = io.BytesIO()
     doc.save(out)
-    return out.getvalue()
+    return _stable_zip(out.getvalue())
 
 
 def csv_text(rows: list[list[object]]) -> bytes:
