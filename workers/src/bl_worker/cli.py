@@ -16,23 +16,43 @@ def cmd_migrate(args: argparse.Namespace) -> None:
 
 
 def cmd_worker(args: argparse.Namespace) -> None:
+    import time
+
     from procrastinate import PsycopgConnector
+    from procrastinate.exceptions import ConnectorException
 
     from bl_worker.jobs import app
     from bl_worker.runtime import build_runtime
 
     settings = load_settings()
-    rt = build_runtime(settings, pool_size=args.concurrency + 2)
-    try:
-        with app.replace_connector(PsycopgConnector(conninfo=settings.database_url)):
-            app.run_worker(
-                concurrency=args.concurrency,
-                additional_context={"runtime": rt},
-                delete_jobs="successful",
-                wait=not args.until_idle,
+    log = logging.getLogger("bl_worker.cli")
+    backoff = 2.0
+    while True:
+        rt = build_runtime(settings, pool_size=args.concurrency + 2)
+        started = time.monotonic()
+        try:
+            with app.replace_connector(PsycopgConnector(conninfo=settings.database_url)):
+                app.run_worker(
+                    concurrency=args.concurrency,
+                    additional_context={"runtime": rt},
+                    delete_jobs="successful",
+                    wait=not args.until_idle,
+                )
+            return
+        except ConnectorException:
+            # A dropped database (laptop sleep, network blip, pooler restart) should not end a
+            # long-running worker: jobs live in Postgres and every step is safe to re-run.
+            if args.until_idle:
+                raise
+            if time.monotonic() - started > 300:
+                backoff = 2.0
+            log.warning(
+                "database connection lost; restarting worker in %.0fs", backoff, exc_info=True
             )
-    finally:
-        rt.close()
+            time.sleep(backoff)
+            backoff = min(backoff * 2, 60.0)
+        finally:
+            rt.close()
 
 
 def cmd_serve_embed(args: argparse.Namespace) -> None:
