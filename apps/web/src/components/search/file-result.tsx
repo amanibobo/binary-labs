@@ -7,12 +7,16 @@ import { excerpt } from "@/lib/highlight";
 import { folderOf, formatDate, matchLine, openInDropboxUrl, otherPlacesLine } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { useLabApi } from "../lab-api";
+import { LabelTags, LabelTitle } from "../labels/file-label";
+import { useLabels } from "../labels/labels-context";
 import { FILE_KIND_ICONS, OpenExternalIcon } from "../icons/drawn";
 import { buttonVariants } from "../ui/button";
 import { Highlighted } from "./highlighted";
 
 // A Base Web ListItem: file-kind artwork in a 64px column, then name, path and
 // meta, with Open in Dropbox as the end action. The divider is inset past the artwork.
+// The whole row toggles the details, so that toggle sits underneath as a stretched
+// button and the name and tags, which edit in place, sit above it.
 export function FileResult({
   hit,
   query,
@@ -25,55 +29,66 @@ export function FileResult({
   onToggle: () => void;
 }) {
   const api = useLabApi();
+  const { labelOf } = useLabels();
+  const label = labelOf(hit);
   const panelId = useId();
   const [primary, ...others] = hit.locations;
   const KindIcon = FILE_KIND_ICONS[hit.fileKind];
+  const named = label !== null && label.cleanName !== null;
+  const title = label?.cleanName ?? primary.originalName;
   const meta = [matchLine(hit.matchedBy), `Modified ${formatDate(primary.modifiedAt)}`, otherPlacesLine(others.length)]
     .filter((part) => part !== null)
     .join(" · ");
 
   return (
-    <li className="relative after:absolute after:right-0 after:bottom-0 after:left-16 after:h-px after:bg-border-opaque last:after:hidden">
-      <div className={cn("flex items-stretch", expanded && "bg-background-secondary")}>
+    <li className="group relative after:absolute after:right-0 after:bottom-0 after:left-16 after:h-px after:bg-border-opaque last:after:hidden">
+      <div className={cn("relative flex items-stretch", expanded && "bg-background-secondary")}>
         <button
           type="button"
           aria-expanded={expanded}
           aria-controls={panelId}
           onClick={onToggle}
           className={cn(
-            "flex min-h-16 min-w-0 flex-1 items-start text-left transition-colors duration-150 ease-out focus-visible:outline-offset-[-2px]",
+            "absolute inset-0 transition-colors duration-150 ease-out focus-visible:outline-offset-[-2px]",
             !expanded && "hover:bg-button-tertiary-hover",
           )}
         >
-          <span className="flex h-16 w-16 shrink-0 items-center justify-center">
-            <KindIcon className="text-content-secondary" />
-          </span>
-          <span className="min-w-0 flex-1 py-3 pr-2">
-            <span className="block truncate font-mono text-label-medium text-content-primary">{primary.originalName}</span>
-            <span className="mt-1 block truncate font-mono text-paragraph-xsmall text-content-tertiary">{folderOf(primary)}</span>
-            {hit.snippet !== null && hit.fileKind !== "image" ? (
-              <span className="mt-2 line-clamp-2 text-paragraph-small text-content-secondary">
-                <Highlighted text={excerpt(hit.snippet, query, 200)} query={query} />
-              </span>
-            ) : null}
-            <span className="mt-2 block text-paragraph-xsmall text-content-tertiary">{meta}</span>
-          </span>
-          {hit.hasPreview ? (
-            // eslint-disable-next-line @next/next/no-img-element -- previews are short-lived presigned redirects
-            <img
-              src={api.previewUrl(hit.sha256, { view: false })}
-              alt=""
-              loading="lazy"
-              className="my-3 mr-2 hidden size-12 shrink-0 rounded-lg bg-background-secondary object-cover sm:block"
-            />
-          ) : null}
+          <span className="sr-only">Details for {title}</span>
         </button>
+        <span className="pointer-events-none relative flex h-16 w-16 shrink-0 items-center justify-center">
+          <KindIcon className="text-content-secondary" />
+        </span>
+        <span className="pointer-events-none relative min-w-0 flex-1 py-3 pr-2">
+          <LabelTitle hit={hit} label={label} />
+          {named ? (
+            <span className="mt-0.5 block truncate font-mono text-paragraph-xsmall text-content-secondary">{primary.originalName}</span>
+          ) : null}
+          <span className={cn("block truncate font-mono text-paragraph-xsmall text-content-tertiary", !named && "mt-1")}>
+            {folderOf(primary)}
+          </span>
+          {hit.snippet !== null && hit.fileKind !== "image" ? (
+            <span className="mt-2 line-clamp-2 text-paragraph-small text-content-secondary">
+              <Highlighted text={excerpt(hit.snippet, query, 200)} query={query} />
+            </span>
+          ) : null}
+          {label === null ? null : <LabelTags hit={hit} label={label} expanded={expanded} />}
+          <span className="mt-2 block text-paragraph-xsmall text-content-tertiary">{meta}</span>
+        </span>
+        {hit.hasPreview ? (
+          // eslint-disable-next-line @next/next/no-img-element -- previews are short-lived presigned redirects
+          <img
+            src={api.previewUrl(hit.sha256, { view: false })}
+            alt=""
+            loading="lazy"
+            className="pointer-events-none relative my-3 mr-2 hidden size-12 shrink-0 rounded-lg bg-background-secondary object-cover sm:block"
+          />
+        ) : null}
         {primary.sourceKind === "dropbox" ? (
           <a
             href={openInDropboxUrl(primary.path)}
             target="_blank"
             rel="noreferrer"
-            className={cn(buttonVariants({ variant: "tertiary", shape: "square" }), "mt-3 mr-2 shrink-0 self-start text-content-secondary sm:mt-4")}
+            className={cn(buttonVariants({ variant: "tertiary", shape: "square" }), "relative mt-3 mr-2 shrink-0 self-start text-content-secondary sm:mt-4")}
           >
             <OpenExternalIcon />
             <span className="sr-only">

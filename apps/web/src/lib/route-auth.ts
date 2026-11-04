@@ -27,3 +27,13 @@ export async function routeAccess({ admin }: { admin: boolean }): Promise<RouteA
     }
   }
 }
+
+// JSON bodies only: a cross-site form can't send this content type without a preflight.
+export async function readJson(request: Request): Promise<unknown> {
+  if (request.headers.get("content-type")?.split(";")[0]?.trim() !== "application/json") return undefined;
+  try {
+    return await request.json();
+  } catch {
+    return undefined;
+  }
+}

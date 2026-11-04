@@ -1,0 +1,721 @@
+{
+  "about": "Hand-written labels for every file scripts/make_sample_lab.py writes. A list value means any of those is right; 'modified' means the file's modified date, since nothing in the file dates it. name_terms must all appear in the clean name (a nested list: any one of them).",
+  "lab": {
+    "experiments": [
+      {
+        "name": "P450 batch 1",
+        "aliases": [
+          "batch1"
+        ]
+      },
+      {
+        "name": "P450 batch 2",
+        "aliases": [
+          "batch2"
+        ]
+      },
+      {
+        "name": "P450 batch 3",
+        "aliases": [
+          "batch3"
+        ]
+      },
+      {
+        "name": "Lysozyme DSF",
+        "aliases": [
+          "lysozyme"
+        ]
+      },
+      {
+        "name": "Thermal shift screen plate 07",
+        "aliases": [
+          "screen_plate_07",
+          "plate07"
+        ]
+      }
+    ],
+    "people": [
+      {
+        "name": "Ama Boateng",
+        "aliases": [
+          "AB"
+        ]
+      },
+      {
+        "name": "Chen Du",
+        "aliases": [
+          "CD"
+        ]
+      },
+      {
+        "name": "Elena Fischer",
+        "aliases": [
+          "EF"
+        ]
+      },
+      {
+        "name": "Grace Ho",
+        "aliases": [
+          "GH"
+        ]
+      }
+    ]
+  },
+  "files": [
+    {
+      "paths": [
+        "/protocols/SDS-PAGE_protocol.pdf",
+        "/AB/old protocols/SDS-PAGE_protocol.pdf"
+      ],
+      "name_terms": [
+        "SDS-PAGE",
+        "protocol"
+      ],
+      "date": "modified",
+      "experiment": null,
+      "person": [
+        null,
+        "Ama Boateng"
+      ],
+      "instrument": null
+    },
+    {
+      "paths": [
+        "/protocols/Ni-NTA purification.docx"
+      ],
+      "name_terms": [
+        "Ni-NTA",
+        "purification"
+      ],
+      "date": "modified",
+      "experiment": null,
+      "person": null,
+      "instrument": null
+    },
+    {
+      "paths": [
+        "/protocols/buffers.pdf"
+      ],
+      "name_terms": [
+        [
+          "buffer",
+          "buffers"
+        ]
+      ],
+      "date": "modified",
+      "experiment": null,
+      "person": null,
+      "instrument": null
+    },
+    {
+      "paths": [
+        "/protocols/thermal_shift_DSF.pdf",
+        "/EF/thermal_shift/thermal_shift_DSF.pdf"
+      ],
+      "name_terms": [
+        [
+          "thermal shift",
+          "DSF"
+        ],
+        "protocol"
+      ],
+      "date": "modified",
+      "experiment": [
+        null,
+        "Thermal shift screen plate 07"
+      ],
+      "person": [
+        null,
+        "Elena Fischer"
+      ],
+      "instrument": null
+    },
+    {
+      "paths": [
+        "/protocols/README.md"
+      ],
+      "name_terms": [
+        [
+          "protocol",
+          "protocols"
+        ]
+      ],
+      "date": "modified",
+      "experiment": null,
+      "person": [
+        null,
+        "Ama Boateng"
+      ],
+      "instrument": null
+    },
+    {
+      "paths": [
+        "/AB/P450/batch1/IMG_4807.jpg"
+      ],
+      "name_terms": [
+        "gel",
+        "batch 1"
+      ],
+      "date": "2026-10-11",
+      "experiment": "P450 batch 1",
+      "person": "Ama Boateng",
+      "instrument": "ChemiDoc MP"
+    },
+    {
+      "paths": [
+        "/AB/P450/batch1/IMG_4808.jpg"
+      ],
+      "name_terms": [
+        "gel",
+        "batch 1"
+      ],
+      "date": "2026-10-11",
+      "experiment": "P450 batch 1",
+      "person": "Ama Boateng",
+      "instrument": "ChemiDoc MP"
+    },
+    {
+      "paths": [
+        "/AB/P450/batch1/gel notes.pdf"
+      ],
+      "name_terms": [
+        "gel",
+        "batch 1"
+      ],
+      "date": "modified",
+      "experiment": "P450 batch 1",
+      "person": "Ama Boateng",
+      "instrument": null
+    },
+    {
+      "paths": [
+        "/AB/P450/batch1/plate_A600_1.csv"
+      ],
+      "name_terms": [
+        "A600"
+      ],
+      "date": "modified",
+      "experiment": "P450 batch 1",
+      "person": "Ama Boateng",
+      "instrument": "BioTek Gen5"
+    },
+    {
+      "paths": [
+        "/AB/P450/batch1/plate_A418_1.csv"
+      ],
+      "name_terms": [
+        "A418"
+      ],
+      "date": "modified",
+      "experiment": "P450 batch 1",
+      "person": "Ama Boateng",
+      "instrument": "BioTek Gen5"
+    },
+    {
+      "paths": [
+        "/AB/P450/batch1/kinetics.xlsx"
+      ],
+      "name_terms": [
+        "kinetics",
+        "batch 1"
+      ],
+      "date": "modified",
+      "experiment": "P450 batch 1",
+      "person": "Ama Boateng",
+      "instrument": "SpectraMax"
+    },
+    {
+      "paths": [
+        "/AB/P450/batch2/IMG_4814.jpg"
+      ],
+      "name_terms": [
+        "gel",
+        "batch 2"
+      ],
+      "date": "2026-10-12",
+      "experiment": "P450 batch 2",
+      "person": "Ama Boateng",
+      "instrument": "ChemiDoc MP"
+    },
+    {
+      "paths": [
+        "/AB/P450/batch2/IMG_4815.jpg"
+      ],
+      "name_terms": [
+        "gel",
+        "batch 2"
+      ],
+      "date": "2026-10-12",
+      "experiment": "P450 batch 2",
+      "person": "Ama Boateng",
+      "instrument": "ChemiDoc MP"
+    },
+    {
+      "paths": [
+        "/AB/P450/batch2/gel notes.pdf"
+      ],
+      "name_terms": [
+        "gel",
+        "batch 2"
+      ],
+      "date": "modified",
+      "experiment": "P450 batch 2",
+      "person": "Ama Boateng",
+      "instrument": null
+    },
+    {
+      "paths": [
+        "/AB/P450/batch2/plate_A600_2.csv"
+      ],
+      "name_terms": [
+        "A600"
+      ],
+      "date": "modified",
+      "experiment": "P450 batch 2",
+      "person": "Ama Boateng",
+      "instrument": "BioTek Gen5"
+    },
+    {
+      "paths": [
+        "/AB/P450/batch2/plate_A418_2.csv"
+      ],
+      "name_terms": [
+        "A418"
+      ],
+      "date": "modified",
+      "experiment": "P450 batch 2",
+      "person": "Ama Boateng",
+      "instrument": "BioTek Gen5"
+    },
+    {
+      "paths": [
+        "/AB/P450/batch2/kinetics.xlsx"
+      ],
+      "name_terms": [
+        "kinetics",
+        "batch 2"
+      ],
+      "date": "modified",
+      "experiment": "P450 batch 2",
+      "person": "Ama Boateng",
+      "instrument": "SpectraMax"
+    },
+    {
+      "paths": [
+        "/AB/P450/batch3/IMG_4822.jpg"
+      ],
+      "name_terms": [
+        "gel",
+        "batch 3"
+      ],
+      "date": "2026-10-13",
+      "experiment": "P450 batch 3",
+      "person": "Ama Boateng",
+      "instrument": "ChemiDoc MP"
+    },
+    {
+      "paths": [
+        "/AB/P450/batch3/gel notes.pdf"
+      ],
+      "name_terms": [
+        "gel",
+        "batch 3"
+      ],
+      "date": "modified",
+      "experiment": "P450 batch 3",
+      "person": "Ama Boateng",
+      "instrument": null
+    },
+    {
+      "paths": [
+        "/AB/P450/batch3/plate_A600_3.csv"
+      ],
+      "name_terms": [
+        "A600"
+      ],
+      "date": "modified",
+      "experiment": "P450 batch 3",
+      "person": "Ama Boateng",
+      "instrument": "BioTek Gen5"
+    },
+    {
+      "paths": [
+        "/AB/P450/batch3/plate_A418_3.csv"
+      ],
+      "name_terms": [
+        "A418"
+      ],
+      "date": "modified",
+      "experiment": "P450 batch 3",
+      "person": "Ama Boateng",
+      "instrument": "BioTek Gen5"
+    },
+    {
+      "paths": [
+        "/AB/P450/batch3/kinetics.xlsx",
+        "/AB/P450/batch3/Copy of kinetics.xlsx"
+      ],
+      "name_terms": [
+        "kinetics",
+        "batch 3"
+      ],
+      "date": "modified",
+      "experiment": "P450 batch 3",
+      "person": "Ama Boateng",
+      "instrument": "SpectraMax"
+    },
+    {
+      "paths": [
+        "/AB/P450/batch3/IMG_4821.jpg",
+        "/shared/IMG_4821 copy.jpg"
+      ],
+      "name_terms": [
+        "gel",
+        "batch 3"
+      ],
+      "date": "2026-10-14",
+      "experiment": "P450 batch 3",
+      "person": "Ama Boateng",
+      "instrument": null,
+      "note": "phone photo of the batch 3 gel, also copied to shared"
+    },
+    {
+      "paths": [
+        "/AB/P450/batch3/final_v2_REAL.xlsx"
+      ],
+      "name_terms": [
+        "kinetics",
+        "batch 3"
+      ],
+      "date": "modified",
+      "experiment": "P450 batch 3",
+      "person": "Ama Boateng",
+      "instrument": "SpectraMax"
+    },
+    {
+      "paths": [
+        "/AB/P450/batch3/final_v2.xlsx"
+      ],
+      "name_terms": [
+        "kinetics",
+        "batch 2"
+      ],
+      "date": "modified",
+      "experiment": "P450 batch 2",
+      "person": "Ama Boateng",
+      "instrument": "SpectraMax",
+      "note": "batch 2 data saved in the batch 3 folder"
+    },
+    {
+      "paths": [
+        "/AB/P450/batch3/final.xlsx"
+      ],
+      "name_terms": [
+        "kinetics",
+        "batch 1"
+      ],
+      "date": "modified",
+      "experiment": "P450 batch 1",
+      "person": "Ama Boateng",
+      "instrument": "SpectraMax",
+      "note": "batch 1 data saved in the batch 3 folder"
+    },
+    {
+      "paths": [
+        "/CD/lysozyme/2026-10-14/DSF_run1.csv",
+        "/CD/lysozyme/2026-10-14/data (1).csv"
+      ],
+      "name_terms": [
+        "DSF",
+        "run 1"
+      ],
+      "date": "2026-10-14",
+      "experiment": "Lysozyme DSF",
+      "person": "Chen Du",
+      "instrument": "BioTek Gen5"
+    },
+    {
+      "paths": [
+        "/CD/lysozyme/2026-10-14/DSF_run2.csv"
+      ],
+      "name_terms": [
+        "DSF",
+        "run 2"
+      ],
+      "date": "2026-10-14",
+      "experiment": "Lysozyme DSF",
+      "person": "Chen Du",
+      "instrument": "BioTek Gen5"
+    },
+    {
+      "paths": [
+        "/CD/lysozyme/2026-10-14/notes.txt"
+      ],
+      "name_terms": [
+        [
+          "note",
+          "notes"
+        ]
+      ],
+      "date": "2026-10-14",
+      "experiment": "Lysozyme DSF",
+      "person": "Chen Du",
+      "instrument": null
+    },
+    {
+      "paths": [
+        "/CD/lysozyme/2026-10-14/IMG_5003.jpg"
+      ],
+      "name_terms": [
+        [
+          "photo",
+          "image",
+          "gel"
+        ]
+      ],
+      "date": "2026-10-14",
+      "experiment": "Lysozyme DSF",
+      "person": "Chen Du",
+      "instrument": null
+    },
+    {
+      "paths": [
+        "/CD/lysozyme/Tm_summary.xlsx"
+      ],
+      "name_terms": [
+        [
+          "Tm",
+          "melting"
+        ]
+      ],
+      "date": "modified",
+      "experiment": "Lysozyme DSF",
+      "person": "Chen Du",
+      "instrument": null
+    },
+    {
+      "paths": [
+        "/CD/lysozyme/crystal tray plan.docx"
+      ],
+      "name_terms": [
+        [
+          "crystal",
+          "crystallization"
+        ]
+      ],
+      "date": "modified",
+      "experiment": [
+        null,
+        "Lysozyme DSF"
+      ],
+      "person": "Chen Du",
+      "instrument": null
+    },
+    {
+      "paths": [
+        "/CD/Untitled.txt"
+      ],
+      "name_terms": [
+        "HisTrap"
+      ],
+      "date": "modified",
+      "experiment": null,
+      "person": "Chen Du",
+      "instrument": null
+    },
+    {
+      "paths": [
+        "/CD/scan0003.pdf"
+      ],
+      "name_terms": [
+        "invoice"
+      ],
+      "date": "modified",
+      "experiment": null,
+      "person": "Chen Du",
+      "instrument": null
+    },
+    {
+      "paths": [
+        "/EF/thermal_shift/screen_plate_07/plate07_read1.csv"
+      ],
+      "name_terms": [
+        [
+          "plate 07",
+          "plate 7"
+        ],
+        "read 1"
+      ],
+      "date": "modified",
+      "experiment": "Thermal shift screen plate 07",
+      "person": "Elena Fischer",
+      "instrument": "BioTek Gen5"
+    },
+    {
+      "paths": [
+        "/EF/thermal_shift/screen_plate_07/plate07_read2.csv"
+      ],
+      "name_terms": [
+        [
+          "plate 07",
+          "plate 7"
+        ],
+        "read 2"
+      ],
+      "date": "modified",
+      "experiment": "Thermal shift screen plate 07",
+      "person": "Elena Fischer",
+      "instrument": "BioTek Gen5"
+    },
+    {
+      "paths": [
+        "/EF/thermal_shift/screen_plate_07/plate07_read3.csv"
+      ],
+      "name_terms": [
+        [
+          "plate 07",
+          "plate 7"
+        ],
+        "read 3"
+      ],
+      "date": "modified",
+      "experiment": "Thermal shift screen plate 07",
+      "person": "Elena Fischer",
+      "instrument": "BioTek Gen5"
+    },
+    {
+      "paths": [
+        "/EF/thermal_shift/screen_plate_07/plate07_read4.csv"
+      ],
+      "name_terms": [
+        [
+          "plate 07",
+          "plate 7"
+        ],
+        "read 4"
+      ],
+      "date": "modified",
+      "experiment": "Thermal shift screen plate 07",
+      "person": "Elena Fischer",
+      "instrument": "BioTek Gen5"
+    },
+    {
+      "paths": [
+        "/EF/thermal_shift/screen_plate_07/hits.xlsx"
+      ],
+      "name_terms": [
+        [
+          "hits",
+          "hit"
+        ]
+      ],
+      "date": "modified",
+      "experiment": "Thermal shift screen plate 07",
+      "person": "Elena Fischer",
+      "instrument": null
+    },
+    {
+      "paths": [
+        "/EF/meeting notes 10-21.md"
+      ],
+      "name_terms": [
+        "meeting"
+      ],
+      "date": "2026-10-21",
+      "experiment": [
+        null,
+        "P450 batch 3"
+      ],
+      "person": "Elena Fischer",
+      "instrument": null
+    },
+    {
+      "paths": [
+        "/EF/IMG_4821.jpg"
+      ],
+      "name_terms": [
+        [
+          "gel",
+          "photo",
+          "image"
+        ]
+      ],
+      "date": "2026-10-14",
+      "experiment": null,
+      "person": "Elena Fischer",
+      "instrument": null,
+      "note": "same name as the batch 3 photo, different picture"
+    },
+    {
+      "paths": [
+        "/instrument/QuantStudio/run_0042.eds"
+      ],
+      "name_terms": [
+        [
+          "0042",
+          "42"
+        ]
+      ],
+      "date": "modified",
+      "experiment": null,
+      "person": null,
+      "instrument": "QuantStudio"
+    },
+    {
+      "paths": [
+        "/instrument/flow/sample_A1.fcs"
+      ],
+      "name_terms": [
+        "A1"
+      ],
+      "date": "modified",
+      "experiment": null,
+      "person": null,
+      "instrument": "Flow cytometer"
+    },
+    {
+      "paths": [
+        "/instrument/legacy_export.pdf"
+      ],
+      "name_terms": [
+        [
+          "legacy",
+          "export"
+        ]
+      ],
+      "date": "modified",
+      "experiment": null,
+      "person": null,
+      "instrument": null,
+      "note": "truncated PDF, unreadable"
+    },
+    {
+      "paths": [
+        "/shared/lab meeting.docx"
+      ],
+      "name_terms": [
+        "meeting"
+      ],
+      "date": "2026-10-28",
+      "experiment": null,
+      "person": null,
+      "instrument": null
+    },
+    {
+      "paths": [
+        "/GH/rotation/week1 notes.txt"
+      ],
+      "name_terms": [
+        "week 1",
+        [
+          "note",
+          "notes"
+        ]
+      ],
+      "date": "modified",
+      "experiment": null,
+      "person": "Grace Ho",
+      "instrument": null
+    }
+  ]
+}

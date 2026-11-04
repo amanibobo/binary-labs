@@ -2,9 +2,11 @@
 
 import { createContext, use } from "react";
 import { z } from "zod";
-import { SearchResponse, type SearchParams } from "@/lib/domain";
+import { CorrectionWire, FileLabelsWire, SearchResponse, type Correction, type FileLabel, type SearchParams } from "@/lib/domain";
+import { correctRequest } from "@/lib/labels";
+import type { LabelDraft } from "@/lib/label-edit";
 import { SourceStateWire, type SourceState } from "@/lib/source-state";
-import type { Sha256 } from "@/lib/ids";
+import type { CorrectionId, Sha256 } from "@/lib/ids";
 
 export type DropboxFolderList = { path: string; folders: { name: string; path: string }[] };
 
@@ -15,12 +17,32 @@ export type LabApi = {
   sourceState: (signal: AbortSignal) => Promise<SourceState>;
   folders: (path: string, signal: AbortSignal) => Promise<DropboxFolderList>;
   previewUrl: (sha: Sha256, opts: { view: boolean }) => string;
+  fileLabels: (shas: readonly Sha256[], signal: AbortSignal) => Promise<FileLabel[]>;
+  // Both reject with an Error whose message can be shown to the person.
+  correctLabel: (sha: Sha256, draft: LabelDraft) => Promise<Correction>;
+  undoCorrection: (id: CorrectionId) => Promise<Correction>;
 };
 
 async function getJson(url: string, signal: AbortSignal): Promise<unknown> {
   const res = await fetch(url, { signal, headers: { accept: "application/json" } });
   if (!res.ok) throw new Error(`${url} answered ${res.status}`);
   return res.json();
+}
+
+const ErrorBody = z.object({ error: z.string() });
+
+async function postJson(url: string, body: unknown): Promise<unknown> {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "content-type": "application/json", accept: "application/json" },
+    body: JSON.stringify(body),
+  });
+  const json: unknown = await res.json().catch(() => null);
+  if (!res.ok) {
+    const parsed = ErrorBody.safeParse(json);
+    throw new Error(parsed.success ? parsed.data.error : "We couldn't save that. Try again.");
+  }
+  return json;
 }
 
 const FolderList = z.object({
@@ -39,6 +61,10 @@ export const httpLabApi: LabApi = {
   folders: async (path, signal) =>
     FolderList.parse(await getJson(`/api/dropbox/folders?${new URLSearchParams({ path })}`, signal)),
   previewUrl: (sha, { view }) => `/api/previews/${sha}${view ? "?view=1" : ""}`,
+  fileLabels: async (shas, signal) =>
+    FileLabelsWire.parse(await getJson(`/api/labels?${new URLSearchParams({ shas: shas.join(",") })}`, signal)),
+  correctLabel: async (sha, draft) => CorrectionWire.parse(await postJson("/api/labels/correct", correctRequest(sha, draft))),
+  undoCorrection: async (id) => CorrectionWire.parse(await postJson("/api/labels/undo", { correctionId: id })),
 };
 
 const LabApiContext = createContext<LabApi>(httpLabApi);

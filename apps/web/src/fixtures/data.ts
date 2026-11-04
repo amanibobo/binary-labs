@@ -1,4 +1,13 @@
-import { LabMemberRows, SearchFilesRows, type FileHit } from "@/lib/domain";
+import {
+  ExperimentRows,
+  LabelRow,
+  LabMemberRows,
+  NeedsLookRows,
+  PersonRows,
+  SearchFilesRows,
+  type FileHit,
+  type Label,
+} from "@/lib/domain";
 import { SourceId } from "@/lib/ids";
 import type { SourceState } from "@/lib/source-state";
 
@@ -15,6 +24,43 @@ const loc = (path: string, modified: string) => ({
   modified_at: modified,
 });
 
+export const experiments = ExperimentRows.parse([
+  { id: "6f1c2c39-5a4e-4c55-9d7b-0c3c1a7ae001", name: "P450 BM3", aliases: ["BM3", "CYP102A1"] },
+  { id: "6f1c2c39-5a4e-4c55-9d7b-0c3c1a7ae002", name: "Solubility screen", aliases: ["sol screen"] },
+  { id: "6f1c2c39-5a4e-4c55-9d7b-0c3c1a7ae003", name: "Rotation projects", aliases: [] },
+]);
+
+export const people = PersonRows.parse([
+  { id: "6f1c2c39-5a4e-4c55-9d7b-0c3c1a7af001", display_name: "Ade Okafor", aliases: ["AO", "Ade"] },
+  { id: "6f1c2c39-5a4e-4c55-9d7b-0c3c1a7af002", display_name: "Priya Nair", aliases: ["PN", "Priya"] },
+  { id: "6f1c2c39-5a4e-4c55-9d7b-0c3c1a7af003", display_name: "Jordan Morales", aliases: ["JM"] },
+]);
+
+const [bm3, solubility, rotation] = experiments.map((e) => ({ id: e.id, name: e.name }));
+const [ade, priya, jordan] = people.map((p) => ({ id: p.id, name: p.name }));
+
+type LabelInput = {
+  status: Label["status"];
+  clean_name: string | null;
+  date?: string;
+  experiment?: { id: string; name: string };
+  person?: { id: string; name: string };
+  instrument?: string;
+  tags?: string[];
+  confidence?: number;
+};
+
+const label = (l: LabelInput) => ({
+  status: l.status,
+  clean_name: l.clean_name,
+  date: l.date ?? null,
+  experiment: l.experiment ?? null,
+  person: l.person ?? null,
+  instrument: l.instrument ?? null,
+  tags: l.tags ?? [],
+  confidence: l.confidence ?? 0.9,
+});
+
 const row = (r: {
   c: string;
   kind: string;
@@ -24,6 +70,7 @@ const row = (r: {
   k: number | null;
   v: number | null;
   locations: ReturnType<typeof loc>[];
+  label: ReturnType<typeof label> | null;
 }) => ({
   sha256: r.c.repeat(64),
   score: 0.03,
@@ -35,6 +82,7 @@ const row = (r: {
   size: 182_000,
   has_preview: r.preview,
   locations: r.locations,
+  label: r.label,
 });
 
 export const searchHits = SearchFilesRows.parse([
@@ -47,6 +95,7 @@ export const searchHits = SearchFilesRows.parse([
     k: 1,
     v: 1,
     locations: [loc("/Lab/Gels/2026-10 Batch 3/IMG_4821.jpg", "2026-10-14T16:12:00Z")],
+    label: label({ status: "suggested", clean_name: "Batch 3 SDS-PAGE gel", date: "2026-10-14", experiment: bm3, person: priya, instrument: "ChemiDoc", tags: ["batch 3"] }),
   }),
   row({
     c: "b",
@@ -61,6 +110,7 @@ export const searchHits = SearchFilesRows.parse([
       loc("/Lab/Protocols/P450 purification v3.pdf", "2026-09-30T10:00:00Z"),
       loc("/Lab/Archive/2025/P450 purification v3.pdf", "2025-11-02T10:00:00Z"),
     ],
+    label: label({ status: "accepted", clean_name: "P450 BM3 purification protocol, v3", experiment: bm3, tags: ["protocol"], confidence: 1 }),
   }),
   row({
     c: "d",
@@ -71,6 +121,7 @@ export const searchHits = SearchFilesRows.parse([
     k: null,
     v: 2,
     locations: [loc("/Lab/Data/Batch 3/final_v2_REAL.xlsx", "2026-10-16T08:40:00Z")],
+    label: label({ status: "check", clean_name: "Batch 3 gel densitometry", date: "2026-10-16", experiment: bm3, person: ade, tags: ["batch 3"], confidence: 0.55 }),
   }),
   row({
     c: "e",
@@ -82,6 +133,7 @@ export const searchHits = SearchFilesRows.parse([
     k: 3,
     v: null,
     locations: [loc("/Lab/People/AO/notes 2026-10-14.txt", "2026-10-14T21:05:00Z")],
+    label: label({ status: "suggested", clean_name: "Bench notes, Oct 14", date: "2026-10-14", person: ade, tags: ["batch 3"] }),
   }),
   row({
     c: "f",
@@ -92,6 +144,7 @@ export const searchHits = SearchFilesRows.parse([
     k: null,
     v: 4,
     locations: [loc("/Lab/Instruments/AKTA/SEC_trace_141026.csv", "2026-10-14T13:20:00Z")],
+    label: null,
   }),
 ]);
 
@@ -105,6 +158,7 @@ const recentOnly = SearchFilesRows.parse([
     k: null,
     v: null,
     locations: [loc("/Lab/Instruments/Plate reader/plate7_A420.csv", "2026-11-03T17:44:00Z")],
+    label: label({ status: "suggested", clean_name: "Plate 7 absorbance at 420 nm", date: "2026-11-03", experiment: solubility, instrument: "Plate reader" }),
   }),
   row({
     c: "2",
@@ -115,6 +169,7 @@ const recentOnly = SearchFilesRows.parse([
     k: null,
     v: null,
     locations: [loc("/Lab/Gels/2026-11/IMG_4930.jpg", "2026-11-03T15:02:00Z")],
+    label: label({ status: "needs_look", clean_name: null, confidence: 0.2 }),
   }),
   row({
     c: "3",
@@ -125,10 +180,38 @@ const recentOnly = SearchFilesRows.parse([
     k: null,
     v: null,
     locations: [loc("/Lab/People/JM/rotation plan.docx", "2026-11-02T11:30:00Z")],
+    label: null,
   }),
 ]);
 
 export const recentFiles: FileHit[] = [...recentOnly, ...searchHits.slice(0, 2).map((h) => ({ ...h, matchedBy: [] }))];
+
+// Labels the fixture API hands out when the results list polls for files that had none.
+export const laterLabels: Record<string, Label> = {
+  ["f".repeat(64)]: LabelRow.parse(
+    label({ status: "suggested", clean_name: "SEC trace, batch 3", date: "2026-10-14", experiment: bm3, instrument: "ÄKTA pure", tags: ["batch 3"] }),
+  ),
+  ["3".repeat(64)]: LabelRow.parse(label({ status: "suggested", clean_name: "Rotation project plan", experiment: rotation, person: jordan })),
+};
+
+const queued = label({ status: "needs_look", clean_name: null, confidence: 0.2 });
+
+export const needsLookFiles = NeedsLookRows.parse([
+  row({ c: "2", kind: "image", mime: "image/jpeg", preview: true, snippet: null, k: null, v: null, locations: [loc("/Lab/Gels/2026-11/IMG_4930.jpg", "2026-11-03T15:02:00Z")], label: queued }),
+  row({
+    c: "7",
+    kind: "pdf",
+    mime: "application/pdf",
+    preview: false,
+    snippet: "Run 14. Column temp 25 C. Flow 0.5 mL/min. Peak 1 at 11.2 min, peak 2 at 13.9 min. See notebook p. 41.",
+    k: null,
+    v: null,
+    locations: [loc("/Lab/Scans/scan0042.pdf", "2026-11-02T18:40:00Z")],
+    label: queued,
+  }),
+  row({ c: "8", kind: "spreadsheet", mime: "text/csv", preview: false, snippet: "A, B, C, D\n0.412, 0.398, 0.405, 0.611", k: null, v: null, locations: [loc("/Lab/Data/data (3).csv", "2026-11-01T09:12:00Z")], label: queued }),
+  row({ c: "9", kind: "other", mime: "application/octet-stream", preview: false, snippet: null, k: null, v: null, locations: [loc("/Lab/Instruments/Nanodrop/export_0007.ndj", "2026-10-30T14:00:00Z")], label: queued }),
+]);
 
 export const scanningSource: SourceState = {
   kind: "connected",

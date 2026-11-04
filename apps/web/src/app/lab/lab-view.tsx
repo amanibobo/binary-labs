@@ -1,8 +1,9 @@
 import { signOut } from "@/app/actions";
 import { Button } from "@/components/ui/button";
-import type { LabMember } from "@/lib/domain";
+import type { Experiment, LabMember, Person } from "@/lib/domain";
 import type { SourceState } from "@/lib/source-state";
 import { DropboxSection } from "./dropbox-section";
+import { LabListSection } from "./lab-list-section";
 import { MembersSection } from "./members-section";
 
 const DROPBOX_NOTICES = {
@@ -19,6 +20,8 @@ export function LabView({
   isAdmin,
   source,
   members,
+  experiments,
+  people,
   notice,
 }: {
   labName: string;
@@ -26,6 +29,8 @@ export function LabView({
   isAdmin: boolean;
   source: SourceState;
   members: LabMember[];
+  experiments: Experiment[];
+  people: Person[];
   notice: DropboxNotice | null;
 }) {
   return (
@@ -42,6 +47,18 @@ export function LabView({
           </p>
         )}
         <DropboxSection initial={source} isAdmin={isAdmin} />
+      </section>
+      <section aria-labelledby="experiments-heading" className="mt-10">
+        <h2 id="experiments-heading" className="mb-3 text-heading-xsmall">
+          Experiments
+        </h2>
+        <LabListSection kind="experiments" entries={experiments} isAdmin={isAdmin} />
+      </section>
+      <section aria-labelledby="people-heading" className="mt-10">
+        <h2 id="people-heading" className="mb-3 text-heading-xsmall">
+          People
+        </h2>
+        <LabListSection kind="people" entries={people} isAdmin={isAdmin} />
       </section>
       <section aria-labelledby="members-heading" className="mt-10">
         <h2 id="members-heading" className="mb-3 text-heading-xsmall">

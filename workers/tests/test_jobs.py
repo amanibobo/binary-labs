@@ -58,7 +58,16 @@ def test_scheduler_scans_and_worker_indexes_everything(rt, conn, make_lab, job_a
     # 10-second mark; a second run must find nothing due and start no second scan.
     schedule_runs = jobs.pop("schedule_scans:succeeded")
     assert schedule_runs >= 1
-    assert jobs == {"process_location:succeeded": 3, "scan_source:succeeded": 1}
+    jobs.pop("tend_labels:succeeded", None)
+    assert jobs == {
+        "process_location:succeeded": 3,
+        "scan_source:succeeded": 1,
+        "label_blob:succeeded": 3,
+    }
+    labels = conn.execute(
+        "select status, source from labels where lab_id = %s order by status", (lab.id,)
+    ).fetchall()
+    assert len(labels) == 3 and {source for _, source in labels} == {"rules"}
 
 
 def test_a_queued_scan_is_not_queued_twice(conn, make_lab, job_app):
@@ -72,7 +81,9 @@ def test_a_queued_scan_is_not_queued_twice(conn, make_lab, job_app):
 
 
 def test_scheduler_fires_every_10_seconds():
-    (periodic,) = app.periodic_registry.periodic_tasks.values()
+    (periodic,) = [
+        p for p in app.periodic_registry.periodic_tasks.values() if p.task.name == "schedule_scans"
+    ]
     it = periodic.croniter
     it.set_current(start_time=1_800_000_003)  # an arbitrary instant, mid-minute
     fires = [round(it.get_next(ret_type=float)) for _ in range(8)]

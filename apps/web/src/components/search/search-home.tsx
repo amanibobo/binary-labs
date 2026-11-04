@@ -6,8 +6,10 @@ import { useId, useState } from "react";
 import type { FileHit, SearchFilters } from "@/lib/domain";
 import { hasFilters, matchesFilters } from "@/lib/filters";
 import type { Sha256 } from "@/lib/ids";
+import type { LabLists } from "@/lib/label-edit";
 import type { SourceState } from "@/lib/source-state";
 import { cn } from "@/lib/cn";
+import { LabelsProvider, LabListsProvider, useLabelPolling } from "../labels/labels-context";
 import { ActiveScan } from "../scan-status";
 import { buttonVariants } from "../ui/button";
 import { Skeleton } from "../ui/skeleton";
@@ -21,11 +23,13 @@ export function SearchHome({
   recent,
   source,
   isAdmin,
+  lists,
 }: {
   labName: string;
   recent: FileHit[];
   source: SourceState;
   isAdmin: boolean;
+  lists: LabLists;
 }) {
   const params = useSearchParams();
   const urlQuery = params.get("q") ?? "";
@@ -57,37 +61,41 @@ export function SearchHome({
   const toggle = (sha: Sha256) => setExpanded((current) => (current === sha ? null : sha));
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 pt-8 pb-24 sm:px-6 sm:pt-16">
-      <ActiveScan initial={source} />
-      <h1 className="mb-6 text-heading-medium sm:text-heading-xlarge">{labName}</h1>
-      <label htmlFor={inputId} className="sr-only">
-        Search your lab&apos;s files
-      </label>
-      <SearchBox
-        id={inputId}
-        value={query}
-        onChange={(e) => updateQuery(e.target.value)}
-        placeholder="Search your lab's files"
-        autoFocus
-      />
-      {source.kind === "connected" ? <Filters value={filters} onChange={setFilters} /> : null}
-
-      <section aria-labelledby={`${inputId}-results`} className="mt-10">
-        {searching ? (
-          <SearchResults search={search} query={search.settledQuery} expanded={expanded} onToggle={toggle} headingId={`${inputId}-results`} filtered={hasFilters(filters)} />
-        ) : (
-          <RecentFiles
-            recent={recent.filter((hit) => matchesFilters(hit, filters))}
-            source={source}
-            isAdmin={isAdmin}
-            filtered={hasFilters(filters)}
-            expanded={expanded}
-            onToggle={toggle}
-            headingId={`${inputId}-results`}
+    <LabListsProvider value={lists}>
+      <LabelsProvider>
+        <div className="mx-auto w-full max-w-3xl px-4 pt-8 pb-24 sm:px-6 sm:pt-16">
+          <ActiveScan initial={source} />
+          <h1 className="mb-6 text-heading-medium sm:text-heading-xlarge">{labName}</h1>
+          <label htmlFor={inputId} className="sr-only">
+            Search your lab&apos;s files
+          </label>
+          <SearchBox
+            id={inputId}
+            value={query}
+            onChange={(e) => updateQuery(e.target.value)}
+            placeholder="Search your lab's files"
+            autoFocus
           />
-        )}
-      </section>
-    </div>
+          {source.kind === "connected" ? <Filters value={filters} onChange={setFilters} /> : null}
+
+          <section aria-labelledby={`${inputId}-results`} className="mt-10">
+            {searching ? (
+              <SearchResults search={search} query={search.settledQuery} expanded={expanded} onToggle={toggle} headingId={`${inputId}-results`} filtered={hasFilters(filters)} />
+            ) : (
+              <RecentFiles
+                recent={recent.filter((hit) => matchesFilters(hit, filters))}
+                source={source}
+                isAdmin={isAdmin}
+                filtered={hasFilters(filters)}
+                expanded={expanded}
+                onToggle={toggle}
+                headingId={`${inputId}-results`}
+              />
+            )}
+          </section>
+        </div>
+      </LabelsProvider>
+    </LabListsProvider>
   );
 }
 
@@ -107,6 +115,7 @@ function SearchResults({
   filtered: boolean;
 }) {
   const { data, isError, refetch } = search;
+  useLabelPolling(data?.results ?? []);
   if (data === undefined) {
     if (isError) return <SearchError headingId={headingId} onRetry={() => void refetch()} />;
     return (
@@ -193,6 +202,7 @@ function RecentFiles({
   onToggle: (sha: Sha256) => void;
   headingId: string;
 }) {
+  useLabelPolling(recent);
   if (recent.length === 0) {
     return (
       <div>

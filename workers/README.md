@@ -13,7 +13,12 @@ uv run bl worker [--concurrency 4] # jobs plus the 10 s scan scheduler
 uv run bl serve-embed             # FastAPI on :8787
 uv run bl scan-local <lab_id> <folder>   # dev: create or reuse a local source, request a scan
 uv run python scripts/make_sample_lab.py ../.data/sample-lab
+uv run bl sample-lab <folder>     # dev: a lab over that folder, with its experiments and people
+uv run bl eval-labels <db_url>    # score stored labels against evals/labels_expected.json
+sh scripts/eval_labels.sh         # all of the above on a fresh local database, then the score
 ```
+
+`bl worker --until-idle` exits once the queue is empty. Labeling needs `ANTHROPIC_API_KEY`; without it, labels come from Tier 1 rules alone and nothing fails.
 
 `bl migrate` records each file in `schema_migrations`, so a rerun applies nothing. `--test-stub` applies `db/test/auth_stub.sql` first, for local Postgres only. After every run it revokes the Procrastinate tables and functions, and `schema_migrations`, from `PUBLIC`, `anon` and `authenticated`, and turns RLS on for them. Supabase grants new public objects to those roles, and PostgREST would otherwise let a signed-out caller read or enqueue jobs.
 
@@ -39,8 +44,12 @@ uv run pytest -m slow    # loads the real Qwen3 model
 
 **Which errors fail a location.** An unreadable source file, a parser error, or a render error marks the location `failed` with `index_error`. Database, network and model errors fail the job instead, and Procrastinate retries it. The scheduler also retries jobs stalled by a worker that died.
 
+**Labels.** `process_location` defers `label_blob` for each blob it finishes, and the 10 s `tend_labels` task learns from settled corrections and queues labels for blobs that have none. `labels/tier1.py` holds the rule tables, `labels/decide.py` the thresholds and Tier 3 routing, `labels/learning.py` the rules learned from corrections, and `models.py` the one interface every model call goes through (`FakeModels` in tests). Each call logs its tokens, its cost and the lab's running total.
+
 ## Known gaps
 
 - When a file changes, its old blob's chunks and preview stay in the lab. Search ignores them because no live location points at them. Nothing collects them yet.
 - When one duplicate is deleted, chunk 0 still lists its path until another location of that blob is processed again.
 - `LocalFolderSource` and `DropboxSource.read` hold the whole file in memory.
+- A file edited in place gets a new sha256 and so a new label; its old correction doesn't carry over unless a learned rule covers it.
+- Bumping `LABEL_PROMPT_VERSION` doesn't relabel existing files on its own.

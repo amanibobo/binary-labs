@@ -27,6 +27,7 @@ const row = {
       modified_at: "2026-10-14T09:30:00+00:00",
     },
   ],
+  label: null,
 };
 
 type Handler = (req: IncomingMessage, res: ServerResponse) => void;

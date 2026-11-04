@@ -71,3 +71,21 @@ Match highlights use Base's blue secondary tag pair (blue700 #175BCC on blue50 l
 Supersedes "visual system: neutral, Base Web style". The app becomes a dark-first file browser (light mode kept, following the system): a left sidebar with the lab switcher, search (⌘K), nav and a folder tree with softly colored folder icons and counts; a main area with breadcrumbs, a "Folders" grid of illustrated SVG folders (each tinted, with file and subfolder counts), and a "Files" table. Neutral grays carry the UI; color is slight and comes from folder tints and file-kind icons. One blue for focus, links and match highlights; amber stays reserved for "check this" labels and Phase 4 flags. Geist Sans and Geist Mono stay. Sentence case everywhere, including sidebar group labels; no decorative badges.
 
 Browsing by folder is new behavior: a `folder_tree` SQL function returns folders with direct and total file counts per lab, under RLS.
+
+## 2026-11-04 — labels: data model
+
+Labels are keyed by `(lab_id, sha256)` like chunks, so a duplicate carries one label. `corrections` points at that pair, not at a `label_id`. Members never write `labels`: inserting a `corrections` row (through `correct_label` or `undo_correction`, both `security invoker`) runs a trigger that applies it as `auth.uid()` in the same statement and records the full state before and after. Sending the current values back records an acceptance. An undo restores the exact prior state, only for the person who made the change and only if nothing changed since. `experiments.protocol_id` waits for the protocols table. Members add and edit experiments and people; admins remove them.
+
+## 2026-11-04 — labels: tiers and learning
+
+Tier 2 is `claude-haiku-5-5` at low effort; Tier 3 is `claude-sonnet-5-5` at medium effort with the server-side refusal fallback on. Both return strict JSON (structured outputs), parsed again at our boundary; a malformed answer counts as no answer. Images get a Tier 2 description from their 640 px thumbnail, stored as an `image_caption` extraction and chunked for search. Model answers are cached in `model_calls` by (lab, sha256, purpose, model, prompt version), which is also the cost ledger. Without `ANTHROPIC_API_KEY` labels come from Tier 1 rules alone, capped at 0.8 confidence so a rules-only label always gets a glance.
+
+A correction teaches folder rules (this folder means this experiment or person) and name templates (files named like `plate07_read1.csv` are named "Plate 07 … read 1"), stored in `label_rules`. Learning waits 15 s so an undone correction is never learned; undoing a learned one deletes its rules. Similar files are re-suggested from cached answers without new model calls: a taught rule lifts `check` to `suggested`, never to `accepted`, and leaves `needs_look` alone.
+
+## 2026-11-04 — amber marks "check this" too
+
+The PRD reserves amber for flags and "check this" labels; the earlier visual-system entry said flags only. Amber now marks `check` labels as well, and nothing else in the app uses it. Base's warning text on warning background measures 2.83:1 light and 1.95:1 dark, so the pair is Base's yellow tag colors: `#845201` on `#FDF2DC` (5.93:1) light, `#F3DCAE` on `#39240A` (10.95:1) dark.
+
+## 2026-11-04 — measured: label eval on the sample lab
+
+`sh workers/scripts/eval_labels.sh` (real models, clean database, 51 files, 46 unique): 89.1% accepted without edits (41/46). Name 89.1%, date 89.1%, experiment 97.8%, person 95.7%, instrument 93.5%. Every miss was a file sent to Needs a look (three unreadable formats, one unlabeled phone photo, one file whose folder and content disagree); no suggested label was wrong. Cost $0.0029 per file, 93% of it Tier 3: Haiku rates itself under 0.85 on most files, so 34 of 46 went on to Sonnet. 29 of 46 labels carry the "check this" marker. A run on the same code a few minutes earlier scored 87.0%, so expect a few points of run-to-run spread. The thresholds remain the PRD's starting guesses.

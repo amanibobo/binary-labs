@@ -111,13 +111,9 @@ def _extract(conn: psycopg.Connection, blob: Blob, data: bytes) -> Extracted | N
     extractor = EXTRACTORS.get(blob.kind)
     if extractor is None:
         return None
-    cached = conn.execute(
-        "select kind, content, meta from extractions"
-        " where sha256 = %s and extractor = %s and extractor_version = %s",
-        (blob.sha256, extractor.name, extractor.version),
-    ).fetchone()
+    cached = stored_extraction(conn, blob.sha256, blob.kind)
     if cached is not None:
-        return Extracted(cached[0], cached[1], cached[2])
+        return cached
     extracted = run_extractor(extractor, data)
     conn.execute(
         "insert into extractions (sha256, extractor, extractor_version, kind, content, meta)"
@@ -161,7 +157,10 @@ def _write_chunks(
                 (lab_id, sha256),
             )
         ]
-        texts = [name_chunk(paths), *text_chunks(extracted.content if extracted else "")]
+        body = "\n\n".join(
+            t for t in (extracted.content if extracted else "", caption_text(conn, sha256)) if t
+        )
+        texts = [name_chunk(paths), *text_chunks(body)]
         with conn.cursor() as cur:
             cur.executemany(
                 UPSERT_CHUNK, [(lab_id, sha256, ord, text) for ord, text in enumerate(texts)]
@@ -170,6 +169,35 @@ def _write_chunks(
             "delete from chunks where lab_id = %s and sha256 = %s and ord >= %s",
             (lab_id, sha256, len(texts)),
         )
+
+
+def caption_text(conn: psycopg.Connection, sha256: str) -> str:
+    row = conn.execute(
+        "select content from extractions where sha256 = %s and kind = 'image_caption'"
+        " order by created_at desc limit 1",
+        (sha256,),
+    ).fetchone()
+    return row[0] if row else ""
+
+
+def stored_extraction(conn: psycopg.Connection, sha256: str, kind: FileKind) -> Extracted | None:
+    extractor = EXTRACTORS.get(kind)
+    if extractor is None:
+        return None
+    row = conn.execute(
+        "select kind, content, meta from extractions"
+        " where sha256 = %s and extractor = %s and extractor_version = %s",
+        (sha256, extractor.name, extractor.version),
+    ).fetchone()
+    return Extracted(row[0], row[1], row[2]) if row else None
+
+
+def rechunk(
+    conn: psycopg.Connection, embedder: Embedder, lab_id: UUID, sha256: str, kind: FileKind
+) -> None:
+    """Rewrites a blob's chunks from what's stored, after a new caption arrives."""
+    _write_chunks(conn, lab_id, sha256, stored_extraction(conn, sha256, kind))
+    _embed_chunks(conn, embedder, lab_id, sha256)
 
 
 def _embed_chunks(conn: psycopg.Connection, embedder: Embedder, lab_id: UUID, sha256: str) -> None:

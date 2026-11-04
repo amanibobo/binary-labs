@@ -44,6 +44,7 @@ def settings(database_url: str, tmp_path: Path) -> Settings:
         database_url=database_url,
         token_encryption_key=base64.b64encode(KEY).decode(),  # type: ignore[arg-type]
         embed_model="hash-1024",
+        anthropic_api_key=None,
         preview_store="local",
         preview_dir=tmp_path / "previews",
     )
@@ -126,6 +127,15 @@ def search(
 def as_user(conn: psycopg.Connection, user_id: uuid.UUID) -> Iterator[psycopg.Connection]:
     """Runs as Supabase's `authenticated` role with the JWT subject set, so RLS applies."""
     with conn.transaction(force_rollback=True):
+        conn.execute("set local role authenticated")
+        conn.execute("select set_config('request.jwt.claim.sub', %s, true)", (str(user_id),))
+        yield conn
+
+
+@contextmanager
+def committed_as_user(conn: psycopg.Connection, user_id: uuid.UUID) -> Iterator[psycopg.Connection]:
+    """Like as_user, but commits, for fixtures that act as a member."""
+    with conn.transaction():
         conn.execute("set local role authenticated")
         conn.execute("select set_config('request.jwt.claim.sub', %s, true)", (str(user_id),))
         yield conn

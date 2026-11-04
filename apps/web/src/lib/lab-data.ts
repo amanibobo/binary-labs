@@ -1,6 +1,22 @@
 import "server-only";
 import { z } from "zod";
-import { FileKind, FileLocation, LabMemberRows, ProgressRows, SourceKind, type FileHit, type LabMember } from "./domain";
+import {
+  ExperimentRows,
+  FileKind,
+  FileLabelRows,
+  FileLocation,
+  LabMemberRows,
+  NeedsLookCount,
+  NeedsLookRows,
+  PersonRows,
+  ProgressRows,
+  SourceKind,
+  type Experiment,
+  type FileHit,
+  type LabeledFileHit,
+  type LabMember,
+  type Person,
+} from "./domain";
 import { Sha256, SourceId, type LabId } from "./ids";
 import { deriveScan, type SourceState } from "./source-state";
 import { unwrap, type Supabase } from "./supabase/server";
@@ -87,15 +103,17 @@ export async function loadRecentFiles(supabase: Supabase, labId: LabId): Promise
   const shas = [...bySha.keys()].slice(0, RECENT_LIMIT);
   if (shas.length === 0) return [];
 
-  const [previews, snippets] = await Promise.all([
+  const [previews, snippets, labels] = await Promise.all([
     supabase.from("previews").select("sha256").eq("lab_id", labId).in("sha256", shas),
     // Chunk 1 is the start of the extracted text (chunk 0 is the name and folder).
     supabase.from("chunks").select("sha256, text").eq("lab_id", labId).eq("ord", 1).in("sha256", shas),
+    supabase.rpc("file_labels", { p_lab_id: labId, p_shas: shas }),
   ]);
   const withPreview = new Set(z.array(z.object({ sha256: Sha256 })).parse(unwrap(previews)).map((p) => p.sha256));
   const snippetBySha = new Map(
     z.array(z.object({ sha256: Sha256, text: z.string() })).parse(unwrap(snippets)).map((c) => [c.sha256, c.text]),
   );
+  const labelBySha = new Map(FileLabelRows.parse(unwrap(labels)).map((l) => [l.sha256, l.label]));
 
   const toLocation = (r: RecentRow) => FileLocation.parse({ ...r, source_kind: r.sources.kind });
   return shas.flatMap((sha): FileHit[] => {
@@ -111,9 +129,32 @@ export async function loadRecentFiles(supabase: Supabase, labId: LabId): Promise
         snippet: snippetBySha.get(sha) ?? null,
         locations: [toLocation(head), ...rest.map(toLocation)],
         matchedBy: [],
+        label: labelBySha.get(sha) ?? null,
       },
     ];
   });
+}
+
+const NEEDS_LOOK_LIMIT = 50;
+
+export async function loadNeedsLook(supabase: Supabase, labId: LabId): Promise<LabeledFileHit[]> {
+  return NeedsLookRows.parse(unwrap(await supabase.rpc("needs_look_files", { p_lab_id: labId, p_limit: NEEDS_LOOK_LIMIT })));
+}
+
+export async function loadNeedsLookCount(supabase: Supabase, labId: LabId): Promise<number> {
+  return NeedsLookCount.parse(unwrap(await supabase.rpc("needs_look_count", { p_lab_id: labId })));
+}
+
+export async function loadExperiments(supabase: Supabase, labId: LabId): Promise<Experiment[]> {
+  return ExperimentRows.parse(
+    unwrap(await supabase.from("experiments").select("id, name, aliases").eq("lab_id", labId).order("name")),
+  );
+}
+
+export async function loadPeople(supabase: Supabase, labId: LabId): Promise<Person[]> {
+  return PersonRows.parse(
+    unwrap(await supabase.from("people").select("id, display_name, aliases").eq("lab_id", labId).order("display_name")),
+  );
 }
 
 export async function loadMembers(supabase: Supabase, labId: LabId): Promise<LabMember[]> {

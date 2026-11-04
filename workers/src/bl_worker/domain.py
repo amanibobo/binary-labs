@@ -30,6 +30,7 @@ class ExtractionKind(StrEnum):
     TEXT = "text"
     TABLE = "table"
     IMAGE_META = "image_meta"
+    IMAGE_CAPTION = "image_caption"
 
 
 @dataclass(frozen=True)
