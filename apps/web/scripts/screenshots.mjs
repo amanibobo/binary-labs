@@ -40,7 +40,55 @@ const shots = [
   { name: "lab-folder", path: "/dev/fixtures/folder", width: 1440, scheme: "dark" },
   { name: "search-palette", path: "/dev/fixtures/search?state=empty", palette: "p450", width: 1440, scheme: "dark" },
   ...protocolShots(),
+  ...uploadShots(),
 ];
+
+// The upload page idle, mid-upload and done, in both schemes at desktop and phone width,
+// and search finding an uploaded photo.
+function uploadShots() {
+  const chooseFiles = (page, names) =>
+    page.locator('input[type="file"][multiple]').setInputFiles(
+      names.map((name) => ({
+        name,
+        mimeType: name.endsWith(".pdf") ? "application/pdf" : "image/png",
+        buffer: name.endsWith(".pdf") ? Buffer.alloc(240_000, 1) : gelPng,
+      })),
+    );
+  const views = [
+    { name: "upload", path: "/dev/fixtures/upload" },
+    {
+      name: "upload-progress",
+      path: "/dev/fixtures/upload",
+      steps: async (page) => {
+        await chooseFiles(page, ["Gel batch 5.png", "Western blot lanes 1-6.png", "SEC trace notes.pdf"]);
+        await page.getByRole("progressbar").waitFor();
+        await page.getByText("Trying again in a moment").waitFor();
+      },
+    },
+    {
+      name: "upload-done",
+      path: "/dev/fixtures/upload",
+      steps: async (page) => {
+        await chooseFiles(page, ["Gel batch 5.png"]);
+        await page.getByText("Batch 5 SDS-PAGE gel").waitFor({ timeout: 10_000 });
+      },
+    },
+  ];
+  const extras = [
+    { name: "upload-first", path: "/dev/fixtures/upload?state=first", width: 390, scheme: "dark" },
+    ...[1440, 390].map((width) => ({
+      name: "search-upload",
+      path: "/dev/fixtures/search?state=results&q=p450%20gels",
+      steps: (page) => page.getByRole("button", { name: "Details for Batch 4 SDS-PAGE gel" }).click({ position: { x: 8, y: 8 } }),
+      width,
+      scheme: "dark",
+    })),
+  ];
+  return [
+    ...views.flatMap((v) => ["dark", "light"].flatMap((scheme) => [1440, 390].map((width) => ({ ...v, width, scheme })))),
+    ...extras,
+  ];
+}
 
 // Every protocol screen in both schemes, at desktop and phone width.
 function protocolShots() {
@@ -105,7 +153,9 @@ function protocolShots() {
 const only = process.argv[2];
 
 const browser = await chromium.launch({ headless: true, channel: "chromium" });
+let gelPng;
 try {
+  gelPng = await drawGel(browser);
   for (const shot of shots) {
     const tag = `${shot.name}-${shot.width}-${shot.scheme}`;
     if (only !== undefined && !tag.includes(only)) continue;
@@ -124,6 +174,8 @@ try {
       await page.getByPlaceholder("Search files").last().fill(shot.palette);
     }
     await page.waitForTimeout(400);
+    // A click can scroll the page, which would leave the sticky top bar mid-way down a full-page shot.
+    if (shot.full !== false) await page.evaluate(() => window.scrollTo(0, 0));
     const file = join(out, `${tag}.png`);
     await page.screenshot({ path: file, fullPage: !shot.palette && shot.full !== false });
     process.stdout.write(`${file}\n`);
@@ -131,4 +183,16 @@ try {
   }
 } finally {
   await browser.close();
+}
+
+// A real PNG for the upload shots, so the queue's thumbnails show a gel photo.
+async function drawGel(browser) {
+  const page = await browser.newPage({ viewport: { width: 480, height: 320 } });
+  const lanes = Array.from({ length: 8 }, (_, i) =>
+    [96, 150, 205].map((y, j) => `<rect x="${36 + i * 54}" y="${y + (i % 3) * 5}" width="40" height="7" rx="3" fill="#e9eee8" opacity="${0.9 - j * 0.22}"/>`).join(""),
+  ).join("");
+  await page.setContent(`<body style="margin:0"><svg width="480" height="320"><rect width="480" height="320" fill="#1d2326"/>${lanes}</svg></body>`);
+  const png = await page.screenshot();
+  await page.close();
+  return png;
 }

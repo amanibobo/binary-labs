@@ -109,6 +109,10 @@ def test_an_uploaded_photo_ends_up_indexed_labeled_and_searchable(rt, conn, make
             (lab.id,),
         ).fetchall()
         assert mine == [("indexed", "P450 BM3", TODAY)]
+        folders = conn.execute(
+            "select path, direct_files from folder_tree(%s) where path like 'Uploads%%'", (lab.id,)
+        ).fetchall()
+        assert folders == [("Uploads", 0), ("Uploads/P450 BM3", 1)]
 
 
 def test_an_uploaded_pdf_is_searchable_by_its_text(rt, conn, make_lab):
