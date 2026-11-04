@@ -97,3 +97,7 @@ Protocols and tutorials live in our database, not in Dropbox, because Dropbox ac
 The body is Markdown, rendered without raw HTML. Steps are a numbered list in that Markdown; a structured step model waits for Phase 2's voice-to-steps. A page links files from the index (a demo video, an example gel, the original .docx), each opening in Dropbox like any search result. "Start from a file" fills a new page with an indexed file's extracted text and links that file, so a lab's existing protocol documents become pages without retyping; no model rewrites them. `experiments.protocol_id` now points at `protocols`.
 
 Members create and edit; admins archive. Archiving hides a page but keeps its versions, since flags may cite them. Search shows matching protocols (keyword match on title and body) above files. Every create, edit and archive goes to `audit_log`.
+
+## 2026-11-04 — top bar instead of the sidebar
+
+The sidebar goes; the app returns to the earlier top bar: "Binary Labs", then Search, Browse, Protocols, Needs a look (with its count) and Settings as tabs, with search (⌘K) and the account menu on the right. On phones the tabs move into the account menu. The dark look, folder tints and folder art stay. Folders are reached through Browse, since the sidebar's folder tree is gone.
