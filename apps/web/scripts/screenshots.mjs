@@ -3,7 +3,7 @@ import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { chromium } from "playwright";
 
-const base = process.env.BASE_URL ?? "http://localhost:3100";
+const base = process.env.BASE_URL ?? "http://localhost:3000";
 const out = join(import.meta.dirname, "../screenshots");
 mkdirSync(out, { recursive: true });
 
