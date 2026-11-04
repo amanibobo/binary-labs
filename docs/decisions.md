@@ -43,3 +43,9 @@ Extract text-bearing files only: PDF (pdfplumber), Excel/CSV (sheet names, heade
 No OCR or image captions yet; those come with the labeling build (Tier 2 reads images).
 
 Why: enough to test "find X in under 10 seconds" on real files without the cost and scope of image reading; R2 previews don't depend on Dropbox temporary links.
+
+## 2026-11-04 — Supabase project and email
+
+Dev uses the existing Supabase project `binarylabs` (us-east-1, ref `hstjkkdgvotrrqnmqppu`). The worker connects through the session pooler (port 5432), not the transaction pooler, because Procrastinate needs session features. Site URL is `http://localhost:3000`.
+
+The free tier blocks email template edits on the default email sender, and that sender only allows a few emails an hour. Until a custom SMTP provider (likely Resend) is set up, invited people follow the default invite link and then sign in with a magic link; their `members` row already exists. Before the pilot: add SMTP and point the invite template at `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=invite`.
