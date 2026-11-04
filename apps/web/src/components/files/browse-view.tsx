@@ -42,7 +42,7 @@ export function BrowseView({
         </div>
       </div>
       <h1 className="sr-only">{folder.path === "" ? labName : folder.name}</h1>
-      <div className="mx-auto w-full max-w-[1240px] px-4 pt-8 pb-24 sm:px-8 sm:pt-10">
+      <div className="mx-auto w-full max-w-6xl px-4 pt-8 pb-24 sm:px-6 sm:pt-10">
         <ActiveScan initial={source} />
         {folder.path === "" && folder.totalFiles === 0 ? (
           <EmptyLab source={source} isAdmin={isAdmin} />
