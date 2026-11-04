@@ -4,6 +4,7 @@ import Link from "next/link";
 import { DropdownMenu } from "radix-ui";
 import { signOut } from "@/app/actions";
 import { cn } from "@/lib/cn";
+import { NeedsLookCountText } from "./labels/needs-look-count";
 import { NAV, type Section } from "./nav";
 import { ChevronDownIcon, MenuIcon } from "./icons/base-web";
 import { buttonVariants } from "./ui/button";
@@ -29,6 +30,7 @@ export function AccountMenu({ labName, email, current }: { labName: string; emai
               <DropdownMenu.Item key={item.section} asChild className={cn(menuItem, item.section === "lab" ? "" : "sm:hidden")}>
                 <Link href={item.href} aria-current={current === item.section ? "page" : undefined}>
                   {item.label}
+                  {item.section === "needs-look" ? <NeedsLookCountText className="text-content-tertiary" /> : null}
                 </Link>
               </DropdownMenu.Item>
             ))}
