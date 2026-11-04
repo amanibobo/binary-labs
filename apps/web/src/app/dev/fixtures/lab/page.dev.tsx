@@ -13,7 +13,7 @@ export default async function LabFixture({ searchParams }: FixtureProps) {
   const source = state === "connect" ? { kind: "not_connected" as const } : scanningSource;
   return (
     <FixtureLabApi mode="hybrid" source={source}>
-      <AppShell labName="Okafor Lab" current="lab">
+      <AppShell labName="Okafor Lab" email="a.okafor@university.edu" current="lab">
         <LabView
           labName="Okafor Lab"
           email="a.okafor@university.edu"

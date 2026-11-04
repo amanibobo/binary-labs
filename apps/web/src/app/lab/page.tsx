@@ -17,7 +17,7 @@ export default async function LabPage({ searchParams }: PageProps<"/lab">) {
   const { dropbox } = await searchParams;
   const [source, members] = await Promise.all([loadSourceState(supabase, lab.id), loadMembers(supabase, lab.id)]);
   return (
-    <AppShell labName={lab.name} current="lab">
+    <AppShell labName={lab.name} email={user.email} current="lab">
       <LabView
         labName={lab.name}
         email={user.email}

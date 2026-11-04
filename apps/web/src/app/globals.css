@@ -134,11 +134,11 @@
   --text-heading-xlarge--letter-spacing: -0.03em;
 
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
-  --animate-skeleton: skeleton 1.4s ease-in-out infinite;
+  --animate-skeleton: skeleton 1.5s ease-in-out infinite;
 
   @keyframes skeleton {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
+    from { background-position: 100% 0; }
+    to { background-position: 0 0; }
   }
 }
 

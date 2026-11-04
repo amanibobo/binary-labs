@@ -25,9 +25,11 @@ function contrast(a: string, b: string): number {
 }
 
 // Every text color the UI puts on each surface, plus the two non-text indicators (focus ring, focused input border).
-const TEXT_PAIRS = [
+type Pair = readonly [fg: string, bg: string];
+
+const TEXT_PAIRS: Pair[] = [
   ...["content-primary", "content-secondary", "content-tertiary"].flatMap((fg) =>
-    ["background-primary", "background-secondary"].map((bg) => [fg, bg]),
+    ["background-primary", "background-secondary"].map((bg): Pair => [fg, bg]),
   ),
   ["content-primary", "background-tertiary"],
   ["content-primary", "button-secondary-hover"],
@@ -37,12 +39,12 @@ const TEXT_PAIRS = [
   ["content-inverse-primary", "button-primary-fill"],
   ["content-inverse-primary", "button-primary-hover"],
   ["content-inverse-primary", "background-inverse-secondary"],
-] as const;
+];
 
-const INDICATOR_PAIRS = [
+const INDICATOR_PAIRS: Pair[] = [
   ["border-accent", "background-primary"],
   ["border-selected", "background-primary"],
-] as const;
+];
 
 describe.each([
   ["light", light],

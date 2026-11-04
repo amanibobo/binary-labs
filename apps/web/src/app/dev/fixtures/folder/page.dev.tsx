@@ -8,7 +8,7 @@ export default function FolderFixture() {
   requireFixtures();
   return (
     <FixtureLabApi mode="hybrid" source={scanningSource}>
-      <AppShell labName="Okafor Lab" current="lab">
+      <AppShell labName="Okafor Lab" email="a.okafor@university.edu" current="lab">
         <FolderView accountLabel="a.okafor@university.edu" />
       </AppShell>
     </FixtureLabApi>
