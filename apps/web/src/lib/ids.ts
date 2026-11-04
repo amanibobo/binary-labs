@@ -22,6 +22,13 @@ export type ExperimentId = z.infer<typeof ExperimentId>;
 export const PersonId = z.uuid().brand<"PersonId">();
 export type PersonId = z.infer<typeof PersonId>;
 
+// A page and one saved version of it; save_protocol takes both side by side.
+export const ProtocolId = z.uuid().brand<"ProtocolId">();
+export type ProtocolId = z.infer<typeof ProtocolId>;
+
+export const ProtocolVersionId = z.uuid().brand<"ProtocolVersionId">();
+export type ProtocolVersionId = z.infer<typeof ProtocolVersionId>;
+
 // corrections.id is a bigint; JSON carries it as a number well inside 2^53.
 export const CorrectionId = z.number().int().positive().brand<"CorrectionId">();
 export type CorrectionId = z.infer<typeof CorrectionId>;

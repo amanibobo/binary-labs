@@ -4,8 +4,8 @@ import {
   SearchFilesRows,
   type FileHit,
   type KeywordReason,
+  type FileSearchResponse,
   type SearchParams,
-  type SearchResponse,
 } from "./domain";
 import type { EmbedConfig } from "@/env";
 import type { LabId } from "./ids";
@@ -111,7 +111,7 @@ export async function searchWithFallback({
   params: SearchParams;
   embed: (text: string) => Promise<EmbedOutcome>;
   searchFiles: SearchFilesRpc;
-}): Promise<SearchResponse> {
+}): Promise<FileSearchResponse> {
   const outcome = await embed(params.q);
   switch (outcome.kind) {
     case "ok": {

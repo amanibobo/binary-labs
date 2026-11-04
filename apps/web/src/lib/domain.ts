@@ -1,10 +1,16 @@
 import { z } from "zod";
 import { CorrectionId, ExperimentId, LabId, PersonId, Sha256, SourceId, UserId } from "./ids";
+import { ProtocolHitWire } from "./protocols";
 
 // Mirrors of the enums in db/migrations/0001_core.sql.
 export const FILE_KINDS = ["pdf", "spreadsheet", "document", "text", "image", "other"] as const;
 export const FileKind = z.enum(FILE_KINDS);
 export type FileKind = z.infer<typeof FileKind>;
+
+// The kinds the worker extracts text from, so a page can start from one.
+export function isTextBearing(kind: FileKind): boolean {
+  return kind === "pdf" || kind === "document" || kind === "text" || kind === "spreadsheet";
+}
 
 export const MemberRole = z.enum(["admin", "member"]);
 export type MemberRole = z.infer<typeof MemberRole>;
@@ -19,6 +25,11 @@ export const AuditAction = z.enum([
   "member.invite",
   "search",
   "preview.view",
+  "protocol.create",
+  "protocol.save",
+  "protocol.archive",
+  "protocol.link_file",
+  "protocol.unlink_file",
 ]);
 export type AuditAction = z.infer<typeof AuditAction>;
 
@@ -238,10 +249,14 @@ export const FileHitWire = z.object({
   label: LabelWire.nullable(),
 }) satisfies z.ZodType<FileHit>;
 
-export const SearchResponse = z.discriminatedUnion("kind", [
+export const FileSearchResponse = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("hybrid"), results: z.array(FileHitWire) }),
   z.object({ kind: z.literal("keyword"), reason: KeywordReason, results: z.array(FileHitWire) }),
 ]);
+export type FileSearchResponse = z.infer<typeof FileSearchResponse>;
+
+// Matching protocols and tutorials ride along with the files; they match by keyword either way.
+export const SearchResponse = z.intersection(FileSearchResponse, z.object({ protocols: z.array(ProtocolHitWire) }));
 export type SearchResponse = z.infer<typeof SearchResponse>;
 
 export const SearchFilters = z.object({

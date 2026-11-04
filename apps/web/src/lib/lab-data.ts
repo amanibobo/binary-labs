@@ -19,7 +19,17 @@ import {
   type Person,
 } from "./domain";
 import { FOLDER_PAGE_SIZE, FolderFilesRows, FolderTreeRows, type FolderPath, type FolderRow } from "./folders";
-import { Sha256, SourceId, type LabId } from "./ids";
+import { Sha256, SourceId, type LabId, type ProtocolId } from "./ids";
+import {
+  HISTORY_COLUMNS,
+  HistoryRows,
+  ProtocolListRows,
+  ProtocolVersionRows,
+  type AuthorNames,
+  type HistoryEntry,
+  type ProtocolSummary,
+  type ProtocolVersion,
+} from "./protocols";
 import { deriveScan, type SourceState } from "./source-state";
 import { unwrap, type Supabase } from "./supabase/server";
 
@@ -179,4 +189,60 @@ export async function loadFolderFiles(
       await supabase.rpc("folder_files", { p_lab_id: labId, p_path: path, p_limit: FOLDER_PAGE_SIZE, p_offset: offset }),
     ),
   );
+}
+
+export async function loadProtocols(supabase: Supabase, labId: LabId): Promise<ProtocolSummary[]> {
+  return ProtocolListRows.parse(unwrap(await supabase.rpc("protocol_list", { p_lab_id: labId })));
+}
+
+// Null when the page isn't there, isn't this lab's, or has no such version.
+export async function loadProtocolVersion(
+  supabase: Supabase,
+  id: ProtocolId,
+  version: number | null,
+): Promise<ProtocolVersion | null> {
+  return ProtocolVersionRows.parse(unwrap(await supabase.rpc("protocol_version", { p_protocol_id: id, p_version: version })));
+}
+
+export async function loadProtocolHistory(supabase: Supabase, id: ProtocolId): Promise<HistoryEntry[]> {
+  return HistoryRows.parse(
+    unwrap(
+      await supabase.from("protocol_versions").select(HISTORY_COLUMNS).eq("protocol_id", id).order("version", { ascending: false }),
+    ),
+  );
+}
+
+async function loadFileHits(supabase: Supabase, labId: LabId, shas: readonly Sha256[]): Promise<FileHit[]> {
+  if (shas.length === 0) return [];
+  return FolderFilesRows.parse(unwrap(await supabase.rpc("file_hits", { p_lab_id: labId, p_shas: shas })));
+}
+
+// The files a page links, in the order they were linked.
+export async function loadLinkedFiles(supabase: Supabase, labId: LabId, id: ProtocolId): Promise<FileHit[]> {
+  const links = z
+    .array(z.object({ sha256: Sha256 }))
+    .parse(unwrap(await supabase.from("protocol_files").select("sha256").eq("protocol_id", id).order("ord")));
+  const order = links.map((l) => l.sha256);
+  const hits = await loadFileHits(supabase, labId, order);
+  return hits.toSorted((a, b) => order.indexOf(a.sha256) - order.indexOf(b.sha256));
+}
+
+// A file to start a new page from, with its extracted text (null when it has none).
+export async function loadStartFile(
+  supabase: Supabase,
+  labId: LabId,
+  sha: Sha256,
+): Promise<{ hit: FileHit; text: string | null } | null> {
+  const [hits, text] = await Promise.all([
+    loadFileHits(supabase, labId, [sha]),
+    supabase.rpc("file_text", { p_lab_id: labId, p_sha256: sha }),
+  ]);
+  const hit = hits[0];
+  if (hit === undefined) return null;
+  return { hit, text: z.string().nullable().parse(unwrap(text)) };
+}
+
+export async function loadAuthorNames(supabase: Supabase, labId: LabId): Promise<AuthorNames> {
+  const members = await loadMembers(supabase, labId);
+  return Object.fromEntries(members.flatMap((m) => (m.email === null ? [] : [[m.userId, m.email]])));
 }

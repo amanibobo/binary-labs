@@ -89,9 +89,10 @@ describe("label parser", () => {
 
   it("survives the JSON trip to the browser", () => {
     const [hit] = SearchFilesRows.parse([{ ...row, label }]);
-    expect(SearchResponse.parse(JSON.parse(JSON.stringify({ kind: "hybrid", results: [hit] })))).toEqual({
+    expect(SearchResponse.parse(JSON.parse(JSON.stringify({ kind: "hybrid", results: [hit], protocols: [] })))).toEqual({
       kind: "hybrid",
       results: [hit],
+      protocols: [],
     });
   });
 
@@ -108,17 +109,27 @@ describe("label parser", () => {
 describe("search response parser", () => {
   const hit = SearchFilesRows.parse([row])[0];
 
+  const protocol = {
+    id: "6f1c2c39-5a4e-4c55-9d7b-0c3c1a7ab001",
+    kind: "tutorial",
+    title: "Using the ChemiDoc",
+    version: 3,
+    snippet: "Open the lid and image the gel.",
+  };
+
   it("accepts both variants after a JSON round trip", () => {
-    const hybrid = JSON.parse(JSON.stringify({ kind: "hybrid", results: [hit] }));
-    expect(SearchResponse.parse(hybrid)).toEqual({ kind: "hybrid", results: [hit] });
-    const keyword = { kind: "keyword", reason: "embed_timeout", results: [] };
+    const hybrid = JSON.parse(JSON.stringify({ kind: "hybrid", results: [hit], protocols: [protocol] }));
+    expect(SearchResponse.parse(hybrid)).toEqual({ kind: "hybrid", results: [hit], protocols: [protocol] });
+    const keyword = { kind: "keyword", reason: "embed_timeout", results: [], protocols: [] };
     expect(SearchResponse.parse(keyword)).toEqual(keyword);
   });
 
-  it("rejects a keyword response without a known reason", () => {
-    expect(SearchResponse.safeParse({ kind: "keyword", results: [] }).success).toBe(false);
-    expect(SearchResponse.safeParse({ kind: "keyword", reason: "slow", results: [] }).success).toBe(false);
-    expect(SearchResponse.safeParse({ kind: "vector", results: [] }).success).toBe(false);
+  it("rejects a keyword response without a known reason, or without protocols", () => {
+    expect(SearchResponse.safeParse({ kind: "keyword", results: [], protocols: [] }).success).toBe(false);
+    expect(SearchResponse.safeParse({ kind: "keyword", reason: "slow", results: [], protocols: [] }).success).toBe(false);
+    expect(SearchResponse.safeParse({ kind: "vector", results: [], protocols: [] }).success).toBe(false);
+    expect(SearchResponse.safeParse({ kind: "hybrid", results: [] }).success).toBe(false);
+    expect(SearchResponse.safeParse({ kind: "hybrid", results: [], protocols: [{ ...protocol, kind: "recipe" }] }).success).toBe(false);
   });
 });
 

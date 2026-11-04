@@ -7,6 +7,7 @@ import type { SourceState } from "@/lib/source-state";
 import { folderFixtureFiles, folders, laterLabels, needsLookFiles, recentFiles, searchHits } from "./data";
 import { createFixtureLabels } from "./fixture-labels";
 import { PREVIEW_BY_FIRST_CHAR } from "./previews";
+import { protocolHits, purification, purificationTheirs } from "./protocols";
 
 export type FixtureSearchMode = "hybrid" | "keyword";
 
@@ -23,13 +24,18 @@ function keywordOnly(hits: FileHit[]): FileHit[] {
   return hits.filter((h) => h.matchedBy.includes("words")).map((h) => ({ ...h, matchedBy: ["words"] }));
 }
 
+// "stale" makes every save find that someone else saved first, for the conflict screenshots.
+export type FixtureSaves = "saved" | "stale";
+
 export function FixtureLabApi({
   mode,
   source,
+  saves = "saved",
   children,
 }: {
   mode: FixtureSearchMode;
   source: SourceState;
+  saves?: FixtureSaves;
   children: ReactNode;
 }) {
   const [labels] = useState(() =>
@@ -40,8 +46,8 @@ export function FixtureLabApi({
     search: async (_params, signal) => {
       await wait(120, signal);
       return mode === "hybrid"
-        ? { kind: "hybrid", results: withLabels(searchHits) }
-        : { kind: "keyword", reason: "embed_timeout", results: withLabels(keywordOnly(searchHits)) };
+        ? { kind: "hybrid", results: withLabels(searchHits), protocols: protocolHits }
+        : { kind: "keyword", reason: "embed_timeout", results: withLabels(keywordOnly(searchHits)), protocols: protocolHits };
     },
     sourceState: async () => source,
     folders: async (path, signal) => {
@@ -65,6 +71,22 @@ export function FixtureLabApi({
       await wait(150);
       return labels.undo(id);
     },
+    protocol: async (_id, signal) => {
+      await wait(150, signal);
+      return purificationTheirs;
+    },
+    createProtocol: async () => {
+      await wait(200);
+      return { protocolId: purification.protocolId, versionId: purification.id, version: 1 };
+    },
+    saveProtocol: async (id, req) => {
+      await wait(200);
+      if (saves === "stale" && req.baseVersionId !== purificationTheirs.id) return { kind: "stale" };
+      return { kind: "saved", protocolId: id, versionId: purification.id, version: purification.version + 1 };
+    },
+    archiveProtocol: async () => wait(150),
+    linkProtocolFile: async () => wait(150),
+    unlinkProtocolFile: async () => wait(150),
   };
   return <LabApiProvider value={api}>{children}</LabApiProvider>;
 }

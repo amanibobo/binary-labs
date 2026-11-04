@@ -7,7 +7,17 @@ import { correctRequest } from "@/lib/labels";
 import type { LabelDraft } from "@/lib/label-edit";
 import { BrowseResponse, type FolderPath } from "@/lib/folders";
 import { SourceStateWire, type SourceState } from "@/lib/source-state";
-import type { CorrectionId, Sha256 } from "@/lib/ids";
+import type { CorrectionId, ProtocolId, Sha256 } from "@/lib/ids";
+import {
+  ProtocolVersionWire,
+  SavedVersionWire,
+  SaveOutcomeWire,
+  type CreateProtocolRequest,
+  type ProtocolVersion,
+  type SavedVersion,
+  type SaveOutcome,
+  type SaveProtocolRequest,
+} from "@/lib/protocols";
 
 export type DropboxFolderList = { path: string; folders: { name: string; path: string }[] };
 
@@ -23,6 +33,14 @@ export type LabApi = {
   // Both reject with an Error whose message can be shown to the person.
   correctLabel: (sha: Sha256, draft: LabelDraft) => Promise<Correction>;
   undoCorrection: (id: CorrectionId) => Promise<Correction>;
+  // The page's current version, to start over from after someone else saved.
+  protocol: (id: ProtocolId, signal: AbortSignal) => Promise<ProtocolVersion>;
+  // These reject with an Error whose message can be shown; a stale save resolves as { kind: "stale" }.
+  createProtocol: (req: CreateProtocolRequest) => Promise<SavedVersion>;
+  saveProtocol: (id: ProtocolId, req: SaveProtocolRequest) => Promise<SaveOutcome>;
+  archiveProtocol: (id: ProtocolId) => Promise<void>;
+  linkProtocolFile: (id: ProtocolId, sha: Sha256) => Promise<void>;
+  unlinkProtocolFile: (id: ProtocolId, sha: Sha256) => Promise<void>;
 };
 
 async function getJson(url: string, signal: AbortSignal): Promise<unknown> {
@@ -33,17 +51,23 @@ async function getJson(url: string, signal: AbortSignal): Promise<unknown> {
 
 const ErrorBody = z.object({ error: z.string() });
 
-async function postJson(url: string, body: unknown): Promise<unknown> {
+async function sendJson(url: string, method: "POST" | "DELETE", body: unknown): Promise<{ status: number; json: unknown }> {
   const res = await fetch(url, {
-    method: "POST",
+    method,
     headers: { "content-type": "application/json", accept: "application/json" },
     body: JSON.stringify(body),
   });
-  const json: unknown = await res.json().catch(() => null);
-  if (!res.ok) {
-    const parsed = ErrorBody.safeParse(json);
-    throw new Error(parsed.success ? parsed.data.error : "We couldn't save that. Try again.");
-  }
+  return { status: res.status, json: await res.json().catch(() => null) };
+}
+
+function failure(json: unknown): Error {
+  const parsed = ErrorBody.safeParse(json);
+  return new Error(parsed.success ? parsed.data.error : "We couldn't save that. Try again.");
+}
+
+async function postJson(url: string, body: unknown, method: "POST" | "DELETE" = "POST"): Promise<unknown> {
+  const { status, json } = await sendJson(url, method, body);
+  if (status < 200 || status >= 300) throw failure(json);
   return json;
 }
 
@@ -70,6 +94,18 @@ export const httpLabApi: LabApi = {
     FileLabelsWire.parse(await getJson(`/api/labels?${new URLSearchParams({ shas: shas.join(",") })}`, signal)),
   correctLabel: async (sha, draft) => CorrectionWire.parse(await postJson("/api/labels/correct", correctRequest(sha, draft))),
   undoCorrection: async (id) => CorrectionWire.parse(await postJson("/api/labels/undo", { correctionId: id })),
+  protocol: async (id, signal) => ProtocolVersionWire.parse(await getJson(`/api/protocols/${id}`, signal)),
+  createProtocol: async (req) => SavedVersionWire.parse(await postJson("/api/protocols", req)),
+  saveProtocol: async (id, req) => {
+    const { status, json } = await sendJson(`/api/protocols/${id}`, "POST", req);
+    if (status !== 200 && status !== 409) throw failure(json);
+    const outcome = SaveOutcomeWire.safeParse(json);
+    if (!outcome.success) throw failure(json);
+    return outcome.data;
+  },
+  archiveProtocol: async (id) => void (await postJson(`/api/protocols/${id}/archive`, {})),
+  linkProtocolFile: async (id, sha) => void (await postJson(`/api/protocols/${id}/files`, { sha256: sha })),
+  unlinkProtocolFile: async (id, sha) => void (await postJson(`/api/protocols/${id}/files`, { sha256: sha }, "DELETE")),
 };
 
 const LabApiContext = createContext<LabApi>(httpLabApi);
