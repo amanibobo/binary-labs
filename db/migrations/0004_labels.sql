@@ -186,6 +186,8 @@ $$;
 -- Members never write labels directly: inserting a correction applies it, in the same
 -- statement, as the signed-in user. A correction that changes nothing is an acceptance.
 -- An undo restores the exact state its correction replaced, if nothing changed since.
+-- Errors a person can cause carry their own codes: BL001 no label yet, BL002 nothing to
+-- undo, BL003 already undone, BL004 changed since, BL005 someone else's change.
 create function corrections_apply() returns trigger
 language plpgsql security definer set search_path = public as $$
 declare
@@ -202,7 +204,7 @@ begin
   end if;
   select * into cur from labels where lab_id = new.lab_id and sha256 = new.sha256 for update;
   if not found then
-    raise exception 'no label for this file yet' using errcode = 'P0002';
+    raise exception 'no label for this file yet' using errcode = 'BL001';
   end if;
   new.before := label_state(cur);
   new.at := now();
@@ -212,13 +214,16 @@ begin
   if new.undoes is not null then
     select * into target from corrections where id = new.undoes;
     if not found or target.lab_id <> new.lab_id or target.sha256 <> new.sha256 or target.undoes is not null then
-      raise exception 'nothing to undo' using errcode = 'P0002';
+      raise exception 'nothing to undo' using errcode = 'BL002';
     end if;
     if exists (select 1 from corrections c where c.undoes = target.id) then
-      raise exception 'already undone' using errcode = 'P0002';
+      raise exception 'already undone' using errcode = 'BL003';
     end if;
-    if target.user_id is distinct from new.user_id or target.after <> new.before then
-      raise exception 'the label changed since; undo no longer applies' using errcode = '40001';
+    if target.user_id is distinct from new.user_id then
+      raise exception 'only the person who made a change can undo it' using errcode = 'BL005';
+    end if;
+    if target.after <> new.before then
+      raise exception 'the label changed since; undo no longer applies' using errcode = 'BL004';
     end if;
     new.after := target.before;
     update labels set
@@ -345,7 +350,7 @@ declare
 begin
   select c.lab_id, c.sha256 into v_lab, v_sha from corrections c where c.id = p_correction_id;
   if not found then
-    raise exception 'nothing to undo' using errcode = 'P0002';
+    raise exception 'nothing to undo' using errcode = 'BL002';
   end if;
   insert into corrections (lab_id, sha256, after, undoes)
   values (v_lab, v_sha, '{}', p_correction_id)

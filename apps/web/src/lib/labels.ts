@@ -65,12 +65,16 @@ export const FileLabelsQuery = z.object({
 // corrections_apply raises these; everything else is our fault, not the person's.
 export function correctionFailure(error: { code?: string; message: string }): { status: number; message: string } {
   switch (error.code) {
-    case "P0002":
-      if (error.message.includes("already undone")) return { status: 409, message: "That change was already undone." };
-      if (error.message.includes("nothing to undo")) return { status: 409, message: "There's nothing to undo." };
+    case "BL001":
       return { status: 409, message: "This file doesn't have a label yet." };
-    case "40001":
+    case "BL002":
+      return { status: 409, message: "There's nothing to undo." };
+    case "BL003":
+      return { status: 409, message: "That change was already undone." };
+    case "BL004":
       return { status: 409, message: "The label changed since, so that undo no longer applies." };
+    case "BL005":
+      return { status: 403, message: "Only the person who made that change can undo it." };
     case "23514":
       return { status: 400, message: "A label needs a name." };
     case "42501":

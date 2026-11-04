@@ -205,8 +205,9 @@ def test_undo_restores_the_exact_prior_state_once(conn, rt, make_lab):
         ).fetchone()
         _, label = conn.execute("select * from undo_correction(%s)", (cid,)).fetchone()
         assert label["status"] == "check" and label["clean_name"] == "P450 batch 3 gel"
-        with pytest.raises(psycopg.errors.NoDataFound, match="already undone"):
+        with pytest.raises(psycopg.Error, match="already undone") as again:
             conn.execute("select * from undo_correction(%s)", (cid,))
+        assert again.value.sqlstate == "BL003"
     assert (
         conn.execute("select label_state(l) from labels l where lab_id = %s", (lab.id,)).fetchone()
         == before

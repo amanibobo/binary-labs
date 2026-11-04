@@ -19,7 +19,7 @@ import {
 } from "../domain";
 import { ExperimentId, LabId, Sha256, type CorrectionId } from "../ids";
 import { applyEdit, type LabLists } from "../label-edit";
-import { correctLabelArgs, correctRequest } from "../labels";
+import { correctionFailure, correctLabelArgs, correctRequest } from "../labels";
 import { searchFilesArgs, toVectorLiteral } from "../search";
 import { decryptToken, fromPgBytea, toPgBytea } from "../token-crypto";
 
@@ -284,7 +284,11 @@ describe("labels through the web app's args and parsers", () => {
 
     const undone = await undo(carol, fixed.correctionId);
     expect(undone.label).toEqual(before.label);
-    await expect(undo(carol, fixed.correctionId)).rejects.toThrow(/already undone/);
+    const again = await undo(carol, fixed.correctionId).catch((e: unknown) => e);
+    expect(correctionFailure(z.object({ code: z.string(), message: z.string() }).parse(again))).toEqual({
+      status: 409,
+      message: "That change was already undone.",
+    });
   });
 
   it("an unchanged label sent back is an acceptance", async () => {
