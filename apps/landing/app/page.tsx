@@ -1,4 +1,6 @@
 const PILOT_MAILTO = "mailto:hello@binarylabs.example?subject=Pilot%20request";
+const CALL_MAILTO = "mailto:hello@binarylabs.example?subject=Book%20a%20call";
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
 type Band = { y: number; strength: number };
 
@@ -56,16 +58,21 @@ function Match({ children }: { children: string }) {
   return <mark className="bg-transparent text-blue">{children}</mark>;
 }
 
+const pill =
+  "inline-flex h-9 items-center rounded-full px-4 text-[14px] font-medium transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue";
+const pillPrimary = `${pill} bg-ink text-ground hover:bg-white`;
+const pillQuiet = `${pill} bg-white/[0.06] text-ink hover:bg-white/[0.1]`;
+
 function SearchExample() {
   return (
-    <figure className="mt-16 overflow-hidden rounded-xl border border-line bg-surface sm:mt-20">
-      <div aria-hidden="true">
-        <div className="flex h-14 items-center gap-3 border-b border-line px-4">
+    <figure className="mx-auto mt-12 flex w-full max-w-[720px] items-center justify-center rounded-xl border border-line bg-panel px-3 py-10 sm:aspect-[12/5] sm:px-10 sm:py-0">
+      <div aria-hidden="true" className="w-full max-w-[520px] overflow-hidden rounded-[10px] border border-line bg-surface text-left">
+        <div className="flex h-12 items-center gap-3 border-b border-line px-4">
           <svg viewBox="0 0 16 16" className="size-4 shrink-0 text-muted" fill="none">
             <circle cx="7" cy="7" r="4.75" stroke="currentColor" strokeWidth="1.5" />
             <path d="m10.5 10.5 3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
           </svg>
-          <span className="text-base">P450 gels from batch 3</span>
+          <span className="text-[15px]">P450 gels from batch 3</span>
           <span className="-ml-2.5 h-5 w-px bg-blue" />
         </div>
         <div className="result-in flex items-center gap-4 p-4">
@@ -77,7 +84,6 @@ function SearchExample() {
             <p className="mt-1 truncate font-mono text-[13px] text-muted">IMG_4821.jpg</p>
             <p className="mt-0.5 truncate font-mono text-[13px] text-muted">Dropbox/Imaging/2025-03</p>
           </div>
-          <p className="hidden self-start text-[13px] text-muted sm:block">Mar 14, 2025</p>
         </div>
       </div>
       <figcaption className="sr-only">
@@ -90,27 +96,47 @@ function SearchExample() {
 
 export default function Home() {
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-[640px] flex-col px-4 pt-8 pb-16 sm:px-6 sm:pt-12 sm:pb-24">
-      <p className="text-[15px] font-semibold tracking-[-0.01em]">Binary Labs</p>
-
-      <section className="mt-24 sm:mt-32">
-        <h1 className="text-[36px] leading-[1.05] font-medium tracking-[-0.035em] text-balance sm:text-[52px]">
-          An assistant that remembers everything your lab has done.
-        </h1>
-        <p className="mt-6 max-w-[34rem] text-[17px] leading-[1.6] text-pretty text-muted">
-          Binary Labs finds any file your lab has made by what is in it, even one named{" "}
-          <span className="font-mono text-[15px]">IMG_4821.jpg</span>. It reads the Dropbox you
-          already have and never moves or renames a thing.
-        </p>
-        <a
-          href={PILOT_MAILTO}
-          className="mt-8 inline-flex h-11 items-center rounded-[10px] bg-green px-5 text-[15px] font-medium text-on-green transition-colors duration-150 hover:bg-green-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue"
-        >
-          Request a pilot
+    <div className="relative flex min-h-dvh flex-col overflow-hidden">
+      <header className="relative flex h-20 items-center justify-center px-4 sm:h-[104px]">
+        <p className="text-[17px] font-semibold tracking-[-0.03em]">Binary Labs</p>
+        <a href={APP_URL} className={`${pillPrimary} absolute right-4 sm:right-8`}>
+          Sign in
         </a>
-      </section>
+      </header>
 
-      <SearchExample />
-    </main>
+      <main className="mx-auto w-full max-w-[1080px] px-4 pt-6 text-center sm:pt-10">
+        <h1 className="mx-auto max-w-[560px] text-[40px] leading-[0.95] font-medium tracking-[-0.055em] text-balance sm:max-w-[640px] sm:text-[48px]">
+          An assistant that remembers everything your lab has done
+        </h1>
+
+        <SearchExample />
+
+        <div className="mx-auto mt-14 max-w-[570px] text-[16px] leading-6 font-light tracking-[-0.02em] text-pretty text-muted">
+          <p>
+            Labs repeat experiments because nobody can find the last run. Binary Labs reads the
+            Dropbox you already have and finds any file by what is in it, even one named{" "}
+            <span className="font-mono text-[14px] tracking-normal">IMG_4821.jpg</span>.
+          </p>
+          <p className="mt-6">Nothing is moved, renamed or shared.</p>
+        </div>
+
+        <div className="mt-12 flex items-center justify-center gap-2">
+          <a href={CALL_MAILTO} className={pillQuiet}>
+            Book a call
+          </a>
+          <a href={PILOT_MAILTO} className={pillPrimary}>
+            Request a pilot
+          </a>
+        </div>
+      </main>
+
+      <div aria-hidden="true" className="mt-auto pt-24 select-none sm:pt-32">
+        <div className="h-[11vw] overflow-hidden">
+          <p className="bg-gradient-to-b from-white/[0.13] to-white/0 bg-clip-text text-center text-[18vw] leading-[0.8] font-semibold tracking-[-0.06em] whitespace-nowrap text-transparent">
+            Binary Labs
+          </p>
+        </div>
+      </div>
+    </div>
   );
 }
