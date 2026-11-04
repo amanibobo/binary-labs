@@ -1,0 +1,69 @@
+@import "tailwindcss";
+
+:root {
+  --ground: #f7f8f6;
+  --surface: #ffffff;
+  --ink: #142529;
+  --muted: #4a5a5c;
+  --green: #1f6b5c;
+  --green-hover: #185649;
+  --on-green: #ffffff;
+  --blue: #2563a6;
+  --line: rgb(20 37 41 / 0.12);
+  --gel: #eef1ef;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ground: #0f1e21;
+    --surface: #16292d;
+    --ink: #e8efee;
+    --muted: #a9bdbd;
+    --green: #4fc1a8;
+    --green-hover: #6fd0bb;
+    --on-green: #0f1e21;
+    --blue: #7cc4f0;
+    --line: rgb(232 239 238 / 0.12);
+    --gel: #0f1e21;
+    color-scheme: dark;
+  }
+}
+
+@theme inline {
+  --color-ground: var(--ground);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-green: var(--green);
+  --color-green-hover: var(--green-hover);
+  --color-on-green: var(--on-green);
+  --color-blue: var(--blue);
+  --color-line: var(--line);
+  --color-gel: var(--gel);
+  --font-sans: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
+}
+
+body {
+  background: var(--ground);
+  color: var(--ink);
+}
+
+/* The result arrives a beat after the query so the mock reads as a search that answered. */
+@keyframes result-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+.result-in {
+  animation: result-in 220ms ease-out 400ms both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .result-in {
+    animation: none;
+  }
+}
