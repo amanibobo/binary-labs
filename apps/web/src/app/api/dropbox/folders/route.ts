@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
   if (!path.success) return NextResponse.json({ error: "invalid path" }, { status: 400 });
 
   const source = await loadSourceState(supabase, lab.id);
-  if (source.kind === "not_connected") return NextResponse.json({ error: "connect Dropbox first" }, { status: 409 });
+  if (source.kind === "not_connected" || source.kind === "disconnected") return NextResponse.json({ error: "connect Dropbox first" }, { status: 409 });
 
   try {
     const token = await sourceAccessToken({ labId: lab.id, sourceId: source.sourceId });

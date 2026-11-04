@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
   const { supabase, lab } = access.member;
 
   const existing = await loadSourceState(supabase, lab.id);
-  if (existing.kind !== "not_connected") return NextResponse.redirect(new URL("/lab", request.url));
+  if (existing.kind !== "not_connected" && existing.kind !== "disconnected") return NextResponse.redirect(new URL("/lab", request.url));
 
   const env = dropboxEnv();
   const state = createOAuthState();

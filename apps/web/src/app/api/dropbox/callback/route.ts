@@ -30,8 +30,10 @@ export async function GET(request: NextRequest) {
     return finish(request, "/lab?dropbox=expired");
   }
 
+  let next = "/lab/folder";
   try {
-    if ((await loadSourceState(supabase, lab.id)).kind !== "not_connected") return finish(request, "/lab");
+    const existing = await loadSourceState(supabase, lab.id);
+    if (existing.kind !== "not_connected" && existing.kind !== "disconnected") return finish(request, "/lab");
     const env = dropboxEnv();
     const tokens = await exchangeCode({
       appKey: env.DROPBOX_APP_KEY,
@@ -41,19 +43,26 @@ export async function GET(request: NextRequest) {
       verifier: pending.verifier,
     });
     const label = await accountLabel(tokens.accessToken);
-    const ciphertext = encryptToken({ key: tokenKeyEnv().TOKEN_ENCRYPTION_KEY, plaintext: tokens.refreshToken });
-    unwrap(
-      await supabase.from("sources").insert({
-        lab_id: lab.id,
-        kind: "dropbox",
-        account_label: label,
-        token_ciphertext: toPgBytea(ciphertext),
-      }),
-    );
+    const ciphertext = toPgBytea(encryptToken({ key: tokenKeyEnv().TOKEN_ENCRYPTION_KEY, plaintext: tokens.refreshToken }));
+    if (existing.kind === "disconnected") {
+      // Same source row, so the index carries on; a trigger rescans its folder from a fresh listing.
+      unwrap(
+        await supabase
+          .from("sources")
+          .update({ token_ciphertext: ciphertext, account_label: label })
+          .eq("id", existing.sourceId)
+          .eq("lab_id", lab.id)
+          .select("id")
+          .single(),
+      );
+      if (existing.rootPath !== null) next = "/lab";
+    } else {
+      unwrap(await supabase.from("sources").insert({ lab_id: lab.id, kind: "dropbox", account_label: label, token_ciphertext: ciphertext }));
+    }
     await audit(supabase, { labId: lab.id, actor: user.id, action: "source.connect", target: label });
   } catch (error) {
     logError("dropbox.connect_failed", { labId: lab.id, error });
     return finish(request, "/lab?dropbox=failed");
   }
-  return finish(request, "/lab/folder");
+  return finish(request, next);
 }

@@ -30,6 +30,9 @@ export const AuditAction = z.enum([
   "protocol.archive",
   "protocol.link_file",
   "protocol.unlink_file",
+  "protocol.export",
+  "source.disconnect",
+  "lab.delete",
 ]);
 export type AuditAction = z.infer<typeof AuditAction>;
 

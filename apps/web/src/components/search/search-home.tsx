@@ -7,7 +7,7 @@ import type { FileHit, SearchFilters } from "@/lib/domain";
 import { hasFilters, matchesFilters } from "@/lib/filters";
 import type { Sha256 } from "@/lib/ids";
 import type { LabLists } from "@/lib/label-edit";
-import type { SourceState } from "@/lib/source-state";
+import { hasIndex, type SourceState } from "@/lib/source-state";
 import { cn } from "@/lib/cn";
 import { LabelsProvider, LabListsProvider, useLabelPolling } from "../labels/labels-context";
 import { ActiveScan } from "../scan-status";
@@ -78,7 +78,7 @@ export function SearchHome({
             placeholder="Search your lab's files"
             autoFocus
           />
-          {source.kind === "connected" ? <Filters value={filters} onChange={setFilters} /> : null}
+          {hasIndex(source) ? <Filters value={filters} onChange={setFilters} /> : null}
 
           <section aria-labelledby={`${inputId}-results`} className="mt-12">
             {searching ? (
@@ -209,7 +209,7 @@ function RecentFiles({
   if (recent.length === 0) {
     return (
       <div>
-        <h2 id={headingId} className={source.kind === "connected" ? "mb-2 text-heading-xsmall" : "sr-only"}>
+        <h2 id={headingId} className={hasIndex(source) ? "mb-2 text-heading-xsmall" : "sr-only"}>
           Recent files
         </h2>
         <EmptyLab source={source} isAdmin={isAdmin} filtered={filtered} />
@@ -259,6 +259,19 @@ function EmptyLab({ source, isAdmin, filtered }: { source: SourceState; isAdmin:
       );
     case "connected":
       return <p className="text-paragraph-medium text-content-secondary">Files show up here as they&apos;re indexed.</p>;
+    case "disconnected":
+      return isAdmin ? (
+        <div>
+          <p className="max-w-prose text-paragraph-medium text-content-secondary">
+            Dropbox is disconnected, so no new files are read. Connect it again from Settings.
+          </p>
+          <Link href="/lab" className={cn(buttonVariants(), "mt-4")}>
+            Open settings
+          </Link>
+        </div>
+      ) : (
+        <p className="text-paragraph-medium text-content-secondary">Dropbox is disconnected. An admin can connect it again.</p>
+      );
     default: {
       const _exhaustive: never = source;
       return _exhaustive;

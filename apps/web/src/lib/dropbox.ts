@@ -12,6 +12,8 @@ export const DROPBOX_ENDPOINTS = {
   listFolder: "https://api.dropboxapi.com/2/files/list_folder",
   listFolderContinue: "https://api.dropboxapi.com/2/files/list_folder/continue",
   getMetadata: "https://api.dropboxapi.com/2/files/get_metadata",
+  // Ends our access on disconnect or lab deletion; it changes nothing in the lab's Dropbox.
+  revokeToken: "https://api.dropboxapi.com/2/auth/token/revoke",
 } as const;
 
 type ApiEndpoint = (typeof DROPBOX_ENDPOINTS)["currentAccount" | "listFolder" | "listFolderContinue" | "getMetadata"];
@@ -102,6 +104,18 @@ export async function refreshAccessToken({ appKey, appSecret, refreshToken }: Ap
     await postToken({ grant_type: "refresh_token", refresh_token: refreshToken, client_id: appKey, client_secret: appSecret }),
   );
   return body.access_token;
+}
+
+// Revoking an access token also revokes the refresh token it came from, and every
+// other access token minted from it.
+export async function revokeRefreshToken(credentials: AppCredentials & { refreshToken: string }): Promise<void> {
+  const accessToken = await refreshAccessToken(credentials);
+  const res = await fetch(DROPBOX_ENDPOINTS.revokeToken, {
+    method: "POST",
+    headers: { authorization: `Bearer ${accessToken}` },
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!res.ok) throw new DropboxError(`token revoke failed: ${await res.text()}`, res.status);
 }
 
 async function rpc(endpoint: ApiEndpoint, accessToken: string, body: unknown): Promise<unknown> {

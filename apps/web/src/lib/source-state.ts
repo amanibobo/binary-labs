@@ -9,10 +9,12 @@ export type ScanState =
   | { kind: "done"; counts: ScanCounts }
   | { kind: "error"; counts: ScanCounts; message: string };
 
+// Disconnected keeps the source row and its index: search still works, nothing new is read.
 export type SourceState =
   | { kind: "not_connected" }
   | { kind: "needs_folder"; sourceId: SourceId; accountLabel: string | null }
-  | { kind: "connected"; sourceId: SourceId; accountLabel: string | null; rootPath: string; scan: ScanState };
+  | { kind: "connected"; sourceId: SourceId; accountLabel: string | null; rootPath: string; scan: ScanState }
+  | { kind: "disconnected"; sourceId: SourceId; accountLabel: string | null; rootPath: string | null; indexed: number };
 
 type ScanTimes = {
   requestedAt: string | null;
@@ -42,6 +44,23 @@ export function isScanActive(scan: ScanState): boolean {
       return scan.counts.pending > 0;
     default: {
       const _exhaustive: never = scan;
+      return _exhaustive;
+    }
+  }
+}
+
+// Whether the lab has a folder's index to search, connected or not.
+export function hasIndex(source: SourceState): boolean {
+  switch (source.kind) {
+    case "not_connected":
+    case "needs_folder":
+      return false;
+    case "connected":
+      return true;
+    case "disconnected":
+      return source.rootPath !== null;
+    default: {
+      const _exhaustive: never = source;
       return _exhaustive;
     }
   }
@@ -100,5 +119,12 @@ export const SourceStateWire = z.discriminatedUnion("kind", [
     accountLabel: z.string().nullable(),
     rootPath: z.string(),
     scan: ScanStateWire,
+  }),
+  z.object({
+    kind: z.literal("disconnected"),
+    sourceId: SourceId,
+    accountLabel: z.string().nullable(),
+    rootPath: z.string().nullable(),
+    indexed: z.number(),
   }),
 ]) satisfies z.ZodType<SourceState>;
