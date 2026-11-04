@@ -10,11 +10,11 @@ import { inviteMember, type InviteState } from "./actions";
 export function MembersSection({ members, isAdmin }: { members: LabMember[]; isAdmin: boolean }) {
   return (
     <div>
-      <ul className="divide-y divide-hairline rounded-panel border border-hairline bg-surface">
+      <ul className="divide-y divide-border-opaque rounded-lg border border-border-opaque bg-background-primary">
         {members.map((member) => (
           <li key={member.userId} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5 px-4 py-3">
-            <span className="min-w-0 truncate text-[15px] text-ink">{member.email ?? "Unknown address"}</span>
-            <span className="text-[13px] text-muted">
+            <span className="min-w-0 truncate text-paragraph-medium text-content-primary">{member.email ?? "Unknown address"}</span>
+            <span className="text-paragraph-small text-content-tertiary">
               {member.role === "admin" ? "Admin" : "Member"} since {formatDate(member.joinedAt)}
             </span>
           </li>
@@ -50,7 +50,7 @@ function InviteForm() {
           {pending ? "Sending invite" : "Send invite"}
         </Button>
       </div>
-      <p id={`${id}-status`} role="status" className="min-h-6 text-sm text-muted">
+      <p id={`${id}-status`} role="status" className="min-h-6 text-paragraph-small text-content-tertiary">
         {state.kind === "invited"
           ? state.existingAccount
             ? `${state.email} already has an account and can see the lab the next time they sign in.`

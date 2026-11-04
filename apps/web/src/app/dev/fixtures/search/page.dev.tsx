@@ -13,8 +13,8 @@ export default async function SearchFixture({ searchParams }: FixtureProps) {
   const source = state === "scanning" ? scanningSource : state === "new" ? { kind: "not_connected" as const } : doneSource;
   return (
     <FixtureLabApi mode={state === "keyword" ? "keyword" : "hybrid"} source={source}>
-      <AppShell labName="Okafor Lab" current="search">
-        <SearchHome recent={state === "new" ? [] : recentFiles} source={source} isAdmin />
+      <AppShell labName="Okafor Lab" email="a.okafor@university.edu" current="search">
+        <SearchHome labName="Okafor Lab" recent={state === "new" ? [] : recentFiles} source={source} isAdmin />
       </AppShell>
     </FixtureLabApi>
   );

@@ -11,10 +11,10 @@ export function SignInForm() {
 
   if (state.kind === "sent") {
     return (
-      <div role="status" className="rounded-panel border border-hairline bg-surface p-5">
-        <h2 className="text-[15px] font-medium text-ink">Check your email</h2>
-        <p className="mt-1 text-[15px] text-muted">
-          We sent a sign-in link to <span className="text-ink">{state.email}</span>. Open it on this device to sign in.
+      <div role="status" className="rounded-lg border border-border-opaque bg-background-primary p-5">
+        <h2 className="text-label-medium">Check your email</h2>
+        <p className="mt-1 text-paragraph-medium text-content-tertiary">
+          We sent a sign-in link to <span className="text-content-primary">{state.email}</span>. Open it on this device to sign in.
         </p>
       </div>
     );
@@ -38,7 +38,7 @@ export function SignInForm() {
           required
         />
         {error === null ? null : (
-          <p id={`${id}-error`} className="text-sm text-ink">
+          <p id={`${id}-error`} className="text-paragraph-small text-content-primary">
             {error.message}
           </p>
         )}

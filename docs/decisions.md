@@ -63,3 +63,5 @@ Consequence: a CPU-only Fly/Railway worker would push every search past the 250 
 Supersedes the PRD's color tokens and type. The look follows Uber's open-source Base Web design system (MIT): black, white and a neutral gray scale; black primary buttons; bold, tight headings; pill buttons; modals with a large title and a full-width primary action. One blue (Base accent) for search match highlights, links and focus rings. Amber stays reserved for Phase 4 flags. Light and dark modes both stay.
 
 Icons are Base Web's MIT icon set, with any missing glyphs (folder, file kinds) drawn to match its 24px grid. Type is Geist Sans and Geist Mono, the closest open match to Uber Move, which is proprietary. Nothing Uber-branded (logo, name, Uber Move) is used.
+
+Match highlights use Base's blue secondary tag pair (blue700 #175BCC on blue50 light, blue700Dark #93B4EE on blue100Dark dark) instead of accent, because accent text on its light tint measures 4.15:1 and 4.29:1, under 4.5:1.

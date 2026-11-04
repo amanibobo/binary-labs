@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MotionConfig } from "motion/react";
 import { useState, type ReactNode } from "react";
 import { Toaster } from "sonner";
+import { AlertIcon, CheckIcon } from "./icons/base-web";
 
 export function Providers({ children }: { children: ReactNode }) {
   const [queryClient] = useState(
@@ -14,10 +15,17 @@ export function Providers({ children }: { children: ReactNode }) {
       <MotionConfig reducedMotion="user" transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}>
         {children}
       </MotionConfig>
+      {/* Base Web Snackbar: backgroundInverseSecondary, 12px radius, deep shadow, 320 to 540px wide. */}
       <Toaster
         position="bottom-center"
+        icons={{ success: <CheckIcon />, error: <AlertIcon /> }}
         toastOptions={{
-          className: "!rounded-[10px] !border !border-hairline !bg-surface !text-ink !shadow-none !font-sans",
+          unstyled: true,
+          classNames: {
+            toast:
+              "flex w-full min-w-[min(320px,calc(100vw-32px))] max-w-[540px] items-center gap-3 rounded-xl bg-background-inverse-secondary px-4 py-4 font-sans text-paragraph-medium text-content-inverse-primary shadow-deep-below",
+            icon: "shrink-0",
+          },
         }}
       />
     </QueryClientProvider>

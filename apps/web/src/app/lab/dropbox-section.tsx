@@ -16,7 +16,7 @@ export function DropboxSection({ initial, isAdmin }: { initial: SourceState; isA
     case "not_connected":
       return isAdmin ? (
         <div>
-          <p className="max-w-prose text-[15px] text-ink">
+          <p className="max-w-prose text-paragraph-medium text-content-primary">
             Binary Labs asks Dropbox for read-only access, indexes one folder you pick, and never moves, renames or changes
             a file.
           </p>
@@ -26,13 +26,13 @@ export function DropboxSection({ initial, isAdmin }: { initial: SourceState; isA
           </a>
         </div>
       ) : (
-        <p className="text-[15px] text-ink">Not connected yet. An admin can connect the lab&apos;s Dropbox.</p>
+        <p className="text-paragraph-medium text-content-primary">Not connected yet. An admin can connect the lab&apos;s Dropbox.</p>
       );
     case "needs_folder":
       return (
         <div>
           <Account label={source.accountLabel} />
-          <p className="mt-3 text-[15px] text-ink">Pick the folder to index.</p>
+          <p className="mt-3 text-paragraph-medium text-content-primary">Pick the folder to index.</p>
           {isAdmin ? (
             <Link href="/lab/folder" className={cn(buttonVariants(), "mt-4")}>
               Choose folder
@@ -45,8 +45,8 @@ export function DropboxSection({ initial, isAdmin }: { initial: SourceState; isA
         <div>
           <Account label={source.accountLabel} />
           <dl className="mt-3">
-            <dt className="text-[13px] text-muted">Folder</dt>
-            <dd className="font-mono text-[13.5px] [overflow-wrap:anywhere] text-ink">{source.rootPath}</dd>
+            <dt className="text-paragraph-small text-content-tertiary">Folder</dt>
+            <dd className="font-mono text-paragraph-small [overflow-wrap:anywhere] text-content-primary">{source.rootPath}</dd>
           </dl>
           <div className="mt-5">
             <ScanBar scan={source.scan} />
@@ -54,7 +54,7 @@ export function DropboxSection({ initial, isAdmin }: { initial: SourceState; isA
           {isAdmin ? (
             <div className="mt-5 flex flex-wrap gap-2">
               <RescanButton />
-              <Link href="/lab/folder" className={buttonVariants({ variant: "quiet" })}>
+              <Link href="/lab/folder" className={buttonVariants({ variant: "tertiary" })}>
                 Change folder
               </Link>
             </div>
@@ -70,7 +70,7 @@ export function DropboxSection({ initial, isAdmin }: { initial: SourceState; isA
 
 function Account({ label }: { label: string | null }) {
   return (
-    <p className="text-[15px] text-ink">
+    <p className="text-paragraph-medium text-content-primary">
       Connected{label === null ? "" : " as "}
       {label === null ? null : <span className="font-medium">{label}</span>}
     </p>

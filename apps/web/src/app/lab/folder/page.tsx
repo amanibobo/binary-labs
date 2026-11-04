@@ -11,12 +11,12 @@ export const metadata: Metadata = { title: "Choose a folder" };
 export default async function FolderPage() {
   const viewer = await requireMember();
   if (viewer.kind === "config_missing") return <ConfigMissing missing={viewer.missing} />;
-  const { supabase, lab } = viewer;
+  const { supabase, lab, user } = viewer;
   if (lab.role !== "admin") redirect("/lab");
   const source = await loadSourceState(supabase, lab.id);
   if (source.kind === "not_connected") redirect("/lab");
   return (
-    <AppShell labName={lab.name} current="lab">
+    <AppShell labName={lab.name} email={user.email} current="lab">
       <FolderView accountLabel={source.accountLabel} />
     </AppShell>
   );

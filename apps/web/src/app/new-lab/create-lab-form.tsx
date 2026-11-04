@@ -25,11 +25,11 @@ export function CreateLabForm() {
           required
         />
         {error === null ? (
-          <p id={`${id}-hint`} className="text-sm text-muted">
+          <p id={`${id}-hint`} className="text-paragraph-small text-content-tertiary">
             Members see this name. You can invite them next.
           </p>
         ) : (
-          <p id={`${id}-error`} className="text-sm text-ink">
+          <p id={`${id}-error`} className="text-paragraph-small text-content-primary">
             {error.message}
           </p>
         )}
