@@ -14,3 +14,14 @@ export const Sha256 = z
   .regex(/^[0-9a-f]{64}$/, "expected a lowercase hex sha256")
   .brand<"Sha256">();
 export type Sha256 = z.infer<typeof Sha256>;
+
+// experiments.id and people.id sit side by side in correct_label's arguments; the brands keep them apart.
+export const ExperimentId = z.uuid().brand<"ExperimentId">();
+export type ExperimentId = z.infer<typeof ExperimentId>;
+
+export const PersonId = z.uuid().brand<"PersonId">();
+export type PersonId = z.infer<typeof PersonId>;
+
+// corrections.id is a bigint; JSON carries it as a number well inside 2^53.
+export const CorrectionId = z.number().int().positive().brand<"CorrectionId">();
+export type CorrectionId = z.infer<typeof CorrectionId>;

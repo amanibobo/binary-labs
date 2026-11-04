@@ -3,8 +3,23 @@ import { join } from "node:path";
 import { Client } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { z } from "zod";
-import { CreateLabResult, LabMemberRows, ProgressRows, SearchFilesRows, type SearchParams } from "../domain";
-import { LabId } from "../ids";
+import {
+  CorrectionRows,
+  CreateLabResult,
+  ExperimentRows,
+  FileLabelRows,
+  LabMemberRows,
+  NeedsLookCount,
+  NeedsLookRows,
+  PersonRows,
+  ProgressRows,
+  SearchFilesRows,
+  type Label,
+  type SearchParams,
+} from "../domain";
+import { ExperimentId, LabId, Sha256, type CorrectionId } from "../ids";
+import { applyEdit, type LabLists } from "../label-edit";
+import { correctLabelArgs, correctRequest } from "../labels";
 import { searchFilesArgs, toVectorLiteral } from "../search";
 import { decryptToken, fromPgBytea, toPgBytea } from "../token-crypto";
 
@@ -55,9 +70,33 @@ async function search(userId: string, labId: LabId, params: SearchParams, embedd
   return SearchFilesRows.parse(raw);
 }
 
+async function correct(userId: string, labId: LabId, sha256: string, label: Label, edit: Parameters<typeof applyEdit>[0]["edit"]) {
+  const result = applyEdit({ label, edit, lists });
+  if (result.kind !== "changed") throw new Error(`edit did not change the label: ${JSON.stringify(result)}`);
+  const a = correctLabelArgs(labId, correctRequest(Sha256.parse(sha256), result.draft));
+  const raw = await asUser(userId, () =>
+    rpcJson("correct_label($1, $2, $3, $4::date, $5::uuid, $6::uuid, $7, $8::text[])", [
+      a.p_lab_id,
+      a.p_sha256,
+      a.p_clean_name,
+      a.p_date,
+      a.p_experiment_id,
+      a.p_person_id,
+      a.p_instrument,
+      a.p_tags,
+    ]),
+  );
+  return CorrectionRows.parse(raw);
+}
+
+async function undo(userId: string, id: CorrectionId) {
+  return CorrectionRows.parse(await asUser(userId, () => rpcJson("undo_correction($1)", [id])));
+}
+
 let labA: LabId;
 let labB: LabId;
 let sourceA = "";
+let lists: LabLists;
 
 beforeAll(async () => {
   await db.connect();
@@ -109,6 +148,30 @@ beforeAll(async () => {
     sha("a"),
     `${labA}/${sha("a")}.webp`,
   ]);
+
+  // Members add experiments and people the way the settings actions do; the worker writes labels as the table owner.
+  await asUser(carol, () =>
+    db.query(
+      `insert into experiments (lab_id, name, aliases) values ($1, 'P450 BM3', '{BM3,CYP102A1}'), ($1, 'Solubility screen', '{}')`,
+      [labA],
+    ),
+  );
+  await asUser(carol, () => db.query(`insert into people (lab_id, display_name, aliases) values ($1, 'Priya Nair', '{PN}')`, [labA]));
+  const experimentId = ExperimentId.parse((await db.query("select id from experiments where name = 'Solubility screen'")).rows[0]?.id);
+  await db.query(
+    `insert into labels (lab_id, sha256, status, clean_name, date, experiment_id, instrument, tags, confidence, source)
+     values ($1, $2, 'check', 'Batch 3 gel, lane 6', '2026-10-14', $4, 'ChemiDoc', '{batch 3}', 0.6, 'rules'),
+            ($1, $3, 'needs_look', null, null, null, null, '{}', 0.2, 'model')`,
+    [labA, sha("a"), sha("c"), experimentId],
+  );
+  lists = {
+    experiments: ExperimentRows.parse(
+      (await asUser(carol, () => db.query("select id, name, aliases from experiments where lab_id = $1", [labA]))).rows,
+    ),
+    people: PersonRows.parse(
+      (await asUser(carol, () => db.query("select id, display_name, aliases from people where lab_id = $1", [labA]))).rows,
+    ),
+  };
 });
 
 afterAll(async () => {
@@ -188,5 +251,82 @@ describe("source token and writes", () => {
     await asUser(carol, () => db.query(insert, [labA, carol]));
     await expect(asUser(carol, () => db.query(insert, [labA, alice]))).rejects.toThrow(/row-level security/);
     await expect(asUser(bob, () => db.query(insert, [labA, bob]))).rejects.toThrow(/row-level security/);
+  });
+});
+
+describe("labels through the web app's args and parsers", () => {
+  it("search_files returns the label, or null for a file not labeled yet", async () => {
+    const [gel] = await search(alice, labA, { q: "IMG_4821" });
+    expect(gel?.label).toMatchObject({
+      status: "check",
+      cleanName: "Batch 3 gel, lane 6",
+      date: "2026-10-14",
+      experiment: { name: "Solubility screen" },
+      person: null,
+      instrument: "ChemiDoc",
+      tags: ["batch 3"],
+    });
+    const [pdf] = await search(alice, labA, { q: "P450 purification" });
+    expect(pdf?.label).toBeNull();
+  });
+
+  it("file_labels returns only the files that have a label", async () => {
+    const rows = FileLabelRows.parse(await asUser(carol, () => rpcJson("file_labels($1, $2)", [labA, [sha("a"), sha("b")]])));
+    expect(rows.map((r) => [r.sha256, r.label.status])).toEqual([[sha("a"), "check"]]);
+    expect(FileLabelRows.parse(await asUser(bob, () => rpcJson("file_labels($1, $2)", [labA, [sha("a")]])))).toEqual([]);
+  });
+
+  it("corrects a tag by alias, then undo restores the exact label", async () => {
+    const [before] = await search(carol, labA, { q: "IMG_4821" });
+    if (!before?.label) throw new Error("expected a label");
+    const fixed = await correct(carol, labA, sha("a"), before.label, { kind: "set", tag: { kind: "experiment" }, text: "cyp102a1" });
+    expect(fixed.label).toMatchObject({ status: "corrected", experiment: { name: "P450 BM3" }, cleanName: "Batch 3 gel, lane 6", confidence: 1 });
+
+    const undone = await undo(carol, fixed.correctionId);
+    expect(undone.label).toEqual(before.label);
+    await expect(undo(carol, fixed.correctionId)).rejects.toThrow(/already undone/);
+  });
+
+  it("an unchanged label sent back is an acceptance", async () => {
+    const [hit] = await search(carol, labA, { q: "IMG_4821" });
+    if (!hit?.label || hit.label.status === "needs_look") throw new Error("expected a named label");
+    // Same values as stored, sent the way "Looks right" sends them.
+    const renamed = await correct(carol, labA, sha("a"), { ...hit.label, cleanName: "x" }, { kind: "rename", text: hit.label.cleanName });
+    expect(renamed.label.status).toBe("accepted");
+    await undo(carol, renamed.correctionId);
+  });
+
+  it("an empty name never reaches the database, and the database refuses one anyway", async () => {
+    const [hit] = await search(carol, labA, { q: "IMG_4821" });
+    if (!hit?.label) throw new Error("expected a label");
+    expect(applyEdit({ label: hit.label, edit: { kind: "rename", text: " " }, lists }).kind).toBe("invalid");
+    await expect(
+      asUser(carol, () => db.query("select * from correct_label($1, $2, ' ', null, null, null, null, '{}')", [labA, sha("a")])),
+    ).rejects.toThrow(/needs a name/);
+  });
+
+  it("needs_look_files rows parse, and naming one takes it off the queue", async () => {
+    const queue = NeedsLookRows.parse(await asUser(carol, () => rpcJson("needs_look_files($1, $2)", [labA, 50])));
+    expect(queue.map((f) => [f.sha256, f.locations[0].path, f.label.status])).toEqual([[sha("c"), "/Lab/Notes/zymogram.txt", "needs_look"]]);
+    const count = async () =>
+      NeedsLookCount.parse((await asUser(carol, () => db.query("select to_jsonb(needs_look_count($1)) as n", [labA]))).rows[0]?.n);
+    expect(await count()).toBe(1);
+
+    const named = await correct(carol, labA, sha("c"), queue[0]!.label, { kind: "rename", text: "Zymogram notes" });
+    expect(named.label).toMatchObject({ status: "corrected", cleanName: "Zymogram notes" });
+    expect(await count()).toBe(0);
+    expect((await undo(carol, named.correctionId)).label).toEqual(queue[0]?.label);
+    expect(await count()).toBe(1);
+  });
+
+  it("members add experiments, and only admins delete them", async () => {
+    const add = (name: string) =>
+      asUser(carol, () => db.query("insert into experiments (lab_id, name, aliases) values ($1, $2, $3) returning id", [labA, name, ["x"]]));
+    const id = z.string().parse((await add("Thermal shift")).rows[0]?.id);
+    const del = "delete from experiments where id = $1 and lab_id = $2";
+    expect((await asUser(carol, () => db.query(del, [id, labA]))).rowCount).toBe(0);
+    expect((await db.query("select 1 from experiments where id = $1", [id])).rowCount).toBe(1);
+    expect((await asUser(alice, () => db.query(del, [id, labA]))).rowCount).toBe(1);
+    await expect(add("p450 bm3")).rejects.toThrow(/experiments_lab_name_idx/);
   });
 });

@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  CorrectionRows,
   EmbedResponse,
+  LabelRow,
+  needsCheck,
+  NeedsLookRows,
   LabMemberRows,
   ProgressRows,
   SearchFilesRows,
@@ -27,6 +31,17 @@ const row = {
   size: 10,
   has_preview: false,
   locations: [location, { ...location, id: "6f1c2c39-5a4e-4c55-9d7b-0c3c1a7a0004", path: "/Old/final_v2_REAL.xlsx" }],
+  label: null,
+};
+const label = {
+  status: "check",
+  clean_name: "Batch 3 gel densitometry",
+  date: "2026-10-14",
+  experiment: { id: "6f1c2c39-5a4e-4c55-9d7b-0c3c1a7a0010", name: "P450 BM3" },
+  person: null,
+  instrument: "ChemiDoc",
+  tags: ["batch 3"],
+  confidence: 0.62,
 };
 
 describe("search_files row parser", () => {
@@ -43,6 +58,50 @@ describe("search_files row parser", () => {
     expect(SearchFilesRows.safeParse([{ ...row, sha256: "B".repeat(64) }]).success).toBe(false);
     expect(SearchFilesRows.safeParse([{ ...row, file_kind: "video" }]).success).toBe(false);
     expect(SearchFilesRows.safeParse([{ ...row, keyword_rank: 0 }]).success).toBe(false);
+  });
+});
+
+describe("label parser", () => {
+  it("reads search_files' label column, null until the file is labeled", () => {
+    expect(SearchFilesRows.parse([row])[0]?.label).toBeNull();
+    const [hit] = SearchFilesRows.parse([{ ...row, label }]);
+    expect(hit?.label).toEqual({
+      status: "check",
+      cleanName: "Batch 3 gel densitometry",
+      date: "2026-10-14",
+      experiment: { id: label.experiment.id, name: "P450 BM3" },
+      person: null,
+      instrument: "ChemiDoc",
+      tags: ["batch 3"],
+      confidence: 0.62,
+    });
+    expect(needsCheck(hit?.label ?? null)).toBe(true);
+    expect(needsCheck(LabelRow.parse({ ...label, status: "suggested" }))).toBe(false);
+  });
+
+  it("holds the name exactly when the status isn't needs_look", () => {
+    expect(LabelRow.parse({ ...label, status: "needs_look", clean_name: null }).cleanName).toBeNull();
+    expect(LabelRow.safeParse({ ...label, status: "needs_look" }).success).toBe(false);
+    expect(LabelRow.safeParse({ ...label, status: "accepted", clean_name: null }).success).toBe(false);
+    expect(LabelRow.safeParse({ ...label, status: "guessed" }).success).toBe(false);
+    expect(LabelRow.safeParse({ ...label, date: "Oct 14 2026" }).success).toBe(false);
+  });
+
+  it("survives the JSON trip to the browser", () => {
+    const [hit] = SearchFilesRows.parse([{ ...row, label }]);
+    expect(SearchResponse.parse(JSON.parse(JSON.stringify({ kind: "hybrid", results: [hit] })))).toEqual({
+      kind: "hybrid",
+      results: [hit],
+    });
+  });
+
+  it("parses the queue and correction results", () => {
+    const queued = { ...row, label: { ...label, status: "needs_look", clean_name: null } };
+    const [file] = NeedsLookRows.parse([queued]);
+    expect(file?.label.status).toBe("needs_look");
+    expect(NeedsLookRows.safeParse([{ ...queued, label: null }]).success).toBe(false);
+    expect(CorrectionRows.parse([{ correction_id: 7, label }]).correctionId).toBe(7);
+    expect(CorrectionRows.safeParse([]).success).toBe(false);
   });
 });
 

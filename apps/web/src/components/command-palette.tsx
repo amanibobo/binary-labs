@@ -94,6 +94,8 @@ function PaletteBody({ onDone }: { onDone: () => void }) {
                 >
                   {data.results.slice(0, 8).map((hit) => {
                     const KindIcon = FILE_KIND_ICONS[hit.fileKind];
+                    const [primary] = hit.locations;
+                    const cleanName = hit.label?.cleanName ?? null;
                     return (
                       <Command.Item
                         key={hit.sha256}
@@ -103,11 +105,11 @@ function PaletteBody({ onDone }: { onDone: () => void }) {
                       >
                         <KindIcon className="text-content-secondary" />
                         <span className="min-w-0 flex-1">
-                          <span className="block truncate font-mono text-label-small text-content-primary">
-                            {hit.locations[0].originalName}
+                          <span className={cn("block truncate text-label-small text-content-primary", cleanName === null && "font-mono")}>
+                            {cleanName ?? primary.originalName}
                           </span>
                           <span className="mt-1 block truncate font-mono text-paragraph-xsmall text-content-tertiary">
-                            {folderOf(hit.locations[0])}
+                            {cleanName === null ? folderOf(primary) : primary.path}
                           </span>
                         </span>
                       </Command.Item>

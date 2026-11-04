@@ -126,3 +126,68 @@ export async function inviteMember(_prev: InviteState, form: FormData): Promise<
     return { kind: "error", message: "We couldn't send that invite. Try again.", email: raw };
   }
 }
+
+// Experiments and people: any member can add one, only admins remove one (RLS enforces both).
+const LAB_LISTS = {
+  experiments: { table: "experiments", nameColumn: "name", noun: "experiment" },
+  people: { table: "people", nameColumn: "display_name", noun: "person" },
+} as const;
+
+const LabListKind = z.enum(["experiments", "people"]);
+export type LabListKind = z.infer<typeof LabListKind>;
+
+export type ListAddState =
+  | { kind: "idle" }
+  | { kind: "added"; name: string }
+  | { kind: "error"; message: string; name: string; aliases: string };
+
+const EntryName = z.string().trim().min(1, "Give it a name.").max(120, "Keep the name under 120 characters.");
+const EntryAliases = z
+  .string()
+  .transform((s) => [...new Set(s.split(",").map((a) => a.trim()).filter((a) => a !== ""))])
+  .pipe(z.array(z.string().max(120, "Keep each alias under 120 characters.")).max(50, "Up to 50 aliases."));
+
+async function requireLabMember(): Promise<Member> {
+  const viewer = await loadViewer();
+  if (viewer.kind !== "member") redirect("/");
+  return viewer;
+}
+
+export async function addListEntry(rawKind: LabListKind, _prev: ListAddState, form: FormData): Promise<ListAddState> {
+  const { supabase, lab } = await requireLabMember();
+  const list = LAB_LISTS[LabListKind.parse(rawKind)];
+  const rawName = String(form.get("name") ?? "");
+  const rawAliases = String(form.get("aliases") ?? "");
+  const fail = (message: string): ListAddState => ({ kind: "error", message, name: rawName, aliases: rawAliases });
+
+  const name = EntryName.safeParse(rawName);
+  if (!name.success) return fail(name.error.issues[0]?.message ?? "Check the name.");
+  const aliases = EntryAliases.safeParse(rawAliases);
+  if (!aliases.success) return fail(aliases.error.issues[0]?.message ?? "Check the aliases.");
+
+  const { error } = await supabase
+    .from(list.table)
+    .insert({ lab_id: lab.id, [list.nameColumn]: name.data, aliases: aliases.data });
+  if (error !== null) {
+    if (error.code === "23505") return fail(`There's already ${list.noun === "person" ? "a person" : "an experiment"} called ${name.data}.`);
+    logError("lab_list.add_failed", { labId: lab.id, list: list.table, error });
+    return fail(`We couldn't add that ${list.noun}. Try again.`);
+  }
+  revalidatePath("/lab");
+  return { kind: "added", name: name.data };
+}
+
+export async function removeListEntry(rawKind: LabListKind, rawId: string): Promise<ActionResult> {
+  const { supabase, lab } = await requireAdmin();
+  const list = LAB_LISTS[LabListKind.parse(rawKind)];
+  const id = z.uuid().safeParse(rawId);
+  if (!id.success) return { kind: "error", message: `That ${list.noun} is already gone.` };
+  try {
+    UpdatedIds.parse(unwrap(await supabase.from(list.table).delete().eq("id", id.data).eq("lab_id", lab.id).select("id")));
+  } catch (error) {
+    logError("lab_list.remove_failed", { labId: lab.id, list: list.table, error });
+    return { kind: "error", message: `We couldn't remove that ${list.noun}. Try again.` };
+  }
+  revalidatePath("/lab");
+  return { kind: "ok" };
+}
