@@ -18,8 +18,9 @@ export type ObjectDelivery =
 
 const PRESIGN_SECONDS = 60;
 
-// The worker writes local objects to <repo>/workers/.data/previews; the web app runs from apps/web.
-const LOCAL_ROOT = resolve(process.cwd(), "../../workers/.data/previews");
+// The worker resolves PREVIEW_DIR from workers/ (default .data/previews); the web app runs from apps/web.
+const WORKERS_DIR = resolve(process.cwd(), "../../workers");
+const localRoot = (env: { PREVIEW_DIR?: string | undefined }) => resolve(WORKERS_DIR, env.PREVIEW_DIR ?? ".data/previews");
 
 let s3: S3Client | undefined;
 
@@ -55,7 +56,7 @@ export async function putFile(key: string, file: { path: string; size: number },
       return;
     }
     case "local": {
-      const path = localPath(LOCAL_ROOT, key);
+      const path = localPath(localRoot(env), key);
       if (path === null) throw new Error(`object key outside the store: ${key}`);
       await mkdir(dirname(path), { recursive: true });
       const tmp = `${path}.${randomUUID()}.tmp`;
@@ -87,7 +88,7 @@ export async function deliverObject(key: string, delivery: Delivery): Promise<Ob
       return { kind: "redirect", url: await getSignedUrl(r2(env), command, { expiresIn: PRESIGN_SECONDS }) };
     }
     case "local": {
-      const path = localPath(LOCAL_ROOT, key);
+      const path = localPath(localRoot(env), key);
       if (path === null) return { kind: "missing" };
       // Dev and tests only; the pilot serves from R2 through a short-lived link.
       try {
