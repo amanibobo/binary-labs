@@ -183,3 +183,19 @@ Open: the R2 path (multipart, presigned parts, read-back) and Dropbox temporary 
 The logo is a lowercase b drawn in squares with small gaps (a 4 by 6 grid); the bottom-left square is green and the one above it blue, the rest ink (light on dark grounds). One source, `apps/web/src/lib/logo.json`, feeds the app's top bar, the sign-in card, the SVG favicon and the home-screen icons; the landing keeps a copy in `apps/landing/app/logo.tsx`.
 
 The landing page supersedes the heyclicky-style desktop hero: one column in the middle of the page with its text left-aligned. The logo beside a serif title, one sentence on what Binary Labs is, then "Request a pilot" (green), "Sign in" and "Book a call" as plain links, then a short mission section ("our mission") with a few phrases marked in green or blue highlighter that draw in when it scrolls into view. No app mock-ups, no screenshots.
+
+## 2026-11-04 — a quiet left sidebar (supersedes "top bar instead of the sidebar")
+
+The operator asked for a clean sidebar. On desktop a fixed 240 px column holds the logo with the lab name under it, a search field that opens the ⌘K palette, then Search, Browse, Protocols, Needs a look (its count muted on the right) and Upload, with Settings and the account (Sign out) pinned at the foot. Line icons in muted ink; the current page gets a soft fill. No folder tree this time: the first sidebar's tree with tinted folders and counts is what made it read as busy, and Browse already shows folders. Phones keep a slim top bar (logo, Upload, search, menu) and the menu opens the same column as a sheet. Breadcrumb bars take their page's column width so the crumbs sit over the title.
+
+## 2026-11-04 — naming and copy rules
+
+From the first signed-in walkthrough. One word for one thing, in the words a grad student uses:
+
+- **Protocol** is the thing under Protocols ("New protocol", "Archive"), with Protocol or Tutorial as its kind; "page" is gone from buttons and empty states.
+- **File** for anything in the lab, **upload** for what came through the app; never source, location, blob, extraction or tier.
+- **Talk-through**, **Check this** and **Needs a look** stay: they name things a person acts on.
+- Help text is one short sentence, or none when the screen says it already. An empty state says the next step in one line.
+- Search rows show the clean name, one path line, the matching text and the label's facts (date, experiment, person, instrument); free tags and Add tag wait for the opened row. Word matches are highlighted, so only a meaning-only match says why ("Similar in meaning"). The opened row's main action is opening the real file.
+- Dates of moments (saved, modified, joined, recorded) show the reader's own day; label dates are calendar days and never shift.
+- Amber is only for Check this; audio files take the gray kind tint.
