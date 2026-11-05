@@ -8,7 +8,7 @@ import psycopg
 from procrastinate import App, JobContext, PsycopgConnector, RetryStrategy
 from procrastinate.exceptions import AlreadyEnqueued
 
-from bl_worker import deletion, process, scan, talk_throughs, videos
+from bl_worker import data_tables, deletion, process, scan, talk_throughs, videos
 from bl_worker.labels import job as labels
 from bl_worker.labels.learning import learn_pending
 from bl_worker.runtime import Runtime
@@ -191,6 +191,35 @@ async def tend_videos(context: JobContext, timestamp: int) -> None:
     deferred = await asyncio.to_thread(tend)
     if deferred:
         log.info("deferred %d video transcripts", deferred)
+
+
+def defer_table(lab_id: UUID, sha256: str) -> bool:
+    return _defer_locked(
+        "parse_table", f"table:{lab_id}:{sha256}", lab_id=str(lab_id), sha256=sha256
+    )
+
+
+@app.task(name="parse_table", pass_context=True, retry=RetryStrategy(max_attempts=3, wait=10))
+def parse_table(context: JobContext, lab_id: str, sha256: str) -> None:
+    outcome = data_tables.parse_waiting(_runtime(context), UUID(lab_id), sha256)
+    log.info("table of %s: %s", sha256[:12], outcome or "skipped")
+
+
+@app.periodic(cron="* * * * * */10")
+@app.task(name="tend_tables", pass_context=True, queueing_lock="tend_tables")
+async def tend_tables(context: JobContext, timestamp: int) -> None:
+    """Queues the tables someone asked for in the chart builder: a file indexed before charts
+    existed, or one whose table failed and was asked for again."""
+    rt = _runtime(context)
+
+    def tend() -> int:
+        with rt.pool.connection() as conn:
+            todo = data_tables.waiting(conn)
+        return sum(defer_table(lab_id, sha) for lab_id, sha in todo)
+
+    deferred = await asyncio.to_thread(tend)
+    if deferred:
+        log.info("deferred %d tables", deferred)
 
 
 @app.task(name="delete_lab", pass_context=True, retry=RetryStrategy(max_attempts=3, wait=30))

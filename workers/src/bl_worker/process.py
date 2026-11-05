@@ -10,6 +10,7 @@ from uuid import UUID
 import psycopg
 from psycopg.types.json import Jsonb
 
+from bl_worker import data_tables
 from bl_worker.chunking import name_chunk, text_chunks
 from bl_worker.db import lab_lock
 from bl_worker.domain import ExtractionKind, FileKind, SourceKind, SourceReadError, SourceRow
@@ -94,6 +95,9 @@ def _process(rt: Runtime, conn: psycopg.Connection, loc: Location) -> Outcome:
         _write_chunks(conn, loc.lab_id, blob.sha256, extracted)
         _embed_chunks(conn, rt.embedder, loc.lab_id, blob.sha256)
         write_preview(conn, rt.previews, rt.ffmpeg, loc.lab_id, blob, data)
+        # The bytes are in hand now; reading them again later would mean a second download.
+        if blob.kind is FileKind.SPREADSHEET:
+            data_tables.build(conn, rt.previews, loc.lab_id, blob.sha256, data)
     except FILE_ERRORS as e:
         log.info("location %s failed: %s", loc.id, e)
         _mark_failed(conn, loc, str(e))

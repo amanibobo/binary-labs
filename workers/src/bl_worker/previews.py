@@ -30,7 +30,7 @@ class PreviewFailed(Exception):
 
 
 class PreviewStore(Protocol):
-    def put(self, key: str, data: bytes) -> None: ...
+    def put(self, key: str, data: bytes, content_type: str = "image/webp") -> None: ...
 
     def get(self, key: str) -> bytes | None: ...
 
@@ -57,7 +57,7 @@ class LocalPreviewStore:
     def __init__(self, root: Path) -> None:
         self.root = root
 
-    def put(self, key: str, data: bytes) -> None:
+    def put(self, key: str, data: bytes, content_type: str = "image/webp") -> None:
         path = self.root / key
         path.parent.mkdir(parents=True, exist_ok=True)
         tmp = path.with_suffix(".tmp")
@@ -90,8 +90,8 @@ class R2PreviewStore:
             region_name="auto",
         )
 
-    def put(self, key: str, data: bytes) -> None:
-        self._s3.put_object(Bucket=self.bucket, Key=key, Body=data, ContentType="image/webp")
+    def put(self, key: str, data: bytes, content_type: str = "image/webp") -> None:
+        self._s3.put_object(Bucket=self.bucket, Key=key, Body=data, ContentType=content_type)
 
     def get(self, key: str) -> bytes | None:
         try:

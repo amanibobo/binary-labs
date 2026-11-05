@@ -38,6 +38,8 @@ LAB_TABLES = (
     "talk_throughs",
     "pending_protocol_files",
     "videos",
+    "data_tables",
+    "charts",
     "audit_log",
 )
 
@@ -51,6 +53,8 @@ BLOB_REFERENCES = (
     "model_calls",
     "protocol_files",
     "videos",
+    "data_tables",
+    "charts",
 )
 
 LAB_CONTENT = " union ".join(
