@@ -101,7 +101,14 @@ def main() -> int:
         return f"origin {allowed}, ETag exposed"
 
     def lifecycle() -> str:
-        rules = s3.get_bucket_lifecycle_configuration(Bucket=store.bucket).get("Rules", [])
+        try:
+            config = s3.get_bucket_lifecycle_configuration(Bucket=store.bucket)
+        except s3.exceptions.ClientError as e:
+            if e.response.get("Error", {}).get("Code") != "AccessDenied":
+                raise
+            # An Object Read & Write key can't read bucket settings; that's the key we want.
+            return "not readable with an object-only key; check it in the dashboard"
+        rules = config.get("Rules", [])
         aborts = [
             r
             for r in rules
