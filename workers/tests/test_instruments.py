@@ -274,3 +274,18 @@ def test_the_instrument_outranks_a_header_signature_without_a_conflict():
     assert t1.instrument.strength == Strength.TAUGHT
     assert t1.conflicts == ()
     assert tier1(replace(f, instrument=None), CTX).instrument.value == "SpectraMax"
+
+
+def test_a_file_nobody_can_name_yet_still_shows_its_instrument(rt, conn, make_lab):
+    lab = make_lab()
+    add_instrument(conn, lab)
+    pair(conn, "K7QM4XPA", "tok")
+    sha, (location, _) = send(rt, conn, lab, "tok", "Exports/stack.bin", bytes(range(256)) * 4)
+    assert run_scan(rt, location_source(conn, location)) == [Outcome.INDEXED]
+    draft = job.label_blob(rt, lab.id, sha)
+    assert draft is not None
+    assert (draft.status, draft.clean_name, draft.instrument) == (
+        "needs_look",
+        None,
+        "Plate reader, room 214",
+    )

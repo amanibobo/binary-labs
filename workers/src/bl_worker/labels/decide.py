@@ -80,8 +80,14 @@ def decide(t1: Tier1, proposal: Proposal | None) -> Draft:
     if taught and status == LabelStatus.CHECK:
         status = LabelStatus.SUGGESTED
     if name is None or status == LabelStatus.NEEDS_LOOK:
+        # The instrument that sent a file isn't a guess, so it stays while the rest waits.
+        known = (
+            t1.instrument.value
+            if t1.instrument and t1.instrument.strength == Strength.TAUGHT
+            else None
+        )
         return Draft(
-            LabelStatus.NEEDS_LOOK, None, None, None, None, None, (), confidence, source, reason
+            LabelStatus.NEEDS_LOOK, None, None, None, None, known, (), confidence, source, reason
         )
     return Draft(
         status=status,
