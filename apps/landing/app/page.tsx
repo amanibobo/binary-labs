@@ -52,9 +52,9 @@ export default function Home() {
           <Link href={CALL_MAILTO}>Book a call</Link>
         </nav>
 
-        <section aria-labelledby="manifesto" className="mt-24 sm:mt-28">
-          <h2 id="manifesto" className="font-mono text-[13px] text-black/40">
-            manifesto
+        <section aria-labelledby="mission" className="mt-24 sm:mt-28">
+          <h2 id="mission" className="font-mono text-[13px] text-black/40">
+            our mission
           </h2>
           <Highlights className="mt-8 space-y-6 text-[18px] leading-[1.7] text-black/80 sm:text-[19px]">
             <p>
