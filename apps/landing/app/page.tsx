@@ -32,17 +32,17 @@ function Link({ href, children, tone }: { href: string; children: string; tone?:
 export default function Home() {
   return (
     <div className="flex min-h-dvh flex-col px-5">
-      <main className="mx-auto w-full max-w-[600px] flex-1 pt-24 pb-20 sm:pt-36">
-        <h1 className="flex items-center gap-4 font-serif text-[44px] leading-[1.1] tracking-[-0.01em] sm:text-[52px]">
+      <main className="mx-auto w-full max-w-[460px] flex-1 pt-20 pb-16 sm:pt-28">
+        <h1 className="flex items-center gap-3 font-serif text-[32px] leading-[1.1] tracking-[-0.01em] sm:text-[36px]">
           <LogoMark className="h-[0.8em] w-auto shrink-0" />
           Binary
         </h1>
-        <p className="mt-5 text-[18px] leading-[1.6] text-black/70 sm:text-[19px]">
+        <p className="mt-4 text-[15px] leading-[1.6] text-black/70">
           One private place for everything your research lab produces. It finds any file in seconds and teaches new people from the
           lab&rsquo;s own work.
         </p>
 
-        <nav aria-label="Links" className="mt-5 flex flex-wrap items-center gap-x-3 text-[15px] text-black/55">
+        <nav aria-label="Links" className="mt-3 flex flex-wrap items-center gap-x-2.5 text-[13px] text-black/55">
           <Link href={PILOT_MAILTO} tone="green">
             Request a pilot
           </Link>
@@ -52,11 +52,11 @@ export default function Home() {
           <Link href={CALL_MAILTO}>Book a call</Link>
         </nav>
 
-        <section aria-labelledby="mission" className="mt-24 sm:mt-28">
-          <h2 id="mission" className="font-mono text-[13px] text-black/40">
+        <section aria-labelledby="mission" className="mt-16 sm:mt-20">
+          <h2 id="mission" className="font-mono text-[11px] text-black/40">
             our mission
           </h2>
-          <Highlights className="mt-8 space-y-6 text-[18px] leading-[1.7] text-black/80 sm:text-[19px]">
+          <Highlights className="mt-6 space-y-5 text-[15px] leading-[1.7] text-black/80">
             <p>
               A lab&rsquo;s best work is already done. It sits in a shared folder as <Mono>IMG_4821.jpg</Mono>,{" "}
               <Mono>final_v2_REAL.xlsx</Mono> and a protocol only one postdoc remembers how to run.
@@ -81,7 +81,7 @@ export default function Home() {
         </section>
       </main>
 
-      <footer className="mx-auto flex w-full max-w-[600px] items-center justify-between border-t border-black/[0.07] py-3 text-[13px] text-black/40">
+      <footer className="mx-auto flex w-full max-w-[460px] items-center justify-between border-t border-black/[0.07] py-2 text-[12px] text-black/40">
         <span>Binary, {new Date().getFullYear()}</span>
         <SocialLinks />
       </footer>

@@ -5,7 +5,7 @@ function Icon({ children }: { children: ReactNode }) {
   return (
     <svg
       viewBox="0 0 24 24"
-      className="size-[18px]"
+      className="size-4"
       fill="none"
       stroke="currentColor"
       strokeWidth="1.6"
