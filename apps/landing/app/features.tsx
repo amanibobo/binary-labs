@@ -252,7 +252,7 @@ const FEATURES: readonly Feature[] = [
       </>
     ),
     ask: "Where are the P450 gels from batch 3?",
-    reply: "Found six. This one is Oct 12.",
+    reply: "Found six.",
     window: "Preview",
     wall: WALLS.agar,
     Scene: FindScene,
@@ -262,7 +262,7 @@ const FEATURES: readonly Feature[] = [
     title: "Protocols a new student can follow",
     body: "Your lab’s protocols and tutorials in one place, with the walkthrough videos your last postdoc recorded linked to the steps they show.",
     ask: "How do we run the Bradford assay?",
-    reply: "Protocol v4. Jun’s video shows step 3.",
+    reply: "Protocol v4, step 3.",
     window: "Protocols",
     wall: WALLS.sky,
     Scene: ProtocolScene,
@@ -282,7 +282,7 @@ const FEATURES: readonly Feature[] = [
 function Conversation({ feature, talk, right }: { feature: Feature; talk: Talk; right: boolean }) {
   const typed = talk.phase === "asking" ? feature.ask.slice(0, talk.typed) : talk.phase === "idle" ? "" : feature.ask;
   return (
-    <div className={`flex flex-col gap-6 ${right ? "lg:items-end" : ""}`} data-talk={talk.phase}>
+    <div className={`flex flex-col gap-6 lg:gap-4 ${right ? "lg:items-end" : ""}`} data-talk={talk.phase}>
       <div className={`min-h-[60px] self-end ${right ? "" : "lg:self-start"}`}>
         {talk.phase !== "idle" && (
           <Bubble tone="blue" side="right" caret={talk.phase === "asking"} className="max-lg:max-w-[90%] max-lg:text-[20px] max-lg:tracking-[-0.4px]">
