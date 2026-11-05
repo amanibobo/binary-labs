@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Highlights } from "./highlights";
 import { APP_URL, CALL_MAILTO, PILOT_MAILTO } from "./links";
 import { LogoMark } from "./logo";
+import { SocialLinks } from "./social";
 
 function Mark({ tone, children }: { tone: "green" | "blue"; children: ReactNode }) {
   return <mark className={`hl hl-${tone}`}>{children}</mark>;
@@ -80,8 +81,9 @@ export default function Home() {
         </section>
       </main>
 
-      <footer className="mx-auto w-full max-w-[600px] border-t border-black/[0.07] py-6 text-[13px] text-black/40">
-        Binary Labs, {new Date().getFullYear()}
+      <footer className="mx-auto flex w-full max-w-[600px] items-center justify-between border-t border-black/[0.07] py-3 text-[13px] text-black/40">
+        <span>Binary Labs, {new Date().getFullYear()}</span>
+        <SocialLinks />
       </footer>
     </div>
   );
