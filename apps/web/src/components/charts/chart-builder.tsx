@@ -142,10 +142,7 @@ function ChartCrumbs({ file, title }: { file: ChartFile; title: string }) {
     <div className="border-b border-border-opaque">
       <div className="mx-auto flex h-14 w-full max-w-6xl items-center px-4 sm:px-8">
         <Breadcrumbs
-          items={[
-            { label: file.name, href: fileHref(file) },
-            { label: title, href: "#" },
-          ]}
+          items={[...(file.locationId === null ? [] : [{ label: file.name, href: fileHref(file) }]), { label: title, href: "#" }]}
         />
       </div>
     </div>
