@@ -188,7 +188,8 @@ impl Uploader {
                     self.save_if_due();
                 }
             }
-            Ok((None, _)) => self.save_if_due(),
+            // A file sent or gone is saved at once, so `status` and a restart agree with the server.
+            Ok((None, _)) => self.save(),
             Err(item) => {
                 self.state.queue.insert(file, *item);
                 return self.stop();
