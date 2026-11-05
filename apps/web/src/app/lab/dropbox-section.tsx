@@ -186,7 +186,7 @@ function DisconnectButton() {
       <DialogContent title="Disconnect Dropbox?" aria-describedby={undefined}>
         <div className="grid gap-3 px-4 pt-3 text-paragraph-medium text-content-secondary sm:px-6">
           <p>
-            Binary Labs stops reading the folder and gives up its access to your Dropbox. Nothing in Dropbox changes.
+            Binary stops reading the folder and gives up its access to your Dropbox. Nothing in Dropbox changes.
           </p>
           <p>
             Files already indexed stay searchable, with their previews and labels. New and changed files aren&apos;t picked

@@ -22,7 +22,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Binary Labs",
+  title: "Binary",
   description: "One private place for everything your research lab produces.",
 };
 

@@ -219,3 +219,9 @@ Supersedes the PRD's Frigade plan. Onboarding is built in the app, no third-part
 ## 2026-11-05 — appearance: same as device, light or dark
 
 Settings gains an Appearance area with three choices: same as device (the default), light, dark. The choice is saved in a cookie on that browser, not on the account, so a shared bench laptop and a personal phone can differ. A small script in the page head applies it to `<html data-theme>` before the first paint, so there's no flash of the wrong theme, and keeps following the device while "same as device" is chosen. The dark tokens now hang off `[data-theme="dark"]` instead of the media query, so they're defined once.
+
+## 2026-11-05 — the product is called Binary
+
+The product name is Binary, not Binary Labs: the app's titles, sidebar, phone bar, install name, emails and copy, the protocol export header, and the landing page. The lowercase square b stays as the mark. The repo, folders, package names, environment variable names and storage bucket keep their existing names; renaming them would break links and deployments for no one's benefit.
+
+The desktop sidebar can fold to a 64px icon rail: each icon names itself in a tooltip on hover or focus, Needs a look shows a small dot when files wait, and the toggle (also ⌘\) is remembered per browser in a cookie so pages render at the right width with no shift.

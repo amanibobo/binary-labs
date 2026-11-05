@@ -273,7 +273,7 @@ function EmptyLab({ source, isAdmin, filtered }: { source: SourceState; isAdmin:
       return isAdmin ? (
         <div>
           <p className="max-w-prose text-paragraph-medium text-content-secondary">
-            Connect your lab&apos;s Dropbox to start. Binary Labs reads one folder and never changes a file.
+            Connect your lab&apos;s Dropbox to start. Binary reads one folder and never changes a file.
           </p>
           <Link href={areaHref("dropbox")} className={cn(buttonVariants(), "mt-4")}>
             Connect Dropbox

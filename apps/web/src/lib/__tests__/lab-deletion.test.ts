@@ -11,7 +11,7 @@ describe("the protocols download", () => {
   it("is one Markdown file with every page's title, kind, version and body, separated by rules", () => {
     expect(protocolsMarkdown({ labName: "Okafor Lab", exportedAt: new Date("2026-11-04T12:00:00Z"), pages })).toBe(
       [
-        "# Okafor Lab protocols\n\nExported from Binary Labs on Nov 4, 2026: 2 protocols and 1 tutorial, the current version of each.\n",
+        "# Okafor Lab protocols\n\nExported from Binary on Nov 4, 2026: 2 protocols and 1 tutorial, the current version of each.\n",
         "# Lysis buffer\n\nProtocol, version 3, saved Nov 2, 2026\n\n1. Thaw on ice.\n",
         "# SDS-PAGE\n\nProtocol, version 1, saved Oct 30, 2026\n\n## Gel\nRun at 150 V.\n",
         "# Plate reader\n\nTutorial, version 2, saved Nov 1, 2026\n\nTurn it on.\n",
@@ -21,7 +21,7 @@ describe("the protocols download", () => {
 
   it("says so when the lab has no pages", () => {
     expect(protocolsMarkdown({ labName: "Okafor Lab", exportedAt: new Date("2026-11-04T12:00:00Z"), pages: [] })).toBe(
-      "# Okafor Lab protocols\n\nExported from Binary Labs on Nov 4, 2026. The lab has no protocols or tutorials yet.\n",
+      "# Okafor Lab protocols\n\nExported from Binary on Nov 4, 2026. The lab has no protocols or tutorials yet.\n",
     );
   });
 

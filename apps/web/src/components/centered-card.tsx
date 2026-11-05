@@ -9,7 +9,7 @@ export function CenteredCard({ title, description, children }: { title: string; 
     <main className="flex min-h-dvh flex-col items-center justify-center bg-background-sidebar px-4 py-16">
       <p className="mb-6 flex items-center gap-2.5 text-label-large text-content-primary">
         <LogoMark className="h-6 w-auto" />
-        Binary Labs
+        Binary
       </p>
       <div className={cn(dataSurface, "w-full max-w-[420px] p-6 sm:p-8")}>
         <h1 className="text-heading-small">{title}</h1>

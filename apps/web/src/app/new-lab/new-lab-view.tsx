@@ -7,7 +7,7 @@ export function NewLabView({ email }: { email: string }) {
       title="Create your lab"
       description={
         <>
-          You&apos;re signed in as <span className="text-content-primary">{email}</span>. If your lab already uses Binary Labs, ask an
+          You&apos;re signed in as <span className="text-content-primary">{email}</span>. If your lab already uses Binary, ask an
           admin to invite this address instead.
         </>
       }

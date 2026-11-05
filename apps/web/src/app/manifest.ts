@@ -4,8 +4,8 @@ import type { MetadataRoute } from "next";
 // worker: install doesn't need one, and lab content must not sit in an offline cache.
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Binary Labs",
-    short_name: "Binary Labs",
+    name: "Binary",
+    short_name: "Binary",
     description: "Search everything your lab has made.",
     start_url: "/",
     scope: "/",

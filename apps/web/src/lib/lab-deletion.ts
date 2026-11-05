@@ -99,8 +99,8 @@ export function protocolsMarkdown({
   const date = day.format(exportedAt);
   const intro =
     pages.length === 0
-      ? `Exported from Binary Labs on ${date}. The lab has no protocols or tutorials yet.`
-      : `Exported from Binary Labs on ${date}: ${countLine(pages)}, the current version of each.`;
+      ? `Exported from Binary on ${date}. The lab has no protocols or tutorials yet.`
+      : `Exported from Binary on ${date}: ${countLine(pages)}, the current version of each.`;
   const sections = pages.map(
     (p) => `# ${p.title}\n\n${KIND_NAMES[p.kind]}, version ${p.version}, saved ${day.format(new Date(p.updatedAt))}\n\n${p.body.trim()}\n`,
   );

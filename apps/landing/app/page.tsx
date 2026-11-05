@@ -35,7 +35,7 @@ export default function Home() {
       <main className="mx-auto w-full max-w-[600px] flex-1 pt-24 pb-20 sm:pt-36">
         <h1 className="flex items-center gap-4 font-serif text-[44px] leading-[1.1] tracking-[-0.01em] sm:text-[52px]">
           <LogoMark className="h-[0.8em] w-auto shrink-0" />
-          Binary Labs
+          Binary
         </h1>
         <p className="mt-5 text-[18px] leading-[1.6] text-black/70 sm:text-[19px]">
           One private place for everything your research lab produces. It finds any file in seconds and teaches new people from the
@@ -70,7 +70,7 @@ export default function Home() {
               3&rdquo; and get the gel, the file it came from and the folder it lives in, <Ink tone="blue">in seconds</Ink>.
             </p>
             <p>
-              So we <Ink tone="green">read and never write</Ink>. Binary Labs gets read-only access to one folder and moves nothing.
+              So we <Ink tone="green">read and never write</Ink>. Binary gets read-only access to one folder and moves nothing.
               Your files are <Mark tone="green">never used to train models</Mark>, and one request deletes everything we hold.
             </p>
             <p>
@@ -82,7 +82,7 @@ export default function Home() {
       </main>
 
       <footer className="mx-auto flex w-full max-w-[600px] items-center justify-between border-t border-black/[0.07] py-3 text-[13px] text-black/40">
-        <span>Binary Labs, {new Date().getFullYear()}</span>
+        <span>Binary, {new Date().getFullYear()}</span>
         <SocialLinks />
       </footer>
     </div>

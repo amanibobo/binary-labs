@@ -22,7 +22,7 @@ export function DeletedView({ deletion }: { deletion: LabDeletion }) {
       description={
         deletion.kind === "pending"
           ? "Every member lost access when you confirmed. The rest is removed within a few minutes, and you can close this page."
-          : "Binary Labs holds nothing from it any more. We keep only a record that the deletion happened, and when."
+          : "Binary holds nothing from it any more. We keep only a record that the deletion happened, and when."
       }
     >
       {deletion.kind === "pending" ? (

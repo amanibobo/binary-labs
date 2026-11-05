@@ -44,7 +44,7 @@ function DeleteLabForm({ labName, onCancel }: { labName: string; onCancel: () =>
     <form action={action}>
       <div className="grid gap-3 px-4 pt-3 text-paragraph-medium text-content-secondary sm:px-6">
         <p>
-          Everything Binary Labs holds for {labName} is deleted: the index, labels, protocols, uploads, recordings and
+          Everything Binary holds for {labName} is deleted: the index, labels, protocols, uploads, recordings and
           videos. Files in Dropbox stay as they are.
         </p>
       </div>
