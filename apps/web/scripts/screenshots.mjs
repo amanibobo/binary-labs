@@ -42,6 +42,7 @@ const shots = [
   ...protocolShots(),
   ...deletionShots(),
   ...uploadShots(),
+  ...talkThroughShots(),
 ];
 
 // Deleting a lab and disconnecting Dropbox, in both schemes.
@@ -116,6 +117,36 @@ function uploadShots() {
   ];
 }
 
+// Recording a talk-through (Chromium's fake microphone plays a tone), the recording on its way
+// through transcription and drafting, the draft beside its transcript, and the editor it opens.
+function talkThroughShots() {
+  const t = (view) => `/dev/fixtures/talk-throughs?view=${view}`;
+  const record = async (page) => {
+    await page.getByRole("button", { name: "Start recording" }).click();
+    await page.getByText("Recording", { exact: true }).waitFor();
+    await page.waitForTimeout(2600);
+  };
+  const recorded = async (page) => {
+    await record(page);
+    await page.getByRole("button", { name: "Stop" }).click();
+    await page.getByRole("button", { name: "Send for steps" }).waitFor();
+  };
+  const all = (shot) => ["dark", "light"].flatMap((scheme) => [1440, 390].map((width) => ({ ...shot, width, scheme })));
+  return [
+    ...all({ name: "talk-record", path: t("record") }),
+    ...all({ name: "talk-recording", path: t("record"), steps: record }),
+    ...all({ name: "talk-recorded", path: t("record"), steps: recorded }),
+    { name: "talk-record-new", path: t("record-new"), width: 390, scheme: "dark" },
+    ...all({ name: "talk-transcribing", path: t("transcribing") }),
+    ...all({ name: "talk-drafting", path: t("drafting") }),
+    ...all({ name: "talk-ready", path: t("ready") }),
+    ...["dark", "light"].map((scheme) => ({ name: "talk-failed", path: t("failed"), width: 1440, scheme })),
+    { name: "talk-no-draft", path: t("no-draft"), width: 1440, scheme: "dark" },
+    ...["dark", "light"].map((scheme) => ({ name: "talk-edit", path: t("edit"), width: 1440, scheme })),
+    { name: "talk-edit-new", path: t("edit-new"), width: 390, scheme: "dark" },
+  ];
+}
+
 // Every protocol screen in both schemes, at desktop and phone width.
 function protocolShots() {
   const p = (view) => `/dev/fixtures/protocols?view=${view}`;
@@ -178,7 +209,12 @@ function protocolShots() {
 }
 const only = process.argv[2];
 
-const browser = await chromium.launch({ headless: true, channel: "chromium" });
+// A fake microphone, allowed without a prompt, for the talk-through recorder.
+const browser = await chromium.launch({
+  headless: true,
+  channel: "chromium",
+  args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream"],
+});
 let gelPng;
 try {
   gelPng = await drawGel(browser);
@@ -190,6 +226,7 @@ try {
       colorScheme: shot.scheme,
       reducedMotion: "reduce",
       deviceScaleFactor: shot.width < 500 ? 2 : 1,
+      permissions: ["microphone"],
     });
     const page = await context.newPage();
     await page.goto(base + shot.path, { waitUntil: "networkidle" });
