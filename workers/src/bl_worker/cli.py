@@ -16,43 +16,77 @@ def cmd_migrate(args: argparse.Namespace) -> None:
 
 
 def cmd_worker(args: argparse.Namespace) -> None:
+    import asyncio
+    import signal
     import time
 
     from procrastinate import PsycopgConnector
-    from procrastinate.exceptions import ConnectorException
 
     from bl_worker.jobs import app
     from bl_worker.runtime import build_runtime
 
     settings = load_settings()
     log = logging.getLogger("bl_worker.cli")
-    backoff = 2.0
-    while True:
-        rt = build_runtime(settings, pool_size=args.concurrency + 2)
-        started = time.monotonic()
-        try:
-            with app.replace_connector(PsycopgConnector(conninfo=settings.database_url)):
-                app.run_worker(
+    stop_requested = False
+
+    async def run_once(rt: object) -> None:
+        # Procrastinate stops itself quietly when a side task (heartbeat, listener) loses the
+        # database, which looks the same as a signal. Owning the signals tells the two apart.
+        nonlocal stop_requested
+        loop = asyncio.get_running_loop()
+        async with app.open_async():
+            task = asyncio.create_task(
+                app.run_worker_async(
                     concurrency=args.concurrency,
                     additional_context={"runtime": rt},
                     delete_jobs="successful",
                     wait=not args.until_idle,
+                    install_signal_handlers=False,
                 )
-            return
-        except ConnectorException:
-            # A dropped database (laptop sleep, network blip, pooler restart) should not end a
-            # long-running worker: jobs live in Postgres and every step is safe to re-run.
-            if args.until_idle:
-                raise
-            if time.monotonic() - started > 300:
-                backoff = 2.0
-            log.warning(
-                "database connection lost; restarting worker in %.0fs", backoff, exc_info=True
             )
-            time.sleep(backoff)
-            backoff = min(backoff * 2, 60.0)
+
+            def on_signal() -> None:
+                nonlocal stop_requested
+                stop_requested = True
+                task.cancel()
+
+            for sig in (signal.SIGINT, signal.SIGTERM):
+                loop.add_signal_handler(sig, on_signal)
+            try:
+                await task
+            except asyncio.CancelledError:
+                if not stop_requested:
+                    raise
+            finally:
+                for sig in (signal.SIGINT, signal.SIGTERM):
+                    loop.remove_signal_handler(sig)
+
+    backoff = 2.0
+    while True:
+        started = time.monotonic()
+        rt = None
+        try:
+            rt = build_runtime(settings, pool_size=args.concurrency + 2)
+            with app.replace_connector(PsycopgConnector(conninfo=settings.database_url)):
+                asyncio.run(run_once(rt))
+            if args.until_idle or stop_requested:
+                return
+            reason = "worker stopped without being asked"
+        except Exception:
+            # A long-running worker outlives a dropped database (laptop sleep, network blip,
+            # pooler restart), however it surfaces: jobs live in Postgres and every step is
+            # safe to re-run.
+            if args.until_idle or stop_requested:
+                raise
+            reason = "worker failed"
         finally:
-            rt.close()
+            if rt is not None:
+                rt.close()
+        if time.monotonic() - started > 300:
+            backoff = 2.0
+        log.warning("%s; restarting worker in %.0fs", reason, backoff, exc_info=True)
+        time.sleep(backoff)
+        backoff = min(backoff * 2, 60.0)
 
 
 def cmd_serve_embed(args: argparse.Namespace) -> None:
