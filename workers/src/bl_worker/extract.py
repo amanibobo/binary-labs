@@ -49,6 +49,17 @@ class PdfExtractor:
         )
 
 
+def decode_text(data: bytes) -> str:
+    """CSV and TSV as instruments write them: UTF-8, UTF-16 with a byte order mark (AKTA's
+    UNICORN), or a Windows code page."""
+    if data[:2] in (b"\xff\xfe", b"\xfe\xff"):
+        return data.decode("utf-16")
+    try:
+        return data.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        return data.decode("cp1252", errors="replace")
+
+
 def _cell(value: object) -> str:
     return "" if value is None else str(value).strip()
 
@@ -106,10 +117,7 @@ class SpreadsheetExtractor:
             wb.close()
 
     def _csv(self, data: bytes) -> list[tuple[str, list[list[str]]]]:
-        try:
-            text = data.decode("utf-8-sig")
-        except UnicodeDecodeError:
-            text = data.decode("latin-1")
+        text = decode_text(data)
         sample = text[:8192]
         try:
             dialect: Any = csv.Sniffer().sniff(sample, delimiters=",;\t")
