@@ -16,6 +16,7 @@ import { VideoType } from "@/lib/videos";
 
 const FileRow = z.object({
   external_id: z.string(),
+  source_rev: z.string(),
   original_name: z.string(),
   source_id: SourceId,
   sources: z.object({ kind: SourceKind }),
@@ -26,7 +27,7 @@ const noStore = { "cache-control": "private, no-store" };
 // Browsers send a video's later range requests to the link they were redirected to.
 const VIDEO_LINK_SECONDS = 4 * 60 * 60;
 
-// Opens a file: an upload from our store, or a lab's Dropbox video through a temporary link
+// Opens a file: an upload or instrument file from our store, or a lab's Dropbox video through a temporary link
 // so it plays on its protocol page. Other Dropbox files open in Dropbox instead. A video
 // element asks for ranges as it plays; only the request that starts the file is audited.
 export async function GET(request: NextRequest, ctx: RouteContext<"/api/files/[id]">) {
@@ -43,7 +44,7 @@ export async function GET(request: NextRequest, ctx: RouteContext<"/api/files/[i
     unwrap(
       await supabase
         .from("file_locations")
-        .select("external_id, original_name, source_id, sources!inner(kind), blobs(mime)")
+        .select("external_id, source_rev, original_name, source_id, sources!inner(kind), blobs(mime)")
         .eq("id", id.data)
         .eq("lab_id", lab.id)
         .is("deleted_at", null)
@@ -60,8 +61,10 @@ export async function GET(request: NextRequest, ctx: RouteContext<"/api/files/[i
   };
 
   switch (row.sources.kind) {
-    case "upload": {
-      const sha = Sha256.safeParse(row.external_id);
+    // Files we hold are stored by their sha256, which is the location's source_rev.
+    case "upload":
+    case "instrument": {
+      const sha = Sha256.safeParse(row.source_rev);
       if (!sha.success) return NextResponse.json({ error: "no such file" }, { status: 404 });
       const headers = deliveryFor(row.blobs?.mime ?? null, row.original_name);
       const isVideo = VideoType.safeParse(row.blobs?.mime).success;

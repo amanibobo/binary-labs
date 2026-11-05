@@ -25,7 +25,8 @@ export async function createSupabase() {
 
 export type Supabase = Awaited<ReturnType<typeof createSupabase>>;
 
-// Bypasses RLS. Only for member invites and reading a source's encrypted token.
+// Bypasses RLS. Only for member invites, reading a source's encrypted token, and the
+// instrument uploader's three functions (lib/instrument-db.ts).
 export function createServiceSupabase() {
   const { NEXT_PUBLIC_SUPABASE_URL } = supabaseEnv();
   const { SUPABASE_SERVICE_ROLE_KEY } = serviceRoleEnv();

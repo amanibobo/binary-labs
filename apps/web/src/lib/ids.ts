@@ -40,3 +40,7 @@ export type TalkThroughId = z.infer<typeof TalkThroughId>;
 // corrections.id is a bigint; JSON carries it as a number well inside 2^53.
 export const CorrectionId = z.number().int().positive().brand<"CorrectionId">();
 export type CorrectionId = z.infer<typeof CorrectionId>;
+
+// instruments.id: one instrument PC whose uploader sends files to the lab.
+export const InstrumentId = z.uuid().brand<"InstrumentId">();
+export type InstrumentId = z.infer<typeof InstrumentId>;
