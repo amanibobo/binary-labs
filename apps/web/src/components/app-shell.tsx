@@ -3,8 +3,8 @@ import type { ReactNode } from "react";
 import type { ShellData } from "@/lib/shell-data";
 import { CommandPalette } from "./command-palette";
 import { NeedsLookCountProvider } from "./labels/needs-look-count";
-import type { ShellLocation } from "./nav";
-import { DesktopFrame, PhoneBar, SIDEBAR_COOKIE } from "./sidebar";
+import { SIDEBAR_COOKIE, type ShellLocation } from "./nav";
+import { DesktopFrame, PhoneBar } from "./sidebar";
 
 export async function AppShell({ shell, location, children }: { shell: ShellData; location: ShellLocation; children: ReactNode }) {
   const collapsed = (await cookies()).get(SIDEBAR_COOKIE)?.value === "collapsed";

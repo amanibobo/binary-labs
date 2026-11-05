@@ -12,12 +12,10 @@ import { ChevronDownIcon, DeleteIcon, MenuIcon } from "./icons/base-web";
 import { SearchOutlineIcon, SendIcon, SidebarIcon, UploadIcon } from "./icons/drawn";
 import { NeedsLookCountText, useNeedsLookCount } from "./labels/needs-look-count";
 import { LogoMark } from "./logo";
-import { NAV, SETTINGS_NAV, type NavItem, type Section } from "./nav";
+import { NAV, SETTINGS_NAV, SIDEBAR_COOKIE, type NavItem, type Section } from "./nav";
 import { buttonVariants } from "./ui/button";
 import { Dialog as Modal, DialogContent, DialogTrigger } from "./ui/dialog";
 import { menuItem, menuSurface } from "./ui/menu";
-
-export const SIDEBAR_COOKIE = "bl-sidebar";
 
 type ShellProps = { shell: ShellData; current: Section };
 

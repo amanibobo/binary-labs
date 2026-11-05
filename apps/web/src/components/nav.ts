@@ -19,3 +19,6 @@ export const NAV = [
 ] as const satisfies readonly NavItem[];
 
 export const SETTINGS_NAV = { section: "lab", href: "/lab", label: "Settings", Icon: SettingsIcon } as const satisfies NavItem;
+
+// The desktop sidebar's folded state, kept per browser so the server renders the right width.
+export const SIDEBAR_COOKIE = "bl-sidebar";
