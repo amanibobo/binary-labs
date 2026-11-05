@@ -62,7 +62,7 @@ pending ──process──▶ failed (index_error set; retried on next rescan)
 - **Keyword list:** prefix tsquery built from the query's words (`p450:* & gel:*`), matched against `chunks.tsv` and `file_locations.name_tsv`. Ranked by `ts_rank_cd`, best rank per sha256.
 - **Vector list:** `chunks.embedding <=> p_query_embedding`, best distance per sha256, top 50. Skipped when the embedding is null.
 - **Merge:** reciprocal rank fusion, `sum(1 / (60 + rank))` per sha256.
-- **Returns one row per sha256:** score, `keyword_rank`, `vector_rank` (either can be null; that's the "why it matched"), the best matching chunk text as the snippet, and the live locations as JSON.
+- **Returns one row per sha256:** score, `keyword_rank`, `vector_rank` (either can be null; that's the "why it matched"), the best matching chunk text as the snippet (never chunk 0, the name and path, since migration 0012), and the live locations as JSON.
 
 The web app calls the worker's `POST /embed` with a 250 ms timeout. On error or timeout it calls `search_files` with a null embedding and returns `{ kind: "keyword", reason }`. Otherwise it returns `{ kind: "hybrid" }`.
 

@@ -141,7 +141,7 @@ function SearchResults({
           {count === 0 ? `No ${noun[1]}` : count === 1 ? `1 ${noun[0]}` : `${count} ${noun[1]}`}
         </h2>
         {data.kind === "keyword" ? (
-          <p className="text-paragraph-small text-content-tertiary">Results are keyword-only right now.</p>
+          <p className="text-paragraph-small text-content-tertiary">Showing exact word matches only right now.</p>
         ) : null}
       </div>
       {count === 0 ? (

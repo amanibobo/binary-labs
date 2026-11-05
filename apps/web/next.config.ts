@@ -7,6 +7,8 @@ const isDev = process.env.NODE_ENV === "development";
 const nextConfig: NextConfig = {
   devIndicators: false,
   pageExtensions: isDev ? ["dev.tsx", "tsx", "ts"] : ["tsx", "ts"],
+  // Browsers still ask for /favicon.ico before reading the page's icon link.
+  redirects: async () => [{ source: "/favicon.ico", destination: "/icon.svg", permanent: true }],
   turbopack: {
     rules: {
       "*.css": {

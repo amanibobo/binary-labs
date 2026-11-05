@@ -123,7 +123,7 @@ export function ProtocolVideos({
       </div>
       {videos.length === 0 && showing.length === 0 ? (
         <p className="text-paragraph-medium text-content-tertiary">
-          No videos yet. Record the procedure on your phone, and anyone learning it can watch it here.
+          No videos yet. Add one of the technique so anyone learning it can watch.
         </p>
       ) : (
         <ul className="grid gap-10">

@@ -9,10 +9,15 @@ export const DialogTrigger = DialogPrimitive.Trigger;
 
 // A raised 16px-radius dialog with a heading, a dismiss button and a dock of
 // full-width actions. Below 640px it becomes a sheet that rises from the bottom edge.
+// The dismiss button comes first in the DOM, so without this a dialog opens focused on it
+// and typing goes nowhere. Start in the first field instead, when there is one.
+const FIRST_FIELD = "input:not([type=hidden]):not([type=file]):not([disabled]), textarea:not([disabled])";
+
 export function DialogContent({
   title,
   children,
   className,
+  onOpenAutoFocus,
   ...props
 }: Omit<ComponentProps<typeof DialogPrimitive.Content>, "title"> & { title: ReactNode }) {
   return (
@@ -24,6 +29,14 @@ export function DialogContent({
           "sm:inset-x-auto sm:top-10 sm:bottom-auto sm:left-1/2 sm:max-h-[calc(100dvh-80px)] sm:w-[min(640px,calc(100vw-80px))] sm:-translate-x-1/2 sm:rounded-card sm:border sm:shadow-deep-below",
           className,
         )}
+        onOpenAutoFocus={(e) => {
+          onOpenAutoFocus?.(e);
+          if (e.defaultPrevented || !(e.currentTarget instanceof HTMLElement)) return;
+          const field = e.currentTarget.querySelector<HTMLElement>(FIRST_FIELD);
+          if (field === null) return;
+          e.preventDefault();
+          field.focus();
+        }}
         {...props}
       >
         <div aria-hidden className="mx-auto mt-2 h-1 w-12 shrink-0 rounded-full bg-background-tertiary sm:hidden" />

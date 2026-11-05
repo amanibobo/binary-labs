@@ -192,6 +192,15 @@ describe("search_files through the web app's args and parser", () => {
     expect(hits[0]?.snippet).toContain("SEC column");
   });
 
+  it("takes the matching text from the file's contents, never its name and path", async () => {
+    const [byFolder] = await search(alice, labA, { q: "protocols" });
+    expect(byFolder?.sha256).toBe(sha("b"));
+    expect(byFolder?.snippet).toBe("Purify P450 on the SEC column, then run gels for batch 3.");
+    const [photo] = await search(alice, labA, { q: "IMG_4821" });
+    expect(photo?.sha256).toBe(sha("a"));
+    expect(photo?.snippet).toBeNull();
+  });
+
   it("adds meaning matches when an embedding is passed", async () => {
     const hits = await search(alice, labA, { q: "electrophoresis photo" }, Array.from({ length: 1024 }, (_, j) => (j === 0 ? 1 : 0)));
     expect(hits[0]?.sha256).toBe(sha("a"));

@@ -1,5 +1,4 @@
 "use client";
-
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { motion } from "motion/react";
 import Link from "next/link";
@@ -8,7 +7,7 @@ import { areaHref } from "@/app/lab/areas";
 import type { FileHit } from "@/lib/domain";
 import { cn } from "@/lib/cn";
 import { folderAncestors, folderHref, folderName, type FolderNode } from "@/lib/folders";
-import { countLine, formatDate, formatSize, KIND_LABELS, openTarget } from "@/lib/format";
+import { countLine, formatSize, KIND_LABELS, openTarget } from "@/lib/format";
 import type { SourceState } from "@/lib/source-state";
 import { OpenExternalIcon } from "../icons/drawn";
 import { useLabApi } from "../lab-api";
@@ -19,6 +18,7 @@ import { DataCell, DataHeaderCell, DataTable, dataRow, dataRowInteractive } from
 import { FolderArt } from "./folder-art";
 import { KindIcon } from "./kind-icon";
 import { PreviewPanel } from "./preview-panel";
+import { When } from "@/components/ui/when";
 
 export function BrowseView({
   labName,
@@ -174,13 +174,13 @@ function FileRow({ hit, expanded, onToggle }: { hit: FileHit; expanded: boolean;
             <span className="min-w-0">
               <span className="block truncate font-mono text-label-small text-content-primary">{location.originalName}</span>
               <span className="mt-0.5 block text-paragraph-xsmall text-content-tertiary sm:hidden">
-                {KIND_LABELS[hit.fileKind]} · {formatDate(location.modifiedAt)}
+                {KIND_LABELS[hit.fileKind]} · <When iso={location.modifiedAt} />
               </span>
             </span>
           </button>
         </DataCell>
         <DataCell className="text-paragraph-small text-content-secondary max-md:hidden">{KIND_LABELS[hit.fileKind]}</DataCell>
-        <DataCell className="text-paragraph-small text-content-secondary tabular-nums max-sm:hidden">{formatDate(location.modifiedAt)}</DataCell>
+        <DataCell className="text-paragraph-small text-content-secondary tabular-nums max-sm:hidden"><When iso={location.modifiedAt} /></DataCell>
         <DataCell className="text-right text-paragraph-small text-content-secondary tabular-nums max-md:hidden">{formatSize(hit.size)}</DataCell>
         <DataCell className="py-0 pr-2 sm:pr-3">
           {open === null ? null : (

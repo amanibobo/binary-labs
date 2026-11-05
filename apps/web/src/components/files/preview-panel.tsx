@@ -1,17 +1,18 @@
 "use client";
-
 import Link from "next/link";
 import { isTextBearing, type FileHit } from "@/lib/domain";
 import { cn } from "@/lib/cn";
-import { formatDate, openTarget } from "@/lib/format";
+import { openTarget } from "@/lib/format";
 import { newProtocolHref } from "@/lib/protocols";
 import { OpenExternalIcon, ProtocolIcon } from "../icons/drawn";
 import { useLabApi } from "../lab-api";
 import { Highlighted } from "../search/highlighted";
 import { buttonVariants } from "../ui/button";
+import { When } from "@/components/ui/when";
 
-// The opened state of a file row: preview on the left, every place it lives on the right.
-// A file with text can also start a protocol page.
+// The opened state of a file row: the preview, then the one obvious action, opening the real
+// file. The row above already shows its name and path; duplicates elsewhere are listed under it.
+// A file with text can also start a protocol.
 export function PreviewPanel({
   hit,
   query,
@@ -25,38 +26,53 @@ export function PreviewPanel({
   className?: string;
   offerNewPage?: boolean;
 }) {
+  const [primary, ...others] = hit.locations;
+  const open = openTarget(primary);
   return (
     <div id={id} className={cn("grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]", className)}>
       <Preview hit={hit} query={query} />
-      <div className="min-w-0">
-        <h3 className="text-label-medium text-content-primary">{hit.locations.length === 1 ? "Location" : "Locations"}</h3>
-        <ul className="mt-3 grid gap-4">
-          {hit.locations.map((location) => {
-            const open = openTarget(location);
-            return (
-              <li key={location.id} className="min-w-0">
-                <p className="font-mono text-paragraph-small [overflow-wrap:anywhere] text-content-primary">{location.path}</p>
-                <p className="mt-1 text-paragraph-small text-content-tertiary">Modified {formatDate(location.modifiedAt)}</p>
-                {open === null ? null : (
-                  <a
-                    href={open.href}
-                    target="_blank"
-                    rel="noreferrer"
-                    className={cn(buttonVariants({ variant: "secondary", size: "compact" }), "mt-3")}
-                  >
-                    <OpenExternalIcon className="size-5" />
-                    {open.label}
-                    <span className="sr-only"> (opens in a new tab)</span>
-                  </a>
-                )}
-              </li>
-            );
-          })}
-        </ul>
+      <div className="flex min-w-0 flex-col items-start gap-5">
+        {open === null ? null : (
+          <a href={open.href} target="_blank" rel="noreferrer" className={buttonVariants({ size: "compact" })}>
+            <OpenExternalIcon className="size-5" />
+            {open.label}
+            <span className="sr-only"> (opens in a new tab)</span>
+          </a>
+        )}
+        {others.length === 0 ? null : (
+          <div className="w-full min-w-0">
+            <h3 className="text-label-medium text-content-primary">Also in</h3>
+            <ul className="mt-2 grid gap-3">
+              {others.map((location) => {
+                const target = openTarget(location);
+                return (
+                  <li key={location.id} className="min-w-0">
+                    {target === null ? (
+                      <p className="font-mono text-paragraph-small [overflow-wrap:anywhere] text-content-secondary">{location.path}</p>
+                    ) : (
+                      <a
+                        href={target.href}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-mono text-paragraph-small [overflow-wrap:anywhere] text-content-accent underline-offset-2 hover:underline"
+                      >
+                        {location.path}
+                        <span className="sr-only"> ({target.label}, opens in a new tab)</span>
+                      </a>
+                    )}
+                    <p className="mt-0.5 text-paragraph-xsmall text-content-tertiary">
+                      Modified <When iso={location.modifiedAt} />
+                    </p>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
         {offerNewPage && isTextBearing(hit.fileKind) ? (
           <Link
             href={newProtocolHref(hit.sha256)}
-            className={cn(buttonVariants({ variant: "tertiary", size: "compact" }), "mt-5 -ml-3 text-content-secondary")}
+            className={cn(buttonVariants({ variant: "tertiary", size: "compact" }), "-ml-3 text-content-secondary")}
           >
             <ProtocolIcon className="size-5" />
             Make a protocol from this file

@@ -19,7 +19,7 @@ function isPaletteShortcut(e: KeyboardEvent): boolean {
 
 const OpenPalette = createContext<(() => void) | null>(null);
 
-// One palette per page: the sidebar, the phone header and ⌘K all open the same dialog.
+// One palette per page: the sidebar, the phone bar and ⌘K all open the same dialog.
 export function CommandPalette({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
   useEffect(() => {
@@ -45,10 +45,24 @@ export function CommandPalette({ children }: { children: ReactNode }) {
   );
 }
 
-export function PaletteTrigger({ className, children, ...props }: Omit<ComponentProps<"button">, "onClick" | "type">) {
+export function PaletteTrigger({
+  className,
+  children,
+  onOpen,
+  ...props
+}: Omit<ComponentProps<"button">, "onClick" | "type"> & { onOpen?: () => void }) {
   const show = use(OpenPalette);
   return (
-    <button type="button" aria-haspopup="dialog" onClick={() => show?.()} className={className} {...props}>
+    <button
+      type="button"
+      aria-haspopup="dialog"
+      onClick={() => {
+        onOpen?.();
+        show?.();
+      }}
+      className={className}
+      {...props}
+    >
       {children}
     </button>
   );
@@ -124,7 +138,7 @@ function PaletteBody({ onDone }: { onDone: () => void }) {
                 </Command.Group>
               ) : null}
               {data?.kind === "keyword" ? (
-                <p className="px-4 pt-2 text-paragraph-small text-content-tertiary sm:px-6">Results are keyword-only right now.</p>
+                <p className="px-4 pt-2 text-paragraph-small text-content-tertiary sm:px-6">Showing exact word matches only right now.</p>
               ) : null}
             </div>
           </>

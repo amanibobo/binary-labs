@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { needsCheck, type FileHit, type Label } from "@/lib/domain";
 import { cn } from "@/lib/cn";
-import { formatDate } from "@/lib/format";
+import { formatDay } from "@/lib/format";
 import { labelTags, type TagRef } from "@/lib/label-edit";
 import { CheckIcon, PlusIcon } from "../icons/base-web";
 import { InlineEdit } from "./inline-edit";
@@ -25,7 +25,6 @@ const PLACEHOLDERS: Record<TagRef["kind"], string> = {
   free: "Tag",
 };
 
-const dayFormat = (iso: string) => formatDate(`${iso}T00:00:00Z`);
 
 // The row's toggle button sits underneath; everything here that takes clicks opts back in.
 const interactive = "pointer-events-auto relative";
@@ -69,7 +68,8 @@ export function LabelTitle({ hit, label }: { hit: FileHit; label: Label | null }
 export function LabelTags({ hit, label, expanded }: { hit: FileHit; label: Label; expanded: boolean }) {
   const labels = useLabels();
   if (label.status === "needs_look") return null;
-  const tags = labelTags(label, dayFormat);
+  // Collapsed rows show the facts (date, experiment, person, instrument); free tags wait for the details.
+  const tags = labelTags(label, formatDay).filter((tag) => expanded || tag.ref.kind !== "free");
   return (
     <span className="mt-2 flex flex-wrap items-center gap-1.5 max-sm:gap-x-2 max-sm:gap-y-3">
       {needsCheck(label) ? <CheckMarker onAccept={() => labels.accept(hit)} /> : null}

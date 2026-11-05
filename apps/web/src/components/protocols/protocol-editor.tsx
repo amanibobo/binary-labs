@@ -1,5 +1,4 @@
 "use client";
-
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Tabs, ToggleGroup } from "radix-ui";
@@ -8,7 +7,7 @@ import { toast } from "sonner";
 import type { FileHit } from "@/lib/domain";
 import { cn } from "@/lib/cn";
 import type { TalkThroughId } from "@/lib/ids";
-import { folderOf, formatDate } from "@/lib/format";
+import { folderOf } from "@/lib/format";
 import {
   authorName,
   CreateProtocolRequest,
@@ -27,6 +26,7 @@ import { Button, buttonVariants } from "../ui/button";
 import { Caption, Input, Label, Textarea } from "../ui/field";
 import { CrumbBar } from "./crumb-bar";
 import { Markdown } from "./markdown";
+import { When } from "@/components/ui/when";
 
 export type StartFile = { hit: FileHit; text: string | null };
 
@@ -189,7 +189,7 @@ export function ProtocolEditor({ mode, authors }: { mode: EditorMode; authors: A
     <>
       <CrumbBar items={crumbs} />
       <div className="mx-auto w-full max-w-3xl px-4 pt-8 pb-24 sm:px-8 sm:pt-12">
-        <h1 className="text-heading-medium">{creating ? "New page" : "Edit page"}</h1>
+        <h1 className="text-heading-medium">{creating ? "New protocol" : "Edit"}</h1>
         {!creating && base !== null ? (
           <p className="mt-1 text-paragraph-small text-content-tertiary">
             Saving makes version {base.version + 1}. Earlier versions stay in the history.
@@ -355,7 +355,7 @@ export function ProtocolEditor({ mode, authors }: { mode: EditorMode; authors: A
 function crumbsFor(mode: EditorMode): { label: string; href: string }[] {
   switch (mode.kind) {
     case "create":
-      return [{ label: "New page", href: "/protocols/new" }];
+      return [{ label: "New protocol", href: "/protocols/new" }];
     case "edit":
       return [
         { label: mode.page.title, href: protocolHref(mode.page.protocolId) },
@@ -363,9 +363,9 @@ function crumbsFor(mode: EditorMode): { label: string; href: string }[] {
       ];
     case "talk_through":
       return [
-        mode.base === null ? { label: "New page", href: "/protocols/new" } : { label: mode.base.title, href: protocolHref(mode.base.protocolId) },
+        mode.base === null ? { label: "New protocol", href: "/protocols/new" } : { label: mode.base.title, href: protocolHref(mode.base.protocolId) },
         { label: "Talk-through", href: talkThroughHref(mode.talkThroughId) },
-        { label: mode.base === null ? "New page" : "Edit", href: `${talkThroughHref(mode.talkThroughId)}/edit` },
+        { label: mode.base === null ? "New protocol" : "Edit", href: `${talkThroughHref(mode.talkThroughId)}/edit` },
       ];
     default: {
       const _exhaustive: never = mode;
@@ -440,7 +440,7 @@ function Conflict({
       return (
         <div role="status" className={panel}>
           <p className="text-label-medium text-content-primary">
-            Version {state.theirs.version} by {authorName(authors, state.theirs.author)}, saved {formatDate(state.theirs.createdAt)}
+            Version {state.theirs.version} by {authorName(authors, state.theirs.author)}, saved <When iso={state.theirs.createdAt} />
           </p>
           <p className="mt-1 text-paragraph-small text-content-secondary">
             Your text is unchanged. Saving now makes version {state.theirs.version + 1} from your text, so bring over anything of

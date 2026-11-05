@@ -16,7 +16,7 @@ const shots = [
   { name: "browse-root", path: "/dev/fixtures/browse", width: 1440, scheme: "dark" },
   { name: "browse-subfolder", path: "/dev/fixtures/browse?path=P450%2Fbatch3", steps: (page) => page.getByRole("button", { name: "Batch 3 yields.xlsx" }).click(), width: 1440, scheme: "dark" },
   { name: "browse-root", path: "/dev/fixtures/browse", width: 1440, scheme: "light" },
-  { name: "nav-menu", path: "/dev/fixtures/browse?path=P450", steps: (page) => page.getByRole("button", { name: "Account and navigation" }).click(), full: false, width: 390, scheme: "dark" },
+  { name: "nav-menu", path: "/dev/fixtures/browse?path=P450", steps: (page) => page.getByRole("button", { name: "Menu" }).click(), full: false, width: 390, scheme: "dark" },
   { name: "search-results", path: results, steps: expandGel, width: 1440, scheme: "dark" },
   {
     name: "search-check",
@@ -198,7 +198,7 @@ function talkThroughShots() {
   const recorded = async (page) => {
     await record(page);
     await page.getByRole("button", { name: "Stop" }).click();
-    await page.getByRole("button", { name: "Send for steps" }).waitFor();
+    await page.getByRole("button", { name: "Write up the steps" }).waitFor();
   };
   const all = (shot) => ["dark", "light"].flatMap((scheme) => [1440, 390].map((width) => ({ ...shot, width, scheme })));
   return [

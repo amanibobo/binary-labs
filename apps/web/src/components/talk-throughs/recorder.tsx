@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useId, useReducer, useRef, useState } from "react";
 import { cn } from "@/lib/cn";
 import { formatSize } from "@/lib/format";
-import { KIND_NAMES, protocolHref } from "@/lib/protocols";
+import { protocolHref } from "@/lib/protocols";
 import {
   AUDIO_MAX_BYTES,
   baseType,
@@ -27,7 +27,7 @@ import { useLabApi } from "../lab-api";
 import { CrumbBar } from "../protocols/crumb-bar";
 import { Button, buttonVariants } from "../ui/button";
 
-const NO_MIC = "This browser can't record here. Add a recording you already have instead.";
+const NO_MIC = "This browser can't record here. Use a recording you already have instead.";
 const DENIED = "The microphone isn't allowed for this site. Allow it in the browser's site settings, or add a recording you already have.";
 
 export function Recorder({
@@ -94,7 +94,7 @@ export function Recorder({
       stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
     } catch (error) {
       const denied = error instanceof DOMException && (error.name === "NotAllowedError" || error.name === "SecurityError");
-      return dispatch({ type: "problem", message: denied ? DENIED : "We couldn't find a microphone. Add a recording you already have instead." });
+      return dispatch({ type: "problem", message: denied ? DENIED : "We couldn't find a microphone. Use a recording you already have instead." });
     }
     const r = new MediaRecorder(stream, { mimeType: format.mimeType, audioBitsPerSecond: RECORDING_BITS });
     chunks.current = [];
@@ -210,19 +210,16 @@ export function Recorder({
     <>
       <CrumbBar
         items={[
-          target.kind === "page" ? { label: pageTitle ?? "Page", href: backHref } : { label: "New page", href: backHref },
+          target.kind === "page" ? { label: pageTitle ?? "Protocol", href: backHref } : { label: "New protocol", href: backHref },
           { label: "Talk-through", href: "/talk-throughs/new" },
         ]}
+        width="max-w-2xl sm:px-8"
       />
       <div className="mx-auto w-full max-w-2xl px-4 pt-8 pb-24 sm:px-8 sm:pt-12">
         <h1 className="text-heading-medium sm:text-heading-large">Record a talk-through</h1>
         {pageTitle !== null ? <p className="mt-1 text-paragraph-small text-content-tertiary">For {pageTitle}</p> : null}
         <p className="mt-2 max-w-prose text-paragraph-medium text-content-secondary">
-          Say how you do it, step by step, as you would to someone new at the bench. We&apos;ll write it up as numbered steps for you
-          to check
-          {target.kind === "page"
-            ? ". The page doesn't change until you save them."
-            : `, then turn into a new ${KIND_NAMES[target.pageKind].toLowerCase()}.`}
+          Say how you do it, step by step, as you would to someone new. You check the written steps before anything is saved.
         </p>
 
         <section aria-labelledby={`${ids}-panel`} className="mt-8 rounded-control border border-border-opaque bg-background-raised p-5 sm:p-8">
@@ -357,7 +354,7 @@ function Controls({
           <div className={row}>
             {state.kind === "recorded" || state.retryable ? (
               <Button size="large" className={big} onClick={() => onSend(state.take)}>
-                {state.kind === "send_failed" ? "Try sending again" : "Send for steps"}
+                {state.kind === "send_failed" ? "Try sending again" : "Write up the steps"}
               </Button>
             ) : null}
             <Button size="large" variant="tertiary" className={big} onClick={onDiscard}>
@@ -402,7 +399,7 @@ function TakeCard({ take }: { take: Take }) {
   return (
     <div className="mt-6 rounded-control border border-border-opaque bg-background-secondary p-3 sm:p-4">
       <p className="flex min-w-0 items-center gap-2 text-label-small text-content-primary">
-        <FileAudioIcon className="size-5 shrink-0 text-tint-yellow" />
+        <FileAudioIcon className="size-5 shrink-0 text-content-tertiary" />
         <span className="truncate font-mono">{take.name}</span>
         <span className="ml-auto shrink-0 text-paragraph-xsmall text-content-tertiary tabular-nums">{formatSize(take.blob.size)}</span>
       </p>
@@ -428,9 +425,9 @@ function FileOption({ onPick }: { onPick: (file: File) => void }) {
           e.target.value = "";
         }}
       />
-      <p className="text-paragraph-small text-content-tertiary">Already recorded it, say as a voice memo?</p>
+      <p className="text-paragraph-small text-content-tertiary">Have a voice memo already?</p>
       <Button variant="secondary" size="compact" onClick={() => input.current?.click()}>
-        Add a recording
+        Use a recording
       </Button>
     </div>
   );

@@ -14,11 +14,8 @@ export function DeleteLabSection({ labName }: { labName: string }) {
   return (
     <div className={cn(dataSurface, "grid gap-3 p-5 sm:p-6")}>
       <p className="max-w-prose text-paragraph-medium text-content-secondary">
-        This deletes the search index, previews, labels, protocols, tutorials and the activity log for {labName}. Every
-        member loses access at once and Dropbox is disconnected. There&apos;s no undo.
-      </p>
-      <p className="max-w-prose text-paragraph-medium text-content-secondary">
-        Protocols and tutorials only exist here, so download them first.
+        Every member loses access at once, and there&apos;s no undo. Protocols, uploads, recordings and videos are kept
+        only here, so save what you need first.
       </p>
       <div className="mt-2 flex flex-wrap gap-2">
         {/* A plain link: the route answers with a file to save. */}
@@ -47,8 +44,8 @@ function DeleteLabForm({ labName, onCancel }: { labName: string; onCancel: () =>
     <form action={action}>
       <div className="grid gap-3 px-4 pt-3 text-paragraph-medium text-content-secondary sm:px-6">
         <p>
-          Every member loses access now. The index, previews, labels, protocols and activity log are deleted within a few
-          minutes, and the lab&apos;s Dropbox access is revoked. Your files in Dropbox stay as they are.
+          Everything Binary Labs holds for {labName} is deleted: the index, labels, protocols, uploads, recordings and
+          videos. Files in Dropbox stay as they are.
         </p>
       </div>
       <div className="grid gap-1.5 px-4 pt-5 sm:px-6">

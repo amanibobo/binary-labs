@@ -9,7 +9,7 @@ const count = new Intl.NumberFormat("en-US");
 
 const REMOVED_ROWS = [
   ["files", "Files in the index"],
-  ["previews", "Previews"],
+  ["previews", "Stored files and previews"],
   ["labels", "Labels"],
   ["protocols", "Protocols and tutorials"],
   ["members", "Members"],
@@ -30,8 +30,8 @@ export function DeletedView({ deletion }: { deletion: LabDeletion }) {
           <RefreshWhilePending />
           <dl className="grid gap-3 text-paragraph-medium">
             <Row term="Removed" detail="Member access and the Dropbox connection" />
-            <Row term="Removing" detail="The search index, previews, labels, protocols, tutorials and activity log" />
-            <Row term="Not touched" detail="Your files in Dropbox" />
+            <Row term="Removing" detail="The index, labels, protocols, uploads, recordings, videos and activity log" />
+            <Row term="Not touched" detail="Files in Dropbox" />
           </dl>
         </>
       ) : (

@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { cn } from "@/lib/cn";
-import { formatDate } from "@/lib/format";
 import { authorName, protocolHref, type AuthorNames, type HistoryEntry, type ProtocolVersion } from "@/lib/protocols";
 import { dataRow, dataSurface } from "../ui/data-table";
 import { CrumbBar } from "./crumb-bar";
+import { When } from "@/components/ui/when";
 
 // Every saved version, newest first; each opens as it was.
 export function HistoryView({
@@ -45,7 +45,7 @@ export function HistoryView({
                       {isCurrent ? <span className="text-content-tertiary"> · current</span> : null}
                     </span>
                     <span className="mt-1 block text-paragraph-small text-content-tertiary">
-                      {formatDate(v.createdAt)} by {authorName(authors, v.author)}
+                      <When iso={v.createdAt} /> by {authorName(authors, v.author)}
                       {v.title === page.title ? null : <> · titled &ldquo;{v.title}&rdquo;</>}
                     </span>
                   </span>

@@ -1,5 +1,4 @@
 "use client";
-
 import { useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
@@ -8,7 +7,7 @@ import { useId, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import type { FileHit } from "@/lib/domain";
 import { cn } from "@/lib/cn";
-import { folderOf, formatDate, openTarget } from "@/lib/format";
+import { folderOf, openTarget } from "@/lib/format";
 import { authorName, isCurrent, KIND_NAMES, protocolHref, type AuthorNames, type ProtocolVersion } from "@/lib/protocols";
 import { recordHref, type OpenTalkThrough } from "@/lib/talk-throughs";
 import type { ProtocolVideo } from "@/lib/videos";
@@ -25,6 +24,7 @@ import { FilePicker } from "./file-picker";
 import { OpenTalkThroughs } from "../talk-throughs/open-list";
 import { ProtocolVideos, videosKey } from "../videos/protocol-videos";
 import { Markdown } from "./markdown";
+import { When } from "@/components/ui/when";
 
 export function ProtocolView({
   page,
@@ -61,7 +61,7 @@ export function ProtocolView({
         )}
         <h1 className="text-heading-medium sm:text-heading-large">{page.title}</h1>
         <p className="mt-2 text-paragraph-small text-content-tertiary">
-          {KIND_NAMES[page.kind]} · Version {page.version} · Saved {formatDate(page.createdAt)} by {authorName(authors, page.author)}
+          {KIND_NAMES[page.kind]} · Version {page.version} · Saved <When iso={page.createdAt} /> by {authorName(authors, page.author)}
         </p>
         <div className="mt-5 flex flex-wrap gap-2">
           {editable ? (
@@ -161,7 +161,7 @@ function LinkedFiles({ page, initial, editable }: { page: ProtocolVersion; initi
       {files.length === 0 ? (
         <p className="text-paragraph-medium text-content-tertiary">
           {editable
-            ? "No files linked yet. Link an example gel, a plate layout or the original document."
+            ? "No files linked yet. Link an example gel or the original document."
             : "No files linked."}
         </p>
       ) : (
@@ -294,16 +294,16 @@ function ArchiveSection({ page }: { page: ProtocolVersion }) {
     <div className="mt-16 border-t border-border-opaque pt-6">
       <Dialog open={open} onOpenChange={setOpen}>
         <Button variant="tertiary" size="compact" className="-ml-3 text-content-secondary" onClick={() => setOpen(true)}>
-          Archive this page
+          Archive
         </Button>
-        <DialogContent title="Archive this page?" aria-describedby={undefined}>
+        <DialogContent title={`Archive ${page.title}?`} aria-describedby={undefined}>
           <p className="px-4 pt-3 text-paragraph-medium text-content-secondary sm:px-6">
             It leaves the list and search for everyone in the lab. Every version is kept, so anything that cites one still
             works.
           </p>
           <DialogDock className="pt-6">
             <Button disabled={busy} onClick={() => void archive()}>
-              {busy ? "Archiving" : "Archive page"}
+              {busy ? "Archiving" : "Archive"}
             </Button>
             <Button variant="secondary" onClick={() => setOpen(false)}>
               Cancel

@@ -16,8 +16,7 @@ export function NeedsLookView({ files }: { files: LabeledFileHit[] }) {
     <div className="mx-auto w-full max-w-4xl px-4 pt-8 pb-24 sm:px-8 sm:pt-16">
       <h1 className="text-heading-large">Needs a look</h1>
       <p className="mt-1 max-w-prose text-paragraph-medium text-content-tertiary">
-        Files we couldn&apos;t read or weren&apos;t sure about. Say what each one is in a few words, and similar files will
-        follow your lead.
+        Say what each file is in a few words. Similar files will follow.
       </p>
       <LabelsProvider>
         <Queue files={files} />

@@ -1,9 +1,17 @@
 import type { FileKind, FileLocation, MatchReason, SourceKind } from "./domain";
 
-const dateFormat = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+const DATE_PARTS = { month: "short", day: "numeric", year: "numeric" } as const;
+const dayFormat = new Intl.DateTimeFormat("en-US", { ...DATE_PARTS, timeZone: "UTC" });
 
-export function formatDate(iso: string): string {
-  return dateFormat.format(new Date(iso));
+// A calendar day ("2026-10-14"), such as a label's date: the same day wherever it's read.
+export function formatDay(day: string): string {
+  return dayFormat.format(new Date(`${day}T00:00:00Z`));
+}
+
+// A moment, such as when a file was saved: the day it was where the reader is.
+// Leave timeZone out to use the runtime's own zone.
+export function formatInstant(iso: string, timeZone?: string): string {
+  return new Intl.DateTimeFormat("en-US", { ...DATE_PARTS, timeZone }).format(new Date(iso));
 }
 
 export function folderOf(location: FileLocation): string {
@@ -11,13 +19,9 @@ export function folderOf(location: FileLocation): string {
   return cut <= 0 ? "/" : location.path.slice(0, cut);
 }
 
+// Word matches are highlighted in the row, so only a match without the words needs saying.
 export function matchLine(reasons: readonly MatchReason[]): string | null {
-  const words = reasons.includes("words");
-  const meaning = reasons.includes("meaning");
-  if (words && meaning) return "Matched by name and content, and by meaning";
-  if (words) return "Matched by name and content";
-  if (meaning) return "Matched by meaning";
-  return null;
+  return reasons.includes("meaning") && !reasons.includes("words") ? "Similar in meaning" : null;
 }
 
 export function otherPlacesLine(count: number): string | null {
