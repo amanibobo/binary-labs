@@ -63,7 +63,7 @@ export const RecordInstrumentFileRows = z
 export type InstrumentState =
   | { kind: "waiting"; expiresAt: string }
   | { kind: "expired" }
-  | { kind: "paired"; pairedAt: string; lastSeenAt: string | null }
+  | { kind: "paired"; pairedAt: string; seenSecondsAgo: number | null }
   | { kind: "revoked"; revokedAt: string };
 
 export type Instrument = { id: InstrumentId; name: string; files: number; state: InstrumentState };
@@ -78,7 +78,7 @@ export const LabInstrumentsRows = z.array(
       state: z.enum(["waiting", "expired", "paired", "revoked"]),
       pairing_expires_at: Timestamp.nullable(),
       paired_at: Timestamp.nullable(),
-      last_seen_at: Timestamp.nullable(),
+      seen_seconds_ago: z.number().int().nonnegative().nullable(),
       revoked_at: Timestamp.nullable(),
       files: z.coerce.number().int().nonnegative(),
     })
@@ -89,7 +89,7 @@ function stateOf(r: {
   state: "waiting" | "expired" | "paired" | "revoked";
   pairing_expires_at: string | null;
   paired_at: string | null;
-  last_seen_at: string | null;
+  seen_seconds_ago: number | null;
   revoked_at: string | null;
 }): InstrumentState {
   switch (r.state) {
@@ -98,7 +98,7 @@ function stateOf(r: {
     case "expired":
       return { kind: "expired" };
     case "paired":
-      return { kind: "paired", pairedAt: r.paired_at ?? r.last_seen_at ?? "", lastSeenAt: r.last_seen_at };
+      return { kind: "paired", pairedAt: r.paired_at ?? "", seenSecondsAgo: r.seen_seconds_ago };
     case "revoked":
       return { kind: "revoked", revokedAt: r.revoked_at ?? "" };
     default: {
@@ -109,9 +109,9 @@ function stateOf(r: {
 }
 
 // "Seen 2 minutes ago". The uploader checks in every minute, so anything under two is "just now".
-export function seenLine(lastSeenAt: string | null, now: Date): string {
-  if (lastSeenAt === null) return "Not seen yet";
-  const minutes = Math.floor((now.getTime() - Date.parse(lastSeenAt)) / 60_000);
+export function seenLine(secondsAgo: number | null): string {
+  if (secondsAgo === null) return "Not seen yet";
+  const minutes = Math.floor(secondsAgo / 60);
   if (minutes < 2) return "Seen just now";
   if (minutes < 60) return `Seen ${minutes} minutes ago`;
   const hours = Math.floor(minutes / 60);

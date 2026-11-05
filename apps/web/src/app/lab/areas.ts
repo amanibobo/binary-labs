@@ -1,11 +1,15 @@
 import { z } from "zod";
 
 // Settings opens on an overview; each area is its own view at /lab?area=<area>.
-export const SettingsArea = z.enum(["dropbox", "experiments", "people", "members", "account", "appearance", "delete"]);
+export const SettingsArea = z.enum(["dropbox", "instruments", "experiments", "people", "members", "account", "appearance", "delete"]);
 export type SettingsArea = z.infer<typeof SettingsArea>;
 
 export const AREA_COPY = {
   dropbox: { title: "Dropbox", helper: "Binary reads one Dropbox folder and never changes a file in it." },
+  instruments: {
+    title: "Instruments",
+    helper: "Instrument PCs that send their new files here by themselves. Binary never changes a file on them.",
+  },
   experiments: {
     title: "Experiments",
     helper: "Files are labeled with these. Add the short names people use in file names.",

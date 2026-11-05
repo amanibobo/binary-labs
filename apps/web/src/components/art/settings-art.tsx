@@ -121,8 +121,31 @@ function Appearance(s: Shading) {
   );
 }
 
+// A benchtop reader with its plate drawer out and a small screen. No maker's marks.
+function Instruments(s: Shading) {
+  return (
+    <>
+      <rect x="28" y="22" width="104" height="22" rx="9" fill={s.back} />
+      <rect x="18" y="34" width="124" height="70" rx="12" fill={s.front} />
+      <path d="M30 37.5h100" {...highlight} />
+      <rect x="94" y="48" width="34" height="22" rx="4" fill={s.paper} />
+      <path d="M101 56h16M101 63h10" stroke="var(--paper-line)" strokeWidth="3" strokeLinecap="round" />
+      <circle cx="101" cy="86" r="3.5" fill="white" fillOpacity="0.45" />
+      <circle cx="113" cy="86" r="3.5" fill="white" fillOpacity="0.3" />
+      <rect x="28" y="74" width="54" height="9" rx="4.5" fill={s.back} />
+      <path d="M24 80h62l4 22a4 4 0 0 1-4 4.5H24a4 4 0 0 1-4-4.5z" fill={s.paper} stroke="var(--paper-line)" strokeWidth="1.5" />
+      {[31, 40, 49, 58, 67, 76].map((cx) => (
+        <circle key={cx} cx={cx} cy="92" r="2.75" fill="var(--paper-line)" opacity="0.7" />
+      ))}
+      <rect x="30" y="104" width="14" height="6" rx="3" fill={s.back} />
+      <rect x="116" y="104" width="14" height="6" rx="3" fill={s.back} />
+    </>
+  );
+}
+
 const ART = {
   dropbox: { tint: "blue", draw: Dropbox },
+  instruments: { tint: "gray", draw: Instruments },
   experiments: { tint: "green", draw: Experiments },
   people: { tint: "orange", draw: People },
   members: { tint: "purple", draw: Members },

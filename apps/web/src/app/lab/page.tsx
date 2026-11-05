@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { z } from "zod";
 import { AppShell } from "@/components/app-shell";
 import { ConfigMissing } from "@/components/config-missing";
-import { loadExperiments, loadMembers, loadPeople, loadSourceState } from "@/lib/lab-data";
+import { loadExperiments, loadInstruments, loadMembers, loadPeople, loadSourceState } from "@/lib/lab-data";
 import { loadShell } from "@/lib/shell-data";
 import { requireMember } from "@/lib/viewer";
 import { SettingsArea } from "./areas";
@@ -19,12 +19,13 @@ export default async function LabPage({ searchParams }: PageProps<"/lab">) {
   const { supabase, lab, user } = viewer;
   const { dropbox, area } = await searchParams;
   const notice = dropbox === undefined ? null : Notice.parse(dropbox);
-  const [shell, source, members, experiments, people] = await Promise.all([
+  const [shell, source, members, experiments, people, instruments] = await Promise.all([
     loadShell(viewer),
     loadSourceState(supabase, lab.id),
     loadMembers(supabase, lab.id),
     loadExperiments(supabase, lab.id),
     loadPeople(supabase, lab.id),
+    loadInstruments(supabase, lab.id),
   ]);
   return (
     <AppShell shell={shell} location={{ section: "lab" }}>
@@ -37,6 +38,7 @@ export default async function LabPage({ searchParams }: PageProps<"/lab">) {
         members={members}
         experiments={experiments}
         people={people}
+        instruments={instruments}
         notice={notice}
       />
     </AppShell>

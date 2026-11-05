@@ -2,12 +2,13 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdtempSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { NextRequest } from "next/server";
 import { Client } from "pg";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { CreateLabResult } from "../domain";
 import type { LabId } from "../ids";
-import { INSTRUMENT_MAX_BYTES } from "../instruments";
+import { INSTRUMENT_MAX_BYTES, LabInstrumentsRows } from "../instruments";
 import { PART_BYTES, partCount, partSpan } from "../parts";
 import { pgInstrumentDb } from "./pg-instrument-db";
 
@@ -58,16 +59,15 @@ async function addInstrument(userId: string, labId: LabId, name: string) {
 
 type Call = { token?: string; body?: unknown; raw?: Uint8Array<ArrayBuffer>; headers?: Record<string, string>; method?: string };
 
-function request(path: string, { token, body, raw, headers = {}, method = "POST" }: Call): Request {
+function request(path: string, { token, body, raw, headers = {}, method = "POST" }: Call): NextRequest {
   const h = new Headers(headers);
   if (token !== undefined) h.set("authorization", `Bearer ${token}`);
   if (body !== undefined) h.set("content-type", "application/json");
   if (raw !== undefined) h.set("content-length", String(raw.byteLength));
-  return new Request(`http://uploader.test${path}`, {
+  return new NextRequest(`http://uploader.test${path}`, {
     method,
     headers: h,
     body: raw !== undefined ? new Blob([raw]).stream() : body !== undefined ? JSON.stringify(body) : undefined,
-    // @ts-expect-error Node needs this for a streamed body.
     duplex: raw !== undefined ? "half" : undefined,
   });
 }
@@ -79,7 +79,7 @@ async function answer(res: Response) {
 }
 
 async function pairWith(code: string, client = "203.0.113.7") {
-  const res = await pair.POST(request("/api/instruments/pair", { body: { code }, headers: { "x-forwarded-for": client } }) as never);
+  const res = await pair.POST(request("/api/instruments/pair", { body: { code }, headers: { "x-forwarded-for": client } }));
   return answer(res);
 }
 
@@ -100,22 +100,22 @@ function bytesOf(size: number, seed: number): Uint8Array<ArrayBuffer> {
 // What the uploader does: check, start, each part to where the server says, complete.
 async function send(token: string, path: string, bytes: Uint8Array<ArrayBuffer>, claim: { sha256?: string; size?: number } = {}) {
   const file = { path, sha256: claim.sha256 ?? sha(bytes), size: claim.size ?? bytes.byteLength, modifiedAt: Date.parse("2026-11-03T10:00:00Z") };
-  const checked = await answer(await check.POST(request("/api/instruments/files/check", { token, body: file }) as never));
+  const checked = await answer(await check.POST(request("/api/instruments/files/check", { token, body: file })));
   if (checked.status !== 200 || checked.body.have === true) return { checked };
-  const started = await answer(await uploads.POST(request("/api/instruments/uploads", { token, body: file }) as never));
+  const started = await answer(await uploads.POST(request("/api/instruments/uploads", { token, body: file })));
   const session = z.object({ uploadId: z.string(), storeId: z.string(), partBytes: z.number(), parts: z.number() }).parse(started.body);
   const sent = [];
   for (let n = 1; n <= partCount(bytes.byteLength); n++) {
     const params = { id: session.uploadId, n: String(n) };
     const target = await answer(
-      await parts.POST(request(`/x`, { token, body: { storeId: session.storeId, size: file.size } }) as never, ctx(params)),
+      await parts.POST(request(`/x`, { token, body: { storeId: session.storeId, size: file.size } }), ctx(params)),
     );
     const span = partSpan(bytes.byteLength, n);
-    const put = await answer(await parts.PUT(request(target.body.url, { token, raw: bytes.slice(span.start, span.end), method: "PUT" }) as never, ctx(params)));
+    const put = await answer(await parts.PUT(request(target.body.url, { token, raw: bytes.slice(span.start, span.end), method: "PUT" }), ctx(params)));
     sent.push({ partNumber: n, etag: z.string().parse(put.etag) });
   }
   const done = await answer(
-    await complete.POST(request("/x", { token, body: { ...file, storeId: session.storeId, parts: sent } }) as never, ctx({ id: session.uploadId })),
+    await complete.POST(request("/x", { token, body: { ...file, storeId: session.storeId, parts: sent } }), ctx({ id: session.uploadId })),
   );
   return { checked, session, done };
 }
@@ -169,12 +169,17 @@ describe("pairing", () => {
 describe("the device token", () => {
   it("is the only way in: no session cookie or other bearer works, and a revoked token stops", async () => {
     const { id, token } = await paired(ana, labA, "Spectrophotometer");
-    const beat = (call: Call) => heartbeat.POST(request("/api/instruments/heartbeat", { body: {}, ...call }) as never).then(answer);
+    const beat = (call: Call) => heartbeat.POST(request("/api/instruments/heartbeat", { body: {}, ...call })).then(answer);
     expect(await beat({ token })).toMatchObject({ status: 200, body: { instrument: { id }, maxBytes: INSTRUMENT_MAX_BYTES, partBytes: PART_BYTES } });
     expect((await beat({})).status).toBe(401);
     expect((await beat({ headers: { cookie: "sb-access-token=eyJhbGciOiJIUzI1NiJ9.e30.x" } })).status).toBe(401);
     expect((await beat({ token: "eyJhbGciOiJIUzI1NiJ9.e30.x" })).status).toBe(401);
     expect((await beat({ token: `${token}x` })).status).toBe(401);
+
+    const listed = LabInstrumentsRows.parse(
+      await asUser(ana, async () => (await db.query("select coalesce(jsonb_agg(to_jsonb(r)), '[]') as rows from lab_instruments($1) r", [labA])).rows[0]?.rows),
+    );
+    expect(listed.find((i) => i.id === id)?.state).toMatchObject({ kind: "paired", seenSecondsAgo: 0 });
 
     await asUser(ana, () => db.query("select revoke_instrument($1)", [id]));
     expect((await beat({ token })).status).toBe(401);
@@ -223,8 +228,8 @@ describe("sending files", () => {
   it("refuses a file over the cap before anything is sent", async () => {
     const { token } = await paired(ana, labA, "Microscope");
     const big = { path: "Stacks/a.czi", sha256: "a".repeat(64), size: INSTRUMENT_MAX_BYTES + 1, modifiedAt: null };
-    expect((await check.POST(request("/x", { token, body: big }) as never)).status).toBe(413);
-    expect((await uploads.POST(request("/x", { token, body: big }) as never)).status).toBe(413);
+    expect((await check.POST(request("/x", { token, body: big }))).status).toBe(413);
+    expect((await uploads.POST(request("/x", { token, body: big }))).status).toBe(413);
     const { rows } = await db.query("select instrument_max_bytes() as n");
     expect(Number(rows[0]?.n)).toBe(INSTRUMENT_MAX_BYTES);
   });
@@ -235,15 +240,15 @@ describe("sending files", () => {
     const bytes = bytesOf(2000, 5);
     const file = { path: "Runs/w.csv", sha256: sha(bytes), size: bytes.byteLength, modifiedAt: null };
     const started = z.object({ uploadId: z.string(), storeId: z.string() }).parse(
-      (await answer(await uploads.POST(request("/x", { token: mine.token, body: file }) as never))).body,
+      (await answer(await uploads.POST(request("/x", { token: mine.token, body: file })))).body,
     );
     const params = { id: started.uploadId, n: "1" };
-    const put = await parts.PUT(request("/x", { token: theirs.token, raw: bytes, method: "PUT" }) as never, ctx(params));
+    const put = await parts.PUT(request("/x", { token: theirs.token, raw: bytes, method: "PUT" }), ctx(params));
     expect(put.status).toBe(200);
     expect(existsSync(join(store, labB, "uploads", `${started.uploadId}.parts`))).toBe(true);
     expect(existsSync(join(store, labA, "uploads", `${started.uploadId}.parts`, "1"))).toBe(false);
     const done = await complete.POST(
-      request("/x", { token: theirs.token, body: { ...file, storeId: started.storeId, parts: [{ partNumber: 1, etag: "x" }] } }) as never,
+      request("/x", { token: theirs.token, body: { ...file, storeId: started.storeId, parts: [{ partNumber: 1, etag: "x" }] } }),
       ctx({ id: started.uploadId }),
     );
     expect(done.status).toBe(201);

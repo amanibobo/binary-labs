@@ -162,6 +162,7 @@ returns table (
   pairing_expires_at timestamptz,
   paired_at timestamptz,
   last_seen_at timestamptz,
+  seen_seconds_ago int,
   revoked_at timestamptz,
   created_at timestamptz,
   files bigint
@@ -174,7 +175,8 @@ language sql stable security invoker set search_path = public as $$
       when i.pairing_expires_at > now() then 'waiting'
       else 'expired'
     end,
-    i.pairing_expires_at, i.paired_at, i.last_seen_at, i.revoked_at, i.created_at,
+    i.pairing_expires_at, i.paired_at, i.last_seen_at,
+    greatest(0, extract(epoch from now() - i.last_seen_at))::int, i.revoked_at, i.created_at,
     (select count(*) from file_locations fl where fl.source_id = i.source_id and fl.deleted_at is null)
   from instruments i
   where i.lab_id = p_lab_id

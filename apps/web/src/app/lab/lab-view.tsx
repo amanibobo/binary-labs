@@ -8,11 +8,14 @@ import { Button } from "@/components/ui/button";
 import { dataSurface } from "@/components/ui/data-table";
 import { cn } from "@/lib/cn";
 import type { Experiment, LabMember, Person } from "@/lib/domain";
+import { instrumentsLine, type Instrument } from "@/lib/instruments";
 import type { SourceState } from "@/lib/source-state";
 import { AppearanceSection, AppearanceStatus } from "./appearance-section";
+import type { PairingCode } from "./actions";
 import { AREA_COPY, areaHref, type SettingsArea } from "./areas";
 import { DeleteLabSection } from "./delete-lab-section";
 import { DropboxSection, DropboxStatus } from "./dropbox-section";
+import { InstrumentsSection } from "./instruments-section";
 import { LabListSection } from "./lab-list-section";
 import { MembersSection } from "./members-section";
 
@@ -33,6 +36,9 @@ type LabViewProps = {
   members: LabMember[];
   experiments: Experiment[];
   people: Person[];
+  instruments: Instrument[];
+  // Fixtures only: a pairing code as if an admin had just added an instrument.
+  shownCode?: PairingCode;
   notice: DropboxNotice | null;
 };
 
@@ -53,9 +59,10 @@ export function LabView(props: LabViewProps) {
   return <AreaView {...props} area={area} />;
 }
 
-function Overview({ labName, isAdmin, source, members, experiments, people }: LabViewProps) {
+function Overview({ labName, isAdmin, source, members, experiments, people, instruments }: LabViewProps) {
   const tiles: { area: SettingsArea; status: ReactNode }[] = [
     { area: "dropbox", status: <DropboxStatus initial={source} /> },
+    { area: "instruments", status: instrumentsLine(instruments) },
     { area: "experiments", status: count(experiments.length, "experiment", "experiments") },
     { area: "people", status: count(people.length, "person", "people") },
     { area: "members", status: membersLine(members) },
@@ -121,7 +128,7 @@ function AreaView(props: LabViewProps & { area: SettingsArea }) {
   );
 }
 
-function AreaBody({ area, labName, email, isAdmin, source, members, experiments, people, notice }: LabViewProps & { area: SettingsArea }) {
+function AreaBody({ area, labName, email, isAdmin, source, members, experiments, people, instruments, shownCode, notice }: LabViewProps & { area: SettingsArea }) {
   switch (area) {
     case "dropbox":
       return (
@@ -134,6 +141,8 @@ function AreaBody({ area, labName, email, isAdmin, source, members, experiments,
           <DropboxSection initial={source} isAdmin={isAdmin} />
         </>
       );
+    case "instruments":
+      return <InstrumentsSection instruments={instruments} isAdmin={isAdmin} shownCode={shownCode ?? null} />;
     case "experiments":
       return <LabListSection kind="experiments" entries={experiments} isAdmin={isAdmin} />;
     case "people":

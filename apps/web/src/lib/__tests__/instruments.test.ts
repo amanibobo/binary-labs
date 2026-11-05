@@ -41,20 +41,19 @@ describe("instrument paths", () => {
 });
 
 describe("what Settings says", () => {
-  const now = new Date("2026-11-05T12:00:00Z");
   it("says when the uploader last checked in", () => {
-    expect(seenLine(null, now)).toBe("Not seen yet");
-    expect(seenLine("2026-11-05T11:59:10Z", now)).toBe("Seen just now");
-    expect(seenLine("2026-11-05T11:20:00Z", now)).toBe("Seen 40 minutes ago");
-    expect(seenLine("2026-11-05T09:00:00Z", now)).toBe("Seen 3 hours ago");
-    expect(seenLine("2026-11-04T09:00:00Z", now)).toBe("Seen yesterday");
+    expect(seenLine(null)).toBe("Not seen yet");
+    expect(seenLine(50)).toBe("Seen just now");
+    expect(seenLine(40 * 60 + 5)).toBe("Seen 40 minutes ago");
+    expect(seenLine(3 * 3600)).toBe("Seen 3 hours ago");
+    expect(seenLine(27 * 3600)).toBe("Seen yesterday");
   });
 
   it("counts live instruments and their files on the tile", () => {
     const rows = LabInstrumentsRows.parse([
-      { id: "00000000-0000-4000-8000-000000000001", name: "Plate reader", state: "paired", pairing_expires_at: null, paired_at: "2026-11-01T00:00:00Z", last_seen_at: "2026-11-05T11:59:00Z", revoked_at: null, files: 1200 },
-      { id: "00000000-0000-4000-8000-000000000002", name: "qPCR", state: "waiting", pairing_expires_at: "2026-11-05T12:10:00Z", paired_at: null, last_seen_at: null, revoked_at: null, files: "0" },
-      { id: "00000000-0000-4000-8000-000000000003", name: "Old reader", state: "revoked", pairing_expires_at: null, paired_at: null, last_seen_at: null, revoked_at: "2026-10-01T00:00:00Z", files: 40 },
+      { id: "00000000-0000-4000-8000-000000000001", name: "Plate reader", state: "paired", pairing_expires_at: null, paired_at: "2026-11-01T00:00:00Z", seen_seconds_ago: 60, revoked_at: null, files: 1200 },
+      { id: "00000000-0000-4000-8000-000000000002", name: "qPCR", state: "waiting", pairing_expires_at: "2026-11-05T12:10:00Z", paired_at: null, seen_seconds_ago: null, revoked_at: null, files: "0" },
+      { id: "00000000-0000-4000-8000-000000000003", name: "Old reader", state: "revoked", pairing_expires_at: null, paired_at: null, seen_seconds_ago: null, revoked_at: "2026-10-01T00:00:00Z", files: 40 },
     ]);
     expect(rows.map((r) => r.state.kind)).toEqual(["paired", "waiting", "revoked"]);
     expect(instrumentsLine(rows)).toBe("2 instruments, 1,200 files");
