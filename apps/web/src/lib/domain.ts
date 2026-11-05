@@ -36,6 +36,9 @@ export const AuditAction = z.enum([
   "protocol.export",
   "file.upload",
   "file.download",
+  "chart.create",
+  "chart.save",
+  "chart.delete",
 ]);
 export type AuditAction = z.infer<typeof AuditAction>;
 
