@@ -74,7 +74,12 @@ class ModelReply:
 
 class ModelUnavailable(Exception):
     """The provider couldn't be reached or refused the request itself (after the client's
-    own retries). A label job lets it fail the job; a talk-through shows it with Retry."""
+    own retries). A label job lets it fail the job; a talk-through shows it, with Retry when
+    `retryable` (unreachable, overloaded, rate limited) and without when asking again won't help."""
+
+    def __init__(self, message: str, *, retryable: bool = True) -> None:
+        super().__init__(message)
+        self.retryable = retryable
 
 
 class Models(Protocol):
@@ -112,7 +117,11 @@ class AnthropicModels:
             else:
                 response = self._client.messages.create(**params)
         except self._anthropic.APIError as e:
-            raise ModelUnavailable(f"{type(e).__name__}: {e}") from e
+            retryable = isinstance(e, self._anthropic.APIConnectionError) or (
+                isinstance(e, self._anthropic.APIStatusError)
+                and (e.status_code >= 500 or e.status_code == 429)
+            )
+            raise ModelUnavailable(f"{type(e).__name__}: {e}", retryable=retryable) from e
         u = response.usage
         usage = Usage(
             input_tokens=u.input_tokens,

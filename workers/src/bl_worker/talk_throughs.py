@@ -168,7 +168,14 @@ def draft_steps(rt: Runtime, talk_through_id: UUID) -> Draft | None:
             if pending is None:
                 return None
             transcript = process.stored_extraction(conn, pending.sha256, FileKind.AUDIO)
-            text = transcript.content.strip() if transcript else ""
+            if transcript is None:
+                return _finish(
+                    conn,
+                    talk_through_id,
+                    Draft.UNAVAILABLE,
+                    error="This recording has no transcript to draft from.",
+                )
+            text = transcript.content.strip()
             if not text:
                 return _finish(
                     conn,
@@ -204,6 +211,14 @@ def draft_steps(rt: Runtime, talk_through_id: UUID) -> Draft | None:
                 )
             except ModelUnavailable as e:
                 log.warning("steps for talk-through %s: %s", talk_through_id, e)
+                if not e.retryable:
+                    return _finish(
+                        conn,
+                        talk_through_id,
+                        Draft.UNAVAILABLE,
+                        error="The model turned down this request. Start from the transcript"
+                        " instead.",
+                    )
                 return _finish(
                     conn,
                     talk_through_id,

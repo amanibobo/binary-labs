@@ -65,8 +65,8 @@ export function Recorder({
     return () => clearInterval(id);
   }, [state]);
 
-  const take = takeOf(state);
-  useEffect(() => (take === null ? undefined : () => URL.revokeObjectURL(take.url)), [take]);
+  const takeUrl = takeOf(state)?.url ?? null;
+  useEffect(() => (takeUrl === null ? undefined : () => URL.revokeObjectURL(takeUrl)), [takeUrl]);
 
   const unsent = state.kind !== "idle" && state.kind !== "sent";
   useEffect(() => {
@@ -163,7 +163,7 @@ export function Recorder({
     probe.preload = "metadata";
     probe.onloadedmetadata = () => {
       if (Number.isFinite(probe.duration) && probe.duration > 0) {
-        dispatch({ type: "picked", take: { blob: file, url, name: file.name, type, durationMs: Math.round(probe.duration * 1000), madeHere: false } });
+        dispatch({ type: "duration", ms: Math.round(probe.duration * 1000) });
       }
     };
     probe.src = url;

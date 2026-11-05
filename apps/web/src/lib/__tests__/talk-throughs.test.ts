@@ -93,6 +93,11 @@ describe("recording", () => {
     expect(s).toEqual({ kind: "send_failed", take, message: "The connection dropped.", retryable: true });
     expect(recorderReducer(s, { type: "send" })).toEqual({ kind: "sending", take, sent: 0 });
     expect(recorderReducer({ kind: "idle", problem: null }, { type: "send" })).toEqual({ kind: "idle", problem: null });
+    // A file's length read late lands on a take still waiting, never on one being sent.
+    const picked = recorderReducer({ kind: "idle", problem: null }, { type: "picked", take });
+    expect(recorderReducer(picked, { type: "duration", ms: 9_000 })).toMatchObject({ kind: "recorded", take: { durationMs: 9_000 } });
+    const sending = recorderReducer(picked, { type: "send" });
+    expect(recorderReducer(sending, { type: "duration", ms: 9_000 })).toBe(sending);
   });
 });
 

@@ -577,7 +577,64 @@ def test_the_worker_takes_a_recording_to_a_draft_on_its_own(tt_rt, conn, make_la
         "ready",
         "Mini prep",
     )
-    statuses = conn.execute(
-        "select status from procrastinate_jobs where task_name = 'draft_steps'"
+    # The execution lock keeps a second job for the same recording from running beside it.
+    jobs = conn.execute(
+        "select task_name, status, lock from procrastinate_jobs"
+        " where task_name in ('draft_steps', 'process_location')"
+        " order by task_name"
     ).fetchall()
-    assert statuses == [("succeeded",)]
+    assert jobs == [
+        ("draft_steps", "succeeded", f"steps:{tt_id}"),
+        ("process_location", "succeeded", str(row["location_id"])),
+    ]
+
+
+def test_only_a_talk_through_is_transcribed_whatever_its_bytes_look_like(
+    tt_rt, conn, make_lab, fake
+):
+    lab = make_lab()
+    # Audio sent as a plain upload (a client that lied about its type) is indexed by name.
+    data = recording("plain upload")
+    sha = hashlib.sha256(data).hexdigest()
+    tt_rt.previews.put(file_key(lab.id, sha), data)
+    with committed_as_user(conn, lab.user_id):
+        conn.execute(
+            "select * from record_upload(%s, %s, %s, 'memo.mp3', null, %s, null)",
+            (lab.id, sha, len(data), TODAY),
+        )
+    run_scan(tt_rt, upload_source(conn, lab.id))
+    assert fake.calls == []
+
+    # A talk-through in a container the worker doesn't know as audio is transcribed anyway.
+    sha_3gp = hashlib.sha256(b"3gp").hexdigest()
+    tt_rt.previews.put(file_key(lab.id, sha_3gp), b"3gp")
+    with committed_as_user(conn, lab.user_id):
+        (tt_id,) = conn.execute(
+            "select talk_through_id from record_talk_through(%s, %s, 3, 'memo.3gp', %s, null,"
+            " 'protocol', null, null, null)",
+            (lab.id, sha_3gp, TODAY),
+        ).fetchone()
+    run_scan(tt_rt, upload_source(conn, lab.id))
+    assert fake.calls == [b"3gp"]
+    assert draft_steps(tt_rt, tt_id) is Draft.READY
+
+
+def test_a_request_the_model_turns_down_offers_the_transcript_not_a_retry(rt, conn, make_lab, fake):
+    lab = make_lab()
+
+    def answer(request):
+        raise ModelUnavailable("BadRequestError: prompt is too long", retryable=False)
+
+    tt = replace(rt, transcriber=fake, models=FakeModels(answer))
+    _, (tt_id, _, _) = record(tt, conn, lab, recording())
+    run_scan(tt, upload_source(conn, lab.id))
+    assert draft_steps(tt, tt_id) is Draft.UNAVAILABLE
+
+
+def test_a_talk_through_is_marked_used_only_by_the_save_that_used_it(tt_rt, conn, make_lab):
+    lab = make_lab()
+    _, (tt_id, _, _) = record(tt_rt, conn, lab, recording())
+    _, earlier_version = make_protocol(conn, lab, title="Something else")
+    with as_user(conn, lab.user_id), raises_code("BL105"):
+        conn.execute("select mark_talk_through_used(%s, %s)", (tt_id, earlier_version))
+    assert view(conn, lab.user_id, tt_id)["used_version"] is None

@@ -33,9 +33,11 @@ def due_sources(conn: psycopg.Connection) -> list[UUID]:
     return [r[0] for r in conn.execute(DUE_SOURCES)]
 
 
+# queueing_lock keeps one waiting job per key; lock keeps a second from running beside one
+# already running, which would pay twice for a long transcription or model call.
 def _defer_locked(name: str, lock: str, **kwargs: str) -> bool:
     try:
-        app.configure_task(name, queueing_lock=lock).defer(**kwargs)
+        app.configure_task(name, queueing_lock=lock, lock=lock).defer(**kwargs)
     except AlreadyEnqueued:
         return False
     return True

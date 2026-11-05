@@ -347,7 +347,9 @@ begin
 end
 $$;
 
--- Marks a talk-through used by a version the caller just saved, once.
+-- Marks a talk-through used by a version the caller saved in this same transaction, once.
+-- created_at defaults to now(), the transaction's start, so a version from any earlier call
+-- can't be passed in to mark someone else's talk-through used without saving its steps.
 create function mark_talk_through_used(p_id uuid, p_version_id uuid) returns void
 language plpgsql security definer set search_path = public as $$
 begin
@@ -356,6 +358,7 @@ begin
     and exists (
       select 1 from protocol_versions v
       where v.id = p_version_id and v.lab_id = t.lab_id and v.author = auth.uid()
+        and v.created_at = now()
         and (t.protocol_id is null or v.protocol_id = t.protocol_id)
     );
   if not found then

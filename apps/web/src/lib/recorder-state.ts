@@ -22,6 +22,8 @@ export type RecorderAction =
   | { type: "resume"; at: number }
   | { type: "stopped"; take: Take; capped: boolean }
   | { type: "picked"; take: Take }
+  // A picked file's length, once the browser has read it; only a take not yet sent takes it.
+  | { type: "duration"; ms: number }
   | { type: "discard" }
   | { type: "send" }
   | { type: "progress"; sent: number }
@@ -69,6 +71,8 @@ export function recorderReducer(state: RecorderState, action: RecorderAction): R
       return { kind: "recorded", take: action.take, capped: action.capped };
     case "picked":
       return { kind: "recorded", take: action.take, capped: false };
+    case "duration":
+      return state.kind === "recorded" ? { ...state, take: { ...state.take, durationMs: action.ms } } : state;
     case "discard":
       return { kind: "idle", problem: null };
     case "send": {

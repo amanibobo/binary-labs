@@ -87,7 +87,7 @@ def _process(rt: Runtime, conn: psycopg.Connection, loc: Location) -> Outcome:
     try:
         data = build_reader(loc.source, rt.settings, rt.previews).read(loc.external_id)
         blob = _store_blob(conn, loc, data)
-        extracted = _extract(conn, extractor_for(rt, loc.source.kind, blob), loc, blob, data)
+        extracted = _extract(conn, extractor_for(rt, conn, loc, blob), loc, blob, data)
         _write_chunks(conn, loc.lab_id, blob.sha256, extracted)
         _embed_chunks(conn, rt.embedder, loc.lab_id, blob.sha256)
         _write_preview(conn, rt.previews, loc.lab_id, blob, data)
@@ -120,14 +120,16 @@ def _store_blob(conn: psycopg.Connection, loc: Location, data: bytes) -> Blob:
     return Blob(sha, FileKind(stored[0]), stored[1])
 
 
-def extractor_for(rt: Runtime, source: SourceKind, blob: Blob) -> Extractor | None:
-    # Audio reaches the upload source only as a talk-through someone recorded, so only that
-    # is transcribed. Audio in a lab's Dropbox is indexed by name: nobody pays to transcribe
-    # an archive of recordings by accident.
-    if blob.kind is FileKind.AUDIO:
-        return (
-            TranscriptExtractor(rt.transcriber, blob.mime) if source is SourceKind.UPLOAD else None
-        )
+def extractor_for(
+    rt: Runtime, conn: psycopg.Connection, loc: Location, blob: Blob
+) -> Extractor | None:
+    # Only a recording someone made as a talk-through is transcribed, whatever its bytes sniff
+    # as. Other audio is indexed by name: nobody pays to transcribe an archive by accident.
+    is_talk_through = conn.execute(
+        "select 1 from talk_throughs where location_id = %s", (loc.id,)
+    ).fetchone()
+    if is_talk_through is not None:
+        return TranscriptExtractor(rt.transcriber, blob.mime)
     return EXTRACTORS.get(blob.kind)
 
 
