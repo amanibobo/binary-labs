@@ -1,11 +1,13 @@
+import { cookies } from "next/headers";
 import type { ReactNode } from "react";
 import type { ShellData } from "@/lib/shell-data";
 import { CommandPalette } from "./command-palette";
 import { NeedsLookCountProvider } from "./labels/needs-look-count";
 import type { ShellLocation } from "./nav";
-import { PhoneBar, Sidebar } from "./sidebar";
+import { DesktopFrame, PhoneBar, SIDEBAR_COOKIE } from "./sidebar";
 
-export function AppShell({ shell, location, children }: { shell: ShellData; location: ShellLocation; children: ReactNode }) {
+export async function AppShell({ shell, location, children }: { shell: ShellData; location: ShellLocation; children: ReactNode }) {
+  const collapsed = (await cookies()).get(SIDEBAR_COOKIE)?.value === "collapsed";
   return (
     <NeedsLookCountProvider initial={shell.needsLookCount}>
       <CommandPalette>
@@ -15,13 +17,12 @@ export function AppShell({ shell, location, children }: { shell: ShellData; loca
         >
           Skip to content
         </a>
-        <Sidebar shell={shell} current={location.section} />
-        <div className="flex min-h-dvh flex-col md:pl-60">
+        <DesktopFrame shell={shell} current={location.section} initialCollapsed={collapsed}>
           <PhoneBar shell={shell} current={location.section} />
           <main id="main" className="flex-1">
             {children}
           </main>
-        </div>
+        </DesktopFrame>
       </CommandPalette>
     </NeedsLookCountProvider>
   );

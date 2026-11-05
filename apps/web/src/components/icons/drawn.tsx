@@ -124,6 +124,15 @@ export function LinkIcon(props: IconProps) {
   );
 }
 
+export function SidebarIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <rect {...line} x="3.5" y="4.5" width="17" height="15" rx="3" />
+      <path {...line} d="M9.5 4.5v15" />
+    </Svg>
+  );
+}
+
 export function SendIcon(props: IconProps) {
   return (
     <Svg {...props}>
