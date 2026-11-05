@@ -17,7 +17,7 @@ from bl_worker.labels.domain import LabelStatus, Strength, Upload
 from bl_worker.labels.tier1 import tier1
 from bl_worker.previews import file_key
 from bl_worker.process import Outcome
-from bl_worker.sources import build_reader
+from bl_worker.sources import read_file
 
 MAX_BYTES = 50 * 1024 * 1024
 TODAY = datetime.now(UTC).date()
@@ -207,11 +207,9 @@ def test_a_member_of_one_lab_cannot_upload_into_or_read_another(rt, conn, make_l
         assert search(conn, b.id, "Secret", None) == []
 
     # The store key comes from the location's own lab, so lab A's reader can't reach B's bytes.
-    a_reader = build_reader(
-        SourceRow(uuid.uuid4(), a.id, SourceKind.UPLOAD, "/", None, None), rt.settings, rt.previews
-    )
+    a_source = SourceRow(uuid.uuid4(), a.id, SourceKind.UPLOAD, "/", None, None)
     with pytest.raises(SourceReadError):
-        a_reader.read(b_sha)
+        read_file(a_source, rt.settings, rt.previews, b_sha, b_sha)
     assert b_location is not None
 
 

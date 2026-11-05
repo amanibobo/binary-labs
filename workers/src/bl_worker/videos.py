@@ -17,7 +17,7 @@ from bl_worker.domain import ExtractionKind, FileKind, SourceKind, SourceReadErr
 from bl_worker.extract import Extracted, ExtractionFailed, clean_text
 from bl_worker.runtime import Runtime
 from bl_worker.scan import LIVE_SOURCE
-from bl_worker.sources import build_reader
+from bl_worker.sources import read_file
 from bl_worker.transcribe import Transcriber, TranscriptionFailed
 from bl_worker.video import AUDIO_MIME, Ffmpeg, NeedsFfmpeg, NoSound, audio_track
 
@@ -92,13 +92,15 @@ class Readable:
     """A live place this lab's copy of the video can be read from."""
 
     external_id: str
+    source_rev: str
     source: SourceRow
 
 
 def _readable(conn: psycopg.Connection, lab_id: UUID, sha256: str) -> Readable | None:
     row = conn.execute(
         f"""
-        select fl.external_id, s.id, s.lab_id, s.kind, s.root_path, s.token_ciphertext, s.cursor
+        select fl.external_id, fl.source_rev,
+          s.id, s.lab_id, s.kind, s.root_path, s.token_ciphertext, s.cursor
         from file_locations fl join sources s on s.id = fl.source_id
         where fl.lab_id = %s and fl.sha256 = %s and fl.deleted_at is null
           and fl.index_state = 'indexed' and {LIVE_SOURCE}
@@ -109,7 +111,8 @@ def _readable(conn: psycopg.Connection, lab_id: UUID, sha256: str) -> Readable |
     ).fetchone()
     if row is None:
         return None
-    return Readable(row[0], SourceRow(row[1], row[2], SourceKind(row[3]), row[4], row[5], row[6]))
+    source = SourceRow(row[2], row[3], SourceKind(row[4]), row[5], row[6], row[7])
+    return Readable(row[0], row[1], source)
 
 
 def _finish(
@@ -171,7 +174,9 @@ def _hear(
             conn, lab_id, blob.sha256, Transcript.FAILED, "We couldn't find this video's file."
         )
     try:
-        data = build_reader(where.source, rt.settings, rt.previews).read(where.external_id)
+        data = read_file(
+            where.source, rt.settings, rt.previews, where.external_id, where.source_rev
+        )
     except SourceReadError as e:
         return _finish(conn, lab_id, blob.sha256, Transcript.FAILED, str(e))
     # A video indexed before posters existed gets one now that its bytes are here anyway.

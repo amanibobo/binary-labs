@@ -13,7 +13,8 @@ class Reader(Protocol):
 
 
 class Source(Reader, Protocol):
-    """A place the worker lists files from. Uploads are pushed to us instead, so they only read."""
+    """A place the worker lists files from. Uploads and instrument files are pushed to us
+    instead, so they only read."""
 
     def list(self, cursor: str | None) -> ListPage: ...
 
@@ -44,9 +45,15 @@ def build_source(row: SourceRow, settings: Settings) -> Source:
     return LISTED_SOURCES[row.kind](row, settings)
 
 
-def build_reader(row: SourceRow, settings: Settings, store: PreviewStore) -> Reader:
-    if row.kind is SourceKind.UPLOAD:
-        from bl_worker.sources.upload import UploadReader
+# Sources whose bytes we hold, at <lab_id>/files/<sha256>; a location's source_rev is that sha256.
+STORED_SOURCES = frozenset({SourceKind.UPLOAD, SourceKind.INSTRUMENT})
 
-        return UploadReader(store, row.lab_id)
-    return build_source(row, settings)
+
+def read_file(
+    row: SourceRow, settings: Settings, store: PreviewStore, external_id: str, source_rev: str
+) -> bytes:
+    if row.kind in STORED_SOURCES:
+        from bl_worker.sources.stored import StoredReader
+
+        return StoredReader(store, row.lab_id).read(source_rev)
+    return build_source(row, settings).read(external_id)

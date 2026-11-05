@@ -11,6 +11,8 @@ class SourceKind(StrEnum):
     LOCAL = "local"
     # Files people send us; the web app records them, so there is nothing to list.
     UPLOAD = "upload"
+    # Files an instrument PC's uploader sends us; also recorded by the web app.
+    INSTRUMENT = "instrument"
 
 
 class FileKind(StrEnum):

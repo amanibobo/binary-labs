@@ -38,6 +38,7 @@ LAB_TABLES = (
     "talk_throughs",
     "pending_protocol_files",
     "videos",
+    "instruments",
     "audit_log",
 )
 

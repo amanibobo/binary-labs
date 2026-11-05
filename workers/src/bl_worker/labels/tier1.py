@@ -95,6 +95,13 @@ def upload_facts(f: FileInfo, ctx: LabContext) -> Iterable[Finding]:
         yield "date", Fact(f.upload.uploaded_on, "upload date", Strength.STRONG)
 
 
+def instrument_source(f: FileInfo, _ctx: LabContext) -> Iterable[Finding]:
+    """The lab named the instrument that sent this file, which is surer than any signature in
+    its header, so it ranks with a person's correction and a header never conflicts with it."""
+    if f.instrument is not None:
+        yield "instrument", Fact(f.instrument, "sent by its uploader", Strength.TAUGHT)
+
+
 def name_date(f: FileInfo, _ctx: LabContext) -> Iterable[Finding]:
     for path in f.paths:
         stem = PurePosixPath(path).stem
@@ -344,6 +351,7 @@ def kind_what(f: FileInfo, _ctx: LabContext) -> Iterable[Finding]:
 RULES: list[Rule] = [
     taught_rules,
     upload_facts,
+    instrument_source,
     exif_date,
     name_date,
     folder_date,
