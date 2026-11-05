@@ -25,5 +25,5 @@ export async function createLab(_prev: CreateLabState, form: FormData): Promise<
     logError("lab.create_failed", { error });
     return { kind: "error", message: "We couldn't create the lab. Try again.", name: raw };
   }
-  redirect("/lab");
+  redirect("/settings/dropbox");
 }

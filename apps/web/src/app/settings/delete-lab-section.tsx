@@ -1,37 +1,34 @@
 "use client";
 
 import { useActionState, useId, useState } from "react";
-import { Button, buttonVariants } from "@/components/ui/button";
-import { dataSurface } from "@/components/ui/data-table";
+import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDock } from "@/components/ui/dialog";
 import { Input, Label } from "@/components/ui/field";
-import { cn } from "@/lib/cn";
 import { nameMatches } from "@/lib/lab-deletion";
 import { deleteLab, type DeleteLabState } from "./actions";
+import { SettingsGroup, SettingsRow } from "./settings-frame";
 
-export function DeleteLabSection({ labName }: { labName: string }) {
+// Admins only. It sits apart at the foot of General, and the dialog asks for the lab's name.
+export function DeleteLabRow({ labName }: { labName: string }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className={cn(dataSurface, "grid gap-3 p-5 sm:p-6")}>
-      <p className="max-w-prose text-paragraph-medium text-content-secondary">
-        Every member loses access at once, and there&apos;s no undo. Protocols, uploads, recordings and videos are kept
-        only here, so save what you need first.
-      </p>
-      <div className="mt-2 flex flex-wrap gap-2">
-        {/* A plain link: the route answers with a file to save. */}
-        <a href="/api/protocols/export" download className={buttonVariants({ variant: "secondary" })}>
-          Download protocols
-        </a>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <Button variant="tertiary" onClick={() => setOpen(true)}>
-            Delete lab
-          </Button>
-          <DialogContent title={`Delete ${labName}?`} aria-describedby={undefined}>
-            <DeleteLabForm labName={labName} onCancel={() => setOpen(false)} />
-          </DialogContent>
-        </Dialog>
-      </div>
-    </div>
+    <SettingsGroup>
+      <SettingsRow
+        label="Delete this lab"
+        action={
+          <Dialog open={open} onOpenChange={setOpen}>
+            <Button variant="negative" onClick={() => setOpen(true)}>
+              Delete lab
+            </Button>
+            <DialogContent title={`Delete ${labName}?`} aria-describedby={undefined}>
+              <DeleteLabForm labName={labName} onCancel={() => setOpen(false)} />
+            </DialogContent>
+          </Dialog>
+        }
+      >
+        Every member loses access at once, and there&apos;s no undo. Files in Dropbox stay as they are.
+      </SettingsRow>
+    </SettingsGroup>
   );
 }
 
@@ -47,6 +44,7 @@ function DeleteLabForm({ labName, onCancel }: { labName: string; onCancel: () =>
           Everything Binary holds for {labName} is deleted: the index, labels, protocols, uploads, recordings and
           videos. Files in Dropbox stay as they are.
         </p>
+        <p>Protocols, uploads, recordings and videos are kept only here, so download what you need first.</p>
       </div>
       <div className="grid gap-1.5 px-4 pt-5 sm:px-6">
         <Label htmlFor={`${id}-name`}>
@@ -72,7 +70,7 @@ function DeleteLabForm({ labName, onCancel }: { labName: string; onCancel: () =>
         </p>
       </div>
       <DialogDock className="pt-2">
-        <Button type="submit" disabled={!ready || pending}>
+        <Button type="submit" variant="negative" disabled={!ready || pending}>
           {pending ? "Deleting" : "Delete lab"}
         </Button>
         <Button type="button" variant="secondary" onClick={onCancel}>

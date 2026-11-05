@@ -173,8 +173,8 @@ const earliest = (...times: (string | null)[]): string | null =>
 
 const ITEMS: Record<ChecklistItemId, ItemSpec> = {
   // A lab that works from uploads alone has its files too.
-  files: { label: "Add your lab's files", action: { kind: "link", href: "/lab?area=dropbox" }, doneAt: ({ progress }) => earliest(progress.dropboxAt, progress.labUploadAt) },
-  invite: { label: "Invite someone", action: { kind: "link", href: "/lab?area=members" }, doneAt: ({ progress }) => progress.invitedAt },
+  files: { label: "Add your lab's files", action: { kind: "link", href: "/settings/dropbox" }, doneAt: ({ progress }) => earliest(progress.dropboxAt, progress.labUploadAt) },
+  invite: { label: "Invite someone", action: { kind: "link", href: "/settings/members" }, doneAt: ({ progress }) => progress.invitedAt },
   tour: { label: "Take the tour", action: { kind: "tour" }, doneAt: ({ state }) => (state.tourEnded?.how === "done" ? state.tourEnded.at : null) },
   search: { label: "Run a search", action: { kind: "link", href: "/" }, doneAt: ({ progress }) => progress.searchedAt },
   fix: { label: "Fix a label", action: { kind: "link", href: "/needs-a-look" }, doneAt: ({ progress }) => progress.correctedAt },
@@ -226,7 +226,7 @@ export type TourStep = {
   clip: ClipId;
 };
 
-// Anchors are data-tour attributes; sidebar links carry their section's name, so Settings is "lab".
+// Anchors are data-tour attributes; sidebar links carry their section's name, so Settings (at /settings) is "lab".
 const tour = (name: string) => `[data-tour~="${name}"]`;
 
 const TOUR: Record<TourStepId, Omit<TourStep, "id">> = {

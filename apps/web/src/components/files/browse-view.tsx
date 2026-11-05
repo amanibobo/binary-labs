@@ -3,7 +3,7 @@ import { useInfiniteQuery } from "@tanstack/react-query";
 import { motion } from "motion/react";
 import Link from "next/link";
 import { useId, useState } from "react";
-import { areaHref } from "@/app/lab/areas";
+import { settingsHref } from "@/app/settings/sections";
 import type { FileHit } from "@/lib/domain";
 import { cn } from "@/lib/cn";
 import { folderAncestors, folderHref, folderName, type FolderNode } from "@/lib/folders";
@@ -227,7 +227,7 @@ function EmptyLab({ source, isAdmin }: { source: SourceState; isAdmin: boolean }
     <div>
       <p className="max-w-prose text-paragraph-medium text-content-secondary">{message}</p>
       {source.kind !== "connected" && isAdmin ? (
-        <Link href={areaHref("dropbox")} className={cn(buttonVariants(), "mt-4")}>
+        <Link href={settingsHref("dropbox")} className={cn(buttonVariants(), "mt-4")}>
           Open settings
         </Link>
       ) : null}

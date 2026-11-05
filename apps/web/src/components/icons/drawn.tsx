@@ -171,6 +171,24 @@ export function ChevronSmallIcon(props: IconProps) {
   );
 }
 
+// A plain cloud for a connected file store; not any company's logo.
+export function CloudIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path {...line} d="M7.5 18.5h9.25a3.75 3.75 0 0 0 .6-7.45A5.5 5.5 0 0 0 6.7 10.2 4.2 4.2 0 0 0 7.5 18.5z" />
+    </Svg>
+  );
+}
+
+// A benchtop instrument with its drawer out.
+export function InstrumentIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path {...line} d="M4 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8H4zM4 15v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2M8 15v2.5h6V15M15.5 9h1.5" />
+    </Svg>
+  );
+}
+
 
 export function OpenExternalIcon(props: IconProps) {
   return (

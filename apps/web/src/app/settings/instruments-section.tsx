@@ -4,11 +4,13 @@ import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useId, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { dataRow, dataSurface } from "@/components/ui/data-table";
+import { InstrumentIcon } from "@/components/icons/drawn";
+import { dataSurface } from "@/components/ui/data-table";
 import { Input, Label } from "@/components/ui/field";
 import { cn } from "@/lib/cn";
 import { filesLine, PAIRING_MINUTES, seenLine, type Instrument } from "@/lib/instruments";
 import { addInstrument, renewPairingCode, revokeInstrument, type AddInstrumentState, type PairingCode } from "./actions";
+import { ConnectionRow } from "./settings-frame";
 
 type Props = { instruments: Instrument[]; isAdmin: boolean; shownCode: PairingCode | null };
 
@@ -56,19 +58,14 @@ export function InstrumentsSection({ instruments, isAdmin, shownCode }: Props) {
         ) : (
           <ul>
             {instruments.map((instrument) => (
-              <li key={instrument.id} className={cn(dataRow, "flex min-h-14 items-center gap-3 py-2 pr-3 pl-5 sm:pl-6")}>
-                <span className="min-w-0 flex-1">
-                  <span
-                    className={cn(
-                      "block truncate text-paragraph-medium",
-                      instrument.state.kind === "revoked" ? "text-content-tertiary" : "text-content-primary",
-                    )}
-                  >
-                    {instrument.name}
-                  </span>
-                  <span className="block truncate text-paragraph-small text-content-tertiary">{stateLine(instrument)}</span>
-                </span>
-                {isAdmin ? <RowActions instrument={instrument} onCode={setPairing} /> : null}
+              <li key={instrument.id} className="border-t border-border-opaque first:border-t-0">
+                <ConnectionRow
+                  icon={<InstrumentIcon className="size-5" />}
+                  name={instrument.name}
+                  status={stateLine(instrument)}
+                  muted={instrument.state.kind === "revoked"}
+                  action={isAdmin ? <RowActions instrument={instrument} onCode={setPairing} /> : null}
+                />
               </li>
             ))}
           </ul>

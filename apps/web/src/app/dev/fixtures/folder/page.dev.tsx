@@ -1,4 +1,4 @@
-import { FolderView } from "@/app/lab/folder/folder-view";
+import { FolderView } from "@/app/settings/dropbox/folder/folder-view";
 import { AppShell } from "@/components/app-shell";
 import { fixtureShell, scanningSource } from "@/fixtures/data";
 import { FixtureLabApi } from "@/fixtures/fixture-api";

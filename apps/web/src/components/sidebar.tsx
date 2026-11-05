@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Dialog, DropdownMenu, Tooltip } from "radix-ui";
 import { createContext, use, useEffect, useState, type ReactNode } from "react";
 import { signOut } from "@/app/actions";
-import { InviteForm } from "@/app/lab/members-section";
+import { InviteForm } from "@/app/settings/members-section";
 import { cn } from "@/lib/cn";
 import type { ShellData } from "@/lib/shell-data";
 import { PaletteTrigger } from "./command-palette";

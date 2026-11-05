@@ -15,6 +15,7 @@ import { logError } from "@/lib/log";
 import { requestOrigin } from "@/lib/origin";
 import { createServiceSupabase, unwrap } from "@/lib/supabase/server";
 import { loadViewer, type Member } from "@/lib/viewer";
+import { settingsHref } from "./sections";
 
 export type ActionResult = { kind: "ok" } | { kind: "error"; message: string };
 
@@ -61,7 +62,7 @@ export async function setFolder(rawPath: string): Promise<ActionResult> {
     return { kind: "error", message: "We couldn't save that folder. Try again." };
   }
   revalidatePath("/", "layout");
-  redirect("/lab");
+  redirect(settingsHref("dropbox"));
 }
 
 export async function requestRescan(): Promise<ActionResult> {
@@ -167,7 +168,7 @@ export async function inviteMember(_prev: InviteState, form: FormData): Promise<
         .upsert({ lab_id: lab.id, user_id: invitee.id, role: "member" }, { onConflict: "lab_id,user_id", ignoreDuplicates: true }),
     );
     await audit(supabase, { labId: lab.id, actor: user.id, action: "member.invite", target: email.data });
-    revalidatePath("/lab");
+    revalidatePath(settingsHref("members"));
     return { kind: "invited", email: email.data, existingAccount: invitee.existingAccount };
   } catch (error) {
     logError("member.invite_failed", { labId: lab.id, error });
@@ -221,7 +222,7 @@ export async function addListEntry(rawKind: LabListKind, _prev: ListAddState, fo
     logError("lab_list.add_failed", { labId: lab.id, list: list.table, error });
     return fail(`We couldn't add that ${list.noun}. Try again.`);
   }
-  revalidatePath("/lab");
+  revalidatePath(settingsHref(rawKind));
   return { kind: "added", name: name.data };
 }
 
@@ -236,7 +237,7 @@ export async function removeListEntry(rawKind: LabListKind, rawId: string): Prom
     logError("lab_list.remove_failed", { labId: lab.id, list: list.table, error });
     return { kind: "error", message: `We couldn't remove that ${list.noun}. Try again.` };
   }
-  revalidatePath("/lab");
+  revalidatePath(settingsHref(rawKind));
   return { kind: "ok" };
 }
 
@@ -262,7 +263,7 @@ export async function addInstrument(_prev: AddInstrumentState, form: FormData): 
     return { kind: "error", message: "We couldn't add that instrument. Try again.", name: raw };
   }
   const [created] = CreatedInstrument.parse(data);
-  revalidatePath("/lab");
+  revalidatePath(settingsHref("instruments"));
   return {
     kind: "added",
     pairing: { instrumentId: created.instrument_id, name: name.data, code: displayCode(code), expiresAt: created.pairing_expires_at, server: await requestOrigin() },
@@ -280,7 +281,7 @@ export async function renewPairingCode(rawId: string, name: string): Promise<{ k
     logError("instrument.renew_failed", { labId: lab.id, error });
     return { kind: "error", message: "We couldn't make a new code. Try again." };
   }
-  revalidatePath("/lab");
+  revalidatePath(settingsHref("instruments"));
   return {
     kind: "ok",
     pairing: { instrumentId: id.data, name, code: displayCode(code), expiresAt: z.string().parse(data), server: await requestOrigin() },
@@ -296,6 +297,6 @@ export async function revokeInstrument(rawId: string): Promise<ActionResult> {
     logError("instrument.revoke_failed", { labId: lab.id, error });
     return { kind: "error", message: "We couldn't revoke it. Try again." };
   }
-  revalidatePath("/lab");
+  revalidatePath(settingsHref("instruments"));
   return { kind: "ok" };
 }

@@ -10,7 +10,7 @@ import { cn } from "@/lib/cn";
 import { useLabApi } from "@/components/lab-api";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { setFolder } from "../actions";
+import { setFolder } from "@/app/settings/actions";
 
 function crumbs(path: string): { name: string; path: string }[] {
   const parts = path.split("/").filter(Boolean);

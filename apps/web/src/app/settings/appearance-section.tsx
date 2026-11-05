@@ -88,9 +88,3 @@ export function AppearanceSection() {
     </div>
   );
 }
-
-export function AppearanceStatus() {
-  const choice = useThemeChoice();
-  if (choice === null) return null;
-  return <>{OPTIONS.find((o) => o.value === choice)?.label}</>;
-}
