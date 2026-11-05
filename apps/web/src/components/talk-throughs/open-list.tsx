@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { useId } from "react";
 import { cn } from "@/lib/cn";
-import { formatDate } from "@/lib/format";
 import { authorName, KIND_NAMES, type AuthorNames } from "@/lib/protocols";
 import { formatClock, talkThroughHref, type OpenTalkThrough } from "@/lib/talk-throughs";
 import { FileAudioIcon } from "../icons/drawn";
 import { dataRow, dataSurface } from "../ui/data-table";
+import { When } from "@/components/ui/when";
 
 const PROGRESS = {
   transcribing: "Transcribing",
@@ -41,7 +41,7 @@ export function OpenTalkThroughs({
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-label-medium text-content-primary">{t.title ?? `${KIND_NAMES[t.kind]} talk-through`}</span>
                 <span className="block truncate text-paragraph-small text-content-tertiary">
-                  {formatDate(t.recordedAt)} by {authorName(authors, t.recordedBy)}
+                  <When iso={t.recordedAt} /> by {authorName(authors, t.recordedBy)}
                   {t.durationMs === null ? "" : ` · ${formatClock(t.durationMs)}`}
                 </span>
               </span>

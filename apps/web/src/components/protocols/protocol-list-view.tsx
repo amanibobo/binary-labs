@@ -1,9 +1,7 @@
 "use client";
-
 import Link from "next/link";
 import { useState } from "react";
 import { cn } from "@/lib/cn";
-import { formatDate } from "@/lib/format";
 import {
   authorName,
   KIND_NAMES,
@@ -18,6 +16,7 @@ import { MicIcon, ProtocolIcon } from "../icons/drawn";
 import { OpenTalkThroughs } from "../talk-throughs/open-list";
 import { buttonVariants } from "../ui/button";
 import { dataRow, dataSurface } from "../ui/data-table";
+import { When } from "@/components/ui/when";
 
 type Filter = ProtocolKind | "all";
 
@@ -110,7 +109,7 @@ export function ProtocolListView({
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-label-medium text-content-primary">{p.title}</span>
                       <span className="mt-1 block text-paragraph-small text-content-tertiary">
-                        {KIND_NAMES[p.kind]} · Version {p.version} · Updated {formatDate(p.updatedAt)} by{" "}
+                        {KIND_NAMES[p.kind]} · Version {p.version} · Updated <When iso={p.updatedAt} /> by{" "}
                         {authorName(authors, p.author)}
                       </span>
                     </span>

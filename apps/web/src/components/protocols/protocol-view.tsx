@@ -1,5 +1,4 @@
 "use client";
-
 import { useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
@@ -8,7 +7,7 @@ import { useId, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import type { FileHit } from "@/lib/domain";
 import { cn } from "@/lib/cn";
-import { folderOf, formatDate, openTarget } from "@/lib/format";
+import { folderOf, openTarget } from "@/lib/format";
 import { authorName, isCurrent, KIND_NAMES, protocolHref, type AuthorNames, type ProtocolVersion } from "@/lib/protocols";
 import { recordHref, type OpenTalkThrough } from "@/lib/talk-throughs";
 import type { ProtocolVideo } from "@/lib/videos";
@@ -25,6 +24,7 @@ import { FilePicker } from "./file-picker";
 import { OpenTalkThroughs } from "../talk-throughs/open-list";
 import { ProtocolVideos, videosKey } from "../videos/protocol-videos";
 import { Markdown } from "./markdown";
+import { When } from "@/components/ui/when";
 
 export function ProtocolView({
   page,
@@ -61,7 +61,7 @@ export function ProtocolView({
         )}
         <h1 className="text-heading-medium sm:text-heading-large">{page.title}</h1>
         <p className="mt-2 text-paragraph-small text-content-tertiary">
-          {KIND_NAMES[page.kind]} · Version {page.version} · Saved {formatDate(page.createdAt)} by {authorName(authors, page.author)}
+          {KIND_NAMES[page.kind]} · Version {page.version} · Saved <When iso={page.createdAt} /> by {authorName(authors, page.author)}
         </p>
         <div className="mt-5 flex flex-wrap gap-2">
           {editable ? (

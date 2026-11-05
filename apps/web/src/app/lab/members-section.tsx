@@ -1,13 +1,12 @@
 "use client";
-
 import { useActionState, useId } from "react";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { dataRow, dataSurface } from "@/components/ui/data-table";
 import { Input, Label } from "@/components/ui/field";
 import type { LabMember } from "@/lib/domain";
-import { formatDate } from "@/lib/format";
 import { inviteMember, type InviteState } from "./actions";
+import { When } from "@/components/ui/when";
 
 export function MembersSection({ members, isAdmin }: { members: LabMember[]; isAdmin: boolean }) {
   return (
@@ -18,7 +17,7 @@ export function MembersSection({ members, isAdmin }: { members: LabMember[]; isA
             <Avatar label={member.email ?? "?"} tintKey={member.email ?? member.userId} />
             <span className="min-w-0 flex-1">
               <span className="block truncate text-paragraph-medium text-content-primary">{member.email ?? "Unknown address"}</span>
-              <span className="block text-paragraph-small text-content-tertiary">Joined {formatDate(member.joinedAt)}</span>
+              <span className="block text-paragraph-small text-content-tertiary">Joined <When iso={member.joinedAt} /></span>
             </span>
             <span className="shrink-0 text-label-small text-content-secondary">{member.role === "admin" ? "Admin" : "Member"}</span>
           </li>

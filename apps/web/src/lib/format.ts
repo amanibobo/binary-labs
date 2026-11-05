@@ -1,9 +1,17 @@
 import type { FileKind, FileLocation, MatchReason, SourceKind } from "./domain";
 
-const dateFormat = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+const DATE_PARTS = { month: "short", day: "numeric", year: "numeric" } as const;
+const dayFormat = new Intl.DateTimeFormat("en-US", { ...DATE_PARTS, timeZone: "UTC" });
 
-export function formatDate(iso: string): string {
-  return dateFormat.format(new Date(iso));
+// A calendar day ("2026-10-14"), such as a label's date: the same day wherever it's read.
+export function formatDay(day: string): string {
+  return dayFormat.format(new Date(`${day}T00:00:00Z`));
+}
+
+// A moment, such as when a file was saved: the day it was where the reader is.
+// Leave timeZone out to use the runtime's own zone.
+export function formatInstant(iso: string, timeZone?: string): string {
+  return new Intl.DateTimeFormat("en-US", { ...DATE_PARTS, timeZone }).format(new Date(iso));
 }
 
 export function folderOf(location: FileLocation): string {

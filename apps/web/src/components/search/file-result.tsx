@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useId } from "react";
 import type { FileHit } from "@/lib/domain";
 import { excerpt } from "@/lib/highlight";
-import { folderOf, formatDate, matchLine, openTarget, otherPlacesLine } from "@/lib/format";
+import { folderOf, matchLine, openTarget, otherPlacesLine } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { useLabApi } from "../lab-api";
 import { KindIcon } from "../files/kind-icon";
@@ -14,6 +14,7 @@ import { useLabels } from "../labels/labels-context";
 import { OpenExternalIcon } from "../icons/drawn";
 import { buttonVariants } from "../ui/button";
 import { dataRow } from "../ui/data-table";
+import { When } from "../ui/when";
 import { Highlighted } from "./highlighted";
 
 // One row of a raised results list: kind icon, name, path, the matching text
@@ -39,9 +40,6 @@ export function FileResult({
   const open = openTarget(primary);
   const named = label !== null && label.cleanName !== null;
   const title = label?.cleanName ?? primary.originalName;
-  const meta = [matchLine(hit.matchedBy), `Modified ${formatDate(primary.modifiedAt)}`, otherPlacesLine(others.length)]
-    .filter((part) => part !== null)
-    .join(" · ");
 
   return (
     <li className={cn(dataRow, "group", expanded && "bg-background-secondary")}>
@@ -75,7 +73,10 @@ export function FileResult({
             </span>
           ) : null}
           {label === null ? null : <LabelTags hit={hit} label={label} expanded={expanded} />}
-          <span className="mt-2 block text-paragraph-xsmall text-content-tertiary">{meta}</span>
+          <span className="mt-2 block text-paragraph-xsmall text-content-tertiary">
+            {[matchLine(hit.matchedBy), otherPlacesLine(others.length)].map((part) => (part === null ? null : `${part} · `))}
+            Modified <When iso={primary.modifiedAt} />
+          </span>
         </span>
         {hit.hasPreview ? (
           // eslint-disable-next-line @next/next/no-img-element -- previews are short-lived presigned redirects

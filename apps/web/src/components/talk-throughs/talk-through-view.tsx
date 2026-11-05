@@ -1,10 +1,8 @@
 "use client";
-
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useId, useState, type ReactNode } from "react";
 import { cn } from "@/lib/cn";
-import { formatDate } from "@/lib/format";
 import { KIND_NAMES, protocolHref, type AuthorNames, authorName } from "@/lib/protocols";
 import { formatClock, isSettled, talkThroughHref, type TalkThrough, type TalkThroughStatus } from "@/lib/talk-throughs";
 import { useLabApi } from "../lab-api";
@@ -12,6 +10,7 @@ import { CrumbBar } from "../protocols/crumb-bar";
 import { Markdown } from "../protocols/markdown";
 import { Button, buttonVariants } from "../ui/button";
 import { Skeleton } from "../ui/skeleton";
+import { When } from "@/components/ui/when";
 
 const POLL_MS = 2_000;
 
@@ -56,7 +55,7 @@ export function TalkThroughView({ initial, authors }: { initial: TalkThrough; au
       <div className="mx-auto w-full max-w-6xl px-4 pt-8 pb-24 sm:px-6 sm:pt-12">
         <h1 className="text-heading-medium sm:text-heading-large">{heading}</h1>
         <p className="mt-2 text-paragraph-small text-content-tertiary">
-          For {pageLabel} · Recorded {formatDate(tt.recordedAt)} by {authorName(authors, tt.recordedBy)}
+          For {pageLabel} · Recorded <When iso={tt.recordedAt} /> by {authorName(authors, tt.recordedBy)}
           {tt.durationMs === null ? "" : ` · ${formatClock(tt.durationMs)}`}
         </p>
 

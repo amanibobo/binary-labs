@@ -1,14 +1,14 @@
 "use client";
-
 import Link from "next/link";
 import { isTextBearing, type FileHit } from "@/lib/domain";
 import { cn } from "@/lib/cn";
-import { formatDate, openTarget } from "@/lib/format";
+import { openTarget } from "@/lib/format";
 import { newProtocolHref } from "@/lib/protocols";
 import { OpenExternalIcon, ProtocolIcon } from "../icons/drawn";
 import { useLabApi } from "../lab-api";
 import { Highlighted } from "../search/highlighted";
 import { buttonVariants } from "../ui/button";
+import { When } from "@/components/ui/when";
 
 // The opened state of a file row: preview on the left, every place it lives on the right.
 // A file with text can also start a protocol page.
@@ -36,7 +36,7 @@ export function PreviewPanel({
             return (
               <li key={location.id} className="min-w-0">
                 <p className="font-mono text-paragraph-small [overflow-wrap:anywhere] text-content-primary">{location.path}</p>
-                <p className="mt-1 text-paragraph-small text-content-tertiary">Modified {formatDate(location.modifiedAt)}</p>
+                <p className="mt-1 text-paragraph-small text-content-tertiary">Modified <When iso={location.modifiedAt} /></p>
                 {open === null ? null : (
                   <a
                     href={open.href}

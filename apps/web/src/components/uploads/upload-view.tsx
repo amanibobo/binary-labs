@@ -12,7 +12,7 @@ import { Input, Label } from "@/components/ui/field";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/cn";
 import { needsCheck, type FileKind, type Label as FileLabel } from "@/lib/domain";
-import { formatDate } from "@/lib/format";
+import { formatDay } from "@/lib/format";
 import type { LocationId } from "@/lib/ids";
 import { labelTags } from "@/lib/label-edit";
 import { EMPTY_QUEUE, nextToSend, queueReducer, unsent, type NewItem, type QueueAction, type QueueItem } from "@/lib/upload-queue";
@@ -147,7 +147,7 @@ export function UploadView({ experiments, personName }: { experiments: string[];
     >
       <h1 className="text-heading-medium sm:text-heading-large">Upload</h1>
       <p className="mt-1 text-paragraph-medium text-content-tertiary">
-        {today === null ? "Dated today" : `Dated ${formatDate(`${today}T00:00:00Z`)}`}
+        {today === null ? "Dated today" : `Dated ${formatDay(today)}`}
         {personName === null ? " and filed under your name." : ` and filed under ${personName}.`}
       </p>
 
@@ -369,7 +369,6 @@ function ReadingLines({ name }: { name: string }) {
   );
 }
 
-const dayFormat = (iso: string) => formatDate(`${iso}T00:00:00Z`);
 const tag = "inline-flex h-6 max-w-full items-center rounded-md px-2 text-label-xsmall";
 
 function StoredUpload({ row, thumb, duplicate }: { row: UploadRow; thumb: string | null; duplicate: boolean }) {
@@ -420,7 +419,7 @@ function Tags({ label }: { label: FileLabel }) {
   return (
     <p className="mt-2 flex flex-wrap gap-1.5">
       {needsCheck(label) ? <span className={cn(tag, "bg-background-warning text-content-warning")}>Check this</span> : null}
-      {labelTags(label, dayFormat).map((t) => (
+      {labelTags(label, formatDay).map((t) => (
         <span key={t.key} className={cn(tag, "bg-background-tertiary text-content-secondary")}>
           <span className="truncate">{t.text}</span>
         </span>
