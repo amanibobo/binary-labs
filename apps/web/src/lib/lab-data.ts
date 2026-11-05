@@ -18,6 +18,7 @@ import {
   type LabMember,
   type Person,
 } from "./domain";
+import { ProtocolVideosRows, type ProtocolVideo } from "./videos";
 import { FOLDER_PAGE_SIZE, FolderFilesRows, FolderTreeRows, type FolderPath, type FolderRow } from "./folders";
 import { Sha256, SourceId, type LabId, type ProtocolId, type TalkThroughId, type UserId } from "./ids";
 import {
@@ -290,6 +291,10 @@ export async function loadTalkThrough(supabase: Supabase, id: TalkThroughId): Pr
 // Recordings nobody has used yet: a page's, or with no page, the viewer's own new-page ones.
 export async function loadOpenTalkThroughs(supabase: Supabase, labId: LabId, protocolId: ProtocolId | null): Promise<OpenTalkThrough[]> {
   return OpenTalkThroughRows.parse(unwrap(await supabase.rpc("open_talk_throughs", { p_lab_id: labId, p_protocol_id: protocolId })));
+}
+
+export async function loadProtocolVideos(supabase: Supabase, protocolId: ProtocolId): Promise<ProtocolVideo[]> {
+  return ProtocolVideosRows.parse(unwrap(await supabase.rpc("protocol_videos", { p_protocol_id: protocolId })));
 }
 
 export async function loadAuthorNames(supabase: Supabase, labId: LabId): Promise<AuthorNames> {

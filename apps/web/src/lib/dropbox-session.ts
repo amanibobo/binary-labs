@@ -9,8 +9,10 @@ import { decryptToken, fromPgBytea } from "./token-crypto";
 
 const TokenRows = z.array(z.object({ token_ciphertext: z.string() }));
 
-// token_ciphertext has no column grant for signed-in users, so these reads use
-// the service role. Callers must already have checked the user is the lab's admin.
+// token_ciphertext has no column grant for signed-in users, so these reads use the service
+// role. Callers must already have checked the user may act: an admin for the folder picker,
+// disconnect and deletion; a member, through RLS on the file, for one video's temporary link.
+// The token itself never leaves the server.
 async function refreshTokens({ labId, sourceId }: { labId: LabId; sourceId?: SourceId }): Promise<string[]> {
   let query = createServiceSupabase()
     .from("sources")

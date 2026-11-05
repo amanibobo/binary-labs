@@ -62,9 +62,9 @@ export function parseUploadHeaders(headers: Headers): UploadMeta | null {
   return parsed.success ? parsed.data : null;
 }
 
-// Videos wait for the procedure-video slice; everything else under the cap is welcome.
+// Videos and audio each belong to a page; everything else under the cap is welcome.
 export function refusedKind(mime: string): string | null {
-  if (mime.startsWith("video/")) return "Videos can't be uploaded yet.";
+  if (mime.startsWith("video/")) return "Add a video from its protocol page.";
   if (mime.startsWith("audio/")) return "Audio goes in as a talk-through, from a protocol page.";
   return null;
 }
@@ -106,6 +106,10 @@ const INLINE_TYPES = new Set([
   "audio/ogg",
   "audio/wav",
   "audio/flac",
+  // Procedure videos play on their protocol page.
+  "video/mp4",
+  "video/quicktime",
+  "video/webm",
 ]);
 
 export type Delivery = { contentType: string; disposition: string };

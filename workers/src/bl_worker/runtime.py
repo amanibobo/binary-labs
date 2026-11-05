@@ -10,6 +10,7 @@ from bl_worker.embed import Embedder, build_embedder
 from bl_worker.models import Models, build_models
 from bl_worker.previews import PreviewStore, build_preview_store
 from bl_worker.transcribe import Transcriber, build_transcriber
+from bl_worker.video import Ffmpeg
 
 
 @dataclass(frozen=True)
@@ -21,6 +22,7 @@ class Runtime:
     embedder: Embedder
     previews: PreviewStore
     transcriber: Transcriber
+    ffmpeg: Ffmpeg
     # None without ANTHROPIC_API_KEY: labels then come from Tier 1 rules alone.
     models: Models | None = None
 
@@ -47,6 +49,7 @@ def build_runtime(
     previews: PreviewStore | None = None,
     models: Models | None = None,
     transcriber: Transcriber | None = None,
+    ffmpeg: Ffmpeg | None = None,
     pool_size: int = 6,
 ) -> Runtime:
     key = settings.anthropic_api_key
@@ -56,5 +59,6 @@ def build_runtime(
         embedder=embedder or build_embedder(settings.embed_model),
         previews=previews or build_preview_store(settings),
         transcriber=transcriber or build_transcriber(settings),
+        ffmpeg=ffmpeg or Ffmpeg.find(settings.ffmpeg_path),
         models=models or build_models(key.get_secret_value() if key else None),
     )

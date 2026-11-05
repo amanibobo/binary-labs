@@ -41,6 +41,8 @@ class Settings(BaseSettings):
     transcriber: Literal["elevenlabs", "whisper"] = "elevenlabs"
     elevenlabs_api_key: SecretStr | None = None
     whisper_model: str = "small"
+    # Optional: posters and video transcripts need it; without it videos still play.
+    ffmpeg_path: str = "ffmpeg"
 
     dropbox_app_key: str | None = None
     dropbox_app_secret: SecretStr | None = None

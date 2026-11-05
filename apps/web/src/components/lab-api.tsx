@@ -9,7 +9,19 @@ import { BrowseResponse, type FolderPath } from "@/lib/folders";
 import { SourceStateWire, type SourceState } from "@/lib/source-state";
 import { answerOf, resultOf, type SendResult, type UploadResult } from "@/lib/upload-queue";
 import { uploadHeaders, UploadRowsWire, type UploadMeta, type UploadRow } from "@/lib/uploads";
-import type { CorrectionId, ProtocolId, Sha256, TalkThroughId } from "@/lib/ids";
+import type { CorrectionId, LocationId, ProtocolId, Sha256, TalkThroughId } from "@/lib/ids";
+import {
+  PartTarget,
+  ProtocolVideosWire,
+  VideoReceipt,
+  VideoSession,
+  type CompleteVideoRequest,
+  playbackUrl,
+  type ProtocolVideo,
+  type ReadyVideo,
+  type StartVideoRequest,
+  type UploadedPart,
+} from "@/lib/videos";
 import {
   talkThroughHeaders,
   TalkThroughReceipt,
@@ -65,6 +77,21 @@ export type LabApi = {
   // These reject with an Error whose message can be shown; a stale save resolves as { kind: "stale" }.
   retryTalkThrough: (id: TalkThroughId) => Promise<void>;
   applyTalkThrough: (id: TalkThroughId, req: ApplyTalkThroughRequest) => Promise<SaveOutcome>;
+  // A video goes up in parts; none of these three rejects, like uploadFile.
+  startVideoUpload: (req: StartVideoRequest) => Promise<SendResult<VideoSession>>;
+  sendVideoPart: (
+    session: VideoSession,
+    part: { partNumber: number; bytes: Blob; fileSize: number },
+    onProgress: (sent: number) => void,
+    signal: AbortSignal,
+  ) => Promise<SendResult<UploadedPart>>;
+  completeVideoUpload: (session: VideoSession, req: Omit<CompleteVideoRequest, "storeId">) => Promise<SendResult<VideoReceipt>>;
+  abortVideoUpload: (session: VideoSession) => Promise<void>;
+  protocolVideos: (id: ProtocolId, signal: AbortSignal) => Promise<ProtocolVideo[]>;
+  videoSources: (video: ReadyVideo) => { src: string; poster: string | null };
+  // These reject with an Error whose message can be shown.
+  retryVideoTranscript: (sha: Sha256) => Promise<void>;
+  removePendingVideo: (id: ProtocolId, locationId: LocationId) => Promise<void>;
 };
 
 // XMLHttpRequest, not fetch: only it reports upload progress.
@@ -88,6 +115,52 @@ function sendFile<R>(
     xhr.onabort = () => resolve({ kind: "interrupted", message: "The upload was stopped." });
     signal.addEventListener("abort", () => xhr.abort(), { once: true });
     xhr.send(file);
+  });
+}
+
+// A JSON request read the way the upload queue reads an upload's answer.
+async function sendForResult<R>(url: string, body: unknown, schema: z.ZodType<R>): Promise<SendResult<R>> {
+  try {
+    const { status, json } = await sendJson(url, "POST", body);
+    return answerOf(status, json, schema);
+  } catch {
+    return answerOf(0, null, schema);
+  }
+}
+
+function partAnswer(status: number, partNumber: number, etag: string | null): SendResult<UploadedPart> {
+  if (status === 200 && etag !== null) return { kind: "stored", receipt: { partNumber, etag } };
+  if (status === 0 || status === 200 || status === 408 || status === 429 || status >= 500) {
+    return { kind: "interrupted", message: "The connection dropped." };
+  }
+  return { kind: "refused", message: `The store turned down part of the video (${status}).` };
+}
+
+// One part of a video: where it goes comes from us, then the bytes go there. The store's ETag
+// for the part comes back in a response header (R2's bucket CORS rule must expose it).
+async function sendPart(
+  session: VideoSession,
+  part: { partNumber: number; bytes: Blob; fileSize: number },
+  onProgress: (sent: number) => void,
+  signal: AbortSignal,
+): Promise<SendResult<UploadedPart>> {
+  const target = await sendForResult(
+    `/api/videos/uploads/${session.uploadId}/parts/${part.partNumber}`,
+    { storeId: session.storeId, size: part.fileSize },
+    PartTarget,
+  );
+  if (target.kind !== "stored") return target;
+  if (signal.aborted) return { kind: "interrupted", message: "The upload was stopped." };
+  return new Promise((resolve) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", target.receipt.url);
+    xhr.upload.onprogress = (e) => onProgress(e.loaded);
+    xhr.onload = () => resolve(partAnswer(xhr.status, part.partNumber, xhr.getResponseHeader("etag")));
+    xhr.onerror = () => resolve(partAnswer(0, part.partNumber, null));
+    xhr.ontimeout = () => resolve(partAnswer(0, part.partNumber, null));
+    xhr.onabort = () => resolve({ kind: "interrupted", message: "The upload was stopped." });
+    signal.addEventListener("abort", () => xhr.abort(), { once: true });
+    xhr.send(part.bytes);
   });
 }
 
@@ -167,6 +240,17 @@ export const httpLabApi: LabApi = {
     if (!outcome.success) throw failure(json);
     return outcome.data;
   },
+  startVideoUpload: (req) => sendForResult("/api/videos/uploads", req, VideoSession),
+  sendVideoPart: sendPart,
+  completeVideoUpload: (session, req) =>
+    sendForResult(`/api/videos/uploads/${session.uploadId}/complete`, { ...req, storeId: session.storeId }, VideoReceipt),
+  abortVideoUpload: async (session) => {
+    await sendJson(`/api/videos/uploads/${session.uploadId}`, "DELETE", { storeId: session.storeId }).catch(() => undefined);
+  },
+  protocolVideos: async (id, signal) => ProtocolVideosWire.parse(await getJson(`/api/protocols/${id}/videos`, signal)),
+  videoSources: (video) => ({ src: playbackUrl(video), poster: video.hasPoster ? `/api/previews/${video.sha256}` : null }),
+  retryVideoTranscript: async (sha) => void (await postJson(`/api/videos/${sha}/retry`, {})),
+  removePendingVideo: async (id, locationId) => void (await postJson(`/api/protocols/${id}/videos`, { locationId }, "DELETE")),
 };
 
 const LabApiContext = createContext<LabApi>(httpLabApi);

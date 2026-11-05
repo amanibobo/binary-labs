@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { DROPBOX_ENDPOINTS, DROPBOX_SCOPES, DropboxError, authorizeUrl, createPkce, revokeRefreshToken } from "../dropbox";
+import { DROPBOX_ENDPOINTS, DROPBOX_SCOPES, DropboxError, authorizeUrl, createPkce, revokeRefreshToken, temporaryLink } from "../dropbox";
 import { openInDropboxUrl } from "../format";
 
 const srcRoot = join(__dirname, "../..");
@@ -78,5 +78,21 @@ describe("revoking a token", () => {
   it("throws when Dropbox refuses, for the caller to log", async () => {
     stubDropbox(401);
     await expect(revokeRefreshToken({ appKey: "key", appSecret: "secret", refreshToken: "refresh-1" })).rejects.toBeInstanceOf(DropboxError);
+  });
+});
+
+describe("a temporary link to a video", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("asks get_temporary_link for the file by its id and hands back the link", async () => {
+    const calls: { url: string; body: string }[] = [];
+    vi.stubGlobal("fetch", async (url: string, init?: RequestInit) => {
+      calls.push({ url, body: String(init?.body) });
+      return Response.json({ link: "https://uc123.dl.dropboxusercontent.com/cd/0/get/clip.mov", metadata: {} });
+    });
+    expect(await temporaryLink("short-lived", "id:abc123")).toBe("https://uc123.dl.dropboxusercontent.com/cd/0/get/clip.mov");
+    expect(calls).toEqual([{ url: DROPBOX_ENDPOINTS.getTemporaryLink, body: JSON.stringify({ path: "id:abc123" }) }]);
   });
 });

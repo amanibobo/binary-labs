@@ -1,22 +1,35 @@
 import { after, NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { auditQuietly } from "@/lib/audit";
+import { startsAtBeginning } from "@/lib/byte-range";
 import { SourceKind } from "@/lib/domain";
-import { LocationId, Sha256 } from "@/lib/ids";
+import { temporaryLink } from "@/lib/dropbox";
+import { sourceAccessToken } from "@/lib/dropbox-session";
+import { LocationId, Sha256, SourceId } from "@/lib/ids";
+import { logError } from "@/lib/log";
 import { deliverObject } from "@/lib/object-store";
 import { routeAccess } from "@/lib/route-auth";
+import { fileResponse } from "@/lib/serve-file";
 import { unwrap } from "@/lib/supabase/server";
 import { deliveryFor, uploadKey } from "@/lib/uploads";
+import { VideoType } from "@/lib/videos";
 
 const FileRow = z.object({
   external_id: z.string(),
   original_name: z.string(),
+  source_id: SourceId,
   sources: z.object({ kind: SourceKind }),
   blobs: z.object({ mime: z.string() }).nullable(),
 });
 
-// Opens a file we hold: today that's an upload. Dropbox files open in Dropbox instead.
-export async function GET(_request: NextRequest, ctx: RouteContext<"/api/files/[id]">) {
+const noStore = { "cache-control": "private, no-store" };
+// Browsers send a video's later range requests to the link they were redirected to.
+const VIDEO_LINK_SECONDS = 4 * 60 * 60;
+
+// Opens a file: an upload from our store, or a lab's Dropbox video through a temporary link
+// so it plays on its protocol page. Other Dropbox files open in Dropbox instead. A video
+// element asks for ranges as it plays; only the request that starts the file is audited.
+export async function GET(request: NextRequest, ctx: RouteContext<"/api/files/[id]">) {
   const access = await routeAccess({ admin: false });
   if (access.kind === "denied") return access.response;
   const { supabase, lab, user } = access.member;
@@ -30,7 +43,7 @@ export async function GET(_request: NextRequest, ctx: RouteContext<"/api/files/[
     unwrap(
       await supabase
         .from("file_locations")
-        .select("external_id, original_name, sources!inner(kind), blobs(mime)")
+        .select("external_id, original_name, source_id, sources!inner(kind), blobs(mime)")
         .eq("id", id.data)
         .eq("lab_id", lab.id)
         .is("deleted_at", null)
@@ -38,30 +51,64 @@ export async function GET(_request: NextRequest, ctx: RouteContext<"/api/files/[
     ),
   );
   const row = rows[0];
-  const sha = Sha256.safeParse(row?.external_id);
-  if (row === undefined || row.sources.kind !== "upload" || !sha.success) {
-    return NextResponse.json({ error: "no such file" }, { status: 404 });
-  }
+  if (row === undefined) return NextResponse.json({ error: "no such file" }, { status: 404 });
+  const range = request.headers.get("range");
+  const audit = (target: string) => {
+    if (startsAtBeginning(range)) {
+      after(() => auditQuietly(supabase, { labId: lab.id, actor: user.id, action: "file.download", target }));
+    }
+  };
 
-  const headers = deliveryFor(row.blobs?.mime ?? null, row.original_name);
-  const delivery = await deliverObject(uploadKey(lab.id, sha.data), headers);
-  after(() => auditQuietly(supabase, { labId: lab.id, actor: user.id, action: "file.download", target: sha.data }));
-  switch (delivery.kind) {
-    case "redirect":
-      return NextResponse.redirect(delivery.url, { status: 302, headers: { "cache-control": "private, no-store" } });
-    case "bytes":
-      return new NextResponse(delivery.body, {
-        headers: {
-          "content-type": headers.contentType,
-          "content-disposition": headers.disposition,
-          "x-content-type-options": "nosniff",
-          "cache-control": "private, no-store",
-        },
-      });
-    case "missing":
-      return NextResponse.json({ error: "file missing from storage" }, { status: 404 });
+  switch (row.sources.kind) {
+    case "upload": {
+      const sha = Sha256.safeParse(row.external_id);
+      if (!sha.success) return NextResponse.json({ error: "no such file" }, { status: 404 });
+      const headers = deliveryFor(row.blobs?.mime ?? null, row.original_name);
+      const isVideo = VideoType.safeParse(row.blobs?.mime).success;
+      const delivery = await deliverObject(uploadKey(lab.id, sha.data), headers, isVideo ? { expiresIn: VIDEO_LINK_SECONDS } : {});
+      switch (delivery.kind) {
+        case "redirect":
+          audit(sha.data);
+          return NextResponse.redirect(delivery.url, { status: 302, headers: noStore });
+        case "file":
+          audit(sha.data);
+          return fileResponse({
+            path: delivery.path,
+            size: delivery.size,
+            range,
+            headers: {
+              "content-type": headers.contentType,
+              "content-disposition": headers.disposition,
+              "x-content-type-options": "nosniff",
+              ...noStore,
+            },
+          });
+        case "missing":
+          return NextResponse.json({ error: "file missing from storage" }, { status: 404 });
+        default: {
+          const _exhaustive: never = delivery;
+          return _exhaustive;
+        }
+      }
+    }
+    case "dropbox": {
+      if (!VideoType.safeParse(row.blobs?.mime).success) {
+        return NextResponse.json({ error: "this file opens in Dropbox" }, { status: 404 });
+      }
+      try {
+        const token = await sourceAccessToken({ labId: lab.id, sourceId: row.source_id });
+        const link = await temporaryLink(token, row.external_id);
+        audit(row.external_id);
+        return NextResponse.redirect(link, { status: 302, headers: noStore });
+      } catch (error) {
+        logError("dropbox.temporary_link_failed", { labId: lab.id, error });
+        return NextResponse.json({ error: "Dropbox didn't hand us this video. Open it in Dropbox." }, { status: 502 });
+      }
+    }
+    case "local":
+      return NextResponse.json({ error: "no such file" }, { status: 404 });
     default: {
-      const _exhaustive: never = delivery;
+      const _exhaustive: never = row.sources.kind;
       return _exhaustive;
     }
   }

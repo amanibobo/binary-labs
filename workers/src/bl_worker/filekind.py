@@ -37,6 +37,10 @@ EXTENSION_KINDS: dict[str, tuple[FileKind, str]] = {
     ".ogg": (FileKind.AUDIO, "audio/ogg"),
     ".opus": (FileKind.AUDIO, "audio/ogg"),
     ".flac": (FileKind.AUDIO, "audio/flac"),
+    ".mp4": (FileKind.VIDEO, "video/mp4"),
+    ".m4v": (FileKind.VIDEO, "video/mp4"),
+    ".mov": (FileKind.VIDEO, "video/quicktime"),
+    ".webm": (FileKind.VIDEO, "video/webm"),
 }
 
 
@@ -52,7 +56,13 @@ def detect(name: str, data: bytes) -> tuple[FileKind, str]:
             return FileKind.AUDIO, guess.mime
     ext = PurePosixPath(name).suffix.lower()
     if ext in EXTENSION_KINDS:
-        return EXTENSION_KINDS[ext]
+        kind, mime = EXTENSION_KINDS[ext]
+        # A .mov renamed .mp4 still plays as what it is.
+        if kind is FileKind.VIDEO and guess is not None and guess.mime.startswith("video/"):
+            return kind, guess.mime
+        return kind, mime
+    if guess is not None and guess.mime.startswith("video/"):
+        return FileKind.VIDEO, guess.mime
     if guess is not None:
         return FileKind.OTHER, guess.mime
     return FileKind.OTHER, mimetypes.guess_type(name)[0] or "application/octet-stream"

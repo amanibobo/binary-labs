@@ -178,6 +178,15 @@ export function FileAudioIcon(props: IconProps) {
   );
 }
 
+export function FileVideoIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <rect {...line} x="3.5" y="6" width="12" height="12" rx="2" />
+      <path {...line} d="m15.5 10.5 5-3v9l-5-3" />
+    </Svg>
+  );
+}
+
 export function MicIcon(props: IconProps) {
   return (
     <Svg {...props}>
@@ -195,4 +204,5 @@ export const FILE_KIND_ICONS = {
   image: FileImageIcon,
   other: FileIcon,
   audio: FileAudioIcon,
+  video: FileVideoIcon,
 } satisfies Record<FileKind, (props: IconProps) => ReactNode>;

@@ -5,12 +5,14 @@ import { LabApiProvider, type LabApi } from "@/components/lab-api";
 import type { FileHit } from "@/lib/domain";
 import type { SourceState } from "@/lib/source-state";
 import type { TalkThrough } from "@/lib/talk-throughs";
+import type { ProtocolVideo } from "@/lib/videos";
 import { folderFixtureFiles, folders, laterLabels, needsLookFiles, recentFiles, searchHits } from "./data";
 import { createFixtureLabels } from "./fixture-labels";
 import { PREVIEW_BY_FIRST_CHAR } from "./previews";
 import { protocolHits, purification, purificationTheirs } from "./protocols";
 import { fixtureUploadTalkThrough, fixtureApplyTalkThrough, talkThrough as fixtureTalkThrough } from "./talk-throughs";
 import { createFixtureUploads } from "./uploads";
+import { createFixtureVideoUploads, fixtureVideoSources, pageVideos } from "./videos";
 
 export type FixtureSearchMode = "hybrid" | "keyword";
 
@@ -36,6 +38,7 @@ export function FixtureLabApi({
   saves = "saved",
   earlierUploads = true,
   talkThrough,
+  videos = pageVideos,
   children,
 }: {
   mode: FixtureSearchMode;
@@ -44,9 +47,12 @@ export function FixtureLabApi({
   earlierUploads?: boolean;
   // What polling a talk-through answers; it stays put, so a screenshot holds one state.
   talkThrough?: TalkThrough;
+  // What polling a page's videos answers; it stays put, like talkThrough.
+  videos?: ProtocolVideo[];
   children: ReactNode;
 }) {
   const [uploads] = useState(() => createFixtureUploads({ earlier: earlierUploads }));
+  const [videoUploads] = useState(createFixtureVideoUploads);
   const [labels] = useState(() =>
     createFixtureLabels({ initial: [...searchHits, ...recentFiles, ...needsLookFiles], later: laterLabels }),
   );
@@ -105,6 +111,15 @@ export function FixtureLabApi({
     },
     retryTalkThrough: async () => wait(150),
     applyTalkThrough: fixtureApplyTalkThrough,
+    ...videoUploads,
+    abortVideoUpload: async () => wait(100),
+    protocolVideos: async (_id, signal) => {
+      await wait(80, signal);
+      return videos;
+    },
+    videoSources: fixtureVideoSources,
+    retryVideoTranscript: async () => wait(150),
+    removePendingVideo: async () => wait(150),
   };
   return <LabApiProvider value={api}>{children}</LabApiProvider>;
 }

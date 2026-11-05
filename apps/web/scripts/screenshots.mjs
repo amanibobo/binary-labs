@@ -1,11 +1,13 @@
 // Headless screenshots of the fixture pages. Needs `BINARY_LABS_FIXTURES=1 pnpm exec next dev -p 3100`.
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { chromium } from "playwright";
 
 const base = process.env.BASE_URL ?? "http://localhost:3100";
 const out = join(import.meta.dirname, "../screenshots");
 mkdirSync(out, { recursive: true });
+const clip = readFileSync(join(import.meta.dirname, "../src/fixtures/media/bench.webm"));
+const paddedClip = Buffer.concat([clip, Buffer.alloc(20 * 1024 * 1024 - clip.length)]);
 
 const results = "/dev/fixtures/search?state=results&q=p450%20gels";
 const expandGel = (page) => page.getByRole("button", { name: "Details for Batch 3 SDS-PAGE gel" }).click();
@@ -43,6 +45,7 @@ const shots = [
   ...deletionShots(),
   ...uploadShots(),
   ...talkThroughShots(),
+  ...videoShots(),
 ];
 
 // Settings: the overview and each area, in both schemes at desktop and phone width.
@@ -61,6 +64,55 @@ function settingsShots() {
     ...all({ name: "settings-member", path: lab("?role=member") }),
     { name: "settings-member-dropbox", path: lab("?role=member&area=dropbox"), width: 1440, scheme: "dark" },
     { name: "settings-member-members", path: lab("?role=member&area=members"), width: 390, scheme: "dark" },
+  ];
+}
+
+// Adding a video to a page on a phone (camera or file) and on a desktop, a video going up in
+// parts and riding out a dropped connection, and one playing with its transcript open.
+function videoShots() {
+  const p = (view) => `/dev/fixtures/protocols?view=${view}`;
+  const openAdd = (page) => page.getByRole("button", { name: "Add a video" }).click();
+  // The fixture clip padded to three 8 MB parts. "column" holds part 2 half way; "Sonication"
+  // drops part 1 once (src/fixtures/videos.ts).
+  const choose = async (page, name) => {
+    await openAdd(page);
+    await page.locator('input[type="file"]:not([capture])').setInputFiles({ name, mimeType: "video/webm", buffer: paddedClip });
+  };
+  const all = (shot) => ["dark", "light"].flatMap((scheme) => [1440, 390].map((width) => ({ ...shot, width, scheme, touch: width < 500 })));
+  return [
+    ...all({ name: "video-add", path: p("no-videos"), steps: openAdd, full: false }),
+    ...all({
+      name: "video-uploading",
+      path: p("no-videos"),
+      steps: async (page) => {
+        await choose(page, "Loading the nickel column.webm");
+        await page.getByText(/Uploading, \d+%/).waitFor();
+        await page.waitForTimeout(900);
+      },
+    }),
+    ...all({
+      name: "video-dropped",
+      path: p("no-videos"),
+      steps: async (page) => {
+        await choose(page, "Sonication setup.webm");
+        await page.getByText("Trying again in a moment").waitFor();
+      },
+    }),
+    ...all({
+      name: "video-playback",
+      path: p("videos"),
+      steps: async (page) => {
+        await page.getByRole("button", { name: "Show transcript" }).click();
+        await page.locator("video").first().evaluate(
+          (v) =>
+            new Promise((resolve) => {
+              v.addEventListener("seeked", resolve, { once: true });
+              v.currentTime = 2;
+            }),
+        );
+      },
+    }),
+    ...["dark", "light"].map((scheme) => ({ name: "video-page", path: p("page"), width: 1440, scheme })),
   ];
 }
 
@@ -244,6 +296,8 @@ try {
       reducedMotion: "reduce",
       deviceScaleFactor: shot.width < 500 ? 2 : 1,
       permissions: ["microphone"],
+      // A touch screen, so the page offers the phone's camera.
+      ...(shot.touch ? { hasTouch: true, isMobile: true } : {}),
     });
     const page = await context.newPage();
     await page.goto(base + shot.path, { waitUntil: "networkidle" });

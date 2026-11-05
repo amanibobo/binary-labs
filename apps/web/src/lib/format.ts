@@ -51,6 +51,7 @@ export const KIND_LABELS = {
   image: "Image",
   other: "Other",
   audio: "Audio",
+  video: "Video",
 } satisfies Record<FileKind, string>;
 
 const UNITS = ["B", "KB", "MB", "GB", "TB"] as const;

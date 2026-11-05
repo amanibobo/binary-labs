@@ -160,10 +160,11 @@ class Crash(Exception):
 
 STEPS = [
     (process, "_store_blob"),
-    (process, "_extract"),
+    (process, "link_pending"),
+    (process, "extract_cached"),
     (process, "_write_chunks"),
     (process, "_embed_chunks"),
-    (process, "_write_preview"),
+    (process, "write_preview"),
     (scan, "_apply_page"),
     (scan, "_list_all"),
 ]
