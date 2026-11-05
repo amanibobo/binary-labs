@@ -6,12 +6,12 @@ import { FILE_KINDS, FileKind, type SearchFilters } from "@/lib/domain";
 import { hasFilters } from "@/lib/filters";
 import { formatDay, KIND_LABELS } from "@/lib/format";
 import { cn } from "@/lib/cn";
-import { CheckIcon, ChevronDownIcon } from "../icons/base-web";
+import { CheckIcon, ChevronDownIcon, DeleteIcon } from "../icons/base-web";
+import { FilterIcon } from "../icons/drawn";
 import { KindIcon } from "../files/kind-icon";
 import { buttonVariants } from "../ui/button";
 import { Input, Label } from "../ui/field";
 import { menuItem, menuSurface } from "../ui/menu";
-
 
 const optional = (value: string) => (value === "" ? undefined : value);
 const day = formatDay;
@@ -23,36 +23,88 @@ function dateLabel({ from, to }: SearchFilters): string | null {
   return null;
 }
 
-// 32px pill chips (44px on phones); a set filter fills like a primary button.
-function chipClass(active: boolean) {
-  return cn(
-    "inline-flex min-h-11 max-w-64 shrink-0 items-center gap-1 rounded-full border pr-2 pl-3 text-label-small transition-colors duration-150 ease-out sm:min-h-8",
-    active
-      ? "border-transparent bg-button-primary-fill text-content-inverse-primary hover:bg-button-primary-hover"
-      : "border-border-opaque bg-background-raised text-content-secondary hover:bg-background-secondary hover:text-content-primary",
+// Sits inside the search box. Icon only on phones, where it is still a 44px target.
+export function FiltersToggle({ open, onToggle, controls }: { open: boolean; onToggle: () => void; controls: string }) {
+  return (
+    <button
+      type="button"
+      aria-expanded={open}
+      aria-controls={controls}
+      onClick={onToggle}
+      className={cn(
+        buttonVariants({ variant: "tertiary", size: "compact" }),
+        "min-w-11 px-2.5 text-content-secondary hover:text-content-primary sm:min-h-10",
+        open && "bg-button-secondary-hover text-content-primary",
+      )}
+    >
+      <FilterIcon className="size-5" />
+      <span className="max-sm:sr-only">Filters</span>
+    </button>
   );
 }
 
-function ChipLabel({ children }: { children: ReactNode }) {
+// Open: one line of text menus. Closed: only the filters that are set, each removable.
+export function Filters({ id, open, value, onChange }: { id: string; open: boolean; value: SearchFilters; onChange: (next: SearchFilters) => void }) {
+  if (open) return <FilterMenus id={id} value={value} onChange={onChange} />;
+  if (!hasFilters(value)) return <div id={id} hidden />;
+  const dates = dateLabel(value);
+  return (
+    <div id={id} role="group" aria-label="Filters" className="mt-3 flex flex-wrap items-center gap-2">
+      {value.kind === undefined ? null : (
+        <Chip text={KIND_LABELS[value.kind]} onRemove={() => onChange({ ...value, kind: undefined })} />
+      )}
+      {value.prefix === undefined ? null : (
+        <Chip text={value.prefix} mono onRemove={() => onChange({ ...value, prefix: undefined })} />
+      )}
+      {dates === null ? null : <Chip text={dates} onRemove={() => onChange({ ...value, from: undefined, to: undefined })} />}
+    </div>
+  );
+}
+
+function Chip({ text, mono = false, onRemove }: { text: string; mono?: boolean; onRemove: () => void }) {
+  return (
+    <span className="inline-flex h-8 max-w-72 items-center gap-0.5 rounded-full bg-background-secondary pr-1 pl-3 text-label-small text-content-primary">
+      <span className={cn("truncate", mono && "font-mono")}>{text}</span>
+      <button
+        type="button"
+        onClick={onRemove}
+        className="relative grid size-6 shrink-0 place-items-center rounded-full text-content-tertiary transition-colors duration-150 ease-out after:absolute after:-inset-2.5 hover:bg-button-secondary-hover hover:text-content-primary"
+      >
+        <DeleteIcon className="size-4" />
+        <span className="sr-only">Remove filter {text}</span>
+      </button>
+    </span>
+  );
+}
+
+function menuTrigger(active: boolean) {
+  return cn(
+    buttonVariants({ variant: "tertiary", size: "compact" }),
+    "max-w-64 gap-1 pr-1.5 pl-2.5",
+    active ? "text-content-primary" : "text-content-secondary hover:text-content-primary",
+  );
+}
+
+function TriggerLabel({ children }: { children: ReactNode }) {
   return (
     <>
       <span className="truncate">{children}</span>
-      <ChevronDownIcon className="size-5 shrink-0" />
+      <ChevronDownIcon className="size-5 shrink-0 text-content-tertiary" />
     </>
   );
 }
 
-export function Filters({ value, onChange }: { value: SearchFilters; onChange: (next: SearchFilters) => void }) {
-  const id = useId();
+function FilterMenus({ id, value, onChange }: { id: string; value: SearchFilters; onChange: (next: SearchFilters) => void }) {
+  const fieldId = useId();
   const dates = dateLabel(value);
   return (
-    <div role="group" aria-label="Filters" className="-mx-4 mt-3 flex items-center gap-2 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:px-0">
+    <div id={id} role="group" aria-label="Filters" className="mt-2 -ml-2.5 flex flex-wrap items-center gap-x-1">
       <DropdownMenu.Root>
-        <DropdownMenu.Trigger className={chipClass(value.kind !== undefined)}>
-          <ChipLabel>{value.kind === undefined ? "Kind" : KIND_LABELS[value.kind]}</ChipLabel>
+        <DropdownMenu.Trigger className={menuTrigger(value.kind !== undefined)}>
+          <TriggerLabel>{value.kind === undefined ? "Any kind" : KIND_LABELS[value.kind]}</TriggerLabel>
         </DropdownMenu.Trigger>
         <DropdownMenu.Portal>
-          <DropdownMenu.Content align="start" sideOffset={8} className={menuSurface}>
+          <DropdownMenu.Content align="start" sideOffset={6} className={menuSurface}>
             <DropdownMenu.RadioGroup
               value={value.kind ?? ""}
               onValueChange={(next) => {
@@ -60,31 +112,29 @@ export function Filters({ value, onChange }: { value: SearchFilters; onChange: (
                 onChange({ ...value, kind: kind.success ? kind.data : undefined });
               }}
             >
-              {(["", ...FILE_KINDS] as const).map((kind) => {
-                return (
-                  <DropdownMenu.RadioItem key={kind} value={kind} className={menuItem}>
-                    {kind === "" ? <span className="size-5" /> : <KindIcon kind={kind} className="size-5" />}
-                    <span className="flex-1">{kind === "" ? "Any kind" : KIND_LABELS[kind]}</span>
-                    <DropdownMenu.ItemIndicator>
-                      <CheckIcon />
-                    </DropdownMenu.ItemIndicator>
-                  </DropdownMenu.RadioItem>
-                );
-              })}
+              {(["", ...FILE_KINDS] as const).map((kind) => (
+                <DropdownMenu.RadioItem key={kind} value={kind} className={menuItem}>
+                  {kind === "" ? <span className="size-5" /> : <KindIcon kind={kind} className="size-5" />}
+                  <span className="flex-1">{kind === "" ? "Any kind" : KIND_LABELS[kind]}</span>
+                  <DropdownMenu.ItemIndicator>
+                    <CheckIcon />
+                  </DropdownMenu.ItemIndicator>
+                </DropdownMenu.RadioItem>
+              ))}
             </DropdownMenu.RadioGroup>
           </DropdownMenu.Content>
         </DropdownMenu.Portal>
       </DropdownMenu.Root>
 
       <Popover.Root>
-        <Popover.Trigger className={chipClass(value.prefix !== undefined)}>
-          <ChipLabel>{value.prefix === undefined ? "Folder" : <span className="font-mono">{value.prefix}</span>}</ChipLabel>
+        <Popover.Trigger className={menuTrigger(value.prefix !== undefined)}>
+          <TriggerLabel>{value.prefix === undefined ? "Any folder" : <span className="font-mono">{value.prefix}</span>}</TriggerLabel>
         </Popover.Trigger>
         <Popover.Portal>
-          <Popover.Content align="start" sideOffset={8} className={cn(menuSurface, "grid w-80 max-w-[calc(100vw-32px)] gap-2 p-4")}>
-            <Label htmlFor={`${id}-prefix`}>Folder</Label>
+          <Popover.Content align="start" sideOffset={6} className={cn(menuSurface, "grid w-80 max-w-[calc(100vw-32px)] gap-2 p-4")}>
+            <Label htmlFor={`${fieldId}-prefix`}>Folder</Label>
             <Input
-              id={`${id}-prefix`}
+              id={`${fieldId}-prefix`}
               size="compact"
               className="font-mono"
               placeholder="/Lab/Gels"
@@ -99,15 +149,15 @@ export function Filters({ value, onChange }: { value: SearchFilters; onChange: (
       </Popover.Root>
 
       <Popover.Root>
-        <Popover.Trigger className={chipClass(dates !== null)}>
-          <ChipLabel>{dates ?? "Modified"}</ChipLabel>
+        <Popover.Trigger className={menuTrigger(dates !== null)}>
+          <TriggerLabel>{dates ?? "Any time"}</TriggerLabel>
         </Popover.Trigger>
         <Popover.Portal>
-          <Popover.Content align="start" sideOffset={8} className={cn(menuSurface, "grid w-80 max-w-[calc(100vw-32px)] gap-4 p-4")}>
+          <Popover.Content align="start" sideOffset={6} className={cn(menuSurface, "grid w-80 max-w-[calc(100vw-32px)] gap-4 p-4")}>
             <div className="grid gap-2">
-              <Label htmlFor={`${id}-from`}>Modified from</Label>
+              <Label htmlFor={`${fieldId}-from`}>Modified from</Label>
               <Input
-                id={`${id}-from`}
+                id={`${fieldId}-from`}
                 type="date"
                 size="compact"
                 value={value.from ?? ""}
@@ -116,9 +166,9 @@ export function Filters({ value, onChange }: { value: SearchFilters; onChange: (
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor={`${id}-to`}>To</Label>
+              <Label htmlFor={`${fieldId}-to`}>To</Label>
               <Input
-                id={`${id}-to`}
+                id={`${fieldId}-to`}
                 type="date"
                 size="compact"
                 value={value.to ?? ""}
@@ -131,12 +181,8 @@ export function Filters({ value, onChange }: { value: SearchFilters; onChange: (
       </Popover.Root>
 
       {hasFilters(value) ? (
-        <button
-          type="button"
-          onClick={() => onChange({})}
-          className={cn(buttonVariants({ variant: "tertiary", size: "compact" }), "shrink-0 sm:min-h-8")}
-        >
-          Clear filters
+        <button type="button" onClick={() => onChange({})} className={cn(menuTrigger(false), "px-2.5 text-content-tertiary")}>
+          Clear
         </button>
       ) : null}
     </div>

@@ -153,6 +153,14 @@ export function OpenExternalIcon(props: IconProps) {
   );
 }
 
+export function FilterIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path {...line} d="M5 7h14M7.5 12h9M10 17h4" />
+    </Svg>
+  );
+}
+
 export function UploadIcon(props: IconProps) {
   return (
     <Svg {...props}>

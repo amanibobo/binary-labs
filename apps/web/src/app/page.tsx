@@ -19,7 +19,6 @@ export default async function HomePage() {
   return (
     <AppShell shell={shell} location={{ section: "search" }}>
       <SearchHome
-        labName={lab.name}
         recent={recent}
         source={source}
         isAdmin={lab.role === "admin"}
