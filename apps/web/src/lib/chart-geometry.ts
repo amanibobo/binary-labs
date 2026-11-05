@@ -91,7 +91,7 @@ export function niceDomain(lo: number, hi: number, count: number): [number, numb
     return niceDomain(lo - pad, hi + pad, count);
   }
   const step = tickStep(lo, hi, count);
-  return [Math.floor(lo / step) * step, Math.ceil(hi / step) * step];
+  return [Number((Math.floor(lo / step) * step).toPrecision(12)), Number((Math.ceil(hi / step) * step).toPrecision(12))];
 }
 
 export function linearTicks(lo: number, hi: number, count: number): number[] {

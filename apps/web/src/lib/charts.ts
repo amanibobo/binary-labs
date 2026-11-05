@@ -144,9 +144,22 @@ export function startingSpec(table: DataTable): ChartSpec | null {
   };
 }
 
+// A column that hardly moves, like a plate reader's temperature log, is a poor first plot.
+function isFlat(column: NumberColumn): boolean {
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (const v of column.values) {
+    if (v === null) continue;
+    lo = Math.min(lo, v);
+    hi = Math.max(hi, v);
+  }
+  return !Number.isFinite(lo) || hi - lo <= 0.01 * Math.max(Math.abs(lo), Math.abs(hi));
+}
+
 function startingColumns(table: DataTable): { x: DataColumn; y: NumberColumn } | null {
-  const [first, second] = numberColumns(table);
+  const [first, ...rest] = numberColumns(table);
   if (first === undefined) return null;
+  const second = rest.find((c) => !isFlat(c)) ?? rest[0];
   if (second !== undefined) return { x: first, y: second };
   const names = table.columns.find((c) => c.kind === "text");
   if (names !== undefined && names.values.filter((v) => v !== null).length <= MAX_BARS) return { x: names, y: first };
