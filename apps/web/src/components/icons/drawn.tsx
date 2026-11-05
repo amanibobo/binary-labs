@@ -241,3 +241,30 @@ export const FILE_KIND_ICONS = {
   audio: FileAudioIcon,
   video: FileVideoIcon,
 } satisfies Record<FileKind, (props: IconProps) => ReactNode>;
+
+// The help button's ⓘ.
+export function InfoIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <circle {...line} cx="12" cy="12" r="8.5" />
+      <path {...line} d="M12 11v5" />
+      <circle cx="12" cy="8" r="1.1" />
+    </Svg>
+  );
+}
+
+// A checklist line: an open ring, filled with a tick once it's done.
+export function ChecklistMarkIcon({ done, ...props }: IconProps & { done: boolean }) {
+  return (
+    <Svg {...props}>
+      {done ? (
+        <>
+          <circle cx="12" cy="12" r="8.5" />
+          <path fill="none" stroke="var(--content-inverse-primary)" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" d="m8.5 12.2 2.4 2.3 4.6-4.8" />
+        </>
+      ) : (
+        <circle {...line} cx="12" cy="12" r="8.5" />
+      )}
+    </Svg>
+  );
+}
