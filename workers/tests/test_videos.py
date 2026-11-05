@@ -206,6 +206,21 @@ def test_without_ffmpeg_a_video_plays_with_no_poster_and_says_why_there_is_no_tr
 
 
 @needs_ffmpeg
+def test_a_video_linked_while_still_indexing_waits_for_its_transcript(v_rt, conn, make_lab, fake):
+    lab = make_lab()
+    page = make_protocol(conn, lab)
+    sha, (location_id, _, _) = add_video(v_rt, conn, lab, page)
+    run_scan(v_rt, upload_source(conn, lab.id))
+    # As if the sweep ran after the link but before the poster and the indexed mark.
+    conn.execute("update file_locations set index_state = 'pending' where id = %s", (location_id,))
+    assert transcribe_all(v_rt) == []
+    assert transcribe_video(v_rt, lab.id, sha) is None
+    assert video_row(conn, lab.id, sha) == ("waiting", None)
+    conn.execute("update file_locations set index_state = 'indexed' where id = %s", (location_id,))
+    assert transcribe_all(v_rt) == [Transcript.READY]
+
+
+@needs_ffmpeg
 def test_a_silent_video_is_not_sent_to_the_transcriber(v_rt, conn, make_lab, fake):
     lab = make_lab()
     page = make_protocol(conn, lab)

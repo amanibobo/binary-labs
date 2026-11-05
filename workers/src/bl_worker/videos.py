@@ -65,11 +65,16 @@ join blobs b on b.sha256 = pf.sha256 and b.file_kind = 'video'
 on conflict do nothing
 """
 
-# Waiting, still on a page, and in a lab that isn't being deleted.
+# Waiting, still on a page, in a lab that isn't being deleted, and done indexing: an upload is
+# linked before its poster is made, and its transcript waits until that's finished.
 WAITING = """
 select v.lab_id, v.sha256 from videos v join labs l on l.id = v.lab_id
 where v.transcript = 'waiting' and l.deletion_requested_at is null
   and exists (select 1 from protocol_files pf where pf.lab_id = v.lab_id and pf.sha256 = v.sha256)
+  and exists (
+    select 1 from file_locations fl where fl.lab_id = v.lab_id and fl.sha256 = v.sha256
+      and fl.index_state = 'indexed' and fl.deleted_at is null
+  )
   and (%(lab)s::uuid is null or v.lab_id = %(lab)s)
   and (%(sha)s::text is null or v.sha256 = %(sha)s)
 order by v.updated_at
