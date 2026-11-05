@@ -34,16 +34,35 @@ const shots = [
     scheme: "dark",
   },
   { name: "needs-a-look", path: "/dev/fixtures/needs-a-look", width: 1440, scheme: "dark" },
-  { name: "settings", path: "/dev/fixtures/lab", width: 1440, scheme: "dark" },
   { name: "sign-in", path: "/sign-in", width: 1440, scheme: "dark" },
   { name: "new-lab", path: "/dev/fixtures/new-lab", width: 1440, scheme: "dark" },
   { name: "lab-folder", path: "/dev/fixtures/folder", width: 1440, scheme: "dark" },
   { name: "search-palette", path: "/dev/fixtures/search?state=empty", palette: "p450", width: 1440, scheme: "dark" },
   ...protocolShots(),
+  ...settingsShots(),
   ...deletionShots(),
   ...uploadShots(),
   ...talkThroughShots(),
 ];
+
+// Settings: the overview and each area, in both schemes at desktop and phone width.
+function settingsShots() {
+  const lab = (query) => `/dev/fixtures/lab${query}`;
+  const all = (shot) => ["dark", "light"].flatMap((scheme) => [1440, 390].map((width) => ({ ...shot, width, scheme })));
+  return [
+    ...all({ name: "settings", path: lab("") }),
+    ...all({ name: "settings-dropbox", path: lab("?area=dropbox") }),
+    ...all({ name: "settings-experiments", path: lab("?area=experiments") }),
+    { name: "settings-people", path: lab("?area=people"), width: 1440, scheme: "dark" },
+    ...all({ name: "settings-members", path: lab("?area=members") }),
+    { name: "settings-account", path: lab("?area=account"), width: 390, scheme: "dark" },
+    { name: "settings-connect", path: lab("?area=dropbox&state=connect"), width: 1440, scheme: "dark" },
+    { name: "settings-empty-list", path: lab("?area=people&state=connect"), width: 390, scheme: "light" },
+    ...all({ name: "settings-member", path: lab("?role=member") }),
+    { name: "settings-member-dropbox", path: lab("?role=member&area=dropbox"), width: 1440, scheme: "dark" },
+    { name: "settings-member-members", path: lab("?role=member&area=members"), width: 390, scheme: "dark" },
+  ];
+}
 
 // Deleting a lab and disconnecting Dropbox, in both schemes.
 function deletionShots() {
@@ -52,23 +71,21 @@ function deletionShots() {
     await page.getByRole("button", { name: "Delete lab" }).click();
     await page.getByLabel("Type Okafor Lab to confirm").fill("Okafor Lab");
   };
+  const openDisconnect = (page) => page.getByRole("button", { name: "Disconnect", exact: true }).click();
   return [
-    ...both({ name: "settings-delete-section", path: "/dev/fixtures/lab?state=connect" }),
-    ...both({ name: "settings-delete-dialog", path: "/dev/fixtures/lab", steps: openDelete, full: false }),
-    { name: "settings-delete-dialog", path: "/dev/fixtures/lab", steps: openDelete, full: false, width: 390, scheme: "dark" },
-    ...both({
-      name: "settings-disconnect-dialog",
-      path: "/dev/fixtures/lab",
-      steps: (page) => page.getByRole("button", { name: "Disconnect", exact: true }).click(),
-      full: false,
-    }),
-    ...both({ name: "settings-disconnected", path: "/dev/fixtures/lab?state=disconnected" }),
-    { name: "settings-member", path: "/dev/fixtures/lab?role=member", width: 1440, scheme: "dark" },
+    ...both({ name: "settings-delete-section", path: "/dev/fixtures/lab?area=delete&state=connect" }),
+    { name: "settings-delete-section", path: "/dev/fixtures/lab?area=delete", width: 390, scheme: "dark" },
+    ...both({ name: "settings-delete-dialog", path: "/dev/fixtures/lab?area=delete", steps: openDelete, full: false }),
+    { name: "settings-delete-dialog", path: "/dev/fixtures/lab?area=delete", steps: openDelete, full: false, width: 390, scheme: "dark" },
+    ...both({ name: "settings-disconnect-dialog", path: "/dev/fixtures/lab?area=dropbox", steps: openDisconnect, full: false }),
+    { name: "settings-disconnect-dialog", path: "/dev/fixtures/lab?area=dropbox", steps: openDisconnect, full: false, width: 390, scheme: "dark" },
+    ...both({ name: "settings-disconnected", path: "/dev/fixtures/lab?area=dropbox&state=disconnected" }),
+    { name: "settings-disconnected", path: "/dev/fixtures/lab?area=dropbox&state=disconnected", width: 390, scheme: "dark" },
+    { name: "settings-disconnected-overview", path: "/dev/fixtures/lab?state=disconnected", width: 1440, scheme: "dark" },
     ...both({ name: "lab-deleted-pending", path: "/dev/fixtures/deleted?state=pending" }),
     ...both({ name: "lab-deleted-done", path: "/dev/fixtures/deleted?state=done" }),
   ];
 }
-
 
 // The upload page idle, mid-upload and done, in both schemes at desktop and phone width,
 // and search finding an uploaded photo.
