@@ -4,6 +4,7 @@ import { auditQuietly } from "@/lib/audit";
 import { Sha256 } from "@/lib/ids";
 import { deliverObject } from "@/lib/object-store";
 import { routeAccess } from "@/lib/route-auth";
+import { fileResponse } from "@/lib/serve-file";
 import { unwrap } from "@/lib/supabase/server";
 
 const PreviewRow = z.object({ storage_key: z.string().min(1) });
@@ -32,8 +33,11 @@ export async function GET(request: NextRequest, ctx: RouteContext<"/api/previews
   switch (delivery.kind) {
     case "redirect":
       return NextResponse.redirect(delivery.url, { status: 302, headers: { "cache-control": "private, max-age=50" } });
-    case "bytes":
-      return new NextResponse(delivery.body, {
+    case "file":
+      return fileResponse({
+        path: delivery.path,
+        size: delivery.size,
+        range: null,
         headers: { "content-type": "image/webp", "cache-control": "private, max-age=300" },
       });
     case "missing":

@@ -12,11 +12,15 @@ export const DROPBOX_ENDPOINTS = {
   listFolder: "https://api.dropboxapi.com/2/files/list_folder",
   listFolderContinue: "https://api.dropboxapi.com/2/files/list_folder/continue",
   getMetadata: "https://api.dropboxapi.com/2/files/get_metadata",
+  // A four-hour link to one file's bytes, for playing a lab's Dropbox video on its protocol page.
+  getTemporaryLink: "https://api.dropboxapi.com/2/files/get_temporary_link",
   // Ends our access on disconnect or lab deletion; it changes nothing in the lab's Dropbox.
   revokeToken: "https://api.dropboxapi.com/2/auth/token/revoke",
 } as const;
 
-type ApiEndpoint = (typeof DROPBOX_ENDPOINTS)["currentAccount" | "listFolder" | "listFolderContinue" | "getMetadata"];
+type ApiEndpoint = (typeof DROPBOX_ENDPOINTS)[
+  "currentAccount" | "listFolder" | "listFolderContinue" | "getMetadata" | "getTemporaryLink"
+];
 
 export class DropboxError extends Error {
   readonly status: number;
@@ -174,4 +178,11 @@ export async function folderPath(accessToken: string, path: string): Promise<str
     if (err instanceof DropboxError && err.status === 409) return null;
     throw err;
   }
+}
+
+const TemporaryLink = z.object({ link: z.url() });
+
+// `path` may be a file id ("id:…"), which is what the index keeps.
+export async function temporaryLink(accessToken: string, path: string): Promise<string> {
+  return TemporaryLink.parse(await rpc(DROPBOX_ENDPOINTS.getTemporaryLink, accessToken, { path })).link;
 }
