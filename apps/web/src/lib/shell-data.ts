@@ -7,8 +7,6 @@ import type { Member } from "./viewer";
 export type ShellData = {
   labName: string;
   memberCount: number;
-  // The first few members, for the avatars on the sidebar's invite button.
-  memberEmails: string[];
   isAdmin: boolean;
   email: string;
   folders: FolderRow[];
@@ -24,7 +22,6 @@ export async function loadShell({ supabase, lab, user }: Member): Promise<ShellD
   return {
     labName: lab.name,
     memberCount: members.length,
-    memberEmails: members.flatMap((m) => (m.email === null ? [] : [m.email])).slice(0, 3),
     isAdmin: lab.role === "admin",
     email: user.email,
     folders,

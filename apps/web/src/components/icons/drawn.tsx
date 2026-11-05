@@ -124,11 +124,10 @@ export function LinkIcon(props: IconProps) {
   );
 }
 
-export function UserPlusIcon(props: IconProps) {
+export function SendIcon(props: IconProps) {
   return (
     <Svg {...props}>
-      <circle {...line} cx="10" cy="8" r="3.5" />
-      <path {...line} d="M3.5 19.5a6.5 6.5 0 0 1 11.6-4M18.5 14v6M15.5 17h6" />
+      <path {...line} d="M20.5 3.5 10 14M20.5 3.5 14 20.5l-4-6.5-6.5-4z" />
     </Svg>
   );
 }
