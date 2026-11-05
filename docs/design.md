@@ -117,3 +117,23 @@ worker: schedule_scans ──▶ scan_source (an upload source isn't listed; it 
 - `/api/files/<location id>` opens an uploaded file: RLS finds the location, the key is built from the viewer's lab, and only images, PDFs and plain text are served inline (everything else downloads, with `nosniff`). Each open is `file.download` in `audit_log`. Search, Browse and protocol pages pick "Open file" or "Open in Dropbox" from `openTarget` in `lib/format.ts`, keyed by source kind.
 - The upload page sends one file at a time from a queue kept for the page's life (`lib/upload-queue.ts`): a dropped upload retries after 2, 5 and 15 s, then waits for Retry or for the browser to come back online, and the page warns before closing while anything is unsent.
 - `scripts/e2e-upload.sh` runs the route's core (`lib/upload-accept.ts`) and the real worker on local Postgres and a local store.
+
+## Talk-throughs
+
+Migration 0009. A `talk_throughs` row ties one recording (`location_id`, unique) to what it's for: a new page of some `kind`, or a page and the version on screen while recording (`protocol_id` and `base_version_id`, both or neither). `draft` is `waiting`, `ready` (title and body set), `failed` (may work on a retry) or `unavailable` (won't; the transcript is offered instead). `used_version_id` is set once, by the save that used the steps. Members read the table under RLS and write only through functions.
+
+```
+recorder ──POST /api/uploads (x-upload-purpose: talk-through)──▶ acceptTalkThrough
+  same temp file, sha256 and store key as an upload; cap audio_max_bytes() (100 MB)
+  record_talk_through ──▶ record_file (the old record_upload body) + talk_throughs (waiting)
+worker: scan ──▶ process_location: a location with a talk_throughs row is transcribed
+  (Transcriber, TRANSCRIBER=elevenlabs|whisper) ──▶ extraction kind transcript ──▶ chunks
+  ──▶ draft_steps (also queued by tend_talk_throughs every 10 s) ──▶ talk_throughs.draft
+page: talk_through(id) polled every 2 s until settled ──▶ /talk-throughs/<id>/edit
+  ──▶ use_talk_through ──▶ create_protocol or save_protocol + link_protocol_file + mark used
+```
+
+- `talk_through(id)` is `security definer`, because transcripts are extractions and closed to members; it answers only when `is_lab_member` holds for the talk-through's lab. `open_talk_throughs` (invoker) lists a page's unused ones, or with no page the caller's own new-page ones.
+- `retry_talk_through` puts a failed recording back to pending and requests a scan, and puts a failed draft back to waiting.
+- `use_talk_through` raises the protocol codes plus `BL105` (already used) and `BL106` (not transcribed yet). `mark_talk_through_used` accepts only a version the caller saved in the same transaction.
+- The web state machine is `TalkThroughStatus` in `lib/talk-throughs.ts`; the recorder's is `lib/recorder-state.ts`. The fixture page is `/dev/fixtures/talk-throughs?view=…`, and screenshots record on Chromium's fake microphone.
