@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
-import type { FileHit } from "@/lib/domain";
+import type { FileHit, FileKind } from "@/lib/domain";
 import { folderOf } from "@/lib/format";
 import type { Sha256 } from "@/lib/ids";
 import { cn } from "@/lib/cn";
@@ -21,24 +21,40 @@ export function FilePicker({
   onOpenChange,
   linked,
   onLink,
+  title = "Link a file",
+  kind,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   linked: ReadonlySet<Sha256>;
   onLink: (hit: FileHit) => void;
+  title?: string;
+  // Only files of this kind, as the search filter would show them.
+  kind?: FileKind;
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent title="Link a file" aria-describedby={undefined}>
-        {open ? <PickerBody linked={linked} onLink={onLink} onDone={() => onOpenChange(false)} /> : null}
+      <DialogContent title={title} aria-describedby={undefined}>
+        {open ? <PickerBody linked={linked} onLink={onLink} onDone={() => onOpenChange(false)} kind={kind} /> : null}
       </DialogContent>
     </Dialog>
   );
 }
 
-function PickerBody({ linked, onLink, onDone }: { linked: ReadonlySet<Sha256>; onLink: (hit: FileHit) => void; onDone: () => void }) {
+function PickerBody({
+  linked,
+  onLink,
+  onDone,
+  kind,
+}: {
+  linked: ReadonlySet<Sha256>;
+  onLink: (hit: FileHit) => void;
+  onDone: () => void;
+  kind: FileKind | undefined;
+}) {
   const [query, setQuery] = useState("");
-  const { data, isError } = useFileSearch(query, {});
+  const [filters] = useState(() => (kind === undefined ? {} : { kind }));
+  const { data, isError } = useFileSearch(query, filters);
   const inputId = useId();
   const q = query.trim();
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -10,6 +11,7 @@ import { cn } from "@/lib/cn";
 import { folderOf, formatDate, openTarget } from "@/lib/format";
 import { authorName, isCurrent, KIND_NAMES, protocolHref, type AuthorNames, type ProtocolVersion } from "@/lib/protocols";
 import { recordHref, type OpenTalkThrough } from "@/lib/talk-throughs";
+import type { ProtocolVideo } from "@/lib/videos";
 import { KindIcon } from "../files/kind-icon";
 import { PreviewPanel } from "../files/preview-panel";
 import { DeleteIcon } from "../icons/base-web";
@@ -21,6 +23,7 @@ import { Dialog, DialogContent, DialogDock } from "../ui/dialog";
 import { CrumbBar } from "./crumb-bar";
 import { FilePicker } from "./file-picker";
 import { OpenTalkThroughs } from "../talk-throughs/open-list";
+import { ProtocolVideos, videosKey } from "../videos/protocol-videos";
 import { Markdown } from "./markdown";
 
 export function ProtocolView({
@@ -29,6 +32,7 @@ export function ProtocolView({
   authors,
   isAdmin,
   talkThroughs,
+  videos,
 }: {
   page: ProtocolVersion;
   files: FileHit[];
@@ -36,6 +40,7 @@ export function ProtocolView({
   isAdmin: boolean;
   // Recordings for this page whose steps nobody has used yet.
   talkThroughs: readonly OpenTalkThrough[];
+  videos: ProtocolVideo[];
 }) {
   const current = isCurrent(page);
   const editable = current && !page.archived;
@@ -86,6 +91,8 @@ export function ProtocolView({
           <Markdown body={page.body} className="mt-10" />
         )}
 
+        <ProtocolVideos protocolId={page.protocolId} initial={videos} editable={editable} />
+
         <LinkedFiles page={page} initial={files} editable={editable} />
 
         {isAdmin && editable ? <ArchiveSection page={page} /> : null}
@@ -104,16 +111,20 @@ function Notice({ children }: { children: ReactNode }) {
 
 function LinkedFiles({ page, initial, editable }: { page: ProtocolVersion; initial: FileHit[]; editable: boolean }) {
   const api = useLabApi();
-  const [files, setFiles] = useState(initial);
+  const queryClient = useQueryClient();
+  // Videos play in their own section above.
+  const [files, setFiles] = useState(() => initial.filter((f) => f.fileKind !== "video"));
   const [picking, setPicking] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
   const headingId = useId();
   const linked = new Set(files.map((f) => f.sha256));
 
   async function link(hit: FileHit) {
-    setFiles((prev) => (prev.some((f) => f.sha256 === hit.sha256) ? prev : [...prev, hit]));
+    const isVideo = hit.fileKind === "video";
+    if (!isVideo) setFiles((prev) => (prev.some((f) => f.sha256 === hit.sha256) ? prev : [...prev, hit]));
     try {
       await api.linkProtocolFile(page.protocolId, hit.sha256);
+      if (isVideo) await queryClient.invalidateQueries({ queryKey: videosKey(page.protocolId) });
     } catch (error) {
       setFiles((prev) => prev.filter((f) => f.sha256 !== hit.sha256));
       toast.error(error instanceof Error ? error.message : "We couldn't link that file.");
@@ -150,7 +161,7 @@ function LinkedFiles({ page, initial, editable }: { page: ProtocolVersion; initi
       {files.length === 0 ? (
         <p className="text-paragraph-medium text-content-tertiary">
           {editable
-            ? "No files linked yet. Link a demo video, an example gel or the original document."
+            ? "No files linked yet. Link an example gel, a plate layout or the original document."
             : "No files linked."}
         </p>
       ) : (

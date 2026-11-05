@@ -5,7 +5,7 @@ import { AppShell } from "@/components/app-shell";
 import { ConfigMissing } from "@/components/config-missing";
 import { ProtocolView } from "@/components/protocols/protocol-view";
 import { ProtocolId } from "@/lib/ids";
-import { loadAuthorNames, loadLinkedFiles, loadOpenTalkThroughs, loadProtocolVersion } from "@/lib/lab-data";
+import { loadAuthorNames, loadLinkedFiles, loadOpenTalkThroughs, loadProtocolVersion, loadProtocolVideos } from "@/lib/lab-data";
 import { loadShell } from "@/lib/shell-data";
 import { requireMember } from "@/lib/viewer";
 
@@ -20,17 +20,18 @@ export default async function ProtocolPage({ params, searchParams }: PageProps<"
   const viewer = await requireMember();
   if (viewer.kind === "config_missing") return <ConfigMissing missing={viewer.missing} />;
   const { supabase, lab } = viewer;
-  const [shell, page, files, authors, talkThroughs] = await Promise.all([
+  const [shell, page, files, authors, talkThroughs, videos] = await Promise.all([
     loadShell(viewer),
     loadProtocolVersion(supabase, id.data, version ?? null),
     loadLinkedFiles(supabase, lab.id, id.data),
     loadAuthorNames(supabase, lab.id),
     loadOpenTalkThroughs(supabase, lab.id, id.data),
+    loadProtocolVideos(supabase, id.data),
   ]);
   if (page === null) notFound();
   return (
     <AppShell shell={shell} location={{ section: "protocols" }}>
-      <ProtocolView page={page} files={files} authors={authors} isAdmin={lab.role === "admin"} talkThroughs={talkThroughs} />
+      <ProtocolView page={page} files={files} authors={authors} isAdmin={lab.role === "admin"} talkThroughs={talkThroughs} videos={videos} />
     </AppShell>
   );
 }
