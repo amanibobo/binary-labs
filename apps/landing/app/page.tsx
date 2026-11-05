@@ -1,122 +1,86 @@
 import type { ReactNode } from "react";
-import { Features } from "./features";
-import { Hero } from "./hero";
-import { Letter } from "./letter";
-import { CALL_MAILTO, PILOT_MAILTO } from "./links";
-import { Mark } from "./mark";
-import { Menubar } from "./menubar";
-import { Reveal } from "./motion";
+import { Highlights } from "./highlights";
+import { APP_URL, CALL_MAILTO, PILOT_MAILTO } from "./links";
+import { LogoMark } from "./logo";
 
-const STEPS: readonly { title: string; body: ReactNode }[] = [
-  {
-    title: "Connect one folder.",
-    body: "Binary Labs asks Dropbox for read-only access to a single folder and nothing else. Your files stay where they are, under the names you gave them.",
-  },
-  {
-    title: "It reads what is inside.",
-    body: "PDFs, spreadsheets, Word documents, plate reader exports and notes are read for their text, tables and headers. Photos are indexed by when they were taken and where they were saved.",
-  },
-  {
-    title: "Ask the way you would ask a labmate.",
-    body: (
-      <>
-        &ldquo;P450 gels from batch 3&rdquo; finds the files by meaning and by name, even when the name is <Mono>final_v2_REAL.xlsx</Mono>.
-        Every result shows a preview, the original file and the folder it lives in.
-      </>
-    ),
-  },
-  {
-    title: "Copies count once.",
-    body: "The same file saved in four folders shows up as one result, with every place it lives.",
-  },
-];
-
-function Mono({ children }: { children: string }) {
-  return <span className="font-mono text-[0.86em] tracking-normal">{children}</span>;
+function Mark({ tone, children }: { tone: "green" | "blue"; children: ReactNode }) {
+  return <mark className={`hl hl-${tone}`}>{children}</mark>;
 }
 
-function TextLink({ href, children }: { href: string; children: string }) {
+function Ink({ tone, children }: { tone: "green" | "blue"; children: ReactNode }) {
+  return <span className={tone === "green" ? "text-brand-green" : "text-brand-blue"}>{children}</span>;
+}
+
+function Mono({ children }: { children: string }) {
+  return <span className="font-mono text-[0.88em]">{children}</span>;
+}
+
+function Link({ href, children, tone }: { href: string; children: string; tone?: "green" }) {
   return (
-    <a href={href} className="inline-flex min-h-11 items-center underline decoration-1 underline-offset-[0.2em] hover:decoration-2 focus-visible:decoration-2">
+    <a
+      href={href}
+      className={`inline-flex min-h-11 items-center underline decoration-1 underline-offset-[0.25em] transition-colors hover:decoration-2 ${
+        tone === "green" ? "text-brand-green decoration-brand-green/50" : "decoration-black/25 hover:text-black"
+      }`}
+    >
       {children}
     </a>
   );
 }
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <details className="disclosure group border-t-2 border-dotted border-black/15 last:border-b-2">
-      <summary className="flex min-h-[44px] cursor-pointer list-none items-center justify-between gap-4 py-[0.7em] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-black [&::-webkit-details-marker]:hidden">
-        <h2 className="font-medium">{title}</h2>
-        <svg
-          viewBox="0 0 24 24"
-          aria-hidden="true"
-          className="size-5 shrink-0 text-black/45 transition-transform duration-200 ease-out group-open:rotate-45 motion-reduce:transition-none"
-        >
-          <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
-        </svg>
-      </summary>
-      <div className="pb-[1.1em] text-black/70">{children}</div>
-    </details>
-  );
-}
-
 export default function Home() {
   return (
-    <div className="flex min-h-dvh flex-col overflow-x-clip">
-      <Menubar />
-      <main>
-        <Hero />
-        <Features />
-        <Letter />
+    <div className="flex min-h-dvh flex-col px-5">
+      <main className="mx-auto w-full max-w-[600px] flex-1 pt-24 pb-20 text-center sm:pt-36">
+        <h1 className="font-serif text-[44px] leading-[1.1] tracking-[-0.01em] sm:text-[52px]">Binary Labs</h1>
+        <p className="mt-5 text-[18px] leading-[1.6] text-black/70 sm:text-[19px]">
+          One private place for everything your research lab produces. It finds any file in seconds and teaches new people from the
+          lab&rsquo;s own work.
+        </p>
 
-        <section id="details" aria-label="Details" className="scroll-mt-16 px-5 pt-16 pb-24 lg:pt-24">
-          <Reveal className="mx-auto w-full max-w-[640px] text-[20px] leading-[1.3] tracking-[-0.6px] sm:text-[22px]">
-            <Section title="How it works">
-              <ol className="space-y-[1em]">
-                {STEPS.map((step) => (
-                  <li key={step.title}>
-                    <span className="font-medium text-black">{step.title}</span> {step.body}
-                  </li>
-                ))}
-              </ol>
-            </Section>
+        <LogoMark className="mx-auto mt-10 h-12 w-auto" />
 
-            <Section title="What it will not do">
-              <p>
-                It never writes to your Dropbox, moves a file or renames one. Your lab&rsquo;s files are never used to train models, and lab
-                text is searched with a model we run ourselves. One request deletes everything we hold about your lab.
-              </p>
-            </Section>
+        <nav aria-label="Links" className="mt-6 flex flex-wrap items-center justify-center gap-x-3 text-[15px] text-black/55">
+          <Link href={PILOT_MAILTO} tone="green">
+            Request a pilot
+          </Link>
+          <span aria-hidden>&middot;</span>
+          <Link href={APP_URL}>Sign in</Link>
+          <span aria-hidden>&middot;</span>
+          <Link href={CALL_MAILTO}>Book a call</Link>
+        </nav>
 
-            <Section title="What comes next">
-              <p>
-                Capture and teaching. Photos of gels and notebook pages from the bench, protocol pages a new student can follow, and the
-                walkthrough videos your last postdoc recorded, linked to the steps they show.
-              </p>
-            </Section>
-
-            <Section title="The pilot">
-              <p>
-                We are starting with a few academic wet labs this winter. A pilot is free for a month and needs about twenty minutes of the
-                PI&rsquo;s time to set up.
-              </p>
-              <p className="mt-[1.3em]">
-                <TextLink href={PILOT_MAILTO}>Request a pilot</TextLink>
-                <span className="text-black/45"> or </span>
-                <TextLink href={CALL_MAILTO}>book a call</TextLink>
-              </p>
-            </Section>
-          </Reveal>
+        <section aria-labelledby="manifesto" className="mt-24 sm:mt-28">
+          <h2 id="manifesto" className="font-mono text-[13px] text-black/40">
+            manifesto
+          </h2>
+          <Highlights className="mt-8 space-y-6 text-[18px] leading-[1.7] text-black/80 sm:text-[19px]">
+            <p>
+              A lab&rsquo;s best work is already done. It sits in a shared folder as <Mono>IMG_4821.jpg</Mono>,{" "}
+              <Mono>final_v2_REAL.xlsx</Mono> and a protocol only one postdoc remembers how to run.
+            </p>
+            <p>
+              Every year people leave and <Mark tone="blue">take the know-how with them</Mark>. The new student starts from zero, and
+              the seniors spend their afternoons teaching the same steps again.
+            </p>
+            <p>
+              We think a lab should <Mark tone="green">remember everything it has done</Mark>. Ask for &ldquo;P450 gels from batch
+              3&rdquo; and get the gel, the file it came from and the folder it lives in, <Ink tone="blue">in seconds</Ink>.
+            </p>
+            <p>
+              So we <Ink tone="green">read and never write</Ink>. Binary Labs gets read-only access to one folder and moves nothing.
+              Your files are <Mark tone="green">never used to train models</Mark>, and one request deletes everything we hold.
+            </p>
+            <p>
+              We start small. Finding things first, then capture and teaching at the bench, then the instruments.{" "}
+              <Mark tone="blue">Each step ships only after a real lab uses the last one.</Mark>
+            </p>
+          </Highlights>
         </section>
       </main>
 
-      <footer className="mt-auto flex items-center justify-between border-t border-black/5 px-5 py-6 text-[14px] text-black/45 lg:px-6">
-        <p className="flex items-center gap-2">
-          <Mark animated={false} className="size-4 text-black/70" />
-          Binary Labs
-        </p>
-        <p>2026</p>
+      <footer className="mx-auto w-full max-w-[600px] border-t border-black/[0.07] py-6 text-center text-[13px] text-black/40">
+        Binary Labs, {new Date().getFullYear()}
       </footer>
     </div>
   );

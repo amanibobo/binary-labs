@@ -177,3 +177,9 @@ A protocol or tutorial page has a Videos section above its files. "Add a video" 
 Measured: a 14 s spoken clip (`scripts/e2e-video.sh`, 2.8 MB, real ElevenLabs on local Postgres and the local store) went up in one part, was linked with a poster, and was transcribed and searchable 6 s after the worker started, for $0.000853.
 
 Open: the R2 path (multipart, presigned parts, read-back) and Dropbox temporary links are built against their APIs but untested against a live bucket and account; R2 needs a CORS rule that allows PUT from the app's origin and exposes `ETag`, and a lifecycle rule that aborts incomplete multipart uploads after a day, since the server keeps no list of open sessions and an abandoned one otherwise waits for lab deletion. The worker reads a whole video into memory, up to 500 MB, so a hosted worker needs room for it. Bytes moved to `<lab_id>/files/<sha256>` stay if `record_video` then refuses (an archived page), until the lab is deleted, as with uploads.
+
+## 2026-11-04 — logo and a text-only landing page
+
+The logo is a lowercase b drawn in squares with small gaps (a 4 by 6 grid); the bottom-left square is green and the one above it blue, the rest ink (light on dark grounds). One source, `apps/web/src/lib/logo.json`, feeds the app's top bar, the sign-in card, the SVG favicon and the home-screen icons; the landing keeps a copy in `apps/landing/app/logo.tsx`.
+
+The landing page supersedes the heyclicky-style desktop hero: one centered column of text. A serif title, one sentence on what Binary Labs is, the logo, then "Request a pilot" (green), "Sign in" and "Book a call" as plain links, then a short manifesto with a few phrases marked in green or blue highlighter that draw in when it scrolls into view. No app mock-ups, no screenshots.
