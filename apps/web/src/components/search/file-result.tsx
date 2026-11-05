@@ -60,7 +60,7 @@ export function FileResult({
           <span className="sr-only">Details for {title}</span>
         </button>
         <Thumb hit={hit} />
-        <span className="pointer-events-none relative min-w-0 flex-1 pt-0.5">
+        <span data-tour="label" className="pointer-events-none relative min-w-0 flex-1 pt-0.5">
           <LabelTitle hit={hit} label={label} />
           {/* The notes wrap under the path on narrow screens rather than squeezing it. */}
           <span className="mt-0.5 flex flex-wrap gap-x-1.5 text-paragraph-xsmall text-content-tertiary">

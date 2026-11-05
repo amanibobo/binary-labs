@@ -11,6 +11,8 @@ import type { Sha256 } from "@/lib/ids";
 import type { LabLists } from "@/lib/label-edit";
 import { hasIndex, type SourceState } from "@/lib/source-state";
 import { cn } from "@/lib/cn";
+import { GettingStartedCard } from "../onboarding/getting-started";
+import { useOnboarding } from "../onboarding/onboarding-context";
 import { LabelsProvider, LabListsProvider, useLabelPolling } from "../labels/labels-context";
 import { ActiveScan } from "../scan-status";
 import { buttonVariants } from "../ui/button";
@@ -41,6 +43,7 @@ export function SearchHome({
   const [expanded, setExpanded] = useState<string | null>(urlOpen);
   const inputId = useId();
   const input = useRef<HTMLInputElement>(null);
+  const { markDone } = useOnboarding();
 
   // The palette navigates here with ?q=…&open=…; follow it (set during render, per React's guidance).
   const [seenUrl, setSeenUrl] = useState({ q: urlQuery, open: urlOpen });
@@ -52,6 +55,7 @@ export function SearchHome({
 
   function updateQuery(next: string) {
     setQuery(next);
+    if (next.trim() !== "") markDone("searchedAt");
     const url = new URL(window.location.href);
     if (next.trim() === "") url.searchParams.delete("q");
     else url.searchParams.set("q", next);
@@ -82,6 +86,7 @@ export function SearchHome({
             onChange={(e) => updateQuery(e.target.value)}
             placeholder="Find a file, a gel, a protocol…"
             autoFocus
+            data-tour="search-box"
             end={indexed ? <FiltersToggle open={filtersOpen} onToggle={() => setFiltersOpen((o) => !o)} controls={filtersId} /> : undefined}
           />
           {indexed ? <Filters id={filtersId} open={filtersOpen} value={filters} onChange={setFilters} /> : null}
@@ -94,6 +99,7 @@ export function SearchHome({
               }}
             />
           ) : null}
+          {searching ? null : <GettingStartedCard className="mt-8 sm:mt-10" />}
 
           <section aria-labelledby={headingId} className="-mx-3 mt-8 sm:mt-10">
             {searching ? (
@@ -183,7 +189,7 @@ function SearchResults({
           {data.protocols.length > 0 ? "No files match" : "Nothing matches"} &ldquo;{query}&rdquo;{filtered ? " with these filters" : ""}.
         </p>
       ) : (
-        <ul className="space-y-1">
+        <ul data-tour="results" className="space-y-1">
           {data.results.map((hit) => (
             <FileResult key={hit.sha256} hit={hit} query={query} expanded={expanded === hit.sha256} onToggle={() => onToggle(hit.sha256)} />
           ))}
@@ -257,7 +263,7 @@ function RecentFiles({
       <h2 id={headingId} className="mb-1 px-3 text-label-small text-content-tertiary">
         Recent files
       </h2>
-      <ul className="space-y-1">
+      <ul data-tour="results" className="space-y-1">
         {recent.map((hit) => (
           <FileResult key={hit.sha256} hit={hit} query="" expanded={expanded === hit.sha256} onToggle={() => onToggle(hit.sha256)} />
         ))}

@@ -134,6 +134,7 @@ function CheckMarker({ onAccept }: { onAccept: () => void }) {
         type="button"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
+        data-hint="check-this"
         className={cn(interactive, tagShape, "bg-background-warning text-content-warning")}
       >
         Check this

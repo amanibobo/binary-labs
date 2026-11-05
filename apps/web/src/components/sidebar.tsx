@@ -9,10 +9,11 @@ import { cn } from "@/lib/cn";
 import type { ShellData } from "@/lib/shell-data";
 import { PaletteTrigger } from "./command-palette";
 import { ChevronDownIcon, DeleteIcon, MenuIcon } from "./icons/base-web";
-import { SearchOutlineIcon, SendIcon, SidebarIcon, UploadIcon } from "./icons/drawn";
+import { InfoIcon, SearchOutlineIcon, SendIcon, SidebarIcon, UploadIcon } from "./icons/drawn";
 import { NeedsLookCountText, useNeedsLookCount } from "./labels/needs-look-count";
 import { LogoMark } from "./logo";
 import { NAV, SETTINGS_NAV, SIDEBAR_COOKIE, type NavItem, type Section } from "./nav";
+import { HelpMenuContent } from "./onboarding/help";
 import { buttonVariants } from "./ui/button";
 import { Dialog as Modal, DialogContent, DialogTrigger } from "./ui/dialog";
 import { menuItem, menuSurface } from "./ui/menu";
@@ -61,6 +62,7 @@ function NavLink({ item, current, onNavigate }: { item: NavItem; current: Sectio
         aria-current={active ? "page" : undefined}
         aria-label={collapsed ? label : undefined}
         onClick={onNavigate}
+        data-tour={item.section}
         className={cn(itemClass(active, collapsed), "relative")}
       >
         <item.Icon className={cn("size-5 shrink-0", active ? "text-content-primary" : "text-content-tertiary")} />
@@ -117,6 +119,7 @@ function SidebarBody({ shell, current, onNavigate }: ShellProps & { onNavigate?:
         {shell.isAdmin ? <InvitePeople shell={shell} /> : null}
         <div className="mt-2 flex flex-col gap-0.5 border-t border-border-opaque pt-3">
           <NavLink item={SETTINGS_NAV} current={current} onNavigate={onNavigate} />
+          <HelpRow onNavigate={onNavigate} />
           <AccountMenu email={shell.email} />
         </div>
       </div>
@@ -155,6 +158,22 @@ function InvitePeople({ shell }: { shell: ShellData }) {
         <InviteForm className="px-4 pt-2 pb-6 sm:px-6" />
       </DialogContent>
     </Modal>
+  );
+}
+
+// The ⓘ under Settings: the tour, getting started and "How do I…" (components/onboarding/help.tsx).
+function HelpRow({ onNavigate }: { onNavigate?: () => void }) {
+  const collapsed = use(Collapsed);
+  return (
+    <DropdownMenu.Root>
+      <Tip label="Help">
+        <DropdownMenu.Trigger data-tour="help" aria-label={collapsed ? "Help" : undefined} className={cn(itemClass(false, collapsed), "w-full text-left")}>
+          <InfoIcon className="size-5 shrink-0 text-content-tertiary" />
+          {collapsed ? null : <span className="min-w-0 flex-1 truncate">Help</span>}
+        </DropdownMenu.Trigger>
+      </Tip>
+      <HelpMenuContent side={collapsed ? "right" : "top"} align={collapsed ? "end" : "start"} onNavigate={onNavigate} />
+    </DropdownMenu.Root>
   );
 }
 
@@ -272,7 +291,7 @@ export function PhoneBar({ shell, current }: ShellProps) {
         <span className="sr-only">Search</span>
       </PaletteTrigger>
       <Dialog.Root open={open} onOpenChange={setOpen}>
-        <Dialog.Trigger className={cn(buttonVariants({ variant: "tertiary", shape: "square", size: "compact" }), "size-11")}>
+        <Dialog.Trigger data-tour="menu" className={cn(buttonVariants({ variant: "tertiary", shape: "square", size: "compact" }), "size-11")}>
           <MenuIcon />
           <span className="sr-only">Menu</span>
         </Dialog.Trigger>

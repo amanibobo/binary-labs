@@ -304,7 +304,14 @@ const smallAction = cn(buttonVariants({ variant: "secondary", size: "compact" })
 function QueuedUpload({ item, row, dispatch }: { item: QueueItem; row: UploadRow | undefined; dispatch: (action: QueueAction) => void }) {
   const { state } = item;
   if (state.kind === "stored") {
-    if (row !== undefined) return <StoredUpload row={row} thumb={item.thumb} duplicate={state.duplicate} />;
+    if (row !== undefined) {
+      return (
+        // The phone-upload hint waits for one sent just now to be labeled.
+        <div data-hint={row.progress.kind === "labeled" ? "upload-done" : undefined}>
+          <StoredUpload row={row} thumb={item.thumb} duplicate={state.duplicate} />
+        </div>
+      );
+    }
     return (
       <div className={rowShell}>
         <Thumb src={item.thumb} kind={null} />
