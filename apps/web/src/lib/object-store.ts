@@ -103,7 +103,9 @@ export async function putFile(key: string, file: { path: string; size: number },
   }
 }
 
-export async function deliverObject(key: string, delivery: Delivery): Promise<ObjectDelivery> {
+// A video element keeps asking for ranges of the URL it was redirected to, so a video's link
+// has to outlast watching it; anything else gets a minute.
+export async function deliverObject(key: string, delivery: Delivery, { expiresIn = PRESIGN_SECONDS } = {}): Promise<ObjectDelivery> {
   const env = previewEnv();
   switch (env.PREVIEW_STORE) {
     case "r2": {
@@ -113,7 +115,7 @@ export async function deliverObject(key: string, delivery: Delivery): Promise<Ob
         ResponseContentType: delivery.contentType,
         ResponseContentDisposition: delivery.disposition,
       });
-      return { kind: "redirect", url: await getSignedUrl(r2(env), command, { expiresIn: PRESIGN_SECONDS }) };
+      return { kind: "redirect", url: await getSignedUrl(r2(env), command, { expiresIn }) };
     }
     case "local": {
       const path = localPath(localRoot(env), key);
@@ -231,7 +233,7 @@ export async function completeMultipart(
         await rm(tmp, { force: true });
         throw err;
       }
-      await rm(dir, { recursive: true, force: true });
+      // The parts stay until the upload is recorded, so a retried complete can join them again.
       return "done";
     }
     default: {
@@ -298,24 +300,17 @@ export async function readObject(key: string): Promise<AsyncIterable<Uint8Array>
   }
 }
 
-// Puts the object at `from` under `to` and removes `from`. The same bytes already at `to` stay.
-export async function moveObject(from: string, to: string): Promise<void> {
+// Copies the object at `from` to `to`, unless the same bytes are already there.
+export async function copyObject(from: string, to: string): Promise<void> {
   const env = previewEnv();
   switch (env.PREVIEW_STORE) {
-    case "r2": {
-      const client = r2(env);
+    case "r2":
       if ((await objectSize(to)) === null) {
-        await client.send(new CopyObjectCommand({ Bucket: env.R2_BUCKET, CopySource: `${env.R2_BUCKET}/${from}`, Key: to }));
+        await r2(env).send(new CopyObjectCommand({ Bucket: env.R2_BUCKET, CopySource: `${env.R2_BUCKET}/${from}`, Key: to }));
       }
-      await client.send(new DeleteObjectCommand({ Bucket: env.R2_BUCKET, Key: from }));
       return;
-    }
-    case "local": {
-      const target = localKeyPath(env, to);
-      await mkdir(dirname(target), { recursive: true });
-      await rename(localKeyPath(env, from), target);
-      return;
-    }
+    case "local":
+      return placeFile(localKeyPath(env, from), localKeyPath(env, to));
     default: {
       const _exhaustive: never = env;
       return _exhaustive;
@@ -323,15 +318,19 @@ export async function moveObject(from: string, to: string): Promise<void> {
   }
 }
 
-export async function deleteObject(key: string): Promise<void> {
+// Removes what an upload left at its staging key: the joined object, and locally its parts.
+export async function discardStaging(key: string): Promise<void> {
   const env = previewEnv();
   switch (env.PREVIEW_STORE) {
     case "r2":
       await r2(env).send(new DeleteObjectCommand({ Bucket: env.R2_BUCKET, Key: key }));
       return;
-    case "local":
-      await rm(localKeyPath(env, key), { force: true });
+    case "local": {
+      const path = localKeyPath(env, key);
+      await rm(partsDir(path), { recursive: true, force: true });
+      await rm(path, { force: true });
       return;
+    }
     default: {
       const _exhaustive: never = env;
       return _exhaustive;

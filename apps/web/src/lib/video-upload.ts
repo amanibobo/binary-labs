@@ -4,8 +4,8 @@ import {
   abortMultipart,
   completeMultipart,
   createMultipart,
-  deleteObject,
-  moveObject,
+  discardStaging,
+  copyObject,
   objectSize,
   partDestination,
   putLocalPart,
@@ -157,22 +157,39 @@ export async function completeVideoUpload(
   const expected = partCount(req.size);
   if (req.parts.length !== expected || req.parts.some((p, i) => p.partNumber !== i + 1)) return SHORT;
   const staged = stagingKey(labId, uploadId);
-  const joined = await completeMultipart(staged, req.storeId, req.parts, { partBytes: VIDEO_PART_BYTES, size: req.size });
-  if (joined === "incomplete") return SHORT;
-
+  // Every step until the record can run again: a complete retried after a lost answer or a
+  // failure finds the joined object (R2 won't complete an upload twice) or joins the parts again.
+  if ((await objectSize(staged)) !== req.size) {
+    const joined = await completeMultipart(staged, req.storeId, req.parts, { partBytes: VIDEO_PART_BYTES, size: req.size });
+    if (joined === "incomplete") return SHORT;
+  }
   const size = await objectSize(staged);
   if (size === null) return SHORT;
   if (size !== req.size || size > VIDEO_MAX_BYTES) {
-    await deleteObject(staged);
+    await discardStaging(staged);
     return size > VIDEO_MAX_BYTES ? { status: 413, error: TOO_BIG } : SHORT;
   }
   const hashed = await sha256Of(await readObject(staged));
   if (hashed.size !== size) throw new Error(`read ${hashed.size} of ${size} bytes of ${staged}`);
-  await moveObject(staged, uploadKey(labId, hashed.sha256));
+  await copyObject(staged, uploadKey(labId, hashed.sha256));
 
+  // Throws on an unexpected database error, leaving the staged copy for a retry; recorded or
+  // refused for good, the staged copy has done its job.
+  const recorded = await recordVideo(labId, hashed.sha256, size, req, record);
+  await discardStaging(staged);
+  return recorded;
+}
+
+async function recordVideo(
+  labId: string,
+  sha256: Sha256,
+  size: number,
+  req: CompleteVideoRequest,
+  record: RecordVideo,
+): Promise<{ status: 200 | 201; receipt: VideoReceipt } | Refused> {
   const { data, error } = await record({
     p_lab_id: labId,
-    p_sha256: hashed.sha256,
+    p_sha256: sha256,
     p_size: size,
     p_name: req.name,
     p_uploaded_on: req.uploadedOn,
@@ -194,7 +211,7 @@ export async function completeVideoUpload(
     }
   }
   const recorded = RecordVideoRows.parse(data);
-  return { status: recorded.duplicate ? 200 : 201, receipt: { ...recorded, sha256: hashed.sha256 } };
+  return { status: recorded.duplicate ? 200 : 201, receipt: { ...recorded, sha256 } };
 }
 
 export async function abortVideoUpload(labId: string, session: VideoSession): Promise<void> {

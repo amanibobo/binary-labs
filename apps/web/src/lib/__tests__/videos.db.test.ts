@@ -220,6 +220,27 @@ describe("a video sent in parts", () => {
     expect(existsSync(join(store, labV, "uploads", `${session.uploadId}.parts`))).toBe(false);
   });
 
+  it("completes again after a failure past the join, from the parts it kept", async () => {
+    const page = await makePage(vera, labV, "Retried");
+    const bytes = video(VIDEO_PART_BYTES + 99, 5);
+    const started = await startVideoUpload(labV, { protocolId: page, name: "r.mp4", size: bytes.byteLength, type: "video/mp4" }, pageCheck(vera, labV));
+    if (!("session" in started)) throw new Error("expected a session");
+    const { uploadId, storeId } = started.session;
+    const parts = [];
+    for (let n = 1; n <= 2; n++) {
+      const span = partSpan(bytes.byteLength, n);
+      const put = await receiveVideoPart(labV, uploadId, n, partRequest(bytes.slice(span.start, span.end)));
+      if (!("etag" in put)) throw new Error(put.error);
+      parts.push({ partNumber: n, etag: put.etag });
+    }
+    const req = { protocolId: page, name: "r.mp4", size: bytes.byteLength, type: "video/mp4" as const, storeId, parts, uploadedOn: today, modifiedAt: null };
+    const flaky = async () => ({ data: null, error: { code: "08006", message: "connection lost" } });
+    await expect(completeVideoUpload(labV, uploadId, req, flaky)).rejects.toThrow(/connection lost/);
+    const done = await completeVideoUpload(labV, uploadId, req, recordAs(vera));
+    expect(done).toMatchObject({ status: 201, receipt: { sha256: sha(bytes) } });
+    expect(readdirSync(join(store, labV, "uploads"))).toEqual([]);
+  });
+
   it("links the same bytes at once when the lab already holds them verified", async () => {
     const page = await makePage(vera, labV, "Again");
     const bytes = video(5000, 4);

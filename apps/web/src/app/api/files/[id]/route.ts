@@ -23,6 +23,8 @@ const FileRow = z.object({
 });
 
 const noStore = { "cache-control": "private, no-store" };
+// Browsers send a video's later range requests to the link they were redirected to.
+const VIDEO_LINK_SECONDS = 4 * 60 * 60;
 
 // Opens a file: an upload from our store, or a lab's Dropbox video through a temporary link
 // so it plays on its protocol page. Other Dropbox files open in Dropbox instead. A video
@@ -62,7 +64,8 @@ export async function GET(request: NextRequest, ctx: RouteContext<"/api/files/[i
       const sha = Sha256.safeParse(row.external_id);
       if (!sha.success) return NextResponse.json({ error: "no such file" }, { status: 404 });
       const headers = deliveryFor(row.blobs?.mime ?? null, row.original_name);
-      const delivery = await deliverObject(uploadKey(lab.id, sha.data), headers);
+      const isVideo = VideoType.safeParse(row.blobs?.mime).success;
+      const delivery = await deliverObject(uploadKey(lab.id, sha.data), headers, isVideo ? { expiresIn: VIDEO_LINK_SECONDS } : {});
       switch (delivery.kind) {
         case "redirect":
           audit(sha.data);

@@ -52,7 +52,8 @@ export const StartVideoRequest = z.object({
 });
 export type StartVideoRequest = z.infer<typeof StartVideoRequest>;
 
-export const PartTargetRequest = z.object({ storeId: VideoSession.shape.storeId, size: z.number().int().positive() });
+// Bounded by the cap, so a session can't be stretched past 500 MB of staged parts.
+export const PartTargetRequest = z.object({ storeId: VideoSession.shape.storeId, size: z.number().int().positive().max(VIDEO_MAX_BYTES) });
 
 // Where to PUT one part: our own route in dev, a presigned R2 URL in the pilot.
 export const PartTarget = z.object({ url: z.string().min(1) });

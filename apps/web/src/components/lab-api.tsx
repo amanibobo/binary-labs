@@ -150,6 +150,7 @@ async function sendPart(
     PartTarget,
   );
   if (target.kind !== "stored") return target;
+  if (signal.aborted) return { kind: "interrupted", message: "The upload was stopped." };
   return new Promise((resolve) => {
     const xhr = new XMLHttpRequest();
     xhr.open("PUT", target.receipt.url);

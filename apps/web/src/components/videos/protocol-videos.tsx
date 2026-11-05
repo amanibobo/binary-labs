@@ -99,7 +99,7 @@ export function ProtocolVideos({
   }
 
   function cancel(upload: VideoUpload) {
-    driver.abort(upload.id);
+    driver.cancel(upload.id);
     if (upload.session !== null) void api.abortVideoUpload(upload.session);
     dispatch({ type: "remove", id: upload.id });
   }
@@ -178,10 +178,11 @@ function useUploadDriver({
   uploads: VideoUpload[];
   dispatch: (action: UploadsAction) => void;
   onAdded: () => void;
-}): { abort: (id: number) => void } {
+}): { cancel: (id: number) => void } {
   // The request in flight for each upload. It also keeps one request per step when React runs
   // this effect twice for the same state.
   const inFlight = useRef(new Map<number, AbortController>());
+  const cancelled = useRef(new Set<number>());
   const next = nextToSend({ nextId: 0, items: uploads });
 
   useEffect(() => {
@@ -193,6 +194,10 @@ function useUploadDriver({
     void takeStep(api, protocolId, upload, (sent) => dispatch({ type: "progress", id: upload.id, sent }), controller.signal).then(
       (result) => {
         inFlight.current.delete(upload.id);
+        // Cancelled while its session was opening: close the session nobody will use.
+        if (cancelled.current.has(upload.id) && result.kind === "stored" && result.receipt.step === "start") {
+          void api.abortVideoUpload(result.receipt.session);
+        }
         dispatch({ type: "finish", id: upload.id, result, now: Date.now() });
         if (result.kind === "stored" && result.receipt.step === "complete") onAdded();
       },
@@ -212,7 +217,12 @@ function useUploadDriver({
     return () => window.removeEventListener("online", online);
   }, [dispatch]);
 
-  return { abort: (id) => inFlight.current.get(id)?.abort() };
+  return {
+    cancel: (id) => {
+      cancelled.current.add(id);
+      inFlight.current.get(id)?.abort();
+    },
+  };
 }
 
 async function takeStep(

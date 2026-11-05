@@ -4,9 +4,9 @@ import { previewEnv } from "@/env";
 import { badRequest, ok } from "@/lib/protocol-routes";
 import { readJson, routeAccess } from "@/lib/route-auth";
 import { receiveVideoPart, videoPartUrl } from "@/lib/video-upload";
-import { PartTargetRequest, VideoUploadId } from "@/lib/videos";
+import { partCount, PartTargetRequest, VIDEO_MAX_BYTES, VideoUploadId } from "@/lib/videos";
 
-const PartNumber = z.coerce.number().int().min(1).max(10_000);
+const PartNumber = z.coerce.number().int().min(1).max(partCount(VIDEO_MAX_BYTES));
 
 async function params(ctx: RouteContext<"/api/videos/uploads/[id]/parts/[n]">) {
   const { id, n } = await ctx.params;
