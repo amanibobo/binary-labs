@@ -171,11 +171,16 @@ function NextStep({ tt, retrying, retryError, onRetry }: { tt: TalkThrough; retr
       );
     case "no_draft":
       return (
+        // With words to start from, that's the way on; with none, recording again is.
         <div className="mt-6 flex flex-wrap items-center gap-3">
-          <Link href={again} className={buttonVariants()}>
+          {startFromTranscript === null ? null : (
+            <Link href={edit("transcript")} className={buttonVariants()}>
+              Start from the transcript
+            </Link>
+          )}
+          <Link href={again} className={buttonVariants({ variant: startFromTranscript === null ? "primary" : "secondary" })}>
             Record again
           </Link>
-          {startFromTranscript}
         </div>
       );
     case "failed":
