@@ -81,7 +81,6 @@ describe.runIf(env.success)("a chart from a processed file, through the routes' 
         expect(svg).not.toContain("var(--");
         const out = join(E2E_OUT, `${file.name}.svg`);
         writeFileSync(out, `<?xml version="1.0" encoding="UTF-8"?>\n${svg}`);
-        console.log(`${file.name}: ${table.name}, ${spec.type}, ${spec.series.length} series, ${plot.series[0]?.points.length} points -> ${out}`);
       }
     } finally {
       await db.end();
