@@ -1,6 +1,5 @@
 import { appendFileSync, existsSync, writeFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { Readable } from "node:stream";
 import { NextRequest } from "next/server";
 import { Client } from "pg";
 import { describe, expect, it, vi } from "vitest";
@@ -26,7 +25,18 @@ const env = z
 
 vi.mock("server-only", () => ({}));
 
-type Handler = (request: NextRequest, ctx: { params: Promise<Record<string, string>> }) => Promise<Response>;
+function bodyOf(req: IncomingMessage): ReadableStream<Uint8Array> {
+  return new ReadableStream({
+    start(controller) {
+      req.on("data", (chunk: Buffer) => controller.enqueue(new Uint8Array(chunk)));
+      req.on("end", () => controller.close());
+      req.on("error", (err) => controller.error(err));
+    },
+  });
+}
+
+// A route and the path segments its pattern captured.
+type Handler = (request: NextRequest, captured: string[]) => Promise<Response>;
 
 describe.runIf(env.success)("the uploader's routes over HTTP", () => {
   it("serves the real uploader until told to stop", { timeout: 15 * 60_000 }, async () => {
@@ -52,15 +62,17 @@ describe.runIf(env.success)("the uploader's routes over HTTP", () => {
     await db.query("select create_instrument($1, 'Plate reader, room 214', $2)", [e.E2E_LAB, hash]);
     await db.query("commit");
 
+    const ctx = <T,>(params: T) => ({ params: Promise.resolve(params) });
+    const ID = "([0-9a-f-]{36})";
     const routes: [string, RegExp, Handler][] = [
-      ["POST", /^\/api\/instruments\/pair$/, pair.POST],
-      ["POST", /^\/api\/instruments\/heartbeat$/, heartbeat.POST],
-      ["POST", /^\/api\/instruments\/files\/check$/, check.POST],
-      ["POST", /^\/api\/instruments\/uploads$/, uploads.POST],
-      ["DELETE", /^\/api\/instruments\/uploads\/(?<id>[^/]+)$/, upload.DELETE],
-      ["POST", /^\/api\/instruments\/uploads\/(?<id>[^/]+)\/parts\/(?<n>\d+)$/, parts.POST],
-      ["PUT", /^\/api\/instruments\/uploads\/(?<id>[^/]+)\/parts\/(?<n>\d+)$/, parts.PUT],
-      ["POST", /^\/api\/instruments\/uploads\/(?<id>[^/]+)\/complete$/, complete.POST],
+      ["POST", /^\/api\/instruments\/pair$/, (r) => pair.POST(r)],
+      ["POST", /^\/api\/instruments\/heartbeat$/, (r) => heartbeat.POST(r)],
+      ["POST", /^\/api\/instruments\/files\/check$/, (r) => check.POST(r)],
+      ["POST", /^\/api\/instruments\/uploads$/, (r) => uploads.POST(r)],
+      ["DELETE", new RegExp(`^/api/instruments/uploads/${ID}$`), (r, [id = ""]) => upload.DELETE(r, ctx({ id }))],
+      ["POST", new RegExp(`^/api/instruments/uploads/${ID}/parts/(\\d+)$`), (r, [id = "", n = ""]) => parts.POST(r, ctx({ id, n }))],
+      ["PUT", new RegExp(`^/api/instruments/uploads/${ID}/parts/(\\d+)$`), (r, [id = "", n = ""]) => parts.PUT(r, ctx({ id, n }))],
+      ["POST", new RegExp(`^/api/instruments/uploads/${ID}/complete$`), (r, [id = ""]) => complete.POST(r, ctx({ id }))],
     ];
 
     async function handle(req: IncomingMessage, res: ServerResponse) {
@@ -70,7 +82,7 @@ describe.runIf(env.success)("the uploader's routes over HTTP", () => {
         res.writeHead(404).end();
         return;
       }
-      const params = route[1].exec(url.pathname)?.groups ?? {};
+      const captured = route[1].exec(url.pathname)?.slice(1) ?? [];
       if (req.method === "PUT") await new Promise((r) => setTimeout(r, e.E2E_PART_DELAY_MS));
       const headers = new Headers();
       for (const [k, v] of Object.entries(req.headers)) if (typeof v === "string") headers.set(k, v);
@@ -78,11 +90,11 @@ describe.runIf(env.success)("the uploader's routes over HTTP", () => {
       const request = new NextRequest(url, {
         method: req.method,
         headers,
-        body: hasBody ? Readable.toWeb(req) : undefined,
+        body: hasBody ? bodyOf(req) : undefined,
         duplex: "half",
       });
-      const response = await route[2](request, { params: Promise.resolve({ ...params }) });
-      if (req.method === "PUT") appendFileSync(e.E2E_PART_LOG, `${params.id} ${params.n} ${response.status}\n`);
+      const response = await route[2](request, captured);
+      if (req.method === "PUT") appendFileSync(e.E2E_PART_LOG, `${captured.join(" ")} ${response.status}\n`);
       res.writeHead(response.status, Object.fromEntries(response.headers));
       res.end(Buffer.from(await response.arrayBuffer()));
     }
