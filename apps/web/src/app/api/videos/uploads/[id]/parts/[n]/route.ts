@@ -4,7 +4,8 @@ import { previewEnv } from "@/env";
 import { badRequest, ok } from "@/lib/protocol-routes";
 import { readJson, routeAccess } from "@/lib/route-auth";
 import { receiveVideoPart, videoPartUrl } from "@/lib/video-upload";
-import { partCount, PartTargetRequest, VIDEO_MAX_BYTES, VideoUploadId } from "@/lib/videos";
+import { partCount } from "@/lib/parts";
+import { PartTargetRequest, VIDEO_MAX_BYTES, VideoUploadId } from "@/lib/videos";
 
 const PartNumber = z.coerce.number().int().min(1).max(partCount(VIDEO_MAX_BYTES));
 

@@ -1,14 +1,11 @@
 import { z } from "zod";
 import { IsoDate, SourceKind } from "./domain";
 import { LocationId, ProtocolId, Sha256 } from "./ids";
+import { UploadedPart } from "./parts";
 
 // Mirrors video_max_bytes() in db/migrations/0010_videos.sql; a db test checks they agree.
 // About 3 to 5 minutes from a phone camera at 1080p.
 export const VIDEO_MAX_BYTES = 500 * 1024 * 1024;
-
-// Every part but the last is this size, as R2 requires. At 5 Mbps one part takes about 13 s,
-// which is the most a dropped connection costs.
-export const VIDEO_PART_BYTES = 8 * 1024 * 1024;
 
 // What a browser plays and we serve inline; a phone records one of these.
 export const VIDEO_TYPES = ["video/mp4", "video/quicktime", "video/webm"] as const;
@@ -22,16 +19,6 @@ export function refusedVideo(file: { type: string; size: number }): string | nul
   if (file.size > VIDEO_MAX_BYTES) return TOO_BIG;
   if (file.size === 0) return "That video is empty.";
   return null;
-}
-
-export function partCount(size: number): number {
-  return Math.max(1, Math.ceil(size / VIDEO_PART_BYTES));
-}
-
-// Part n (from 1) of a file: its first byte and the byte after its last.
-export function partSpan(size: number, n: number): { start: number; end: number } {
-  const start = (n - 1) * VIDEO_PART_BYTES;
-  return { start, end: Math.min(size, start + VIDEO_PART_BYTES) };
 }
 
 // One upload in progress: our id, which names its staging key under the viewer's lab, and the
@@ -57,9 +44,6 @@ export const PartTargetRequest = z.object({ storeId: VideoSession.shape.storeId,
 
 // Where to PUT one part: our own route in dev, a presigned R2 URL in the pilot.
 export const PartTarget = z.object({ url: z.string().min(1) });
-
-export const UploadedPart = z.object({ partNumber: z.number().int().min(1).max(10_000), etag: z.string().min(1).max(200) });
-export type UploadedPart = z.infer<typeof UploadedPart>;
 
 export const CompleteVideoRequest = StartVideoRequest.extend({
   storeId: VideoSession.shape.storeId,

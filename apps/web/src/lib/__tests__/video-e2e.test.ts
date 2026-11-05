@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { ProtocolId } from "../ids";
 import { localDay } from "../uploads";
-import { partCount, partSpan } from "../videos";
+import { partCount, partSpan } from "../parts";
 
 // Driven by scripts/e2e-video.sh, which sets these and then runs the real worker. Skipped in
 // the normal unit run.
