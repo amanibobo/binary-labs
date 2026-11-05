@@ -7,7 +7,8 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { CreateLabResult, FileKind } from "../domain";
 import { ProtocolId, type LabId } from "../ids";
-import { partCount, partSpan, ProtocolVideosRows, VIDEO_MAX_BYTES, VIDEO_PART_BYTES, type CompleteVideoRequest, type VideoSession } from "../videos";
+import { PART_BYTES, partCount, partSpan } from "../parts";
+import { ProtocolVideosRows, VIDEO_MAX_BYTES, type CompleteVideoRequest, type VideoSession } from "../videos";
 
 vi.mock("server-only", () => ({}));
 const store = mkdtempSync(join(tmpdir(), "bl-video-store-"));
@@ -138,7 +139,7 @@ afterAll(async () => {
 describe("a video sent in parts", () => {
   it("lands under the lab's files by the hash the server computed, and waits to join its page", async () => {
     const page = await makePage(vera, labV, "Column loading");
-    const bytes = video(VIDEO_PART_BYTES + 1234, 1);
+    const bytes = video(PART_BYTES + 1234, 1);
     const sent = await send(vera, labV, page, bytes);
     if (!("done" in sent) || !("receipt" in sent.done)) throw new Error(`refused: ${JSON.stringify(sent)}`);
     const { receipt, status } = sent.done;
@@ -188,13 +189,13 @@ describe("a video sent in parts", () => {
 
   it("asks for a part again when one is missing or the wrong size, and drops a cancelled upload", async () => {
     const page = await makePage(vera, labV, "Parts");
-    const bytes = video(VIDEO_PART_BYTES + 10, 3);
+    const bytes = video(PART_BYTES + 10, 3);
     const started = await startVideoUpload(labV, { protocolId: page, name: "p.mp4", size: bytes.byteLength, type: "video/mp4" }, pageCheck(vera, labV));
     if (!("session" in started)) throw new Error("expected a session");
     const session: VideoSession = started.session;
-    await receiveVideoPart(labV, session.uploadId, 1, partRequest(bytes.slice(0, VIDEO_PART_BYTES)));
+    await receiveVideoPart(labV, session.uploadId, 1, partRequest(bytes.slice(0, PART_BYTES)));
     // Part 2 arrived short (a dropped connection the client didn't notice).
-    await receiveVideoPart(labV, session.uploadId, 2, partRequest(bytes.slice(VIDEO_PART_BYTES, VIDEO_PART_BYTES + 3)));
+    await receiveVideoPart(labV, session.uploadId, 2, partRequest(bytes.slice(PART_BYTES, PART_BYTES + 3)));
     const req = {
       protocolId: page,
       name: "p.mp4",
@@ -213,16 +214,16 @@ describe("a video sent in parts", () => {
       status: 400,
     });
     // A part larger than a part is refused as it arrives.
-    expect(await receiveVideoPart(labV, session.uploadId, 2, partRequest(new Uint8Array(VIDEO_PART_BYTES + 1)))).toMatchObject({ status: 413 });
+    expect(await receiveVideoPart(labV, session.uploadId, 2, partRequest(new Uint8Array(PART_BYTES + 1)))).toMatchObject({ status: 413 });
 
-    await receiveVideoPart(labV, session.uploadId, 2, partRequest(bytes.slice(VIDEO_PART_BYTES)));
+    await receiveVideoPart(labV, session.uploadId, 2, partRequest(bytes.slice(PART_BYTES)));
     await abortVideoUpload(labV, session);
     expect(existsSync(join(store, labV, "uploads", `${session.uploadId}.parts`))).toBe(false);
   });
 
   it("completes again after a failure past the join, from the parts it kept", async () => {
     const page = await makePage(vera, labV, "Retried");
-    const bytes = video(VIDEO_PART_BYTES + 99, 5);
+    const bytes = video(PART_BYTES + 99, 5);
     const started = await startVideoUpload(labV, { protocolId: page, name: "r.mp4", size: bytes.byteLength, type: "video/mp4" }, pageCheck(vera, labV));
     if (!("session" in started)) throw new Error("expected a session");
     const { uploadId, storeId } = started.session;

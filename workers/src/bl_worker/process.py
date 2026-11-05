@@ -20,7 +20,7 @@ from bl_worker.filekind import detect
 from bl_worker.previews import PreviewFailed, PreviewStore, preview_key, render_preview
 from bl_worker.runtime import Runtime
 from bl_worker.scan import LIVE_SOURCE
-from bl_worker.sources import build_reader
+from bl_worker.sources import read_file
 from bl_worker.transcribe import TranscriptExtractor
 from bl_worker.video import Ffmpeg, poster
 
@@ -88,7 +88,7 @@ def process_location(rt: Runtime, location_id: UUID) -> Outcome:
 
 def _process(rt: Runtime, conn: psycopg.Connection, loc: Location) -> Outcome:
     try:
-        data = build_reader(loc.source, rt.settings, rt.previews).read(loc.external_id)
+        data = read_file(loc.source, rt.settings, rt.previews, loc.external_id, loc.source_rev)
         blob = _store_blob(conn, loc, data)
         link_pending(conn, loc.id, blob.sha256)
         extracted = extract_cached(conn, extractor_for(rt, conn, loc, blob), loc.lab_id, blob, data)

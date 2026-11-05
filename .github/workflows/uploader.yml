@@ -1,0 +1,62 @@
+name: Instrument uploader
+
+on:
+  push:
+    paths:
+      - "instruments/uploader/**"
+      - ".github/workflows/uploader.yml"
+  pull_request:
+    paths:
+      - "instruments/uploader/**"
+      - ".github/workflows/uploader.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+          - os: macos-latest
+            target: aarch64-apple-darwin
+    defaults:
+      run:
+        working-directory: instruments/uploader
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+          components: clippy, rustfmt
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: instruments/uploader -> target
+          key: ${{ matrix.target }}
+
+      - name: Format
+        run: cargo fmt --check
+
+      - name: Clippy
+        run: cargo clippy --all-targets --target ${{ matrix.target }} -- -D warnings
+
+      - name: Test
+        run: cargo test --target ${{ matrix.target }}
+
+      - name: Build release
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Upload the Windows binary
+        if: matrix.os == 'windows-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: binary-labs-uploader-windows-x64
+          path: instruments/uploader/target/${{ matrix.target }}/release/binary-labs-uploader.exe
+          if-no-files-found: error

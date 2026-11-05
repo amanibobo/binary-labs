@@ -33,7 +33,7 @@ class Strength(IntEnum):
     WEAK = 1  # the file's modified time, a guess from the file kind
     MEDIUM = 2  # a hint in the file name
     STRONG = 3  # EXIF, a folder, a full date in the name, an instrument signature
-    TAUGHT = 4  # a rule learned from a person's correction
+    TAUGHT = 4  # a rule learned from a person's correction, or the instrument the lab named
 
 
 @dataclass(frozen=True)
@@ -126,6 +126,8 @@ class FileInfo:
     # False when no extractor could read the file: an unknown format or a broken one.
     readable: bool = True
     upload: Upload | None = None
+    # The name the lab gave the instrument whose uploader sent this file.
+    instrument: str | None = None
 
     @property
     def path(self) -> str:

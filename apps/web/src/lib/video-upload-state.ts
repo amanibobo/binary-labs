@@ -1,5 +1,6 @@
 import type { SendResult } from "./upload-queue";
-import { partCount, partSpan, refusedVideo, type UploadedPart, type VideoReceipt, type VideoSession } from "./videos";
+import { partCount, partSpan, type UploadedPart } from "./parts";
+import { refusedVideo, type VideoReceipt, type VideoSession } from "./videos";
 
 // A page's videos on their way up. Each goes in parts, one request at a time: a dropped part
 // is sent again by itself after 2, 5 and 15 s, then waits for a tap or for the browser to come

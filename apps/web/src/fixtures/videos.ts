@@ -1,3 +1,4 @@
+import type { UploadedPart } from "@/lib/parts";
 import type { SendResult } from "@/lib/upload-queue";
 import {
   ProtocolVideosRows,
@@ -5,7 +6,6 @@ import {
   type ProtocolVideo,
   type ReadyVideo,
   type StartVideoRequest,
-  type UploadedPart,
   type VideoReceipt,
   type VideoSession,
 } from "@/lib/videos";

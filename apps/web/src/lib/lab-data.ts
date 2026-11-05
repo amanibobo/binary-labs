@@ -31,6 +31,7 @@ import {
   type ProtocolSummary,
   type ProtocolVersion,
 } from "./protocols";
+import { LabInstrumentsRows, type Instrument } from "./instruments";
 import { deriveScan, type SourceState } from "./source-state";
 import { unwrap, type Supabase } from "./supabase/server";
 import { OpenTalkThroughRows, TalkThroughRows, type OpenTalkThrough, type TalkThrough } from "./talk-throughs";
@@ -202,6 +203,10 @@ export async function loadUploadChoices(
   const recentNames = RecentUploadExperiments.parse(unwrap(recent)).flatMap((r) => (r.experiments === null ? [] : [r.experiments.name]));
   const person = z.array(z.object({ display_name: z.string() })).parse(unwrap(me))[0];
   return { experiments: experimentChoices(recentNames, all), personName: person?.display_name ?? null };
+}
+
+export async function loadInstruments(supabase: Supabase, labId: LabId): Promise<Instrument[]> {
+  return LabInstrumentsRows.parse(unwrap(await supabase.rpc("lab_instruments", { p_lab_id: labId })));
 }
 
 export async function loadPeople(supabase: Supabase, labId: LabId): Promise<Person[]> {

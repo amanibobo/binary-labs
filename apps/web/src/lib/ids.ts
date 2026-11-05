@@ -48,3 +48,7 @@ export type ChartId = z.infer<typeof ChartId>;
 // A table column by its spreadsheet letter (A, B, … AA), which stays put however it's named.
 export const ColumnId = z.string().regex(/^[A-Z]{1,3}$/, "expected a column letter").brand<"ColumnId">();
 export type ColumnId = z.infer<typeof ColumnId>;
+
+// instruments.id: one instrument PC whose uploader sends files to the lab.
+export const InstrumentId = z.uuid().brand<"InstrumentId">();
+export type InstrumentId = z.infer<typeof InstrumentId>;

@@ -15,7 +15,8 @@ import {
   type StepDone,
   type Uploads,
 } from "../video-upload-state";
-import { partCount, partSpan, ProtocolVideosRows, refusedVideo, VIDEO_MAX_BYTES, VIDEO_PART_BYTES, VideoReceipt, VideoUploadId } from "../videos";
+import { PART_BYTES, partCount, partSpan } from "../parts";
+import { ProtocolVideosRows, refusedVideo, VIDEO_MAX_BYTES, VideoReceipt, VideoUploadId } from "../videos";
 
 vi.mock("server-only", () => ({}));
 const { fileResponse } = await import("../serve-file");
@@ -69,10 +70,10 @@ describe("video limits", () => {
   });
 
   it("cuts a file into equal parts with a shorter last one", () => {
-    const size = 2 * VIDEO_PART_BYTES + 5;
+    const size = 2 * PART_BYTES + 5;
     expect(partCount(size)).toBe(3);
-    expect(partSpan(size, 1)).toEqual({ start: 0, end: VIDEO_PART_BYTES });
-    expect(partSpan(size, 3)).toEqual({ start: 2 * VIDEO_PART_BYTES, end: size });
+    expect(partSpan(size, 1)).toEqual({ start: 0, end: PART_BYTES });
+    expect(partSpan(size, 3)).toEqual({ start: 2 * PART_BYTES, end: size });
     expect(partCount(1)).toBe(1);
   });
 });
@@ -92,14 +93,14 @@ function step(uploads: Uploads, result: SendResult<StepDone>, now = 0): Uploads 
 
 describe("a video going up in parts", () => {
   it("starts, sends each part in order, then completes", () => {
-    const size = VIDEO_PART_BYTES + 10;
+    const size = PART_BYTES + 10;
     let u = withVideo(size);
     expect(nextStep(u.items[0]!)).toEqual({ kind: "start" });
     u = step(u, stored({ step: "start", session }));
-    expect(nextStep(u.items[0]!)).toEqual({ kind: "part", partNumber: 1, start: 0, end: VIDEO_PART_BYTES });
+    expect(nextStep(u.items[0]!)).toEqual({ kind: "part", partNumber: 1, start: 0, end: PART_BYTES });
     u = step(u, stored({ step: "part", part: { partNumber: 1, etag: '"a"' } }));
     u = uploadsReducer(uploadsReducer(u, { type: "begin", id: 1 }), { type: "progress", id: 1, sent: 4 });
-    expect(bytesSent(u.items[0]!)).toBe(VIDEO_PART_BYTES + 4);
+    expect(bytesSent(u.items[0]!)).toBe(PART_BYTES + 4);
     u = uploadsReducer(u, { type: "finish", id: 1, result: stored({ step: "part", part: { partNumber: 2, etag: '"b"' } }), now: 0 });
     expect(nextStep(u.items[0]!)).toEqual({ kind: "complete" });
     expect(unsent(u)).toBe(1);
@@ -110,7 +111,7 @@ describe("a video going up in parts", () => {
   });
 
   it("keeps the parts it sent when one drops, retries after each delay, then waits for a tap", () => {
-    let u = step(withVideo(3 * VIDEO_PART_BYTES), stored({ step: "start", session }));
+    let u = step(withVideo(3 * PART_BYTES), stored({ step: "start", session }));
     u = step(u, stored({ step: "part", part: { partNumber: 1, etag: '"a"' } }));
     for (const [i, delay] of RETRY_DELAYS_MS.entries()) {
       u = step(u, dropped, 1_000);

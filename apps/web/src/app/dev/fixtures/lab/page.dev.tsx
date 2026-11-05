@@ -3,12 +3,14 @@ import { SettingsArea } from "@/app/lab/areas";
 import { LabView } from "@/app/lab/lab-view";
 import { AppShell } from "@/components/app-shell";
 import { disconnectedSource, experiments, fixtureShell, members, people, scanningSource } from "@/fixtures/data";
+import { fixturePairing, instruments, waitingInstrument } from "@/fixtures/instruments";
 import { FixtureLabApi } from "@/fixtures/fixture-api";
 import { requireFixtures, type FixtureProps } from "@/fixtures/gate";
 
 const State = z.enum(["connect", "scanning", "disconnected"]).catch("scanning");
 const Role = z.enum(["admin", "member"]).catch("admin");
 const Area = SettingsArea.nullable().catch(null);
+const Code = z.enum(["shown", "paired"]).optional().catch(undefined);
 
 const SOURCES = { connect: { kind: "not_connected" as const }, scanning: scanningSource, disconnected: disconnectedSource };
 
@@ -18,6 +20,8 @@ export default async function LabFixture({ searchParams }: FixtureProps) {
   const state = State.parse(params.state);
   const role = Role.parse(params.role);
   const source = SOURCES[state];
+  const code = Code.parse(params.code);
+  const shown = code === "shown" ? [waitingInstrument, ...instruments.slice(1)] : instruments;
   return (
     <FixtureLabApi mode="hybrid" source={source}>
       <AppShell shell={fixtureShell} location={{ section: "lab" }}>
@@ -30,6 +34,8 @@ export default async function LabFixture({ searchParams }: FixtureProps) {
           members={state === "connect" ? members.slice(0, 1) : members}
           experiments={state === "connect" ? [] : experiments}
           people={state === "connect" ? [] : people}
+          instruments={state === "connect" ? [] : shown}
+          shownCode={code === undefined ? undefined : fixturePairing}
           notice={null}
         />
       </AppShell>

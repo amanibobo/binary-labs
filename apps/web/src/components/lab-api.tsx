@@ -30,8 +30,8 @@ import {
   type ProtocolVideo,
   type ReadyVideo,
   type StartVideoRequest,
-  type UploadedPart,
 } from "@/lib/videos";
+import type { UploadedPart } from "@/lib/parts";
 import {
   talkThroughHeaders,
   TalkThroughReceipt,

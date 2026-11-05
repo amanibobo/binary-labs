@@ -83,6 +83,12 @@ def load_file(conn: psycopg.Connection, lab_id: UUID, sha256: str) -> FileInfo |
         " order by u.uploaded_at limit 1",
         (lab_id, sha256),
     ).fetchone()
+    instrument = conn.execute(
+        "select i.name from instruments i join file_locations fl on fl.source_id = i.source_id"
+        " where fl.lab_id = %s and fl.sha256 = %s and fl.deleted_at is null"
+        " order by fl.modified_at desc, fl.id limit 1",
+        (lab_id, sha256),
+    ).fetchone()
     return FileInfo(
         lab_id=lab_id,
         sha256=sha256,
@@ -95,6 +101,7 @@ def load_file(conn: psycopg.Connection, lab_id: UUID, sha256: str) -> FileInfo |
         caption=caption[0] if caption else None,
         readable=extracted is not None,
         upload=Upload(*upload) if upload else None,
+        instrument=instrument[0] if instrument else None,
     )
 
 

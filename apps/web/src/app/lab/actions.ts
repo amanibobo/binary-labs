@@ -6,7 +6,9 @@ import { z } from "zod";
 import { audit } from "@/lib/audit";
 import { folderPath } from "@/lib/dropbox";
 import { holdTokens, revokeHeldTokens, sourceAccessToken } from "@/lib/dropbox-session";
-import { UserId } from "@/lib/ids";
+import { InstrumentId, UserId } from "@/lib/ids";
+import { newPairingCode } from "@/lib/instrument-upload";
+import { displayCode, InstrumentName } from "@/lib/instruments";
 import { loadSourceState } from "@/lib/lab-data";
 import { deletionFailure } from "@/lib/lab-deletion";
 import { logError } from "@/lib/log";
@@ -233,6 +235,66 @@ export async function removeListEntry(rawKind: LabListKind, rawId: string): Prom
   } catch (error) {
     logError("lab_list.remove_failed", { labId: lab.id, list: list.table, error });
     return { kind: "error", message: `We couldn't remove that ${list.noun}. Try again.` };
+  }
+  revalidatePath("/lab");
+  return { kind: "ok" };
+}
+
+// A pairing code is shown once, to the admin who asked for it; only its hash is stored.
+export type PairingCode = { instrumentId: InstrumentId; name: string; code: string; expiresAt: string; server: string };
+export type AddInstrumentState =
+  | { kind: "idle" }
+  | { kind: "added"; pairing: PairingCode }
+  | { kind: "error"; message: string; name: string };
+
+const CreatedInstrument = z.tuple([z.object({ instrument_id: InstrumentId, pairing_expires_at: z.string() })]);
+
+export async function addInstrument(_prev: AddInstrumentState, form: FormData): Promise<AddInstrumentState> {
+  const { supabase, lab } = await requireAdmin();
+  const raw = String(form.get("name") ?? "");
+  const name = InstrumentName.safeParse(raw.replace(/\s+/g, " "));
+  if (!name.success) return { kind: "error", message: name.error.issues[0]?.message ?? "Check the name.", name: raw };
+  const { code, hash } = newPairingCode();
+  const { data, error } = await supabase.rpc("create_instrument", { p_lab_id: lab.id, p_name: name.data, p_code_hash: hash });
+  if (error !== null) {
+    if (error.code === "BL301") return { kind: "error", message: `There's already an instrument called ${name.data}.`, name: raw };
+    logError("instrument.create_failed", { labId: lab.id, error });
+    return { kind: "error", message: "We couldn't add that instrument. Try again.", name: raw };
+  }
+  const [created] = CreatedInstrument.parse(data);
+  revalidatePath("/lab");
+  return {
+    kind: "added",
+    pairing: { instrumentId: created.instrument_id, name: name.data, code: displayCode(code), expiresAt: created.pairing_expires_at, server: await requestOrigin() },
+  };
+}
+
+export async function renewPairingCode(rawId: string, name: string): Promise<{ kind: "ok"; pairing: PairingCode } | { kind: "error"; message: string }> {
+  const { supabase, lab } = await requireAdmin();
+  const id = InstrumentId.safeParse(rawId);
+  if (!id.success) return { kind: "error", message: "That instrument is gone." };
+  const { code, hash } = newPairingCode();
+  const { data, error } = await supabase.rpc("renew_pairing_code", { p_instrument_id: id.data, p_code_hash: hash });
+  if (error !== null) {
+    if (error.code === "BL302") return { kind: "error", message: "That instrument is already paired." };
+    logError("instrument.renew_failed", { labId: lab.id, error });
+    return { kind: "error", message: "We couldn't make a new code. Try again." };
+  }
+  revalidatePath("/lab");
+  return {
+    kind: "ok",
+    pairing: { instrumentId: id.data, name, code: displayCode(code), expiresAt: z.string().parse(data), server: await requestOrigin() },
+  };
+}
+
+export async function revokeInstrument(rawId: string): Promise<ActionResult> {
+  const { supabase, lab } = await requireAdmin();
+  const id = InstrumentId.safeParse(rawId);
+  if (!id.success) return { kind: "error", message: "That instrument is gone." };
+  const { error } = await supabase.rpc("revoke_instrument", { p_instrument_id: id.data });
+  if (error !== null) {
+    logError("instrument.revoke_failed", { labId: lab.id, error });
+    return { kind: "error", message: "We couldn't revoke it. Try again." };
   }
   revalidatePath("/lab");
   return { kind: "ok" };

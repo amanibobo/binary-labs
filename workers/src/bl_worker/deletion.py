@@ -40,6 +40,7 @@ LAB_TABLES = (
     "videos",
     "data_tables",
     "charts",
+    "instruments",
     "audit_log",
 )
 
