@@ -90,7 +90,7 @@ function RowActions({ instrument, onCode }: { instrument: Instrument; onCode: (p
         </Button>
         <Button
           type="button"
-          variant="secondary"
+          variant="negative"
           size="compact"
           disabled={pending}
           onClick={() =>
@@ -111,7 +111,7 @@ function RowActions({ instrument, onCode }: { instrument: Instrument; onCode: (p
       {unpaired ? (
         <Button
           type="button"
-          variant="tertiary"
+          variant="secondary"
           size="compact"
           disabled={pending}
           onClick={() =>
@@ -125,7 +125,7 @@ function RowActions({ instrument, onCode }: { instrument: Instrument; onCode: (p
           New code<span className="sr-only"> for {instrument.name}</span>
         </Button>
       ) : null}
-      <Button type="button" variant="tertiary" size="compact" disabled={pending} onClick={() => setConfirming(true)}>
+      <Button type="button" variant="secondary" size="compact" disabled={pending} onClick={() => setConfirming(true)}>
         Revoke<span className="sr-only"> {instrument.name}</span>
       </Button>
     </span>

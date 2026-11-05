@@ -94,15 +94,15 @@ export function SettingsGroup({ title, description, children }: { title?: string
 // A connected service or device: its icon, its name, one line of state and what you can do to it.
 export function ConnectionRow({ icon, name, status, action, muted = false }: { icon: ReactNode; name: string; status: ReactNode; action?: ReactNode; muted?: boolean }) {
   return (
-    <div className={cn(dataRow, "flex items-center gap-4 py-3 pr-3 pl-5 sm:min-h-16 sm:pl-6")}>
-      <span aria-hidden className="flex size-10 shrink-0 items-center justify-center rounded-control border border-border-opaque bg-background-secondary text-content-secondary">
+    <div className={cn(dataRow, "flex items-center gap-4 px-5 py-3 sm:min-h-16 sm:px-6")}>
+      <span aria-hidden className="hidden size-10 shrink-0 items-center justify-center rounded-control border border-border-opaque bg-background-secondary text-content-secondary sm:flex">
         {icon}
       </span>
       <span className="min-w-0 flex-1">
         <span className={cn("block truncate text-label-medium", muted ? "text-content-tertiary" : "text-content-primary")}>{name}</span>
         <span className="block text-paragraph-small text-content-tertiary [overflow-wrap:anywhere]">{status}</span>
       </span>
-      {action === undefined || action === null ? null : <span className="flex shrink-0 items-center gap-1">{action}</span>}
+      {action === undefined || action === null ? null : <span className="flex shrink-0 items-center gap-2">{action}</span>}
     </div>
   );
 }

@@ -39,7 +39,7 @@ export function MembersSection({ members, isAdmin, email }: { members: LabMember
         </tbody>
       </DataTable>
       {isAdmin ? (
-        <SettingsGroup title="Invite people">
+        <SettingsGroup>
           <InviteForm className="px-5 py-4 sm:px-6" />
         </SettingsGroup>
       ) : null}
