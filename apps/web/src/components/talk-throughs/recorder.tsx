@@ -213,6 +213,7 @@ export function Recorder({
           target.kind === "page" ? { label: pageTitle ?? "Page", href: backHref } : { label: "New page", href: backHref },
           { label: "Talk-through", href: "/talk-throughs/new" },
         ]}
+        width="max-w-2xl sm:px-8"
       />
       <div className="mx-auto w-full max-w-2xl px-4 pt-8 pb-24 sm:px-8 sm:pt-12">
         <h1 className="text-heading-medium sm:text-heading-large">Record a talk-through</h1>

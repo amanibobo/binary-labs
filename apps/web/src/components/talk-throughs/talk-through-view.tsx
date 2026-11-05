@@ -51,6 +51,7 @@ export function TalkThroughView({ initial, authors }: { initial: TalkThrough; au
           tt.page === null ? { label: "New page", href: "/protocols/new" } : { label: tt.page.title, href: protocolHref(tt.page.protocolId) },
           { label: "Talk-through", href: talkThroughHref(tt.id) },
         ]}
+        width="max-w-6xl sm:px-6"
       />
       <div className="mx-auto w-full max-w-6xl px-4 pt-8 pb-24 sm:px-6 sm:pt-12">
         <h1 className="text-heading-medium sm:text-heading-large">{heading}</h1>
