@@ -212,7 +212,9 @@ export function ProtocolEditor({ mode, authors }: { mode: EditorMode; authors: A
           }}
         >
           {mode.kind === "create" && mode.from !== null ? <StartFileCard from={mode.from} /> : null}
-          {mode.kind === "talk_through" ? <TalkThroughCard from={mode.from} href={talkThroughHref(mode.talkThroughId)} /> : null}
+          {mode.kind === "talk_through" ? (
+            <TalkThroughCard from={mode.from} replacesVersion={base?.version ?? null} href={talkThroughHref(mode.talkThroughId)} />
+          ) : null}
 
           {creating ? (
             <div>
@@ -372,7 +374,7 @@ function crumbsFor(mode: EditorMode): { label: string; href: string }[] {
   }
 }
 
-function TalkThroughCard({ from, href }: { from: "steps" | "transcript"; href: string }) {
+function TalkThroughCard({ from, replacesVersion, href }: { from: "steps" | "transcript"; replacesVersion: number | null; href: string }) {
   return (
     <div className="rounded-control border border-border-opaque bg-background-raised p-4">
       <p className="text-label-medium text-content-primary">{from === "steps" ? "Steps drafted from your talk-through" : "The transcript of your talk-through"}</p>
@@ -380,6 +382,7 @@ function TalkThroughCard({ from, href }: { from: "steps" | "transcript"; href: s
         {from === "steps"
           ? "Check every amount, time and temperature against what you meant before you save. "
           : "Turn it into steps here before you save. "}
+        {replacesVersion === null ? "" : `This replaces the page's text; version ${replacesVersion} keeps the old text. `}
         The recording will be linked to the page.{" "}
         <Link href={href} className="text-content-accent underline underline-offset-2">
           Back to the talk-through

@@ -79,7 +79,7 @@ export function TalkThroughView({ initial, authors }: { initial: TalkThrough; au
 }
 
 // Where the recording has got, as three plain steps; the current one says what's happening.
-const STAGES = ["Sent", "Transcribed", "Steps drafted"] as const;
+const STAGES = ["Sent", "Transcript", "Steps"] as const;
 
 function stageOf(status: TalkThroughStatus): { done: number; note: string } {
   switch (status.kind) {

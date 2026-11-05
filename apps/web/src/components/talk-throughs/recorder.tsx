@@ -216,6 +216,7 @@ export function Recorder({
       />
       <div className="mx-auto w-full max-w-2xl px-4 pt-8 pb-24 sm:px-8 sm:pt-12">
         <h1 className="text-heading-medium sm:text-heading-large">Record a talk-through</h1>
+        {pageTitle !== null ? <p className="mt-1 text-paragraph-small text-content-tertiary">For {pageTitle}</p> : null}
         <p className="mt-2 max-w-prose text-paragraph-medium text-content-secondary">
           Say how you do it, step by step, as you would to someone new at the bench. We&apos;ll write it up as numbered steps for you
           to check

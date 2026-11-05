@@ -128,11 +128,11 @@ describe("a talk-through's status", () => {
   });
 
   it("starts the editor from the steps, or the transcript when asked or when no steps came", () => {
-    const tt = (status: ReturnType<typeof statusOf>, used: TalkThrough["used"] = null): TalkThrough =>
+    const tt = (status: ReturnType<typeof statusOf>, used: TalkThrough["used"] = null, forPage = true): TalkThrough =>
       TalkThroughWire.parse({
         id: TalkThroughId.parse("5b1c2c39-5a4e-4c55-9d7b-0c3c1a7a0001"),
         kind: "protocol",
-        page: { protocolId: page, title: "Lysis", baseVersionId: base, baseVersion: 4 },
+        page: forPage ? { protocolId: page, title: "Lysis", baseVersionId: base, baseVersion: 4 } : null,
         recordedBy: null,
         recordedAt: "2026-11-04T14:03:22Z",
         durationMs: null,
@@ -141,7 +141,9 @@ describe("a talk-through's status", () => {
         used,
       });
     const ready = statusOf({ ...row, draft: "ready", draft_title: "BM3 lysis", draft_body: "1. Thaw." });
-    expect(editorStart(tt(ready), "steps")).toEqual({ title: "BM3 lysis", body: "1. Thaw.", from: "steps" });
+    // A page keeps its title; the drafted title names a new page.
+    expect(editorStart(tt(ready), "steps")).toEqual({ title: "Lysis", body: "1. Thaw.", from: "steps" });
+    expect(editorStart(tt(ready, null, false), "steps")).toEqual({ title: "BM3 lysis", body: "1. Thaw.", from: "steps" });
     expect(editorStart(tt(ready), "transcript")).toEqual({ title: "Lysis", body: "Thaw the pellet on ice.", from: "transcript" });
     expect(editorStart(tt(statusOf({ ...row, draft: "unavailable", draft_error: "x" })), "steps")?.from).toBe("transcript");
     expect(editorStart(tt({ kind: "transcribing" }), "steps")).toBeNull();

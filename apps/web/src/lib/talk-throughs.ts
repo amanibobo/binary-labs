@@ -220,7 +220,8 @@ export function editorStart(
 ): { title: string; body: string; from: "steps" | "transcript" } | null {
   const s = tt.status;
   if (tt.used !== null || s.kind === "transcribing") return null;
-  if (from === "steps" && s.kind === "ready") return { title: s.title, body: s.body, from: "steps" };
+  // An existing page keeps its own title; the drafted one names a new page.
+  if (from === "steps" && s.kind === "ready") return { title: tt.page?.title ?? s.title, body: s.body, from: "steps" };
   if (s.transcript === null || s.transcript.trim() === "") return null;
   return { title: tt.page?.title ?? "", body: s.transcript, from: "transcript" };
 }
