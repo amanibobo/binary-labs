@@ -41,6 +41,8 @@ LAB_TABLES = (
     "data_tables",
     "charts",
     "instruments",
+    "file_vectors",
+    "file_neighbors",
     "audit_log",
 )
 
@@ -56,6 +58,7 @@ BLOB_REFERENCES = (
     "videos",
     "data_tables",
     "charts",
+    "file_vectors",
 )
 
 LAB_CONTENT = " union ".join(
