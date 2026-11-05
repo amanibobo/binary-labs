@@ -148,7 +148,7 @@ const CLIPS = [
   {
     id: "talk-through",
     path: "/dev/fixtures/talk-throughs?view=record",
-    crop: (page) => column(page, page.getByRole("heading", { name: "Record a talk-through" }), { above: 40, height: 480 }),
+    crop: (page) => column(page, page.getByRole("heading", { name: "Record a talk-through" }), { above: 40, height: 560 }),
     async run(page) {
       await clickAt(page, page.getByRole("button", { name: "Start recording" }));
       await page.getByText("Recording", { exact: true }).waitFor();
@@ -161,14 +161,16 @@ const CLIPS = [
   {
     id: "video",
     path: "/dev/fixtures/protocols?view=no-videos",
-    // The dialog is centered on the whole screen and the upload shows under the Videos heading,
-    // so this one frames the page beside the sidebar with the heading near the top.
+    // The dialog is centered on the whole screen, left of the protocol's column, and the upload
+    // shows under the Videos heading, so the frame spans both from the dialog's top down.
     async crop(page) {
       const heading = await box(page.getByRole("heading", { name: "Videos" }));
       await page.evaluate((y) => window.scrollBy(0, y), heading.y - 120);
       await page.waitForTimeout(200);
-      const main = await box(page.locator("main"));
-      return { x: main.x, y: 0, width: main.width, height: DESKTOP.height };
+      const add = await box(page.getByRole("button", { name: "Add a video" }));
+      const dialogLeft = (DESKTOP.width - 640) / 2;
+      const x = Math.min(dialogLeft, (await box(page.getByRole("heading", { name: "Videos" }))).x) - 16;
+      return { x, y: 24, width: add.x + add.width + 16 - x, height: DESKTOP.height - 40 };
     },
     async run(page) {
       await clickAt(page, page.getByRole("button", { name: "Add a video" }));
@@ -203,7 +205,8 @@ const CLIPS = [
   {
     id: "settings",
     path: "/dev/fixtures/lab",
-    crop: (page) => column(page, page.getByRole("heading", { level: 1 }).first(), { above: 40, height: 520 }),
+    // Two rows of tiles with their labels, Members among them.
+    crop: (page) => column(page, page.getByRole("heading", { level: 1 }).first(), { above: 40, height: 580 }),
     async run(page) {
       await page.waitForTimeout(500);
       // Tiles link to the real Settings routes, so the clip points at them rather than opening one.
