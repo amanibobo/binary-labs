@@ -20,7 +20,7 @@ from bl_worker.domain import SourceKind, SourceReadError, SourceRow
 from bl_worker.previews import PreviewStore, lab_prefix
 from bl_worker.runtime import Runtime
 from bl_worker.scan import LIVE_SOURCE
-from bl_worker.sources import build_reader
+from bl_worker.sources import read_file
 
 log = logging.getLogger(__name__)
 
@@ -104,7 +104,7 @@ def parse_waiting(rt: Runtime, lab_id: UUID, sha256: str) -> str | None:
               s.cursor
             from file_locations fl join sources s on s.id = fl.source_id
             where fl.lab_id = %s and fl.sha256 = %s and fl.deleted_at is null and {LIVE_SOURCE}
-            order by s.kind = 'upload' desc, fl.path limit 1
+            order by s.kind::text in ('upload', 'instrument') desc, fl.path limit 1
             """,
             (lab_id, sha256),
         ).fetchone()
@@ -115,7 +115,7 @@ def parse_waiting(rt: Runtime, lab_id: UUID, sha256: str) -> str | None:
             located[1], located[2], SourceKind(located[3]), located[4], located[5], located[6]
         )
         try:
-            data = build_reader(source, rt.settings, rt.previews).read(located[0])
+            data = read_file(source, rt.settings, rt.previews, located[0], sha256)
         except SourceReadError as e:
             _settle_failed(conn, lab_id, sha256, f"This file can't be read right now. {e}")
             return "failed"
