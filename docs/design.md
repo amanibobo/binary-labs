@@ -160,3 +160,23 @@ page: protocol_videos(protocol) polled every 3 s until settled; <video> on /api/
 - The Files list leaves videos out; they play in the Videos section above it. Linking a video through the Files picker refreshes the Videos section.
 - ffmpeg is optional (`FFMPEG_PATH`, `bl_worker/video.py`): no ffmpeg means no poster and an unavailable transcript, never a failed file.
 - `scripts/e2e-video.sh` runs the routes' core and the real worker on local Postgres and a local store. Fixtures: `/dev/fixtures/protocols?view=page|videos|no-videos`, media from `/dev/fixtures/media/`.
+
+## Charts
+
+Migration 0014. `data_tables` (one row per lab and sha256: `waiting`, `ready` with its `storage_key` and `parser_version`, or `failed` with an error) is written by the worker; members read it under RLS and ask for one through `request_data_table` (`security definer`, membership and spreadsheet checked, `BL104` otherwise). `charts` holds a lab's charts: the file's sha256, the table's name (`sheet`), a title, the spec and an optional `protocol_id`; members insert, update and delete under RLS with column grants, and triggers keep a chart on its lab and file, check the protocol (`BL103`, `BL102`) and write the audit rows. Both are lab tables and blob references for deletion.
+
+```
+worker: process_location ──▶ spreadsheet ──▶ tables.parse (bl_worker/tables.py) ──▶ <lab>/tables/<sha256>.json
+        data_tables ready (cached by lab, sha256, parser version), or failed; never fails the file
+builder: GET /api/tables/<sha> ──▶ missing: POST /api/tables/<sha> ──▶ request_data_table ──▶ waiting
+        worker: tend_tables (10 s) ──▶ parse_table (reads a live location, checks the hash) ──▶ ready
+        polled every 2 s until ready or failed
+save:   POST /api/charts {sha256, sheet, title, spec, protocolId} ──▶ ChartSpec + checkSpec against the table ──▶ insert
+        POST /api/charts/<id> {…, basedOn} ──▶ update where updated_at = basedOn, 409 when it moved
+```
+
+- The JSON is `{version, cellLimit, tables: [{name, sheet, notes, rows, truncated, rowsInFile, columns: [{id, name, unit, kind, values, invalid}]}]}`; `lib/data-tables.ts` parses it at the boundary. Column ids are spreadsheet letters.
+- `lib/chart-geometry.ts` turns a spec, a table and a size into every mark's position; `components/charts/chart-svg.tsx` draws it with screen ink (CSS variables, `--chart-<slot>` in globals.css) or export ink (the light hex values); `chart-figure.tsx` adds the hover readout, arrow keys and the numbers table; `chart-export.tsx` makes the SVG and PNG.
+- `lib/chart-store.ts` is the routes' core: it reads tables only under the viewer's lab prefix.
+- `scripts/e2e-charts.sh` runs three instrument exports through the real worker on local Postgres and a local store, asks for one table again as a member, then saves charts and exports SVG through the routes' core. Fixtures: `workers/scripts/make_table_fixtures.py` writes the exports (`workers/tests/fixtures/tables/`) and their parsed JSON for the web fixtures; pages at `/dev/fixtures/charts?view=new|akta|bradford|saved|sec|waiting` and `/dev/fixtures/protocols?view=charts`.
+- `BL_TEST_DB` (worker) and `BL_WEB_TEST_DB` with `TEST_DATABASE_URL` (web) name the test databases, so two checkouts can run their suites at once.
