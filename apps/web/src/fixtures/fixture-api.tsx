@@ -2,6 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import { LabApiProvider, type LabApi } from "@/components/lab-api";
+import { OnboardingSaveProvider } from "@/components/onboarding/onboarding-context";
 import type { FileHit } from "@/lib/domain";
 import type { SourceState } from "@/lib/source-state";
 import type { TalkThrough } from "@/lib/talk-throughs";
@@ -16,6 +17,9 @@ import { createFixtureVideoUploads, fixtureVideoSources, pageVideos } from "./vi
 import { chartsOf, fixtureTable, savedCharts } from "./charts";
 import { ChartId, UserId } from "@/lib/ids";
 import { CreateChartRequest, SaveChartRequest } from "@/lib/charts";
+
+// The provider has already applied the event on screen; there's no server to tell.
+const keepOnboardingInMemory = async () => undefined;
 
 export type FixtureSearchMode = "hybrid" | "keyword";
 
@@ -153,5 +157,9 @@ export function FixtureLabApi({
     },
     deleteChart: async () => wait(150),
   };
-  return <LabApiProvider value={api}>{children}</LabApiProvider>;
+  return (
+    <LabApiProvider value={api}>
+      <OnboardingSaveProvider value={keepOnboardingInMemory}>{children}</OnboardingSaveProvider>
+    </LabApiProvider>
+  );
 }

@@ -12,6 +12,7 @@ import { FOLDER_PAGE_SIZE, FolderFilesRows, FolderTreeRows, type FolderPath } fr
 import type { ShellData } from "@/lib/shell-data";
 import { SourceId } from "@/lib/ids";
 import type { SourceState } from "@/lib/source-state";
+import { fixtureOnboarding } from "./onboarding";
 
 // Dev-only screenshot data. Imported only from *.dev.tsx pages, which production builds skip.
 
@@ -311,6 +312,7 @@ export const fixtureShell: ShellData = {
   email: "a.okafor@university.edu",
   folders: folderRows,
   needsLookCount: needsLookFiles.length,
+  onboarding: fixtureOnboarding("quiet"),
 };
 
 const NAMED_FILES: Record<string, [name: string, kind: string, mime: string, size: number][]> = {
