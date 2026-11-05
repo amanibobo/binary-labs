@@ -27,12 +27,12 @@ from openpyxl.utils import get_column_letter, range_boundaries
 
 from bl_worker.extract import UNIT_RE, decode_text
 
-PARSER = "tables"
 VERSION = 1
 # One file's tables keep at most this many cells: about 1.5 MB of JSON (0.64 MB gzipped) for
-# 3-decimal numbers, parsed in about 0.3 s, and about a second to send on 5 Mbps bench Wi-Fi. A 2 h kinetic read of a 96-well
-# plate (24k cells), a full spectrum scan of one (38k) or an AKTA run with eight curves (48k)
-# all fit; past it the chart is drawn from the first rows and says so.
+# 3-decimal numbers, parsed in about 0.3 s, and about a second to send on 5 Mbps bench Wi-Fi.
+# A 2 h kinetic read of a 96-well plate (24k cells), a full spectrum scan of one (38k) or an
+# AKTA run with eight curves (48k) all fit; past it the chart is drawn from the first rows and
+# says so.
 CELL_LIMIT = 200_000
 MAX_SHEETS = 32
 MAX_COLUMNS = 512
