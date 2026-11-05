@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 from dataclasses import dataclass
 from enum import StrEnum
@@ -20,6 +21,7 @@ from bl_worker.runtime import Runtime
 from bl_worker.scan import LIVE_SOURCE
 from bl_worker.sources import build_reader
 from bl_worker.transcribe import TranscriptExtractor
+from bl_worker.video import Ffmpeg, poster
 
 log = logging.getLogger(__name__)
 
@@ -87,10 +89,11 @@ def _process(rt: Runtime, conn: psycopg.Connection, loc: Location) -> Outcome:
     try:
         data = build_reader(loc.source, rt.settings, rt.previews).read(loc.external_id)
         blob = _store_blob(conn, loc, data)
-        extracted = _extract(conn, extractor_for(rt, conn, loc, blob), loc, blob, data)
+        link_pending(conn, loc.id, blob.sha256)
+        extracted = extract_cached(conn, extractor_for(rt, conn, loc, blob), loc.lab_id, blob, data)
         _write_chunks(conn, loc.lab_id, blob.sha256, extracted)
         _embed_chunks(conn, rt.embedder, loc.lab_id, blob.sha256)
-        _write_preview(conn, rt.previews, loc.lab_id, blob, data)
+        write_preview(conn, rt.previews, rt.ffmpeg, loc.lab_id, blob, data)
     except FILE_ERRORS as e:
         log.info("location %s failed: %s", loc.id, e)
         _mark_failed(conn, loc, str(e))
@@ -120,6 +123,43 @@ def _store_blob(conn: psycopg.Connection, loc: Location, data: bytes) -> Blob:
     return Blob(sha, FileKind(stored[0]), stored[1])
 
 
+# Errors from linking that belong to the request, not the system: the person left the lab, or
+# the page was archived or removed while the bytes were on their way.
+STALE_LINK = {"42501", "BL102", "BL103"}
+
+
+def link_pending(conn: psycopg.Connection, location_id: UUID, sha256: str) -> None:
+    """Links this file to the pages it was added to before its bytes were verified. Each link
+    is made as the person who asked, so the page's own checks apply and the audit log names
+    them; a link that can no longer be made is dropped."""
+    pending = conn.execute(
+        "select protocol_id, requested_by from pending_protocol_files where location_id = %s",
+        (location_id,),
+    ).fetchall()
+    for protocol_id, requested_by in pending:
+        try:
+            with conn.transaction():
+                if requested_by is not None:
+                    conn.execute(
+                        "select set_config('request.jwt.claims', %s, true)",
+                        (json.dumps({"sub": str(requested_by)}),),
+                    )
+                    conn.execute("select link_protocol_file(%s, %s)", (protocol_id, sha256))
+                _drop_pending(conn, protocol_id, location_id)
+        except psycopg.Error as e:
+            if e.sqlstate not in STALE_LINK:
+                raise
+            log.info("dropped the link of %s to page %s: %s", location_id, protocol_id, e)
+            _drop_pending(conn, protocol_id, location_id)
+
+
+def _drop_pending(conn: psycopg.Connection, protocol_id: UUID, location_id: UUID) -> None:
+    conn.execute(
+        "delete from pending_protocol_files where protocol_id = %s and location_id = %s",
+        (protocol_id, location_id),
+    )
+
+
 def extractor_for(
     rt: Runtime, conn: psycopg.Connection, loc: Location, blob: Blob
 ) -> Extractor | None:
@@ -133,8 +173,8 @@ def extractor_for(
     return EXTRACTORS.get(blob.kind)
 
 
-def _extract(
-    conn: psycopg.Connection, extractor: Extractor | None, loc: Location, blob: Blob, data: bytes
+def extract_cached(
+    conn: psycopg.Connection, extractor: Extractor | None, lab_id: UUID, blob: Blob, data: bytes
 ) -> Extracted | None:
     """Cached by (sha256, extractor, version), so no file is read twice, nor any audio heard
     twice by the same transcriber."""
@@ -162,7 +202,7 @@ def _extract(
             ),
         )
         if extracted.kind is ExtractionKind.TRANSCRIPT:
-            _record_transcription(conn, loc.lab_id, blob.sha256, extractor, extracted)
+            _record_transcription(conn, lab_id, blob.sha256, extractor, extracted)
     return extracted
 
 
@@ -243,7 +283,7 @@ def caption_text(conn: psycopg.Connection, sha256: str) -> str:
 
 
 def stored_extraction(conn: psycopg.Connection, sha256: str, kind: FileKind) -> Extracted | None:
-    if kind is FileKind.AUDIO:
+    if kind in (FileKind.AUDIO, FileKind.VIDEO):
         row = conn.execute(
             "select kind, content, meta from extractions where sha256 = %s and kind = 'transcript'"
             " order by created_at desc limit 1",
@@ -290,15 +330,24 @@ def _embed_chunks(conn: psycopg.Connection, embedder: Embedder, lab_id: UUID, sh
         )
 
 
-def _write_preview(
-    conn: psycopg.Connection, store: PreviewStore, lab_id: UUID, blob: Blob, data: bytes
+def write_preview(
+    conn: psycopg.Connection,
+    store: PreviewStore,
+    ffmpeg: Ffmpeg,
+    lab_id: UUID,
+    blob: Blob,
+    data: bytes,
 ) -> None:
     exists = conn.execute(
         "select 1 from previews where lab_id = %s and sha256 = %s", (lab_id, blob.sha256)
     ).fetchone()
     if exists:
         return
-    preview = render_preview(blob.kind, data)
+    # A video's poster is a nicety: without ffmpeg, or from a frame it can't read, there's none.
+    if blob.kind is FileKind.VIDEO:
+        preview = poster(ffmpeg, data)
+    else:
+        preview = render_preview(blob.kind, data)
     if preview is None:
         return
     key = preview_key(lab_id, blob.sha256)

@@ -8,7 +8,7 @@ import psycopg
 from procrastinate import App, JobContext, PsycopgConnector, RetryStrategy
 from procrastinate.exceptions import AlreadyEnqueued
 
-from bl_worker import deletion, process, scan, talk_throughs
+from bl_worker import deletion, process, scan, talk_throughs, videos
 from bl_worker.labels import job as labels
 from bl_worker.labels.learning import learn_pending
 from bl_worker.runtime import Runtime
@@ -162,6 +162,35 @@ async def tend_talk_throughs(context: JobContext, timestamp: int) -> None:
     deferred = await asyncio.to_thread(tend)
     if deferred:
         log.info("deferred %d talk-through drafts", deferred)
+
+
+# Locked per video, not per lab: two labs linking the same video share one transcript, and the
+# second waits for the first instead of paying for it again.
+def defer_transcript(lab_id: UUID, sha256: str) -> bool:
+    return _defer_locked("transcribe_video", f"video:{sha256}", lab_id=str(lab_id), sha256=sha256)
+
+
+@app.task(name="transcribe_video", pass_context=True, retry=RetryStrategy(max_attempts=3, wait=10))
+def transcribe_video(context: JobContext, lab_id: str, sha256: str) -> None:
+    outcome = videos.transcribe_video(_runtime(context), UUID(lab_id), sha256)
+    log.info("transcript of video %s: %s", sha256[:12], outcome or "skipped")
+
+
+@app.periodic(cron="* * * * * */10")
+@app.task(name="tend_videos", pass_context=True, queueing_lock="tend_videos")
+async def tend_videos(context: JobContext, timestamp: int) -> None:
+    """Queues transcripts for videos on a page that have none: one just linked, a retry, or a
+    lost job."""
+    rt = _runtime(context)
+
+    def tend() -> int:
+        with rt.pool.connection() as conn:
+            todo = videos.waiting(conn)
+        return sum(defer_transcript(lab_id, sha) for lab_id, sha in todo)
+
+    deferred = await asyncio.to_thread(tend)
+    if deferred:
+        log.info("deferred %d video transcripts", deferred)
 
 
 @app.task(name="delete_lab", pass_context=True, retry=RetryStrategy(max_attempts=3, wait=30))

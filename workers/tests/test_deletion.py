@@ -454,6 +454,17 @@ def test_local_preview_store_deletes_one_labs_prefix(tmp_path):
 def test_r2_preview_store_deletes_every_page_under_the_prefix():
     store = R2PreviewStore("acct", "key", "secret", "bucket")
     stub = Stubber(store._s3)
+    # A video still going up is parts under an open multipart upload, not an object yet.
+    stub.add_response(
+        "list_multipart_uploads",
+        {"Uploads": [{"Key": "lab/uploads/v1", "UploadId": "u1"}], "IsTruncated": False},
+        {"Bucket": "bucket", "Prefix": "lab/"},
+    )
+    stub.add_response(
+        "abort_multipart_upload",
+        {},
+        {"Bucket": "bucket", "Key": "lab/uploads/v1", "UploadId": "u1"},
+    )
     page = [{"Key": f"lab/{i}.webp"} for i in range(1000)]
     stub.add_response(
         "list_objects_v2",

@@ -100,6 +100,15 @@ class R2PreviewStore:
             return None
 
     def delete_prefix(self, prefix: str) -> int:
+        # A video upload in progress is parts, not yet an object, so a listing misses it.
+        uploads = self._s3.get_paginator("list_multipart_uploads").paginate(
+            Bucket=self.bucket, Prefix=prefix
+        )
+        for page in uploads:
+            for upload in page.get("Uploads", []):
+                self._s3.abort_multipart_upload(
+                    Bucket=self.bucket, Key=upload["Key"], UploadId=upload["UploadId"]
+                )
         count = 0
         pages = self._s3.get_paginator("list_objects_v2").paginate(
             Bucket=self.bucket, Prefix=prefix
@@ -133,7 +142,7 @@ def build_preview_store(settings: Settings) -> PreviewStore:
     )
 
 
-def _to_webp(img: Image.Image) -> Preview:
+def to_webp(img: Image.Image) -> Preview:
     img = ImageOps.exif_transpose(img)
     img.thumbnail((LONGEST_SIDE, LONGEST_SIDE))
     if img.mode not in ("RGB", "RGBA"):
@@ -146,7 +155,7 @@ def _to_webp(img: Image.Image) -> Preview:
 def render_image(data: bytes) -> Preview:
     with Image.open(io.BytesIO(data)) as img:
         img.load()
-        return _to_webp(img)
+        return to_webp(img)
 
 
 def render_pdf_first_page(data: bytes) -> Preview:
@@ -160,7 +169,7 @@ def render_pdf_first_page(data: bytes) -> Preview:
             image = page.render(scale=LONGEST_SIDE / max(width, height)).to_pil()
         finally:
             pdf.close()
-    return _to_webp(image)
+    return to_webp(image)
 
 
 RENDERERS: dict[FileKind, Callable[[bytes], Preview]] = {

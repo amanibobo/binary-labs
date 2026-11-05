@@ -61,6 +61,7 @@ def test_scheduler_scans_and_worker_indexes_everything(rt, conn, make_lab, job_a
     jobs.pop("tend_labels:succeeded", None)
     jobs.pop("sweep_deletions:succeeded", None)
     jobs.pop("tend_talk_throughs:succeeded", None)
+    jobs.pop("tend_videos:succeeded", None)
     assert jobs == {
         "process_location:succeeded": 3,
         "scan_source:succeeded": 1,

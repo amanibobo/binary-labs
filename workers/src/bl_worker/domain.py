@@ -21,6 +21,8 @@ class FileKind(StrEnum):
     IMAGE = "image"
     # Only talk-throughs are transcribed; other audio is indexed by name.
     AUDIO = "audio"
+    # Only videos linked to a protocol page are transcribed; others are indexed by name.
+    VIDEO = "video"
     OTHER = "other"
 
 

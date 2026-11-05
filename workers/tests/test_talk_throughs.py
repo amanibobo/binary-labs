@@ -545,7 +545,7 @@ def test_scribe_retries_a_server_error_but_not_a_bad_request():
         ("Talk-through.weba", FileKind.AUDIO, "audio/webm"),
         ("Talk-through.m4a", FileKind.AUDIO, "audio/mp4"),
         ("memo.mp3", FileKind.AUDIO, "audio/mpeg"),
-        ("clip.webm", FileKind.OTHER, "video/webm"),
+        ("clip.webm", FileKind.VIDEO, "video/webm"),
     ],
 )
 def test_audio_is_known_by_its_extension_when_the_container_says_video(name, kind, mime):
