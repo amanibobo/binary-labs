@@ -4,7 +4,7 @@ import { chromium } from "playwright";
 const url = process.env.LANDING_URL ?? "http://localhost:3200";
 const outDir = new URL("../screenshots/", import.meta.url);
 const widths = [1440, 390];
-const expectedGround = "rgb(255, 255, 255)";
+const expectedGround = "rgb(245, 245, 245)";
 
 await mkdir(outDir, { recursive: true });
 // The full Chromium build in new headless mode, so no separate headless-shell download is needed.
@@ -26,8 +26,13 @@ for (const width of widths) {
     () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
   );
   if (overflow > 0) throw new Error(`${width}px: horizontal overflow of ${overflow}px`);
+  // Chromium's full-page capture lays the page out below the lg breakpoint and drops the desktop
+  // hero items, so grow the viewport to the page's height and take a plain screenshot instead.
+  const height = await page.evaluate(() => document.documentElement.scrollHeight);
+  await page.setViewportSize({ width, height });
+  await page.waitForTimeout(800);
   const path = new URL(`landing-${width}.png`, outDir).pathname;
-  await page.screenshot({ path, fullPage: true });
+  await page.screenshot({ path });
   console.log(`saved ${path}`);
   await page.close();
 }
