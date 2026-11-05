@@ -30,6 +30,9 @@ function NavLink({ item, current, onNavigate }: { item: NavItem; current: Sectio
       <item.Icon className={cn("size-5 shrink-0", active ? "text-content-primary" : "text-content-tertiary")} />
       <span className="min-w-0 flex-1 truncate">{item.label}</span>
       {item.section === "needs-look" ? <NeedsLookCountText className="text-label-small text-content-tertiary tabular-nums" /> : null}
+      {item.section === "search" ? (
+        <kbd className="hidden rounded-md border border-border-raised px-1.5 font-sans text-label-xsmall text-content-tertiary md:inline">⌘K</kbd>
+      ) : null}
     </Link>
   );
 }
@@ -50,14 +53,6 @@ function Brand({ labName, onNavigate }: { labName: string; onNavigate?: () => vo
 function SidebarBody({ shell, current, onNavigate }: ShellProps & { onNavigate?: () => void }) {
   return (
     <div className="flex h-full flex-col gap-4 p-3">
-      <PaletteTrigger
-        onOpen={onNavigate}
-        className="flex min-h-11 items-center gap-3 rounded-lg border border-border-opaque bg-background-secondary px-3 text-label-medium text-content-tertiary transition-colors duration-150 ease-out hover:text-content-primary md:min-h-9"
-      >
-        <SearchOutlineIcon className="size-5 shrink-0" />
-        <span className="flex-1 text-left">Search</span>
-        <kbd className="hidden rounded-md border border-border-raised px-1.5 font-sans text-label-xsmall md:inline">⌘K</kbd>
-      </PaletteTrigger>
       <nav aria-label="Main" className="flex flex-col gap-0.5">
         {NAV.map((item) => (
           <NavLink key={item.section} item={item} current={current} onNavigate={onNavigate} />

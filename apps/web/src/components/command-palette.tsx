@@ -45,21 +45,13 @@ export function CommandPalette({ children }: { children: ReactNode }) {
   );
 }
 
-export function PaletteTrigger({
-  className,
-  children,
-  onOpen,
-  ...props
-}: Omit<ComponentProps<"button">, "onClick" | "type"> & { onOpen?: () => void }) {
+export function PaletteTrigger({ className, children, ...props }: Omit<ComponentProps<"button">, "onClick" | "type">) {
   const show = use(OpenPalette);
   return (
     <button
       type="button"
       aria-haspopup="dialog"
-      onClick={() => {
-        onOpen?.();
-        show?.();
-      }}
+      onClick={() => show?.()}
       className={className}
       {...props}
     >
