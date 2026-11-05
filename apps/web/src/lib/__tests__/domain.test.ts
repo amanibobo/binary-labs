@@ -56,7 +56,7 @@ describe("search_files row parser", () => {
     expect(SearchFilesRows.safeParse([{ ...row, locations: [] }]).success).toBe(false);
     expect(SearchFilesRows.safeParse([{ ...row, locations: null }]).success).toBe(false);
     expect(SearchFilesRows.safeParse([{ ...row, sha256: "B".repeat(64) }]).success).toBe(false);
-    expect(SearchFilesRows.safeParse([{ ...row, file_kind: "video" }]).success).toBe(false);
+    expect(SearchFilesRows.safeParse([{ ...row, file_kind: "hologram" }]).success).toBe(false);
     expect(SearchFilesRows.safeParse([{ ...row, keyword_rank: 0 }]).success).toBe(false);
   });
 });
@@ -137,7 +137,7 @@ describe("search params", () => {
   it("trims the query and drops unknown kinds", () => {
     expect(SearchParams.parse({ q: "  gels " })).toEqual({ q: "gels" });
     expect(SearchParams.safeParse({ q: "   " }).success).toBe(false);
-    expect(SearchParams.safeParse({ q: "x", kind: "video" }).success).toBe(false);
+    expect(SearchParams.safeParse({ q: "x", kind: "hologram" }).success).toBe(false);
     expect(SearchParams.safeParse({ q: "x", from: "14/10/2026" }).success).toBe(false);
   });
 });

@@ -3,7 +3,7 @@ import { CorrectionId, ExperimentId, LabId, LocationId, PersonId, Sha256, Source
 import { ProtocolHitWire } from "./protocols";
 
 // Mirrors of the enums in db/migrations/0001_core.sql.
-export const FILE_KINDS = ["pdf", "spreadsheet", "document", "text", "image", "other", "audio"] as const;
+export const FILE_KINDS = ["pdf", "spreadsheet", "document", "text", "image", "other", "audio", "video"] as const;
 export const FileKind = z.enum(FILE_KINDS);
 export type FileKind = z.infer<typeof FileKind>;
 

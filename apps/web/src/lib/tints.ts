@@ -22,6 +22,7 @@ export const KIND_TINT = {
   image: "purple",
   other: "gray",
   audio: "yellow",
+  video: "blue",
 } as const satisfies Record<FileKind, Tint>;
 
 // FNV-1a: stable across runtimes, so server and client pick the same tint.
