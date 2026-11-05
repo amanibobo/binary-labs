@@ -4,7 +4,7 @@ import { PALETTE, SERIES_COLORS } from "@/lib/charts";
 import { EXPORT_INK } from "../chart-svg";
 
 const css = readFileSync(new URL("../../../app/globals.css", import.meta.url), "utf8");
-const [lightCss, darkCss] = css.split("@media (prefers-color-scheme: dark)");
+const [lightCss, darkCss] = css.split(':root[data-theme="dark"]');
 const tokens = (block: string) => new Map([...block.matchAll(/--([a-z0-9-]+):\s*(#[0-9a-f]{6});/g)].map((m) => [m[1], m[2]]));
 const light = tokens(lightCss);
 const dark = tokens(darkCss.slice(0, darkCss.indexOf("@theme")));

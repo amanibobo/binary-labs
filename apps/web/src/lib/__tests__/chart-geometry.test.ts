@@ -3,7 +3,7 @@ import bradfordJson from "@/fixtures/tables/Bradford_2026-10-30.json";
 import secJson from "@/fixtures/tables/SEC_trace_141026.json";
 import { ChartSpec } from "../charts";
 import { barPath, linearTicks, logTicks, niceDomain, plotChart } from "../chart-geometry";
-import { DataTables, type DataTable } from "../data-tables";
+import { DataTables } from "../data-tables";
 
 const sec = DataTables.parse(secJson).tables[0];
 const [standards, samples] = DataTables.parse(bradfordJson).tables;
@@ -95,7 +95,7 @@ describe("the Bradford curve", () => {
   it("draws samples as bars from zero, at most 24px wide", () => {
     const bars = plotChart(
       spec({ type: "bar", x: { column: "A", title: "", unit: "", min: null, max: null }, series: [{ column: "D", name: "Protein", color: "blue", error: null }] }),
-      samples as DataTable,
+      samples,
       size,
     );
     expect(bars.series[0].bars).toHaveLength(7);
