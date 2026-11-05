@@ -157,7 +157,7 @@ export const searchHits = SearchFilesRows.parse([
   }),
   row({
     c: "f",
-    kind: "other",
+    kind: "spreadsheet",
     mime: "text/csv",
     preview: false,
     snippet: null,
@@ -179,6 +179,17 @@ const recentOnly = SearchFilesRows.parse([
     v: null,
     locations: [loc("/Lab/Instruments/Plate reader/plate7_A420.csv", "2026-11-03T17:44:00Z")],
     label: label({ status: "suggested", clean_name: "Plate 7 absorbance at 420 nm", date: "2026-11-03", experiment: solubility, instrument: "Plate reader" }),
+  }),
+  row({
+    c: "4",
+    kind: "spreadsheet",
+    mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    preview: false,
+    snippet: "Sheet Standards: BSA (µg/mL), A595 (AU) Rep 1 to 3, Mean (AU), SD (AU). Sheet Samples. Sheet Plate.",
+    k: null,
+    v: null,
+    locations: [loc("/Lab/Data/Bradford/Bradford_2026-10-30.xlsx", "2026-10-30T15:10:00Z")],
+    label: label({ status: "suggested", clean_name: "Bradford assay, Oct 30", date: "2026-10-30", experiment: bm3, person: priya, instrument: "Plate reader" }),
   }),
   row({
     c: "2",

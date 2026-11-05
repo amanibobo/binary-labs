@@ -9,13 +9,14 @@ import { FixtureLabApi } from "@/fixtures/fixture-api";
 import { requireFixtures, type FixtureProps } from "@/fixtures/gate";
 import { openForPage, openNewPage } from "@/fixtures/talk-throughs";
 import { pageVideos } from "@/fixtures/videos";
+import { fixtureHit, savedCharts } from "@/fixtures/charts";
 import type { ProtocolVideo } from "@/lib/videos";
 import { authors, history, linkedFiles, protocolList, purification, purificationV2, startFile } from "@/fixtures/protocols";
 
 // One fixture route for every protocol screen: ?view=list|empty|page|old|edit|stale|new|from|history,
-// and videos|no-videos for a page with one playable video or none.
+// videos|no-videos for a page with one playable video or none, and charts for one with charts.
 const View = z
-  .enum(["list", "empty", "page", "old", "edit", "stale", "new", "from", "history", "videos", "no-videos"])
+  .enum(["list", "empty", "page", "old", "edit", "stale", "new", "from", "history", "videos", "no-videos", "charts"])
   .catch("list");
 
 export default async function ProtocolsFixture({ searchParams }: FixtureProps) {
@@ -37,12 +38,16 @@ function Screen({ view }: { view: z.infer<typeof View> }) {
     case "empty":
       return <ProtocolListView protocols={[]} authors={authors} initialFilter="all" talkThroughs={[]} />;
     case "page":
-      return <ProtocolView page={purification} files={linkedFiles} authors={authors} isAdmin talkThroughs={openForPage} videos={pageVideos} />;
+      return <ProtocolView page={purification} files={linkedFiles} authors={authors} isAdmin talkThroughs={openForPage} videos={pageVideos} charts={[]} />;
     case "videos":
     case "no-videos":
-      return <ProtocolView page={purification} files={linkedFiles} authors={authors} isAdmin talkThroughs={[]} videos={videosFor(view)} />;
+      return <ProtocolView page={purification} files={linkedFiles} authors={authors} isAdmin talkThroughs={[]} videos={videosFor(view)} charts={[]} />;
+    case "charts":
+      return (
+        <ProtocolView page={purification} files={linkedFiles} authors={authors} isAdmin talkThroughs={[]} videos={[]} charts={pageCharts()} />
+      );
     case "old":
-      return <ProtocolView page={purificationV2} files={linkedFiles} authors={authors} isAdmin talkThroughs={[]} videos={pageVideos.slice(0, 1)} />;
+      return <ProtocolView page={purificationV2} files={linkedFiles} authors={authors} isAdmin talkThroughs={[]} videos={pageVideos.slice(0, 1)} charts={[]} />;
     case "edit":
     case "stale":
       return <ProtocolEditor mode={{ kind: "edit", page: purification }} authors={authors} />;
@@ -57,6 +62,15 @@ function Screen({ view }: { view: z.infer<typeof View> }) {
       return _exhaustive;
     }
   }
+}
+
+function pageCharts() {
+  return savedCharts
+    .filter((c) => c.protocolId === purification.protocolId)
+    .map((chart) => {
+      const location = fixtureHit(chart.sha256).locations[0];
+      return { chart, file: { name: location.originalName, locationId: location.id } };
+    });
 }
 
 function videosFor(view: z.infer<typeof View>): ProtocolVideo[] {

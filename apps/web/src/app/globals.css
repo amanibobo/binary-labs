@@ -61,6 +61,14 @@
   --tint-gray-ink: #4b4b50;
   --paper: #ffffff;
   --paper-line: #d4d4d8;
+
+  /* Chart series, in PALETTE order (src/lib/charts.ts); only charts use them. */
+  --chart-blue: #2a78d6;
+  --chart-orange: #eb6834;
+  --chart-aqua: #1baf7a;
+  --chart-violet: #6250d6;
+  --chart-magenta: #e87ba4;
+  --chart-green: #008300;
   color-scheme: light;
 }
 
@@ -118,6 +126,13 @@
   --tint-gray-ink: #cfcfd4;
   --paper: #f4f4f5;
   --paper-line: #c4c4ca;
+
+  --chart-blue: #3987e5;
+  --chart-orange: #d95926;
+  --chart-aqua: #199e70;
+  --chart-violet: #9085e9;
+  --chart-magenta: #d55181;
+  --chart-green: #008300;
   color-scheme: dark;
 }
 

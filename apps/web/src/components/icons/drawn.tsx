@@ -116,6 +116,16 @@ export function ProtocolIcon(props: IconProps) {
   );
 }
 
+// Axes with a line rising across them: a chart of a data sheet.
+export function ChartIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path {...line} d="M4.5 4.5V18a1.5 1.5 0 0 0 1.5 1.5h13.5" />
+      <path {...line} d="m8 15 3.5-4 3 2.5L19 8" />
+    </Svg>
+  );
+}
+
 export function LinkIcon(props: IconProps) {
   return (
     <Svg {...props}>

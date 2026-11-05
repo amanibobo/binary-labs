@@ -13,6 +13,9 @@ import { protocolHits, purification, purificationTheirs } from "./protocols";
 import { fixtureUploadTalkThrough, fixtureApplyTalkThrough, talkThrough as fixtureTalkThrough } from "./talk-throughs";
 import { createFixtureUploads } from "./uploads";
 import { createFixtureVideoUploads, fixtureVideoSources, pageVideos } from "./videos";
+import { chartsOf, fixtureTable, savedCharts } from "./charts";
+import { ChartId, UserId } from "@/lib/ids";
+import { CreateChartRequest, SaveChartRequest } from "@/lib/charts";
 
 export type FixtureSearchMode = "hybrid" | "keyword";
 
@@ -32,6 +35,9 @@ function keywordOnly(hits: FileHit[]): FileHit[] {
 // "stale" makes every save find that someone else saved first, for the conflict screenshots.
 export type FixtureSaves = "saved" | "stale";
 
+// "waiting" holds every file's table on its way, for the screenshot of the builder reading it.
+export type FixtureTables = "ready" | "waiting";
+
 export function FixtureLabApi({
   mode,
   source,
@@ -39,6 +45,7 @@ export function FixtureLabApi({
   earlierUploads = true,
   talkThrough,
   videos = pageVideos,
+  tables = "ready",
   children,
 }: {
   mode: FixtureSearchMode;
@@ -49,6 +56,7 @@ export function FixtureLabApi({
   talkThrough?: TalkThrough;
   // What polling a page's videos answers; it stays put, like talkThrough.
   videos?: ProtocolVideo[];
+  tables?: FixtureTables;
   children: ReactNode;
 }) {
   const [uploads] = useState(() => createFixtureUploads({ earlier: earlierUploads }));
@@ -120,6 +128,30 @@ export function FixtureLabApi({
     videoSources: fixtureVideoSources,
     retryVideoTranscript: async () => wait(150),
     removePendingVideo: async () => wait(150),
+    dataTable: async (sha, signal) => {
+      await wait(120, signal);
+      return tables === "waiting" ? { state: "waiting" } : fixtureTable(sha);
+    },
+    requestDataTable: async () => wait(100),
+    fileCharts: async (sha, signal) => {
+      await wait(80, signal);
+      return chartsOf(sha);
+    },
+    createChart: async (req) => {
+      await wait(200);
+      const now = new Date().toISOString();
+      const id = ChartId.parse("8c1c2c39-5a4e-4c55-9d7b-0c3c1a7c9999");
+      const createdBy = UserId.parse("00000000-0000-4000-8000-00000000000a");
+      return { ...CreateChartRequest.parse(req), id, createdBy, createdAt: now, updatedAt: now };
+    },
+    saveChart: async (id, req) => {
+      await wait(200);
+      const chart = savedCharts.find((c) => c.id === id) ?? savedCharts[0];
+      if (saves === "stale") return { kind: "stale" };
+      const { sheet, title, spec, protocolId } = SaveChartRequest.parse(req);
+      return { kind: "saved", chart: { ...chart, sheet, title, spec, protocolId, updatedAt: new Date().toISOString() } };
+    },
+    deleteChart: async () => wait(150),
   };
   return <LabApiProvider value={api}>{children}</LabApiProvider>;
 }

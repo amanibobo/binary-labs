@@ -40,3 +40,11 @@ export type TalkThroughId = z.infer<typeof TalkThroughId>;
 // corrections.id is a bigint; JSON carries it as a number well inside 2^53.
 export const CorrectionId = z.number().int().positive().brand<"CorrectionId">();
 export type CorrectionId = z.infer<typeof CorrectionId>;
+
+// charts.id: one saved chart of a file's table.
+export const ChartId = z.uuid().brand<"ChartId">();
+export type ChartId = z.infer<typeof ChartId>;
+
+// A table column by its spreadsheet letter (A, B, … AA), which stays put however it's named.
+export const ColumnId = z.string().regex(/^[A-Z]{1,3}$/, "expected a column letter").brand<"ColumnId">();
+export type ColumnId = z.infer<typeof ColumnId>;

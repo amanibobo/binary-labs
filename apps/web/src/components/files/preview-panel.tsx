@@ -5,6 +5,7 @@ import { cn } from "@/lib/cn";
 import { openTarget } from "@/lib/format";
 import { newProtocolHref } from "@/lib/protocols";
 import { OpenExternalIcon, ProtocolIcon } from "../icons/drawn";
+import { FileCharts } from "../charts/file-charts";
 import { useLabApi } from "../lab-api";
 import { Highlighted } from "../search/highlighted";
 import { buttonVariants } from "../ui/button";
@@ -12,7 +13,7 @@ import { When } from "@/components/ui/when";
 
 // The opened state of a file row: the preview, then the one obvious action, opening the real
 // file. The row above already shows its name and path; duplicates elsewhere are listed under it.
-// A file with text can also start a protocol.
+// A file with text can also start a protocol, and a data sheet a chart.
 export function PreviewPanel({
   hit,
   query,
@@ -69,6 +70,7 @@ export function PreviewPanel({
             </ul>
           </div>
         )}
+        {hit.fileKind === "spreadsheet" ? <FileCharts hit={hit} /> : null}
         {offerNewPage && isTextBearing(hit.fileKind) ? (
           <Link
             href={newProtocolHref(hit.sha256)}

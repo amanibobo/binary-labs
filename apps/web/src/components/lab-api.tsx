@@ -9,7 +9,17 @@ import { BrowseResponse, type FolderPath } from "@/lib/folders";
 import { SourceStateWire, type SourceState } from "@/lib/source-state";
 import { answerOf, resultOf, type SendResult, type UploadResult } from "@/lib/upload-queue";
 import { uploadHeaders, UploadRowsWire, type UploadMeta, type UploadRow } from "@/lib/uploads";
-import type { CorrectionId, LocationId, ProtocolId, Sha256, TalkThroughId } from "@/lib/ids";
+import type { ChartId, CorrectionId, LocationId, ProtocolId, Sha256, TalkThroughId } from "@/lib/ids";
+import { TableState } from "@/lib/data-tables";
+import {
+  ChartSaveOutcomeWire,
+  ChartsWire,
+  ChartWire,
+  type ChartSaveOutcome,
+  type CreateChartRequest,
+  type SaveChartRequest,
+  type SavedChart,
+} from "@/lib/charts";
 import {
   PartTarget,
   ProtocolVideosWire,
@@ -92,6 +102,14 @@ export type LabApi = {
   // These reject with an Error whose message can be shown.
   retryVideoTranscript: (sha: Sha256) => Promise<void>;
   removePendingVideo: (id: ProtocolId, locationId: LocationId) => Promise<void>;
+  // A file's parsed tables, or how far the worker has got with them.
+  dataTable: (sha: Sha256, signal: AbortSignal) => Promise<TableState>;
+  requestDataTable: (sha: Sha256) => Promise<void>;
+  fileCharts: (sha: Sha256, signal: AbortSignal) => Promise<SavedChart[]>;
+  // These reject with an Error whose message can be shown; a stale save resolves as { kind: "stale" }.
+  createChart: (req: CreateChartRequest) => Promise<SavedChart>;
+  saveChart: (id: ChartId, req: SaveChartRequest) => Promise<ChartSaveOutcome>;
+  deleteChart: (id: ChartId) => Promise<void>;
 };
 
 // XMLHttpRequest, not fetch: only it reports upload progress.
@@ -251,6 +269,18 @@ export const httpLabApi: LabApi = {
   videoSources: (video) => ({ src: playbackUrl(video), poster: video.hasPoster ? `/api/previews/${video.sha256}` : null }),
   retryVideoTranscript: async (sha) => void (await postJson(`/api/videos/${sha}/retry`, {})),
   removePendingVideo: async (id, locationId) => void (await postJson(`/api/protocols/${id}/videos`, { locationId }, "DELETE")),
+  dataTable: async (sha, signal) => TableState.parse(await getJson(`/api/tables/${sha}`, signal)),
+  requestDataTable: async (sha) => void (await postJson(`/api/tables/${sha}`, {})),
+  fileCharts: async (sha, signal) => ChartsWire.parse(await getJson(`/api/charts?${new URLSearchParams({ sha256: sha })}`, signal)),
+  createChart: async (req) => ChartWire.parse(await postJson("/api/charts", req)),
+  saveChart: async (id, req) => {
+    const { status, json } = await sendJson(`/api/charts/${id}`, "POST", req);
+    if (status !== 200 && status !== 409) throw failure(json);
+    const outcome = ChartSaveOutcomeWire.safeParse(json);
+    if (!outcome.success) throw failure(json);
+    return outcome.data;
+  },
+  deleteChart: async (id) => void (await postJson(`/api/charts/${id}`, {}, "DELETE")),
 };
 
 const LabApiContext = createContext<LabApi>(httpLabApi);

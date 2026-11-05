@@ -23,6 +23,7 @@ import { CrumbBar } from "./crumb-bar";
 import { FilePicker } from "./file-picker";
 import { OpenTalkThroughs } from "../talk-throughs/open-list";
 import { ProtocolVideos, videosKey } from "../videos/protocol-videos";
+import { ProtocolCharts, type ProtocolChart } from "../charts/protocol-charts";
 import { Markdown } from "./markdown";
 import { When } from "@/components/ui/when";
 
@@ -33,6 +34,7 @@ export function ProtocolView({
   isAdmin,
   talkThroughs,
   videos,
+  charts,
 }: {
   page: ProtocolVersion;
   files: FileHit[];
@@ -41,6 +43,8 @@ export function ProtocolView({
   // Recordings for this page whose steps nobody has used yet.
   talkThroughs: readonly OpenTalkThrough[];
   videos: ProtocolVideo[];
+  // Charts saved with this page as their protocol.
+  charts: readonly ProtocolChart[];
 }) {
   const current = isCurrent(page);
   const editable = current && !page.archived;
@@ -92,6 +96,8 @@ export function ProtocolView({
         )}
 
         <ProtocolVideos protocolId={page.protocolId} initial={videos} editable={editable} />
+
+        <ProtocolCharts charts={charts} />
 
         <LinkedFiles page={page} initial={files} editable={editable} />
 
