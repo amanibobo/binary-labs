@@ -137,3 +137,26 @@ page: talk_through(id) polled every 2 s until settled ──▶ /talk-throughs/<
 - `retry_talk_through` puts a failed recording back to pending and requests a scan, and puts a failed draft back to waiting.
 - `use_talk_through` raises the protocol codes plus `BL105` (already used) and `BL106` (not transcribed yet). `mark_talk_through_used` accepts only a version the caller saved in the same transaction.
 - The web state machine is `TalkThroughStatus` in `lib/talk-throughs.ts`; the recorder's is `lib/recorder-state.ts`. The fixture page is `/dev/fixtures/talk-throughs?view=…`, and screenshots record on Chromium's fake microphone.
+
+## Procedure videos
+
+Migrations 0010 and 0011. A page's video is a `protocol_files` row whose blob has `file_kind = 'video'`. `pending_protocol_files` holds a video added to a page whose bytes the worker hasn't verified yet; `videos` holds each lab's transcript state per video blob (`waiting`, `ready`, `failed`, `unavailable`). Members read both under RLS and may delete a pending row; the worker writes the rest.
+
+```
+page ──POST /api/videos/uploads {protocolId, name, size, type}──▶ page + cap check, multipart at <lab>/uploads/<id>
+     ──POST …/parts/<n> {storeId, size}──▶ presigned R2 UploadPart (size signed), or PUT …/parts/<n> on the local store
+     ──POST …/complete {parts, …}──▶ join, size check, sha256 read back on the server, move to <lab>/files/<sha256>
+        record_video ──▶ record_file (/Uploads/Videos/<name>) + pending_protocol_files, or link at once if the lab
+        already holds the same verified bytes
+worker: process_location ──▶ blob kind video ──▶ link_pending (link_protocol_file as requested_by) ──▶ poster preview
+worker: tend_videos (10 s) ──▶ videos rows for video blobs on a page ──▶ transcribe_video (locked per sha256)
+        ffmpeg audio track ──▶ Transcriber ──▶ extraction transcript ──▶ rechunk ──▶ videos.transcript = ready
+page: protocol_videos(protocol) polled every 3 s until settled; <video> on /api/files/<location> with ranges
+```
+
+- `protocol_videos` is `security definer` (transcripts are extractions) and answers only when the caller is a member of the page's lab. Linked videos come first, in link order, then pending ones (`preparing`, or `failed` with the worker's error).
+- `/api/files/<location>` serves an upload from the store with byte ranges (`lib/serve-file.ts`; R2 by presigned redirect) and a Dropbox video by a `get_temporary_link` redirect. Only a request starting at byte 0 writes `file.download`.
+- The page's upload state machine is `lib/video-upload-state.ts`: the next step (start, part n, complete) is read off the upload, and a dropped step retries after 2, 5 and 15 s. `lib/video-upload.ts` is the routes' core; `lib/object-store.ts` has the multipart calls for R2 and the local store.
+- The Files list leaves videos out; they play in the Videos section above it. Linking a video through the Files picker refreshes the Videos section.
+- ffmpeg is optional (`FFMPEG_PATH`, `bl_worker/video.py`): no ffmpeg means no poster and an unavailable transcript, never a failed file.
+- `scripts/e2e-video.sh` runs the routes' core and the real worker on local Postgres and a local store. Fixtures: `/dev/fixtures/protocols?view=page|videos|no-videos`, media from `/dev/fixtures/media/`.
