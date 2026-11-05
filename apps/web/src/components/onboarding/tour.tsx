@@ -160,7 +160,6 @@ function TourStepView(props: StepProps) {
         <Dialog.Root open>
           <Dialog.Portal>
             <Dialog.Content
-              aria-label={label}
               aria-describedby={undefined}
               onOpenAutoFocus={focusNext}
               onEscapeKeyDown={onSkip}
@@ -173,7 +172,7 @@ function TourStepView(props: StepProps) {
                   : "inset-x-0 bottom-0 rounded-t-card border-t px-4 pt-4 pb-[max(16px,env(safe-area-inset-bottom))]",
               )}
             >
-              <Dialog.Title className="sr-only">Tour</Dialog.Title>
+              <Dialog.Title className="sr-only">{label}</Dialog.Title>
               <StepCard {...props} compact={!wide} />
             </Dialog.Content>
           </Dialog.Portal>

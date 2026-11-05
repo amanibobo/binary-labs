@@ -89,7 +89,7 @@ function onboardingShots() {
       await page.getByRole("button", { name: "Next" }).click();
       await page.waitForTimeout(250);
     }
-    await page.getByText(`${n} of 5`).waitFor();
+    await page.getByRole("dialog", { name: `Tour, ${n} of 5` }).waitFor();
     await page.waitForTimeout(500);
   };
   const openHelp = async (page) => {
@@ -104,7 +104,11 @@ function onboardingShots() {
     ...all({
       name: "onboarding-hint",
       path: s("onboarding=hints&q=p450%20gels"),
-      steps: (page) => page.getByRole("button", { name: "Got it" }).waitFor({ timeout: 10_000 }),
+      // The first Check this sits at the screen's bottom edge; the hint waits until it's fully in view.
+      steps: async (page) => {
+        await page.locator('[data-hint~="check-this"]').first().evaluate((el) => el.scrollIntoView({ block: "center" }));
+        await page.getByRole("button", { name: "Got it" }).waitFor({ timeout: 10_000 });
+      },
     }),
     ...all({ name: "onboarding-help-menu", path: s("state=results"), steps: openHelp }),
     ...all({
