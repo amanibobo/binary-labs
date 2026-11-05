@@ -16,7 +16,7 @@ export const AREA_COPY = {
   },
   members: { title: "Members", helper: "Everyone who can sign in to this lab." },
   account: { title: "Your account", helper: "The email you sign in with." },
-  delete: { title: "Delete this lab", helper: "Removes everything Binary Labs holds for the lab. Your Dropbox stays as it is." },
+  delete: { title: "Delete this lab", helper: "Removes everything Binary Labs holds for this lab. Files in Dropbox stay as they are." },
 } as const satisfies Record<SettingsArea, { title: string; helper: string }>;
 
 export function areaHref(area: SettingsArea): string {
