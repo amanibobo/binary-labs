@@ -68,11 +68,14 @@ export function LabelTitle({ hit, label }: { hit: FileHit; label: Label | null }
 export function LabelTags({ hit, label, expanded }: { hit: FileHit; label: Label; expanded: boolean }) {
   const labels = useLabels();
   if (label.status === "needs_look") return null;
-  // Collapsed rows show the facts (date, experiment, person, instrument); free tags wait for the details.
-  const tags = labelTags(label, formatDay).filter((tag) => expanded || tag.ref.kind !== "free");
+  // Collapsed rows show experiment, person and instrument; the date is on the row's meta line,
+  // and the date tag, free tags and Add tag wait for the details.
+  const tags = labelTags(label, formatDay).filter((tag) => expanded || (tag.ref.kind !== "free" && tag.ref.kind !== "date"));
+  const check = needsCheck(label);
+  if (!expanded && tags.length === 0 && !check) return null;
   return (
     <span className="mt-2 flex flex-wrap items-center gap-1.5 max-sm:gap-x-2 max-sm:gap-y-3">
-      {needsCheck(label) ? <CheckMarker onAccept={() => labels.accept(hit)} /> : null}
+      {check ? <CheckMarker onAccept={() => labels.accept(hit)} /> : null}
       {tags.map((tag) => {
         const field = FIELD_NAMES[tag.ref.kind];
         return (
@@ -103,25 +106,22 @@ export function LabelTags({ hit, label, expanded }: { hit: FileHit; label: Label
           />
         );
       })}
-      <InlineEdit
-        initial=""
-        inputLabel="New tag"
-        placeholder="Tag, date, experiment or person"
-        onSubmit={(text) => labels.edit(hit, { kind: "add", text }, "Tag added")}
-        inputClassName={cn(tagInput, "w-56")}
-        triggerClassName={cn(
-          interactive,
-          tagShape,
-          "gap-1 pl-1 text-content-tertiary hover:bg-background-tertiary hover:text-content-primary",
-          !expanded && "max-sm:hidden pointer-coarse:hidden sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100",
-        )}
-        trigger={
-          <>
-            <PlusIcon className="size-4" />
-            Add tag
-          </>
-        }
-      />
+      {expanded ? (
+        <InlineEdit
+          initial=""
+          inputLabel="New tag"
+          placeholder="Tag, date, experiment or person"
+          onSubmit={(text) => labels.edit(hit, { kind: "add", text }, "Tag added")}
+          inputClassName={cn(tagInput, "w-56")}
+          triggerClassName={cn(interactive, tagShape, "gap-1 pl-1 text-content-tertiary hover:bg-background-tertiary hover:text-content-primary")}
+          trigger={
+            <>
+              <PlusIcon className="size-4" />
+              Add tag
+            </>
+          }
+        />
+      ) : null}
     </span>
   );
 }

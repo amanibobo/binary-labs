@@ -199,3 +199,7 @@ From the first signed-in walkthrough. One word for one thing, in the words a gra
 - Search rows show the clean name, one path line, the matching text and the label's facts (date, experiment, person, instrument); free tags and Add tag wait for the opened row. Word matches are highlighted, so only a meaning-only match says why ("Similar in meaning"). The opened row's main action is opening the real file.
 - Dates of moments (saved, modified, joined, recorded) show the reader's own day; label dates are calendar days and never shift.
 - Amber is only for Check this; audio files take the gray kind tint.
+
+## 2026-11-04 — a calmer search screen
+
+The box is the hero (no lab-name title, no blue focus ring) with example searches from recent labels under it, and filters sit behind one "Filters" control, showing only set filters as removable chips. Rows drop the card: a 64 px preview on the left (kind icon as fallback), the name, one meta line (path, the label's date or else the modified date), matching text only for a query, and experiment, person and instrument; Open shows on hover and focus. Right-hand thumbnails and a preview grid for recent files were tried and dropped: the first left a ragged column of icon tiles, the second broke the recency order and lost rename and Check this.

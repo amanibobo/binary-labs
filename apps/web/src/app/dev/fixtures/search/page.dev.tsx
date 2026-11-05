@@ -15,7 +15,6 @@ export default async function SearchFixture({ searchParams }: FixtureProps) {
     <FixtureLabApi mode={state === "keyword" ? "keyword" : "hybrid"} source={source}>
       <AppShell shell={state === "new" ? { ...fixtureShell, needsLookCount: 0 } : fixtureShell} location={{ section: "search" }}>
         <SearchHome
-          labName="Okafor Lab"
           recent={state === "new" ? [] : recentFiles}
           source={source}
           isAdmin
