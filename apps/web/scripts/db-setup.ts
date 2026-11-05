@@ -3,7 +3,8 @@ import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 // Rebuilds the local test database from db/ before the db test project runs.
-const DB = "binary_labs_web_test";
+// BL_WEB_TEST_DB lets two checkouts run their suites side by side.
+const DB = process.env.BL_WEB_TEST_DB ?? "binary_labs_web_test";
 const repo = join(__dirname, "../../..");
 const brewBin = "/opt/homebrew/opt/postgresql@17/bin";
 const bin = (name: string) => (existsSync(join(brewBin, name)) ? join(brewBin, name) : name);

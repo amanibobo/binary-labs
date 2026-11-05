@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import os
 import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -17,7 +18,8 @@ from bl_worker.embed import HashEmbedder
 from bl_worker.runtime import Runtime, build_runtime
 
 ADMIN_URL = "postgresql://localhost/postgres"
-TEST_DB = "binary_labs_worker_test"
+# BL_TEST_DB lets two checkouts run their suites side by side.
+TEST_DB = os.environ.get("BL_TEST_DB", "binary_labs_worker_test")
 TEST_URL = f"postgresql://localhost/{TEST_DB}"
 KEY = bytes(range(32))
 
