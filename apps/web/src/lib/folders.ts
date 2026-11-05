@@ -37,10 +37,20 @@ export function topLevelOf(path: FolderPath): FolderPath | null {
   return first === undefined ? null : FolderPath.parse(first);
 }
 
+function decodeSegment(segment: string): string | null {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return null;
+  }
+}
+
+// Next hands catch-all segments over still percent-encoded ("P450%20batch%203").
 export function folderPathFromSegments(segments: readonly string[] | undefined): FolderPath | null {
   if (segments === undefined) return ROOT_FOLDER;
-  if (segments.some((s) => s === "" || s.includes("/"))) return null;
-  return FolderPath.parse(segments.join("/"));
+  const decoded = segments.map(decodeSegment);
+  if (decoded.some((s) => s === null || s === "" || s.includes("/"))) return null;
+  return FolderPath.parse(decoded.join("/"));
 }
 
 export function folderHref(path: FolderPath): string {

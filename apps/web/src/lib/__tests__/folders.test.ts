@@ -103,16 +103,17 @@ describe("path helpers", () => {
   it("reads Next catch-all segments", () => {
     expect(folderPathFromSegments(undefined)).toBe("");
     expect(folderPathFromSegments(["P450"])).toBe("P450");
-    expect(folderPathFromSegments(["P450", "batch 3"])).toBe("P450/batch 3");
+    expect(folderPathFromSegments(["P450", "batch%203"])).toBe("P450/batch 3");
     expect(folderPathFromSegments(["P450", ""])).toBeNull();
-    expect(folderPathFromSegments(["P450/batch3"])).toBeNull();
+    expect(folderPathFromSegments(["P450%2Fbatch3"])).toBeNull();
+    expect(folderPathFromSegments(["50%"])).toBeNull();
   });
 
-  it("builds hrefs that round-trip through decoded segments", () => {
+  it("builds hrefs that round-trip through the encoded segments Next passes", () => {
     expect(folderHref(ROOT_FOLDER)).toBe("/browse");
     expect(folderHref(p("P450/batch 3#1"))).toBe("/browse/P450/batch%203%231");
     const href = folderHref(p("Gels & Blots/50% run"));
-    const segments = href.replace(/^\/browse\//, "").split("/").map(decodeURIComponent);
+    const segments = href.replace(/^\/browse\//, "").split("/");
     expect(folderPathFromSegments(segments)).toBe("Gels & Blots/50% run");
   });
 
