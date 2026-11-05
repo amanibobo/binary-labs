@@ -5,7 +5,7 @@ import { cn } from "@/lib/cn";
 import { openTarget } from "@/lib/format";
 import { newProtocolHref } from "@/lib/protocols";
 import { OpenExternalIcon, ProtocolIcon } from "../icons/drawn";
-import { FileCharts } from "../charts/file-charts";
+import { FileCharts, MakeChartLink } from "../charts/file-charts";
 import { useLabApi } from "../lab-api";
 import { Highlighted } from "../search/highlighted";
 import { buttonVariants } from "../ui/button";
@@ -29,6 +29,8 @@ export function PreviewPanel({
 }) {
   const [primary, ...others] = hit.locations;
   const open = openTarget(primary);
+  const isSheet = hit.fileKind === "spreadsheet";
+  const newPage = offerNewPage && isTextBearing(hit.fileKind);
   return (
     <div id={id} className={cn("grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]", className)}>
       <Preview hit={hit} query={query} />
@@ -70,16 +72,21 @@ export function PreviewPanel({
             </ul>
           </div>
         )}
-        {hit.fileKind === "spreadsheet" ? <FileCharts hit={hit} /> : null}
-        {offerNewPage && isTextBearing(hit.fileKind) ? (
-          <Link
-            href={newProtocolHref(hit.sha256)}
-            className={cn(buttonVariants({ variant: "tertiary", size: "compact" }), "-ml-3 text-content-secondary")}
-          >
-            <ProtocolIcon className="size-5" />
-            Make a protocol from this file
-          </Link>
+        {isSheet || newPage ? (
+          <div className="flex flex-col items-start gap-1">
+            {isSheet ? <MakeChartLink hit={hit} /> : null}
+            {newPage ? (
+              <Link
+                href={newProtocolHref(hit.sha256)}
+                className={cn(buttonVariants({ variant: "tertiary", size: "compact" }), "-ml-3 text-content-secondary")}
+              >
+                <ProtocolIcon className="size-5" />
+                Make a protocol from this file
+              </Link>
+            ) : null}
+          </div>
         ) : null}
+        {isSheet ? <FileCharts hit={hit} /> : null}
       </div>
     </div>
   );

@@ -208,7 +208,8 @@ export function plotChart(
   const legendItemWidth = (name: string) => 22 + textWidth(name, TICK_FONT) + 16;
   let top = 8;
   let bottom = 0;
-  let right = 12;
+  // Room for half of the last x tick label, which is centred on the plot's right edge.
+  let right = 28;
   const title = options.title ? { text: options.title, x: 0, y: TITLE_FONT + 4 } : null;
   if (title) top += TITLE_FONT + 16;
 
@@ -335,8 +336,10 @@ export function plotChart(
     }
     if (!Number.isFinite(xLo)) [xLo, xHi] = [0, 1];
     const xCount = Math.max(2, Math.floor(area.width / 90));
-    // A line runs edge to edge over its data; a scatter gets a nice frame around its points.
-    const auto: [number, number] = spec.type === "line" && xLo < xHi ? [xLo, xHi] : niceDomain(xLo, xHi, xCount);
+    // A line runs edge to edge over its data; a scatter keeps a little air around its points,
+    // so a dot at the first or last value isn't cut in half by the frame.
+    const pad = spec.type === "scatter" && xLo < xHi ? (xHi - xLo) * 0.03 : 0;
+    const auto: [number, number] = spec.type === "line" && xLo < xHi ? [xLo, xHi] : xLo < xHi ? [xLo - pad, xHi + pad] : niceDomain(xLo, xHi, xCount);
     let xDomain: [number, number] = [spec.x.min ?? auto[0], spec.x.max ?? auto[1]];
     if (xDomain[0] >= xDomain[1]) xDomain = auto;
     const xScale = linearScale(xDomain[0], xDomain[1], area.left, area.left + area.width, xCount);

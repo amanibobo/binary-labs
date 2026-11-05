@@ -283,7 +283,7 @@ function Builder({
     <>
       <ChartCrumbs file={file} title={saved?.title ?? "New chart"} />
       <div className="mx-auto grid w-full max-w-6xl gap-x-10 gap-y-10 px-4 pt-8 pb-24 sm:px-8 lg:grid-cols-[288px_minmax(0,1fr)]">
-        <aside aria-label="Data" className="order-2 min-w-0 lg:order-1">
+        <aside aria-label="Data" className="order-2 min-w-0 lg:sticky lg:top-6 lg:order-1 lg:max-h-[calc(100dvh-3rem)] lg:self-start lg:overflow-y-auto lg:pr-2">
           <DataPanel
             doc={doc}
             table={table}
@@ -368,6 +368,10 @@ function DataPanel({
 }) {
   const sheetId = useId();
   const [allNotes, setAllNotes] = useState(false);
+  const [find, setFind] = useState("");
+  const findId = useId();
+  const needle = find.trim().toLowerCase();
+  const columns = needle === "" ? table.columns : table.columns.filter((c) => `${c.id} ${columnLabel(c)}`.toLowerCase().includes(needle));
   const notes = allNotes ? table.notes : table.notes.slice(0, 3);
   return (
     <div>
@@ -403,8 +407,17 @@ function DataPanel({
       <p className="mt-1 text-paragraph-xsmall text-content-tertiary">
         {table.rows.toLocaleString("en-US")} rows. Tick a column to plot it.
       </p>
+      {table.columns.length > 12 ? (
+        <div className="mt-3">
+          <label htmlFor={findId} className="sr-only">
+            Find a column
+          </label>
+          <Input id={findId} size="compact" type="search" placeholder="Find a column" value={find} onChange={(e) => setFind(e.target.value)} />
+        </div>
+      ) : null}
       <ul className="mt-3 grid">
-        {table.columns.map((c) => (
+        {columns.length === 0 ? <li className="px-2 py-2 text-paragraph-small text-content-tertiary">No column called that.</li> : null}
+        {columns.map((c) => (
           <ColumnRow key={c.id} column={c} spec={spec} onToggle={() => onTogglePlot(c)} />
         ))}
       </ul>

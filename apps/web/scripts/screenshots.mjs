@@ -46,7 +46,37 @@ const shots = [
   ...uploadShots(),
   ...talkThroughShots(),
   ...videoShots(),
+  ...chartShots(),
 ];
+
+// Charts: the builder as it opens on the plate read, a saved curve with error bars, the
+// readout on hover, the worker still reading a table, a data sheet's opened row in search
+// and a protocol showing its charts.
+function chartShots() {
+  const c = (view) => `/dev/fixtures/charts?view=${view}`;
+  const all = (shot) => ["dark", "light"].flatMap((scheme) => [1440, 390].map((width) => ({ ...shot, width, scheme })));
+  const hover = async (page) => {
+    const box = await page.locator("figure svg").first().boundingBox();
+    await page.mouse.move(box.x + box.width * 0.55, box.y + box.height * 0.5);
+  };
+  return [
+    ...all({ name: "chart-builder", path: c("new") }),
+    ...all({ name: "chart-saved", path: c("saved") }),
+    { name: "chart-sec", path: c("sec"), width: 1440, scheme: "dark" },
+    { name: "chart-bradford-new", path: c("bradford"), width: 1440, scheme: "light" },
+    { name: "chart-hover", path: c("sec"), steps: hover, full: false, width: 1440, scheme: "dark" },
+    { name: "chart-hover", path: c("saved"), steps: hover, full: false, width: 1440, scheme: "light" },
+    { name: "chart-waiting", path: c("waiting"), width: 1440, scheme: "dark" },
+    {
+      name: "search-chart",
+      path: "/dev/fixtures/search?state=empty",
+      steps: (page) => page.getByRole("button", { name: "Details for Plate 7 absorbance at 420 nm" }).click(),
+      width: 1440,
+      scheme: "dark",
+    },
+    ...all({ name: "protocols-charts", path: "/dev/fixtures/protocols?view=charts" }),
+  ].map((shot) => ({ ...shot, tall: true }));
+}
 
 // Settings: the overview and each area, in both schemes at desktop and phone width.
 function settingsShots() {
@@ -281,7 +311,8 @@ const only = process.argv[2];
 // A fake microphone, allowed without a prompt, for the talk-through recorder.
 const browser = await chromium.launch({
   headless: true,
-  channel: "chromium",
+  // CHROMIUM_PATH runs a full Chromium headless when the headless shell isn't installed.
+  ...(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : { channel: "chromium" }),
   args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream"],
 });
 let gelPng;
@@ -311,7 +342,14 @@ try {
     // A click can scroll the page, which would leave the sticky top bar mid-way down a full-page shot.
     if (shot.full !== false) await page.evaluate(() => window.scrollTo(0, 0));
     const file = join(out, `${tag}.png`);
-    await page.screenshot({ path: file, fullPage: !shot.palette && shot.full !== false });
+    // Charts size themselves to their column, and a full-page capture that resizes the window
+    // mid-shot catches them half redrawn; these pages grow the window first and let them settle.
+    if (shot.tall && shot.full !== false) {
+      const height = await page.evaluate(() => document.documentElement.scrollHeight);
+      await page.setViewportSize({ width: shot.width, height });
+      await page.waitForTimeout(500);
+    }
+    await page.screenshot({ path: file, fullPage: !shot.tall && !shot.palette && shot.full !== false });
     process.stdout.write(`${file}\n`);
     await context.close();
   }
