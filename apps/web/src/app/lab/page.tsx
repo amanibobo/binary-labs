@@ -5,17 +5,20 @@ import { ConfigMissing } from "@/components/config-missing";
 import { loadExperiments, loadMembers, loadPeople, loadSourceState } from "@/lib/lab-data";
 import { loadShell } from "@/lib/shell-data";
 import { requireMember } from "@/lib/viewer";
+import { SettingsArea } from "./areas";
 import { LabView } from "./lab-view";
 
 export const metadata: Metadata = { title: "Settings" };
 
 const Notice = z.enum(["denied", "expired", "failed"]).catch("failed");
+const Area = SettingsArea.nullable().catch(null);
 
 export default async function LabPage({ searchParams }: PageProps<"/lab">) {
   const viewer = await requireMember();
   if (viewer.kind === "config_missing") return <ConfigMissing missing={viewer.missing} />;
   const { supabase, lab, user } = viewer;
-  const { dropbox } = await searchParams;
+  const { dropbox, area } = await searchParams;
+  const notice = dropbox === undefined ? null : Notice.parse(dropbox);
   const [shell, source, members, experiments, people] = await Promise.all([
     loadShell(viewer),
     loadSourceState(supabase, lab.id),
@@ -26,6 +29,7 @@ export default async function LabPage({ searchParams }: PageProps<"/lab">) {
   return (
     <AppShell shell={shell} location={{ section: "lab" }}>
       <LabView
+        area={notice === null ? Area.parse(area ?? null) : "dropbox"}
         labName={lab.name}
         email={user.email}
         isAdmin={lab.role === "admin"}
@@ -33,7 +37,7 @@ export default async function LabPage({ searchParams }: PageProps<"/lab">) {
         members={members}
         experiments={experiments}
         people={people}
-        notice={dropbox === undefined ? null : Notice.parse(dropbox)}
+        notice={notice}
       />
     </AppShell>
   );

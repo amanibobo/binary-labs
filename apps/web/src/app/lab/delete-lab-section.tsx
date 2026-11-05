@@ -2,19 +2,20 @@
 
 import { useActionState, useId, useState } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { dataSurface } from "@/components/ui/data-table";
 import { Dialog, DialogContent, DialogDock } from "@/components/ui/dialog";
 import { Input, Label } from "@/components/ui/field";
+import { cn } from "@/lib/cn";
 import { nameMatches } from "@/lib/lab-deletion";
 import { deleteLab, type DeleteLabState } from "./actions";
 
 export function DeleteLabSection({ labName }: { labName: string }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="grid gap-3 px-5 pb-5 sm:px-6 sm:pb-6">
+    <div className={cn(dataSurface, "grid gap-3 p-5 sm:p-6")}>
       <p className="max-w-prose text-paragraph-medium text-content-secondary">
-        Deleting removes everything Binary Labs holds for {labName}: the search index, previews, labels, protocols,
-        tutorials and the activity log. Every member loses access at once and Dropbox is disconnected. The files in your
-        Dropbox aren&apos;t touched. There&apos;s no undo.
+        This deletes the search index, previews, labels, protocols, tutorials and the activity log for {labName}. Every
+        member loses access at once and Dropbox is disconnected. There&apos;s no undo.
       </p>
       <p className="max-w-prose text-paragraph-medium text-content-secondary">
         Protocols and tutorials only exist here, so download them first.

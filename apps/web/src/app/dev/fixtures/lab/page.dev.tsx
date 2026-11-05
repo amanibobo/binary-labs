@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { SettingsArea } from "@/app/lab/areas";
 import { LabView } from "@/app/lab/lab-view";
 import { AppShell } from "@/components/app-shell";
 import { disconnectedSource, experiments, fixtureShell, members, people, scanningSource } from "@/fixtures/data";
@@ -7,6 +8,7 @@ import { requireFixtures, type FixtureProps } from "@/fixtures/gate";
 
 const State = z.enum(["connect", "scanning", "disconnected"]).catch("scanning");
 const Role = z.enum(["admin", "member"]).catch("admin");
+const Area = SettingsArea.nullable().catch(null);
 
 const SOURCES = { connect: { kind: "not_connected" as const }, scanning: scanningSource, disconnected: disconnectedSource };
 
@@ -20,6 +22,7 @@ export default async function LabFixture({ searchParams }: FixtureProps) {
     <FixtureLabApi mode="hybrid" source={source}>
       <AppShell shell={fixtureShell} location={{ section: "lab" }}>
         <LabView
+          area={Area.parse(params.area ?? null)}
           labName="Okafor Lab"
           email="a.okafor@university.edu"
           isAdmin={role === "admin"}
