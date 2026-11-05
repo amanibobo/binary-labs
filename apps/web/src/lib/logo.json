@@ -1,0 +1,8 @@
+{
+  "rows": ["XXX.", "X..X", "XXX.", "X..X", "XXX."],
+  "cell": 10,
+  "gap": 1.5,
+  "radius": 1.6,
+  "green": "#1F9D6B",
+  "blue": "#2F7FE0"
+}

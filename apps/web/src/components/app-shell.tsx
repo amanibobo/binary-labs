@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { cn } from "@/lib/cn";
 import type { ShellData } from "@/lib/shell-data";
 import { AccountMenu } from "./account-menu";
+import { LogoMark } from "./logo";
 import { CommandPalette, PaletteTrigger } from "./command-palette";
 import { SearchOutlineIcon, UploadIcon } from "./icons/drawn";
 import { NeedsLookCountProvider, NeedsLookCountText } from "./labels/needs-look-count";
@@ -22,7 +23,8 @@ export function AppShell({ shell, location, children }: { shell: ShellData; loca
         <div className="flex min-h-dvh flex-col">
           <header className="sticky top-0 z-30 border-b border-border-opaque bg-background-primary">
             <div className="mx-auto flex h-16 w-full max-w-6xl items-center gap-2 px-4 sm:px-6 md:gap-6">
-              <Link href="/" className="flex min-h-11 shrink-0 items-center text-heading-xsmall text-content-primary">
+              <Link href="/" className="flex min-h-11 shrink-0 items-center gap-2.5 text-heading-xsmall text-content-primary">
+                <LogoMark className="h-6 w-auto" />
                 Binary Labs
               </Link>
               <nav aria-label="Main" className="hidden h-full items-stretch gap-1 md:flex">
