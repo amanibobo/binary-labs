@@ -98,12 +98,13 @@ export function OnboardingProvider({ data, tourHere, children }: { data: Onboard
     window.history.replaceState(null, "", url);
   }, [askedForTour]);
 
+  // Kept stable so a step's anchor isn't looked up again every time something is saved.
+  const steps = useMemo(() => tourSteps(data.role), [data.role]);
   const value = useMemo((): OnboardingValue => {
     const note = (event: OnboardingEvent) => {
       setState((s) => applyEvent(s, event, new Date().toISOString()));
       save(event).catch((error: unknown) => logError("onboarding.save_failed", { kind: event.kind, error }));
     };
-    const steps = tourSteps(data.role);
     const items = checklist({ role: data.role, progress, state });
     const goToStep = (index: number) => {
       note({ kind: "tour_step", step: index + 1 });
@@ -144,7 +145,7 @@ export function OnboardingProvider({ data, tourHere, children }: { data: Onboard
       hideChecklist: () => note({ kind: "hide_checklist" }),
       markDone: (fact) => setProgress((p) => (p[fact] === null ? { ...p, [fact]: new Date().toISOString() } : p)),
     };
-  }, [data.role, data.tourHref, overlay, progress, router, save, state, tourHere]);
+  }, [data.role, data.tourHref, overlay, progress, router, save, state, steps, tourHere]);
 
   return <OnboardingContext value={value}>{children}</OnboardingContext>;
 }

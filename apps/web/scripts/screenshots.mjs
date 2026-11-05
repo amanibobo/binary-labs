@@ -47,6 +47,7 @@ const shots = [
   ...talkThroughShots(),
   ...videoShots(),
   ...chartShots(),
+  ...onboardingShots(),
 ];
 
 // Charts: the builder as it opens on the plate read, a saved curve with error bars, the
@@ -76,6 +77,58 @@ function chartShots() {
     },
     ...all({ name: "protocols-charts", path: "/dev/fixtures/protocols?view=charts" }),
   ].map((shot) => ({ ...shot, tall: true }));
+}
+
+// The welcome, each tour step, the getting-started card, a hint, the help menu and one answer,
+// in both schemes at desktop and phone width. ?onboarding= picks the state (src/fixtures/onboarding.ts).
+function onboardingShots() {
+  const s = (query) => `/dev/fixtures/search?${query}`;
+  const all = (shot) => ["dark", "light"].flatMap((scheme) => [1440, 390].map((width) => ({ ...shot, width, scheme, full: false })));
+  const tourStep = (n) => async (page) => {
+    for (let i = 1; i < n; i++) {
+      await page.getByRole("button", { name: "Next" }).click();
+      await page.waitForTimeout(250);
+    }
+    await page.getByText(`${n} of 5`).waitFor();
+    await page.waitForTimeout(500);
+  };
+  const openHelp = async (page) => {
+    if (page.viewportSize().width < 768) await page.getByRole("button", { name: "Menu" }).click();
+    await page.getByRole("button", { name: "Help" }).last().click();
+    await page.getByRole("menuitem", { name: "Take the tour" }).waitFor();
+  };
+  return [
+    ...all({ name: "onboarding-welcome", path: s("onboarding=new"), steps: (page) => page.getByRole("button", { name: "Take the 1-minute tour" }).waitFor() }),
+    ...[1, 2, 3, 4, 5].flatMap((n) => all({ name: `onboarding-tour-${n}`, path: s("onboarding=new&tour=1"), steps: tourStep(n) })),
+    ...all({ name: "onboarding-checklist", path: s("onboarding=checklist") }),
+    ...all({
+      name: "onboarding-hint",
+      path: s("onboarding=hints&q=p450%20gels"),
+      steps: (page) => page.getByRole("button", { name: "Got it" }).waitFor({ timeout: 10_000 }),
+    }),
+    ...all({ name: "onboarding-help-menu", path: s("state=results"), steps: openHelp }),
+    ...all({
+      name: "onboarding-help-answer",
+      path: s("state=results"),
+      steps: async (page) => {
+        await openHelp(page);
+        await page.getByRole("menuitem", { name: "Fix a label" }).click();
+        await page.getByRole("dialog", { name: "Fix a label" }).waitFor();
+      },
+    }),
+    {
+      name: "onboarding-hint-upload",
+      path: "/dev/fixtures/upload?onboarding=hints",
+      steps: async (page) => {
+        await page.locator('input[type="file"][multiple]').setInputFiles({ name: "Gel batch 5.png", mimeType: "image/png", buffer: gelPng });
+        await page.getByRole("button", { name: "Got it" }).waitFor({ timeout: 15_000 });
+      },
+      width: 390,
+      scheme: "dark",
+      touch: true,
+      full: false,
+    },
+  ];
 }
 
 // Settings: the overview and each area, in both schemes at desktop and phone width.
