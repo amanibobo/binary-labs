@@ -2,12 +2,13 @@
 import type { ClipId } from "@/lib/onboarding";
 
 export const CLIP_SIZES = {
-  search: { width: 720, height: 450 },
-  open: { width: 720, height: 450 },
-  fix: { width: 720, height: 450 },
-  "needs-look": { width: 720, height: 450 },
-  upload: { width: 390, height: 600 },
-  "talk-through": { width: 720, height: 450 },
-  video: { width: 720, height: 450 },
-  settings: { width: 720, height: 450 },
+  "search": { width: 720, height: 436 },
+  "open": { width: 720, height: 436 },
+  "fix": { width: 720, height: 334 },
+  "needs-look": { width: 720, height: 402 },
+  "upload": { width: 390, height: 460 },
+  "talk-through": { width: 720, height: 402 },
+  "video": { width: 720, height: 554 },
+  "chart": { width: 720, height: 396 },
+  "settings": { width: 720, height: 436 },
 } as const satisfies Record<ClipId, { width: number; height: number }>;

@@ -8,7 +8,7 @@ export const HINT_IDS = ["check-this", "phone-upload"] as const;
 export const HintId = z.enum(HINT_IDS);
 export type HintId = z.infer<typeof HintId>;
 
-export type ClipId = "search" | "open" | "fix" | "needs-look" | "upload" | "talk-through" | "video" | "settings";
+export type ClipId = "search" | "open" | "fix" | "needs-look" | "upload" | "talk-through" | "video" | "chart" | "settings";
 
 export type TourEnd = "done" | "skipped";
 
@@ -280,7 +280,7 @@ export const HINTS: readonly Hint[] = [
 
 // ---- How do I…
 
-export type HelpAnswerId = "open-file" | "fix-label" | "needs-look" | "upload" | "talk-through" | "video";
+export type HelpAnswerId = "open-file" | "fix-label" | "needs-look" | "upload" | "talk-through" | "video" | "chart";
 
 export type HelpAnswer = { id: HelpAnswerId; question: string; answer: string; clip: ClipId };
 
@@ -320,5 +320,11 @@ export const HELP_ANSWERS: readonly HelpAnswer[] = [
     question: "Add a video to a protocol",
     answer: "On a protocol, choose Add a video to record one with your phone, pick a file, or link a video already in the lab.",
     clip: "video",
+  },
+  {
+    id: "chart",
+    question: "Make a chart from a data sheet",
+    answer: "Open a spreadsheet or CSV in search and choose Make a chart. Tick the columns to plot, name it, and save.",
+    clip: "chart",
   },
 ];

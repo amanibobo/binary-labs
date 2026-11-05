@@ -132,7 +132,12 @@ const CLIPS = [
     path: "/dev/fixtures/upload",
     viewport: PHONE,
     phone: true,
-    crop: async () => ({ x: 0, y: 0, width: PHONE.width, height: 640 }),
+    // From the two buttons down, so the new upload's row and its label are in frame.
+    async crop(page) {
+      const take = await box(page.getByText("Take a photo"));
+      const y = Math.max(0, take.y - 28);
+      return { x: 0, y, width: PHONE.width, height: Math.min(460, PHONE.height - y) };
+    },
     async run(page, { gelPng }) {
       await page.waitForTimeout(700);
       await page.locator('input[type="file"][multiple]').setInputFiles({ name: "Gel batch 5.png", mimeType: "image/png", buffer: gelPng });
@@ -174,6 +179,25 @@ const CLIPS = [
       await page.locator('input[type="file"]:not([capture])').setInputFiles({ name: "Loading the nickel column.webm", mimeType: "video/webm", buffer: paddedClip });
       await page.getByText(/Uploading, \d+%/).waitFor();
       await page.waitForTimeout(1800);
+    },
+  },
+  {
+    id: "chart",
+    path: "/dev/fixtures/charts?view=new",
+    async crop(page) {
+      const main = await box(page.locator("main"));
+      return { x: main.x + 16, y: 64, width: main.width - 24, height: 560 };
+    },
+    async run(page) {
+      await page.waitForTimeout(400);
+      await clickAt(page, page.getByRole("checkbox", { name: /A2/ }));
+      await page.waitForTimeout(500);
+      await clickAt(page, page.getByRole("checkbox", { name: /A3/ }));
+      await page.waitForTimeout(600);
+      await clickAt(page, page.getByPlaceholder("Chart title"));
+      await page.keyboard.press("ControlOrMeta+a");
+      await page.keyboard.type("Plate 7, wells A1 to A3", { delay: 50 });
+      await page.waitForTimeout(1500);
     },
   },
   {
