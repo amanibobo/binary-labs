@@ -16,7 +16,7 @@ const CELLS = ROWS.flatMap((row, y) =>
 
 export function LogoMark({ className }: { className?: string }) {
   return (
-    <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} className={className} role="img" aria-label="Binary Labs">
+    <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} className={className} aria-hidden>
       {CELLS.map(({ x, y, fill }) => (
         <rect key={`${x}-${y}`} x={x * STEP} y={y * STEP} width={CELL} height={CELL} rx={1.6} fill={fill} />
       ))}

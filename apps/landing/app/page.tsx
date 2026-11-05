@@ -31,16 +31,17 @@ function Link({ href, children, tone }: { href: string; children: string; tone?:
 export default function Home() {
   return (
     <div className="flex min-h-dvh flex-col px-5">
-      <main className="mx-auto w-full max-w-[600px] flex-1 pt-24 pb-20 text-center sm:pt-36">
-        <h1 className="font-serif text-[44px] leading-[1.1] tracking-[-0.01em] sm:text-[52px]">Binary Labs</h1>
+      <main className="mx-auto w-full max-w-[600px] flex-1 pt-24 pb-20 sm:pt-36">
+        <h1 className="flex items-center gap-4 font-serif text-[44px] leading-[1.1] tracking-[-0.01em] sm:text-[52px]">
+          <LogoMark className="h-[0.8em] w-auto shrink-0" />
+          Binary Labs
+        </h1>
         <p className="mt-5 text-[18px] leading-[1.6] text-black/70 sm:text-[19px]">
           One private place for everything your research lab produces. It finds any file in seconds and teaches new people from the
           lab&rsquo;s own work.
         </p>
 
-        <LogoMark className="mx-auto mt-10 h-12 w-auto" />
-
-        <nav aria-label="Links" className="mt-6 flex flex-wrap items-center justify-center gap-x-3 text-[15px] text-black/55">
+        <nav aria-label="Links" className="mt-5 flex flex-wrap items-center gap-x-3 text-[15px] text-black/55">
           <Link href={PILOT_MAILTO} tone="green">
             Request a pilot
           </Link>
@@ -79,7 +80,7 @@ export default function Home() {
         </section>
       </main>
 
-      <footer className="mx-auto w-full max-w-[600px] border-t border-black/[0.07] py-6 text-center text-[13px] text-black/40">
+      <footer className="mx-auto w-full max-w-[600px] border-t border-black/[0.07] py-6 text-[13px] text-black/40">
         Binary Labs, {new Date().getFullYear()}
       </footer>
     </div>
