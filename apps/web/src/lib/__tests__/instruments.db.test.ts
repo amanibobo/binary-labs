@@ -29,8 +29,8 @@ const parts = await import("@/app/api/instruments/uploads/[id]/parts/[n]/route")
 const complete = await import("@/app/api/instruments/uploads/[id]/complete/route");
 const { newPairingCode } = await import("../instrument-upload");
 
-const ana = "00000000-0000-4000-8000-0000000000d1";
-const ben = "00000000-0000-4000-8000-0000000000d2";
+const ana = "00000000-0000-4000-8000-0000000000b1";
+const ben = "00000000-0000-4000-8000-0000000000b2";
 let labA: LabId;
 let labB: LabId;
 
