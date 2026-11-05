@@ -8,11 +8,11 @@ export const AREA_COPY = {
   dropbox: { title: "Dropbox", helper: "Binary Labs reads one Dropbox folder and never changes a file in it." },
   experiments: {
     title: "Experiments",
-    helper: "Labels link files to these. Other names are how an experiment shows up in folders and file names.",
+    helper: "Files are labeled with these. Add the short names people use in file names.",
   },
   people: {
     title: "People",
-    helper: "Labels link files to these. Initials and other names are how a person shows up in folders and file names.",
+    helper: "Files are labeled with these. Add the initials people use in file names.",
   },
   members: { title: "Members", helper: "Everyone who can sign in to this lab." },
   account: { title: "Your account", helper: "The email you sign in with." },

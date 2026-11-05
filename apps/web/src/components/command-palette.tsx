@@ -138,7 +138,7 @@ function PaletteBody({ onDone }: { onDone: () => void }) {
                 </Command.Group>
               ) : null}
               {data?.kind === "keyword" ? (
-                <p className="px-4 pt-2 text-paragraph-small text-content-tertiary sm:px-6">Results are keyword-only right now.</p>
+                <p className="px-4 pt-2 text-paragraph-small text-content-tertiary sm:px-6">Showing exact word matches only right now.</p>
               ) : null}
             </div>
           </>

@@ -41,12 +41,8 @@ export function DropboxSection({ initial, isAdmin }: { initial: SourceState; isA
         <div className={cn(dataSurface, "p-5 sm:p-6")}>
           {isAdmin ? (
             <>
-              <p className="max-w-prose text-paragraph-medium text-content-primary">
-                Binary Labs asks Dropbox for read-only access, indexes one folder you pick, and never moves, renames or
-                changes a file.
-              </p>
               {/* A plain link: the OAuth start route answers with a redirect to Dropbox. */}
-              <a href="/api/dropbox/start" className={cn(buttonVariants(), "mt-4")}>
+              <a href="/api/dropbox/start" className={buttonVariants()}>
                 Connect Dropbox
               </a>
             </>

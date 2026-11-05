@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useId, useState, type ReactNode } from "react";
 import { cn } from "@/lib/cn";
 import { KIND_NAMES, protocolHref, type AuthorNames, authorName } from "@/lib/protocols";
-import { formatClock, isSettled, talkThroughHref, type TalkThrough, type TalkThroughStatus } from "@/lib/talk-throughs";
+import { formatClock, isSettled, recordHref, talkThroughHref, type TalkThrough, type TalkThroughStatus } from "@/lib/talk-throughs";
 import { useLabApi } from "../lab-api";
 import { CrumbBar } from "../protocols/crumb-bar";
 import { Markdown } from "../protocols/markdown";
@@ -48,7 +48,7 @@ export function TalkThroughView({ initial, authors }: { initial: TalkThrough; au
     <>
       <CrumbBar
         items={[
-          tt.page === null ? { label: "New page", href: "/protocols/new" } : { label: tt.page.title, href: protocolHref(tt.page.protocolId) },
+          tt.page === null ? { label: "New protocol", href: "/protocols/new" } : { label: tt.page.title, href: protocolHref(tt.page.protocolId) },
           { label: "Talk-through", href: talkThroughHref(tt.id) },
         ]}
         width="max-w-6xl sm:px-6"
@@ -136,13 +136,14 @@ function NextStep({ tt, retrying, retryError, onRetry }: { tt: TalkThrough; retr
   if (tt.used !== null) {
     return (
       <p className="mt-6 rounded-control border border-border-opaque bg-background-secondary px-4 py-3 text-paragraph-small text-content-secondary">
-        These steps are saved as version {tt.used.version} of the page.{" "}
+        These steps are saved as version {tt.used.version}.{" "}
         <Link href={protocolHref(tt.used.protocolId)} className="text-content-accent underline underline-offset-2">
-          Open the page
+          Open it
         </Link>
       </p>
     );
   }
+  const again = recordHref(tt.page === null ? { pageKind: tt.kind } : { protocolId: tt.page.protocolId });
   const edit = (source: "steps" | "transcript") => `${talkThroughHref(tt.id)}/edit${source === "transcript" ? "?from=transcript" : ""}`;
   const status = tt.status;
   const startFromTranscript =
@@ -163,13 +164,20 @@ function NextStep({ tt, retrying, retryError, onRetry }: { tt: TalkThrough; retr
           </Link>
           <p className="text-paragraph-small text-content-tertiary">
             {tt.page === null
-              ? "Opens a new page with them, to edit before you save."
-              : `Opens the editor with them, to edit before saving version ${tt.page.baseVersion + 1}.`}
+              ? "You can edit them before saving."
+              : "You can edit them before saving."}
           </p>
         </div>
       );
     case "no_draft":
-      return startFromTranscript === null ? null : <div className="mt-6 flex flex-wrap items-center gap-3">{startFromTranscript}</div>;
+      return (
+        <div className="mt-6 flex flex-wrap items-center gap-3">
+          <Link href={again} className={buttonVariants()}>
+            Record again
+          </Link>
+          {startFromTranscript}
+        </div>
+      );
     case "failed":
       return (
         <div className="mt-6 flex flex-wrap items-center gap-3">
@@ -217,7 +225,7 @@ function Lines({ count }: { count: number }) {
 function Transcript({ status }: { status: TalkThroughStatus }) {
   if (status.kind === "transcribing") return <Lines count={7} />;
   if (status.transcript === null) return <p className="text-paragraph-medium text-content-tertiary">No transcript yet.</p>;
-  if (status.transcript.trim() === "") return <p className="text-paragraph-medium text-content-tertiary">We didn&apos;t hear any speech.</p>;
+  if (status.transcript.trim() === "") return <p className="text-paragraph-medium text-content-tertiary">No speech heard.</p>;
   return (
     <p className="max-h-[60dvh] overflow-auto rounded-control border border-border-opaque bg-background-raised p-4 text-paragraph-medium whitespace-pre-wrap text-content-secondary sm:p-5">
       {status.transcript}
@@ -243,7 +251,7 @@ function Draft({ status }: { status: TalkThroughStatus }) {
       );
     case "no_draft":
     case "failed":
-      return <p className="text-paragraph-medium text-content-tertiary">No steps drafted.</p>;
+      return <p className="text-paragraph-medium text-content-tertiary">No steps.</p>;
     default: {
       const _exhaustive: never = status;
       return _exhaustive;

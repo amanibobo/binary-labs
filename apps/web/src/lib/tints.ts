@@ -21,7 +21,7 @@ export const KIND_TINT = {
   text: "gray",
   image: "purple",
   other: "gray",
-  audio: "yellow",
+  audio: "gray",
   video: "blue",
 } as const satisfies Record<FileKind, Tint>;
 

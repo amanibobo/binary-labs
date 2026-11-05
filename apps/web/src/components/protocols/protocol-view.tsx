@@ -161,7 +161,7 @@ function LinkedFiles({ page, initial, editable }: { page: ProtocolVersion; initi
       {files.length === 0 ? (
         <p className="text-paragraph-medium text-content-tertiary">
           {editable
-            ? "No files linked yet. Link an example gel, a plate layout or the original document."
+            ? "No files linked yet. Link an example gel or the original document."
             : "No files linked."}
         </p>
       ) : (
@@ -294,16 +294,16 @@ function ArchiveSection({ page }: { page: ProtocolVersion }) {
     <div className="mt-16 border-t border-border-opaque pt-6">
       <Dialog open={open} onOpenChange={setOpen}>
         <Button variant="tertiary" size="compact" className="-ml-3 text-content-secondary" onClick={() => setOpen(true)}>
-          Archive this page
+          Archive
         </Button>
-        <DialogContent title="Archive this page?" aria-describedby={undefined}>
+        <DialogContent title={`Archive ${page.title}?`} aria-describedby={undefined}>
           <p className="px-4 pt-3 text-paragraph-medium text-content-secondary sm:px-6">
             It leaves the list and search for everyone in the lab. Every version is kept, so anything that cites one still
             works.
           </p>
           <DialogDock className="pt-6">
             <Button disabled={busy} onClick={() => void archive()}>
-              {busy ? "Archiving" : "Archive page"}
+              {busy ? "Archiving" : "Archive"}
             </Button>
             <Button variant="secondary" onClick={() => setOpen(false)}>
               Cancel

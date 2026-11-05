@@ -37,7 +37,7 @@ export function OpenTalkThroughs({
         {items.map((t) => (
           <li key={t.id} className={dataRow}>
             <Link href={talkThroughHref(t.id)} className="flex min-h-14 items-center gap-3 px-4 py-3 hover:bg-button-secondary-hover">
-              <FileAudioIcon className="size-5 shrink-0 text-tint-yellow" />
+              <FileAudioIcon className="size-5 shrink-0 text-content-tertiary" />
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-label-medium text-content-primary">{t.title ?? `${KIND_NAMES[t.kind]} talk-through`}</span>
                 <span className="block truncate text-paragraph-small text-content-tertiary">

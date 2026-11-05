@@ -50,10 +50,7 @@ export function ProtocolListView({
       <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-4">
         <div className="min-w-0">
           <h1 className="text-heading-large">Protocols</h1>
-          <p className="mt-1 max-w-prose text-paragraph-medium text-content-tertiary">
-            How your lab does things, written down. Protocols hold the steps for an experiment; tutorials teach a tool or a
-            technique.
-          </p>
+          <p className="mt-1 max-w-prose text-paragraph-medium text-content-tertiary">How your lab does things, step by step.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Link href={recordHref({ pageKind: filter === "tutorial" ? "tutorial" : "protocol" })} className={buttonVariants({ variant: "secondary" })}>
@@ -61,7 +58,7 @@ export function ProtocolListView({
             Record a talk-through
           </Link>
           <Link href="/protocols/new" className={buttonVariants()}>
-            New page
+            New protocol
           </Link>
         </div>
       </div>
@@ -70,8 +67,7 @@ export function ProtocolListView({
 
       {protocols.length === 0 ? (
         <p className="mt-10 max-w-prose text-paragraph-medium text-content-secondary">
-          No pages yet. Start one from scratch, or open a protocol document in Search and choose &ldquo;Make a protocol from
-          this file&rdquo; to bring its text over.
+          No protocols yet. Write one with New protocol, or say it out loud with Record a talk-through.
         </p>
       ) : (
         <>

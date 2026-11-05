@@ -189,7 +189,7 @@ export function ProtocolEditor({ mode, authors }: { mode: EditorMode; authors: A
     <>
       <CrumbBar items={crumbs} />
       <div className="mx-auto w-full max-w-3xl px-4 pt-8 pb-24 sm:px-8 sm:pt-12">
-        <h1 className="text-heading-medium">{creating ? "New page" : "Edit page"}</h1>
+        <h1 className="text-heading-medium">{creating ? "New protocol" : "Edit"}</h1>
         {!creating && base !== null ? (
           <p className="mt-1 text-paragraph-small text-content-tertiary">
             Saving makes version {base.version + 1}. Earlier versions stay in the history.
@@ -355,7 +355,7 @@ export function ProtocolEditor({ mode, authors }: { mode: EditorMode; authors: A
 function crumbsFor(mode: EditorMode): { label: string; href: string }[] {
   switch (mode.kind) {
     case "create":
-      return [{ label: "New page", href: "/protocols/new" }];
+      return [{ label: "New protocol", href: "/protocols/new" }];
     case "edit":
       return [
         { label: mode.page.title, href: protocolHref(mode.page.protocolId) },
@@ -363,9 +363,9 @@ function crumbsFor(mode: EditorMode): { label: string; href: string }[] {
       ];
     case "talk_through":
       return [
-        mode.base === null ? { label: "New page", href: "/protocols/new" } : { label: mode.base.title, href: protocolHref(mode.base.protocolId) },
+        mode.base === null ? { label: "New protocol", href: "/protocols/new" } : { label: mode.base.title, href: protocolHref(mode.base.protocolId) },
         { label: "Talk-through", href: talkThroughHref(mode.talkThroughId) },
-        { label: mode.base === null ? "New page" : "Edit", href: `${talkThroughHref(mode.talkThroughId)}/edit` },
+        { label: mode.base === null ? "New protocol" : "Edit", href: `${talkThroughHref(mode.talkThroughId)}/edit` },
       ];
     default: {
       const _exhaustive: never = mode;

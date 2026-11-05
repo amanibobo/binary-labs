@@ -8,7 +8,7 @@ import { titleFromFile } from "@/lib/protocols";
 import { loadShell } from "@/lib/shell-data";
 import { requireMember } from "@/lib/viewer";
 
-export const metadata: Metadata = { title: "New page" };
+export const metadata: Metadata = { title: "New protocol" };
 
 export default async function NewProtocolPage({ searchParams }: PageProps<"/protocols/new">) {
   const viewer = await requireMember();
