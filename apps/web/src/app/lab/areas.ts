@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 // Settings opens on an overview; each area is its own view at /lab?area=<area>.
-export const SettingsArea = z.enum(["dropbox", "experiments", "people", "members", "account", "delete"]);
+export const SettingsArea = z.enum(["dropbox", "experiments", "people", "members", "account", "appearance", "delete"]);
 export type SettingsArea = z.infer<typeof SettingsArea>;
 
 export const AREA_COPY = {
@@ -16,6 +16,7 @@ export const AREA_COPY = {
   },
   members: { title: "Members", helper: "Everyone who can sign in to this lab." },
   account: { title: "Your account", helper: "The email you sign in with." },
+  appearance: { title: "Appearance", helper: "Light, dark, or the same as this device. Saved on this browser." },
   delete: { title: "Delete this lab", helper: "Removes everything Binary Labs holds for this lab. Files in Dropbox stay as they are." },
 } as const satisfies Record<SettingsArea, { title: string; helper: string }>;
 

@@ -9,6 +9,7 @@ import { dataSurface } from "@/components/ui/data-table";
 import { cn } from "@/lib/cn";
 import type { Experiment, LabMember, Person } from "@/lib/domain";
 import type { SourceState } from "@/lib/source-state";
+import { AppearanceSection, AppearanceStatus } from "./appearance-section";
 import { AREA_COPY, areaHref, type SettingsArea } from "./areas";
 import { DeleteLabSection } from "./delete-lab-section";
 import { DropboxSection, DropboxStatus } from "./dropbox-section";
@@ -59,6 +60,7 @@ function Overview({ labName, isAdmin, source, members, experiments, people }: La
     { area: "people", status: count(people.length, "person", "people") },
     { area: "members", status: membersLine(members) },
     { area: "account", status: isAdmin ? "You're an admin" : "You're a member" },
+    { area: "appearance", status: <AppearanceStatus /> },
   ];
   return (
     <div className="mx-auto w-full max-w-4xl px-4 pt-8 pb-24 sm:px-8 sm:pt-14">
@@ -155,6 +157,8 @@ function AreaBody({ area, labName, email, isAdmin, source, members, experiments,
           </form>
         </div>
       );
+    case "appearance":
+      return <AppearanceSection />;
     case "delete":
       return <DeleteLabSection labName={labName} />;
     default: {

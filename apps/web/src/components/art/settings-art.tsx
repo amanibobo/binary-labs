@@ -107,12 +107,27 @@ function Delete(s: Shading) {
   );
 }
 
+// A sun half in shadow: light on the left, dark on the right.
+function Appearance(s: Shading) {
+  return (
+    <>
+      <clipPath id={`${s.id}-half`}>
+        <rect x="80" y="0" width="80" height="120" />
+      </clipPath>
+      <circle cx="80" cy="62" r="44" fill={s.paper} stroke="var(--paper-line)" strokeWidth="1.5" />
+      <circle cx="80" cy="62" r="44" fill={s.front} clipPath={`url(#${s.id}-half)`} />
+      <path d="M52 34a40 40 0 0 1 22-11" {...highlight} />
+    </>
+  );
+}
+
 const ART = {
   dropbox: { tint: "blue", draw: Dropbox },
   experiments: { tint: "green", draw: Experiments },
   people: { tint: "orange", draw: People },
   members: { tint: "purple", draw: Members },
   account: { tint: "gray", draw: Account },
+  appearance: { tint: "blue", draw: Appearance },
   delete: { tint: "gray", draw: Delete },
 } as const satisfies Record<SettingsArea, { tint: Tint; draw: (s: Shading, fill: string) => ReactNode }>;
 

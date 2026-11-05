@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const css = readFileSync(new URL("../globals.css", import.meta.url), "utf8");
-const [lightCss, darkCss] = css.split("@media (prefers-color-scheme: dark)");
+const [lightCss, darkCss] = css.split(':root[data-theme="dark"]');
 
 function hexTokens(block: string): Map<string, string> {
   return new Map([...block.matchAll(/--([a-z0-9-]+):\s*(#[0-9a-f]{6});/g)].map((m) => [m[1], m[2]]));
