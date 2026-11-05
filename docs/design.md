@@ -160,3 +160,25 @@ page: protocol_videos(protocol) polled every 3 s until settled; <video> on /api/
 - The Files list leaves videos out; they play in the Videos section above it. Linking a video through the Files picker refreshes the Videos section.
 - ffmpeg is optional (`FFMPEG_PATH`, `bl_worker/video.py`): no ffmpeg means no poster and an unavailable transcript, never a failed file.
 - `scripts/e2e-video.sh` runs the routes' core and the real worker on local Postgres and a local store. Fixtures: `/dev/fixtures/protocols?view=page|videos|no-videos`, media from `/dev/fixtures/media/`.
+
+## Instruments
+
+Migration 0013. An `instruments` row per instrument PC, each with its own `instrument` source (`root_path` `/`). The admin side is `create_instrument`, `renew_pairing_code` and `revoke_instrument` (`security definer`, admin checked, audited as `instrument.create` and `instrument.revoke`) and `lab_instruments` for the list. The uploader side is three functions only the service role may call, each taking the token's sha256: `pair_instrument` (audited as `instrument.pair`, rate limited through `instrument_pair_attempts`), `instrument_session` (also notes `last_seen_at`) and `record_instrument_file`.
+
+```
+admin: Settings > Instruments ──addInstrument──▶ create_instrument(lab, name, sha256(code)) ──▶ code shown once
+uploader: POST /api/instruments/pair {code} ──▶ pair_instrument ──▶ token (blu_…), stored hashed
+uploader, Bearer token: heartbeat every 60 s
+  POST files/check {path, sha256, size, modifiedAt} ──▶ { have } (lab store holds the bytes: record the path, send nothing)
+  POST uploads ──▶ staged multipart at <lab_id>/uploads/<id> (lib/staged-upload.ts, shared with videos)
+  POST uploads/<id>/parts/<n> ──▶ presigned R2 URL, or PUT the same path on the local store
+  POST uploads/<id>/complete ──▶ join, size and sha256 checked on the server ──▶ <lab_id>/files/<sha256>
+     ──▶ record_instrument_file ──▶ file_locations (external_id = path on the PC, source_rev = sha256)
+worker: scan of an instrument source lists nothing ──▶ process_location reads the store by source_rev
+  ──▶ label_blob: Tier 1 instrument fact from the source's instrument, at TAUGHT strength
+```
+
+- Paths are `<watched folder name>/<path inside it>`; Browse shows them at `Instruments/<instrument name>/…`.
+- `proxy.ts` skips `/api/instruments/`, so those routes never see a session and the part PUT isn't buffered. Each route authorizes the token before reading the body (`lib/instrument-routes.ts`); the cores are in `lib/instrument-upload.ts` and the database client in `lib/instrument-db.ts`, which tests swap for plain Postgres (`lib/__tests__/pg-instrument-db.ts`).
+- `/api/files/<location>` opens an instrument file from our store by its `source_rev`.
+- Tests: `workers/tests/test_instruments.py` (SQL and worker), `apps/web/src/lib/__tests__/instruments.db.test.ts` (the real route handlers), `instruments/uploader/tests` (the uploader against a mock server). `scripts/e2e-instrument.sh` runs the real uploader binary against the real route handlers over HTTP, kills it mid-send and restarts it, then runs the worker. Fixtures: `/dev/fixtures/lab?area=instruments[&code=shown|paired][&role=member]`.
