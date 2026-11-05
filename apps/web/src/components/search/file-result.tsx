@@ -18,7 +18,7 @@ import { When } from "../ui/when";
 import { Highlighted } from "./highlighted";
 
 // One row of a raised results list: kind icon, name, path, the matching text
-// and why it matched, with Open in Dropbox as the end action. The whole row
+// and its label, with Open as the end action. The whole row
 // toggles the details, so that toggle sits underneath as a stretched button and
 // the name and tags, which edit in place, sit above it.
 export function FileResult({
@@ -61,11 +61,8 @@ export function FileResult({
         </span>
         <span className="pointer-events-none relative min-w-0 flex-1 py-4 pr-2 pl-4">
           <LabelTitle hit={hit} label={label} />
-          {named ? (
-            <span className="mt-0.5 block truncate font-mono text-paragraph-xsmall text-content-secondary">{primary.originalName}</span>
-          ) : null}
-          <span className={cn("block truncate font-mono text-paragraph-xsmall text-content-tertiary", !named && "mt-1")}>
-            {folderOf(primary)}
+          <span className="mt-0.5 block truncate font-mono text-paragraph-xsmall text-content-tertiary">
+            {named ? primary.path : folderOf(primary)}
           </span>
           {hit.snippet !== null && hit.fileKind !== "image" ? (
             <span className="mt-2 line-clamp-2 text-paragraph-small text-content-secondary">

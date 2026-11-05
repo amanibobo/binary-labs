@@ -19,13 +19,9 @@ export function folderOf(location: FileLocation): string {
   return cut <= 0 ? "/" : location.path.slice(0, cut);
 }
 
+// Word matches are highlighted in the row, so only a match without the words needs saying.
 export function matchLine(reasons: readonly MatchReason[]): string | null {
-  const words = reasons.includes("words");
-  const meaning = reasons.includes("meaning");
-  if (words && meaning) return "Matched by name and content, and by meaning";
-  if (words) return "Matched by name and content";
-  if (meaning) return "Matched by meaning";
-  return null;
+  return reasons.includes("meaning") && !reasons.includes("words") ? "Similar in meaning" : null;
 }
 
 export function otherPlacesLine(count: number): string | null {

@@ -68,7 +68,8 @@ export function LabelTitle({ hit, label }: { hit: FileHit; label: Label | null }
 export function LabelTags({ hit, label, expanded }: { hit: FileHit; label: Label; expanded: boolean }) {
   const labels = useLabels();
   if (label.status === "needs_look") return null;
-  const tags = labelTags(label, formatDay);
+  // Collapsed rows show the facts (date, experiment, person, instrument); free tags wait for the details.
+  const tags = labelTags(label, formatDay).filter((tag) => expanded || tag.ref.kind !== "free");
   return (
     <span className="mt-2 flex flex-wrap items-center gap-1.5 max-sm:gap-x-2 max-sm:gap-y-3">
       {needsCheck(label) ? <CheckMarker onAccept={() => labels.accept(hit)} /> : null}

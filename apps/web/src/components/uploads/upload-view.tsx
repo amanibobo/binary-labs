@@ -162,7 +162,7 @@ export function UploadView({ experiments, personName }: { experiments: string[];
           uploads.isPending ? (
             <Skeleton className="mt-4 h-20" />
           ) : (
-            <p className="mt-2 text-paragraph-medium text-content-tertiary">Nothing yet. Files you send show up here as they&apos;re read and labeled.</p>
+            <p className="mt-2 text-paragraph-medium text-content-tertiary">Nothing uploaded yet. Take a photo or choose a file above.</p>
           )
         ) : (
           <ul className={cn(dataSurface, "mt-4")}>
@@ -270,7 +270,7 @@ function Pickers({ onFiles }: { onFiles: (files: readonly File[], source: "camer
         <UploadIcon className="size-8 text-content-tertiary" />
         <p className="mt-3 text-label-large text-content-primary">Drop files here or paste a screenshot</p>
         <p className="mt-1 text-paragraph-small text-content-tertiary">
-          Photos, screenshots and documents up to {UPLOAD_MAX_BYTES / 1024 / 1024} MB. Videos come later.
+          Photos, screenshots and documents up to {UPLOAD_MAX_BYTES / 1024 / 1024} MB. Videos go on a protocol.
         </p>
         <button type="button" onClick={() => picker.current?.click()} className={cn(buttonVariants({ variant: "secondary" }), "mt-5")}>
           Choose files
@@ -414,16 +414,18 @@ function Title({ row, label }: { row: UploadRow; label: FileLabel | null }) {
 
 function Tags({ label }: { label: FileLabel }) {
   if (label.status === "needs_look") {
-    return <p className="mt-1 text-paragraph-small text-content-tertiary">Needs a look: say what it is from Needs a look.</p>;
+    return <p className="mt-1 text-paragraph-small text-content-tertiary">We weren&apos;t sure what this is. Say what it is in Needs a look.</p>;
   }
   return (
     <p className="mt-2 flex flex-wrap gap-1.5">
       {needsCheck(label) ? <span className={cn(tag, "bg-background-warning text-content-warning")}>Check this</span> : null}
-      {labelTags(label, formatDay).map((t) => (
-        <span key={t.key} className={cn(tag, "bg-background-tertiary text-content-secondary")}>
-          <span className="truncate">{t.text}</span>
-        </span>
-      ))}
+      {labelTags(label, formatDay)
+        .filter((t) => t.ref.kind !== "free")
+        .map((t) => (
+          <span key={t.key} className={cn(tag, "bg-background-tertiary text-content-secondary")}>
+            <span className="truncate">{t.text}</span>
+          </span>
+        ))}
     </p>
   );
 }
