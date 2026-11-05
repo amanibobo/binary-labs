@@ -296,6 +296,8 @@ export const folderRows = FolderTreeRows.parse(treeRows(TREE, "", null).rows);
 export const fixtureShell: ShellData = {
   labName: "Okafor Lab",
   memberCount: members.length,
+  memberEmails: members.flatMap((m) => (m.email === null ? [] : [m.email])).slice(0, 3),
+  isAdmin: true,
   email: "a.okafor@university.edu",
   folders: folderRows,
   needsLookCount: needsLookFiles.length,

@@ -8,11 +8,14 @@ import { cn } from "@/lib/cn";
 import type { ShellData } from "@/lib/shell-data";
 import { PaletteTrigger } from "./command-palette";
 import { ChevronDownIcon, DeleteIcon, MenuIcon } from "./icons/base-web";
-import { SearchOutlineIcon, UploadIcon } from "./icons/drawn";
+import { InviteForm } from "@/app/lab/members-section";
+import { SearchOutlineIcon, UploadIcon, UserPlusIcon } from "./icons/drawn";
 import { NeedsLookCountText } from "./labels/needs-look-count";
 import { LogoMark } from "./logo";
 import { NAV, SETTINGS_NAV, type NavItem, type Section } from "./nav";
+import { Avatar } from "./ui/avatar";
 import { buttonVariants } from "./ui/button";
+import { Dialog as Modal, DialogContent, DialogTrigger } from "./ui/dialog";
 import { menuItem, menuSurface } from "./ui/menu";
 
 type ShellProps = { shell: ShellData; current: Section };
@@ -58,11 +61,38 @@ function SidebarBody({ shell, current, onNavigate }: ShellProps & { onNavigate?:
           <NavLink key={item.section} item={item} current={current} onNavigate={onNavigate} />
         ))}
       </nav>
-      <div className="mt-auto flex flex-col gap-0.5 border-t border-border-opaque pt-3">
-        <NavLink item={SETTINGS_NAV} current={current} onNavigate={onNavigate} />
-        <AccountMenu email={shell.email} />
+      <div className="mt-auto flex flex-col gap-0.5">
+        {shell.isAdmin ? <InvitePeople shell={shell} /> : null}
+        <div className="mt-2 flex flex-col gap-0.5 border-t border-border-opaque pt-3">
+          <NavLink item={SETTINGS_NAV} current={current} onNavigate={onNavigate} />
+          <AccountMenu email={shell.email} />
+        </div>
       </div>
     </div>
+  );
+}
+
+// A quiet card above Settings: who's in the lab already, and one click to add someone.
+function InvitePeople({ shell }: { shell: ShellData }) {
+  const others = shell.memberCount === 1 ? "Just you so far" : `${shell.memberCount} people in the lab`;
+  return (
+    <Modal>
+      <DialogTrigger className="group flex min-h-11 w-full items-center gap-3 rounded-xl border border-border-opaque bg-background-secondary px-3 py-2.5 text-left transition-colors duration-150 ease-out hover:border-border-raised hover:bg-background-tertiary">
+        <span className="flex shrink-0 -space-x-1.5">
+          {shell.memberEmails.map((email) => (
+            <Avatar key={email} label={email} size="small" className="ring-2 ring-background-secondary group-hover:ring-background-tertiary" />
+          ))}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-label-medium text-content-primary">Invite people</span>
+          <span className="block truncate text-paragraph-xsmall text-content-tertiary">{others}</span>
+        </span>
+        <UserPlusIcon className="size-5 shrink-0 text-content-tertiary transition-colors group-hover:text-content-primary" />
+      </DialogTrigger>
+      <DialogContent title="Invite people" aria-describedby={undefined}>
+        <InviteForm className="px-4 pt-2 pb-6 sm:px-6" />
+      </DialogContent>
+    </Modal>
   );
 }
 

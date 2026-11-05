@@ -28,12 +28,12 @@ export function MembersSection({ members, isAdmin }: { members: LabMember[]; isA
   );
 }
 
-function InviteForm() {
+export function InviteForm({ className = "border-t border-border-opaque px-5 pt-4 pb-4 sm:px-6" }: { className?: string }) {
   const [state, action, pending] = useActionState<InviteState, FormData>(inviteMember, { kind: "idle" });
   const id = useId();
   const error = state.kind === "error" ? state : null;
   return (
-    <form action={action} className="grid gap-2 border-t border-border-opaque px-5 pt-4 pb-4 sm:px-6">
+    <form action={action} className={`grid gap-2 ${className}`}>
       <Label htmlFor={`${id}-email`}>Invite by email</Label>
       <div className="flex flex-col gap-2 sm:flex-row">
         <Input
