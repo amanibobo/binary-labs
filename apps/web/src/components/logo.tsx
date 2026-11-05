@@ -2,7 +2,7 @@ import logo from "@/lib/logo.json";
 
 type Cell = { x: number; y: number; fill: "ink" | "green" | "blue" };
 
-// The B drawn in squares: the bottom-left square is green, the one above it blue, the rest ink.
+// The b drawn in squares: the bottom-left square is green, the one above it blue, the rest ink.
 const CELLS: readonly Cell[] = logo.rows.flatMap((row, y) =>
   [...row].flatMap((c, x): Cell[] => {
     if (c !== "X") return [];

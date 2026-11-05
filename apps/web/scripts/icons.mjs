@@ -1,4 +1,4 @@
-// Draws the app icons (the square B on the dark ground) into public/icons from src/lib/logo.json.
+// Draws the app icons (the square b on the dark ground) into public/icons from src/lib/logo.json.
 // Rerun after changing the logo.
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";

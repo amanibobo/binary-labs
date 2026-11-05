@@ -1,5 +1,12 @@
 {
-  "rows": ["XXX.", "X..X", "XXX.", "X..X", "XXX."],
+  "rows": [
+    "X...",
+    "X...",
+    "XXX.",
+    "X..X",
+    "X..X",
+    "XXX."
+  ],
   "cell": 10,
   "gap": 1.5,
   "radius": 1.6,
