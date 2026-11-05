@@ -4,7 +4,8 @@
   Dark file-browser shell (docs/decisions.md). Grays carry the UI: the sidebar
   sits a step below the main ground and raised cards a step above it. Color
   comes only from folder tints and file-kind icons; blue means focus, links and
-  matches; amber is only for "check this" labels.
+  matches; amber is only for "check this" labels; red only for destructive
+  actions and errors.
 */
 :root {
   --background-sidebar: #f4f4f5;
@@ -23,6 +24,7 @@
   --content-inverse-primary: #ffffff;
   --content-accent: #1d5fd6;
   --content-warning: #845201;
+  --content-negative: #b42318;
   --border-opaque: #e6e6e8;
   --border-raised: #dadadd;
   --border-selected: #18181a;
@@ -89,6 +91,7 @@
   --content-inverse-primary: #111113;
   --content-accent: #7aa7ff;
   --content-warning: #f3dcae;
+  --content-negative: #ff8f84;
   --border-opaque: #262629;
   --border-raised: #313135;
   --border-selected: #ececee;
@@ -153,6 +156,7 @@
   --color-content-inverse-primary: var(--content-inverse-primary);
   --color-content-accent: var(--content-accent);
   --color-content-warning: var(--content-warning);
+  --color-content-negative: var(--content-negative);
   --color-border-opaque: var(--border-opaque);
   --color-border-raised: var(--border-raised);
   --color-border-selected: var(--border-selected);

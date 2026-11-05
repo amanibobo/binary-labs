@@ -41,6 +41,7 @@ const TEXT_PAIRS: Pair[] = [
   ["content-accent", "background-raised"],
   ["tag-blue-content-secondary", "tag-blue-background-secondary"],
   ["content-warning", "background-warning"],
+  ...["background-raised", "background-secondary", "button-secondary-hover"].map((bg): Pair => ["content-negative", bg]),
   ["content-inverse-primary", "button-primary-fill"],
   ["content-inverse-primary", "button-primary-hover"],
   ["content-inverse-primary", "background-inverse-secondary"],
