@@ -304,7 +304,7 @@ function Body({
       const writing = state.steps.some((s) => s.kind === "write");
       if (!caughtUp || !writing) return null;
       return (
-        <div aria-live="polite" className="mt-2">
+        <div aria-live="polite">
           {state.sentences.length > 0 ? (
             <AnswerText sentences={state.sentences} sources={state.sources ?? []} numbers={numbers} />
           ) : (

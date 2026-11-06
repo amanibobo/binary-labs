@@ -306,25 +306,21 @@ function SourceChip({
     "inline-flex h-7 max-w-full animate-step-in items-center gap-1.5 rounded-control border px-2 text-label-xsmall text-content-primary transition-colors duration-150 ease-out",
     lit ? "border-border-selected bg-background-secondary" : "border-border-opaque bg-background-primary",
   );
-  const body = (
-    <>
+  // One element from the moment the step arrives, gaining its link when the sources do, so
+  // the chip isn't mounted again (and doesn't enter twice) mid-stream.
+  const target = source === null ? null : citationHref(source, null);
+  return (
+    <a
+      href={target?.href}
+      {...(target?.external === true ? { target: "_blank", rel: "noreferrer" } : {})}
+      data-lit={lit}
+      className={cn(className, target !== null && "hover:bg-background-secondary focus-visible:outline-offset-1")}
+      {...(target === null ? {} : pointProps(link, sourceKey))}
+    >
       {number === null ? null : <span className="text-content-tertiary tabular-nums">{number}</span>}
       <span className="shrink-0">{icon}</span>
       <span className="min-w-0 truncate">{label}</span>
       {detail === undefined ? null : <span className="shrink-0 font-normal text-content-tertiary">{detail}</span>}
-    </>
-  );
-  if (source === null) return <span className={className}>{body}</span>;
-  const target = citationHref(source, null);
-  return (
-    <a
-      href={target.href}
-      {...(target.external ? { target: "_blank", rel: "noreferrer" } : {})}
-      data-lit={lit}
-      className={cn(className, "hover:bg-background-secondary focus-visible:outline-offset-1")}
-      {...pointProps(link, sourceKey)}
-    >
-      {body}
     </a>
   );
 }
