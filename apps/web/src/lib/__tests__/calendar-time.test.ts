@@ -6,9 +6,11 @@ import {
   dayLength,
   daysBetween,
   formatTime,
+  formatWeekTitle,
   instantAt,
   minutesFromInput,
   monthGrid,
+  shiftDays,
   startOfWeek,
   timeInputValue,
   todayIn,
@@ -51,6 +53,11 @@ describe("days", () => {
     expect(aug.flat().every((day, i, all) => i === 0 || daysBetween(all[i - 1] ?? day, day) === 1)).toBe(true);
   });
 
+  it("names a week by its month, or both", () => {
+    expect(formatWeekTitle(d("2026-11-01"), d("2026-11-07"))).toBe("November 2026");
+    expect(formatWeekTitle(d("2026-11-29"), d("2026-12-05"))).toBe("Nov – Dec 2026");
+    expect(formatWeekTitle(d("2026-12-27"), d("2027-01-02"))).toBe("Dec 2026 – Jan 2027");
+  });
 });
 
 describe("the wall clock in a zone", () => {
@@ -83,6 +90,14 @@ describe("the wall clock in a zone", () => {
     expect(instantAt(d("2026-03-08"), 2 * 60 + 30, NY).toISOString()).toBe("2026-03-08T07:30:00.000Z");
     expect(wallClock(instantAt(d("2026-03-08"), 2 * 60 + 30, NY), NY).minutes).toBe(3 * 60 + 30);
     expect(instantAt(d("2026-03-08"), 3 * 60, NY).toISOString()).toBe("2026-03-08T07:00:00.000Z");
+  });
+
+  it("keeps 9 am at 9 am when an entry moves across the change", () => {
+    const fridayNine = instantAt(d("2026-10-30"), 9 * 60, NY);
+    const mondayNine = shiftDays(fridayNine, 3, NY);
+    expect(wallClock(mondayNine, NY)).toEqual({ day: "2026-11-02", minutes: 9 * 60 });
+    // Three days on the wall clock is 73 hours of real time that week.
+    expect((mondayNine.getTime() - fridayNine.getTime()) / 3_600_000).toBe(73);
   });
 
   it("formats times the short way", () => {
