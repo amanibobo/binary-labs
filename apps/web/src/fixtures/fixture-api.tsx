@@ -15,6 +15,7 @@ import { fixtureUploadTalkThrough, fixtureApplyTalkThrough, talkThrough as fixtu
 import { createFixtureUploads } from "./uploads";
 import { createFixtureVideoUploads, fixtureVideoSources, pageVideos } from "./videos";
 import { chartsOf, fixtureTable, savedCharts } from "./charts";
+import { fixtureHubFiles, fixtureLab, fixtureLocal, type LabSize } from "./map";
 import { ChartId, UserId } from "@/lib/ids";
 import { CreateChartRequest, SaveChartRequest } from "@/lib/charts";
 
@@ -50,6 +51,7 @@ export function FixtureLabApi({
   talkThrough,
   videos = pageVideos,
   tables = "ready",
+  mapSize = null,
   children,
 }: {
   mode: FixtureSearchMode;
@@ -61,10 +63,13 @@ export function FixtureLabApi({
   // What polling a page's videos answers; it stays put, like talkThrough.
   videos?: ProtocolVideo[];
   tables?: FixtureTables;
+  // The generated lab the map's fixtures draw.
+  mapSize?: LabSize | null;
   children: ReactNode;
 }) {
   const [uploads] = useState(() => createFixtureUploads({ earlier: earlierUploads }));
   const [videoUploads] = useState(createFixtureVideoUploads);
+  const [map] = useState(() => (mapSize === null ? null : fixtureLab(mapSize)));
   const [labels] = useState(() =>
     createFixtureLabels({ initial: [...searchHits, ...recentFiles, ...needsLookFiles], later: laterLabels }),
   );
@@ -156,6 +161,17 @@ export function FixtureLabApi({
       return { kind: "saved", chart: { ...chart, sheet, title, spec, protocolId, updatedAt: new Date().toISOString() } };
     },
     deleteChart: async () => wait(150),
+    mapHub: async (q, signal) => {
+      await wait(150, signal);
+      if (map === null) throw new Error("no fixture map");
+      return fixtureHubFiles(map, q);
+    },
+    mapLocal: async (q, signal) => {
+      await wait(150, signal);
+      const view = map === null ? null : fixtureLocal(map, q);
+      if (view === null) throw new Error("no such node in the fixture map");
+      return view;
+    },
   };
   return (
     <LabApiProvider value={api}>

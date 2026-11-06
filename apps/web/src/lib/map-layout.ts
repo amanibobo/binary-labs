@@ -25,6 +25,9 @@ export type Layout = {
   readonly vy: Float64Array;
   readonly radius: Float32Array;
   readonly charge: Float32Array;
+  // The pull to the middle: a node with no links gets more, so it stays near the rest
+  // instead of drifting to the edge and stretching the view.
+  readonly gravity: Float32Array;
   // 1 while a node is held by a drag: it stays where the pointer puts it.
   readonly fixed: Uint8Array;
   readonly source: Int32Array;
@@ -37,7 +40,7 @@ export type Layout = {
   readonly tree: QuadTree;
 };
 
-export function nodeRadius(node: MapNode, biggestHub: number): number {
+export function nodeRadius(node: MapNode): number {
   switch (node.kind) {
     case "file":
       return 2.5;
@@ -47,8 +50,9 @@ export function nodeRadius(node: MapNode, biggestHub: number): number {
     case "experiment":
     case "person":
     case "instrument":
-      // Area follows the file count, against the lab's biggest hub.
-      return 4 + 20 * Math.sqrt(node.files / Math.max(biggestHub, 1));
+      // Grows with the file count, slowly, so a hub of 2,000 files is a big dot, not a disc
+      // that hides its neighbors: 3 px for none, 10 for 10 files, 18 for 200, 25 for 2,000.
+      return 3 + 2 * Math.log2(1 + node.files);
     default: {
       const _exhaustive: never = node;
       return _exhaustive;
@@ -128,11 +132,11 @@ export function createLayout(graph: Graph, previous: Layout | null = null): Layo
   if (n > MAX_LAYOUT_NODES) throw new Error(`the map lays out at most ${MAX_LAYOUT_NODES} nodes, not ${n}`);
   const ids = nodes.map((node) => node.id);
   const index = new Map(ids.map((id, i) => [id, i]));
-  const biggest = nodes.reduce((m, node) => (node.kind === "file" || node.kind === "more" ? m : Math.max(m, node.files)), 0);
   const radius = new Float32Array(n);
   const charge = new Float32Array(n);
   nodes.forEach((node, i) => {
-    radius[i] = nodeRadius(node, biggest);
+    // A local map's center stands out a little even when it's a file.
+    radius[i] = node.id === graph.center ? Math.max(nodeRadius(node), 6) : nodeRadius(node);
     charge[i] = isHub(node) ? -50 - 6 * radius[i] : -16;
   });
 
@@ -224,6 +228,7 @@ export function createLayout(graph: Graph, previous: Layout | null = null): Layo
     vy: new Float64Array(n),
     radius,
     charge,
+    gravity: Float32Array.from(degree, (d) => (d === 0 ? GRAVITY * 5 : GRAVITY)),
     fixed: new Uint8Array(n),
     source,
     target,
@@ -242,7 +247,7 @@ export function isSettled(layout: Layout): boolean {
 }
 
 export function tick(layout: Layout): void {
-  const { x, y, vx, vy, fixed, source, target, length, strength, bias } = layout;
+  const { x, y, vx, vy, fixed, gravity, source, target, length, strength, bias } = layout;
   const n = layout.ids.length;
   layout.alpha += (layout.alphaTarget - layout.alpha) * ALPHA_DECAY;
   const alpha = layout.alpha;
@@ -273,8 +278,8 @@ export function tick(layout: Layout): void {
       vy[i] = 0;
       continue;
     }
-    const gx = vx[i] - x[i] * GRAVITY * alpha;
-    const gy = vy[i] - y[i] * GRAVITY * alpha;
+    const gx = vx[i] - x[i] * gravity[i] * alpha;
+    const gy = vy[i] - y[i] * gravity[i] * alpha;
     vx[i] = gx * (1 - VELOCITY_DECAY);
     vy[i] = gy * (1 - VELOCITY_DECAY);
     x[i] = x[i] + vx[i];

@@ -11,6 +11,7 @@ import { answerOf, resultOf, type SendResult, type UploadResult } from "@/lib/up
 import { uploadHeaders, UploadRowsWire, type UploadMeta, type UploadRow } from "@/lib/uploads";
 import type { ChartId, CorrectionId, LocationId, ProtocolId, Sha256, TalkThroughId } from "@/lib/ids";
 import { TableState } from "@/lib/data-tables";
+import { HubFiles, LocalView, type HubQuery, type LocalQuery } from "@/lib/map";
 import {
   ChartSaveOutcomeWire,
   ChartsWire,
@@ -110,6 +111,9 @@ export type LabApi = {
   createChart: (req: CreateChartRequest) => Promise<SavedChart>;
   saveChart: (id: ChartId, req: SaveChartRequest) => Promise<ChartSaveOutcome>;
   deleteChart: (id: ChartId) => Promise<void>;
+  // The lab map: one hub's files, and the map around one node.
+  mapHub: (q: HubQuery, signal: AbortSignal) => Promise<HubFiles>;
+  mapLocal: (q: LocalQuery, signal: AbortSignal) => Promise<LocalView>;
 };
 
 // XMLHttpRequest, not fetch: only it reports upload progress.
@@ -281,6 +285,17 @@ export const httpLabApi: LabApi = {
     return outcome.data;
   },
   deleteChart: async (id) => void (await postJson(`/api/charts/${id}`, {}, "DELETE")),
+  mapHub: async (q, signal) => {
+    const params = new URLSearchParams({ id: q.id });
+    if (q.similar) params.set("similar", "1");
+    for (const hub of q.with) params.append("with", hub);
+    return HubFiles.parse(await getJson(`/api/map/hub?${params}`, signal));
+  },
+  mapLocal: async (q, signal) => {
+    const params = new URLSearchParams({ around: q.around, depth: String(q.depth) });
+    if (q.similar) params.set("similar", "1");
+    return LocalView.parse(await getJson(`/api/map/local?${params}`, signal));
+  },
 };
 
 const LabApiContext = createContext<LabApi>(httpLabApi);

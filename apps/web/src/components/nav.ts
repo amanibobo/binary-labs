@@ -1,9 +1,9 @@
 import type { ReactNode } from "react";
 import type { FolderPath } from "@/lib/folders";
 import type { IconProps } from "./icons/svg";
-import { BrowseIcon, NeedsLookIcon, ProtocolIcon, SearchOutlineIcon, SettingsIcon, UploadIcon } from "./icons/drawn";
+import { BrowseIcon, MapIcon, NeedsLookIcon, ProtocolIcon, SearchOutlineIcon, SettingsIcon, UploadIcon } from "./icons/drawn";
 
-export type Section = "search" | "browse" | "protocols" | "needs-look" | "upload" | "lab";
+export type Section = "search" | "browse" | "protocols" | "map" | "needs-look" | "upload" | "lab";
 
 export type ShellLocation = { section: Section; folder?: FolderPath };
 
@@ -14,6 +14,7 @@ export const NAV = [
   { section: "search", href: "/", label: "Search", Icon: SearchOutlineIcon },
   { section: "browse", href: "/browse", label: "Browse", Icon: BrowseIcon },
   { section: "protocols", href: "/protocols", label: "Protocols", Icon: ProtocolIcon },
+  { section: "map", href: "/map", label: "Map", Icon: MapIcon },
   { section: "needs-look", href: "/needs-a-look", label: "Needs a look", Icon: NeedsLookIcon },
   { section: "upload", href: "/upload", label: "Upload", Icon: UploadIcon },
 ] as const satisfies readonly NavItem[];

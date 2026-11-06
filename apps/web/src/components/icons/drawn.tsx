@@ -116,6 +116,18 @@ export function ProtocolIcon(props: IconProps) {
   );
 }
 
+// Three dots joined by thin lines: the lab map.
+export function MapIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path {...line} d="m8.2 8.6 7.6-2.2M7.6 9.7l3.3 6.6M16.6 7.8l-3.6 8.4" />
+      <circle {...line} cx="6.5" cy="9" r="2" />
+      <circle {...line} cx="17.5" cy="6" r="2" />
+      <circle {...line} cx="12" cy="18" r="2" />
+    </Svg>
+  );
+}
+
 // Axes with a line rising across them: a chart of a data sheet.
 export function ChartIcon(props: IconProps) {
   return (

@@ -93,6 +93,28 @@ export type LocalView = z.infer<typeof LocalView>;
 
 export type Depth = LocalView["depth"];
 
+export const HubId = MapNodeId.refine((id) => !id.startsWith("file:") && !id.startsWith("more:"), "expected a hub id");
+
+// What a hub's files are asked for with: with `similar`, the similar-in-meaning pairs among
+// them and the files of the other hubs open on the map.
+export const HubQuery = z.object({
+  id: HubId,
+  similar: z.boolean(),
+  with: z.array(HubId).max(200),
+});
+export type HubQuery = z.infer<typeof HubQuery>;
+
+export const LocalQuery = z.object({
+  around: MapNodeId.refine((id) => !id.startsWith("more:"), "expected a node id"),
+  depth: z.union([z.literal(1), z.literal(2)]),
+  similar: z.boolean(),
+});
+export type LocalQuery = z.infer<typeof LocalQuery>;
+
+// Query strings: ?similar=1, ?depth=2.
+export const flag = (v: string | null | undefined) => v === "1";
+export const depthOf = (v: string | null | undefined): Depth => (v === "2" ? 2 : 1);
+
 // The most files one hub opens with on the lab map; the rest are offered as a search.
 export const HUB_FILE_LIMIT = 400;
 
@@ -235,10 +257,12 @@ export function neighborhood(adj: Adjacency, from: MapNodeId, depth: number): Se
 }
 
 // Name matches among the drawn nodes: whole-name starts first, then word starts, then anywhere.
-export function findNodes(graph: Graph, query: string, limit = 8): MapNode[] {
+export type NamedNode = Exclude<MapNode, MoreNode>;
+
+export function findNodes(graph: Graph, query: string, limit = 8): NamedNode[] {
   const q = query.trim().toLowerCase();
   if (q === "") return [];
-  const scored: { node: MapNode; score: number }[] = [];
+  const scored: { node: NamedNode; score: number }[] = [];
   for (const node of graph.nodes.values()) {
     if (node.kind === "more") continue;
     const name = node.name.toLowerCase();

@@ -84,20 +84,33 @@ create index labels_experiment_idx on labels (lab_id, experiment_id) where exper
 create index labels_person_idx on labels (lab_id, person_id) where person_id is not null;
 create index labels_instrument_idx on labels (lab_id, lower(btrim(instrument))) where instrument is not null;
 
+-- Every helper below runs as the table owner and reads only p_lab_id's rows: row by row,
+-- RLS's membership check took most of the time on a 20,000-file lab (1.5 s for the files
+-- alone). Members can't call the helpers; the three views they can call check membership
+-- once, first.
+create function map_require_member(p_lab_id uuid) returns void
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if auth.uid() is null or not is_lab_member(p_lab_id) then
+    raise exception 'not a member of this lab' using errcode = '42501';
+  end if;
+end
+$$;
+
 -- The map's files: live and indexed, one row per content, named as search names them (the
 -- label's clean name, else the newest copy's file name).
 create function map_files(p_lab_id uuid, p_shas text[] default null)
 returns table (sha256 text, name text, file_kind file_kind, modified_at timestamptz)
-language sql stable security invoker set search_path = public as $$
+language sql stable security definer set search_path = public as $$
   select f.sha256,
     coalesce(case when l.status <> 'needs_look' then l.clean_name end, f.original_name),
     b.file_kind, f.modified_at
   from (
-    select distinct on (fl.sha256) fl.sha256, fl.original_name, fl.modified_at
+    select distinct on (fl.sha256 collate "C") fl.sha256, fl.original_name, fl.modified_at
     from file_locations fl
     where fl.lab_id = p_lab_id and fl.deleted_at is null and fl.index_state = 'indexed'
       and (p_shas is null or fl.sha256 = any (p_shas))
-    order by fl.sha256, fl.modified_at desc
+    order by fl.sha256 collate "C", fl.modified_at desc
   ) f
   join blobs b on b.sha256 = f.sha256
   left join labels l on l.lab_id = p_lab_id and l.sha256 = f.sha256
@@ -108,8 +121,8 @@ $$;
 -- Archived protocols and "Needs a look" labels (no label to show) draw nothing.
 create function map_links(p_lab_id uuid, p_shas text[] default null)
 returns table (sha256 text, hub text, via text)
-language sql stable security invoker set search_path = public as $$
-  select distinct on (x.sha256, x.hub) x.sha256, x.hub, x.via
+language sql stable security definer set search_path = public as $$
+  select distinct on (x.sha256 collate "C", x.hub collate "C") x.sha256, x.hub, x.via
   from (
     select l.sha256, 'experiment:' || l.experiment_id as hub, 'label' as via, 0 as pick
     from labels l
@@ -143,14 +156,14 @@ language sql stable security invoker set search_path = public as $$
     where t.lab_id = p_lab_id and fl.sha256 is not null and p.archived_at is null
       and (p_shas is null or fl.sha256 = any (p_shas))
   ) x
-  order by x.sha256, x.hub, x.pick
+  order by x.sha256 collate "C", x.hub collate "C", x.pick
 $$;
 
 -- The hubs: protocols (not archived), experiments, people and instruments. An instrument is a
 -- name on a label or a live instrument PC; its shown name is the spelling most labels use.
 create function map_hubs(p_lab_id uuid)
 returns table (id text, kind text, name text)
-language sql stable security invoker set search_path = public as $$
+language sql stable security definer set search_path = public as $$
   select 'protocol:' || p.id, 'protocol', v.title
   from protocols p join protocol_versions v on v.id = p.current_version_id
   where p.lab_id = p_lab_id and p.archived_at is null
@@ -175,7 +188,7 @@ $$;
 -- One hub's live files, newest first, up to p_limit, each with the hub's full count.
 create function map_hub_files(p_lab_id uuid, p_hub text, p_limit int)
 returns table (sha256 text, total bigint)
-language plpgsql stable security invoker set search_path = public as $$
+language plpgsql stable security definer set search_path = public as $$
 declare
   v_kind text := split_part(p_hub, ':', 1);
   v_key text := substr(p_hub, length(v_kind) + 2);
@@ -222,7 +235,7 @@ $$;
 -- how many files it holds. Ids the lab doesn't have are left out.
 create function map_nodes(p_lab_id uuid, p_ids text[])
 returns jsonb
-language plpgsql stable security invoker set search_path = public as $$
+language plpgsql stable security definer set search_path = public as $$
 declare
   v_shas text[] := array(select substr(i, 6) from unnest(p_ids) i where i like 'file:%');
   v_hubs text[] := array(select i from unnest(p_ids) i where i not like 'file:%');
@@ -249,7 +262,7 @@ $$;
 -- similar in meaning (one edge per pair, at the higher of the two similarities).
 create function map_edges(p_lab_id uuid, p_ids text[], p_similar boolean)
 returns jsonb
-language sql stable security invoker set search_path = public as $$
+language sql stable security definer set search_path = public as $$
   with ids as (select unnest(p_ids) as id),
   shas as (select array(select substr(id, 6) from ids where id like 'file:%') as v),
   edges as (
@@ -279,40 +292,59 @@ $$;
 -- protocol, and how many files two hubs share. Files themselves come one hub at a time.
 create function lab_map(p_lab_id uuid)
 returns jsonb
-language sql stable security invoker set search_path = public as $$
-  with live as (select f.sha256 from map_files(p_lab_id) f),
-  links as (select m.sha256, m.hub from map_links(p_lab_id) m join live on live.sha256 = m.sha256),
-  hubs as (select * from map_hubs(p_lab_id)),
-  counts as (select hub, count(*) as n from links group by hub),
-  uses as (
-    select 'experiment:' || e.id as a, 'protocol:' || e.protocol_id as b
-    from experiments e join protocols p on p.id = e.protocol_id
-    where e.lab_id = p_lab_id and p.archived_at is null
-  ),
-  shared as (
-    select l1.hub as a, l2.hub as b, count(*) as n
-    from links l1 join links l2 on l2.sha256 = l1.sha256 and l1.hub < l2.hub
-    group by 1, 2
-  )
-  select jsonb_build_object(
-    'files', (select count(*) from live),
-    'linked', (select count(distinct sha256) from links),
-    'hubs', coalesce((
-      select jsonb_agg(jsonb_build_object('id', h.id, 'kind', h.kind, 'name', h.name, 'files', coalesce(c.n, 0))
-        order by h.kind, lower(h.name), h.id)
-      from hubs h left join counts c on c.hub = h.id
-    ), '[]'::jsonb),
-    'links', coalesce((
-      select jsonb_agg(jsonb_build_object('source', x.a, 'target', x.b, 'kind', x.kind, 'weight', x.n) order by x.a, x.b)
-      from (
-        select u.a, u.b, 'uses' as kind, coalesce(s.n, 0) as n
-        from uses u left join shared s on (s.a, s.b) in ((u.a, u.b), (u.b, u.a))
-        union all
-        select s.a, s.b, 'shared', s.n from shared s
+language plpgsql stable security definer set search_path = public as $$
+begin
+  perform map_require_member(p_lab_id);
+  return (
+    with live as (
+      select distinct fl.sha256 from file_locations fl
+      where fl.lab_id = p_lab_id and fl.deleted_at is null and fl.index_state = 'indexed'
+    ),
+    links as (select m.sha256, m.hub from map_links(p_lab_id) m join live on live.sha256 = m.sha256),
+    hubs as (select * from map_hubs(p_lab_id)),
+    counts as (select hub, count(*) as n from links group by hub),
+    uses as (
+      select 'experiment:' || e.id as a, 'protocol:' || e.protocol_id as b
+      from experiments e join protocols p on p.id = e.protocol_id
+      where e.lab_id = p_lab_id and p.archived_at is null
+    ),
+    shared as (
+      select l1.hub as a, l2.hub as b, count(*) as n
+      from links l1 join links l2 on l2.sha256 = l1.sha256 and l1.hub < l2.hub
+      group by 1, 2
+    ),
+    -- Every hub shares a file with most others in a busy lab; four links each keeps the
+    -- picture to who works with whom, not a web of everything.
+    strongest as (
+      select r.a, r.b, r.n from (
+        select s.a, s.b, s.n,
+          row_number() over (partition by s.a order by s.n desc, s.b) as ra,
+          row_number() over (partition by s.b order by s.n desc, s.a) as rb
+        from shared s
         where not exists (select 1 from uses u where (u.a, u.b) in ((s.a, s.b), (s.b, s.a)))
-      ) x
-    ), '[]'::jsonb)
-  )
+      ) r
+      where r.ra <= 4 or r.rb <= 4
+    )
+    select jsonb_build_object(
+      'files', (select count(*) from live),
+      'linked', (select count(distinct sha256) from links),
+      'hubs', coalesce((
+        select jsonb_agg(jsonb_build_object('id', h.id, 'kind', h.kind, 'name', h.name, 'files', coalesce(c.n, 0))
+          order by h.kind, lower(h.name), h.id)
+        from hubs h left join counts c on c.hub = h.id
+      ), '[]'::jsonb),
+      'links', coalesce((
+        select jsonb_agg(jsonb_build_object('source', x.a, 'target', x.b, 'kind', x.kind, 'weight', x.n) order by x.a, x.b)
+        from (
+          select u.a, u.b, 'uses' as kind, coalesce(s.n, 0) as n
+          from uses u left join shared s on (s.a, s.b) in ((u.a, u.b), (u.b, u.a))
+          union all
+          select a, b, 'shared', n from strongest
+        ) x
+      ), '[]'::jsonb)
+    )
+  );
+end
 $$;
 
 -- One hub's files for the lab map, newest first up to p_limit, with every link they have to a
@@ -321,13 +353,14 @@ $$;
 create function lab_map_hub(p_lab_id uuid, p_hub text, p_limit int default 400,
   p_similar boolean default false, p_with text[] default '{}')
 returns jsonb
-language plpgsql stable security invoker set search_path = public as $$
+language plpgsql stable security definer set search_path = public as $$
 declare
   v_files text[];
   v_total bigint;
   v_others text[] := '{}';
   v_hubs text[];
 begin
+  perform map_require_member(p_lab_id);
   if p_limit not between 1 and 2000 then
     raise exception 'limit is 1 to 2000' using errcode = '22023';
   end if;
@@ -361,7 +394,7 @@ $$;
 -- experiments.
 create function map_step(p_lab_id uuid, p_ids text[], p_per_hub int, p_similar boolean)
 returns setof text
-language sql stable security invoker set search_path = public as $$
+language sql stable security definer set search_path = public as $$
   with ids as (select unnest(p_ids) as id),
   shas as (select array(select substr(id, 6) from ids where id like 'file:%') as v)
   select m.hub from shas, map_links(p_lab_id, shas.v) m
@@ -386,7 +419,7 @@ $$;
 -- the map can offer them as a search. Null when the lab has no such node.
 create function lab_map_local(p_lab_id uuid, p_node text, p_depth int default 1, p_similar boolean default false)
 returns jsonb
-language plpgsql stable security invoker set search_path = public as $$
+language plpgsql stable security definer set search_path = public as $$
 declare
   v_nodes text[] := array[p_node];
   v_frontier text[] := array[p_node];
@@ -396,6 +429,7 @@ declare
   v_node_rows jsonb;
   v_edges jsonb;
 begin
+  perform map_require_member(p_lab_id);
   if p_depth not between 1 and 2 then
     raise exception 'depth is 1 or 2' using errcode = '22023';
   end if;
@@ -438,15 +472,12 @@ $$;
 
 revoke all on file_vectors, file_neighbors from anon, authenticated;
 revoke all on function
-  chunks_touch_file_vector(), map_files(uuid, text[]), map_links(uuid, text[]), map_hubs(uuid),
-  map_hub_files(uuid, text, int), map_nodes(uuid, text[]), map_edges(uuid, text[], boolean),
-  lab_map(uuid), lab_map_hub(uuid, text, int, boolean, text[]), map_step(uuid, text[], int, boolean),
-  lab_map_local(uuid, text, int, boolean)
+  chunks_touch_file_vector(), map_require_member(uuid), map_files(uuid, text[]),
+  map_links(uuid, text[]), map_hubs(uuid), map_hub_files(uuid, text, int),
+  map_nodes(uuid, text[]), map_edges(uuid, text[], boolean), map_step(uuid, text[], int, boolean),
+  lab_map(uuid), lab_map_hub(uuid, text, int, boolean, text[]), lab_map_local(uuid, text, int, boolean)
 from public, anon, authenticated;
 grant select on file_neighbors to authenticated;
 grant execute on function
-  map_files(uuid, text[]), map_links(uuid, text[]), map_hubs(uuid),
-  map_hub_files(uuid, text, int), map_nodes(uuid, text[]), map_edges(uuid, text[], boolean),
-  lab_map(uuid), lab_map_hub(uuid, text, int, boolean, text[]), map_step(uuid, text[], int, boolean),
-  lab_map_local(uuid, text, int, boolean)
+  lab_map(uuid), lab_map_hub(uuid, text, int, boolean, text[]), lab_map_local(uuid, text, int, boolean)
 to authenticated;
