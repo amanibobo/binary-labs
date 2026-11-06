@@ -231,7 +231,8 @@ create policy flags_update on flags for update using (is_lab_member(lab_id)) wit
 create function flags_before_insert() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
-  if not exists (
+  -- A missing version is the not-null constraint's to refuse.
+  if new.protocol_version_id is not null and not exists (
     select 1 from protocol_versions v cross join jsonb_array_elements(v.expected_values) e
     where v.id = new.protocol_version_id and v.protocol_id = new.protocol_id and v.lab_id = new.lab_id
       and e ->> 'id' = new.check_id::text and e ->> 'kind' = new.kind::text and e -> 'range' = new.expected
@@ -262,7 +263,7 @@ $$;
 create function flags_audit() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
-  if new.reviewed_at is distinct from old.reviewed_at then
+  if new.review is distinct from old.review or new.review_note is distinct from old.review_note then
     insert into audit_log (lab_id, actor, action, target)
     values (new.lab_id, auth.uid(), 'flag.review', new.id::text || ' ' || new.review::text);
   end if;

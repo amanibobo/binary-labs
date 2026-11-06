@@ -63,6 +63,9 @@ def test_scheduler_scans_and_worker_indexes_everything(rt, conn, make_lab, job_a
     jobs.pop("tend_talk_throughs:succeeded", None)
     jobs.pop("tend_videos:succeeded", None)
     jobs.pop("tend_tables:succeeded", None)
+    jobs.pop("tend_checks:succeeded", None)
+    # The CSV's table asks for its checks, and its label may ask again once it's labeled.
+    assert jobs.pop("run_checks:succeeded") in (1, 2)
     assert jobs == {
         "process_location:succeeded": 3,
         "scan_source:succeeded": 1,

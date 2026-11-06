@@ -309,7 +309,10 @@ def _columns(
         return t, tuple(c for c in cols if c is not None)
     if missing is not None:
         return _no_column(missing)
-    return couldnt(undetected)
+    named = next((r for r in refs if r is not None), None)
+    if not tables and named is not None:
+        return _no_column(named)
+    return couldnt(undetected or "This file has no table to check.")
 
 
 def _number_column(c: Column) -> Result | None:
@@ -350,7 +353,8 @@ def curve_fit(check: dict[str, Any], file: FileTables) -> Result:
     sxx = sum((p[1] - mx) ** 2 for p in pairs)
     syy = sum((p[2] - my) ** 2 for p in pairs)
     sxy = sum((p[1] - mx) * (p[2] - my) for p in pairs)
-    if sxx == 0 or syy == 0:
+    # Flat to within rounding: subtracting the mean leaves crumbs of float error, not variation.
+    if sxx <= 1e-12 * sum(p[1] ** 2 for p in pairs) or syy <= 1e-12 * sum(p[2] ** 2 for p in pairs):
         return couldnt("The standards don't vary, so there's no line to fit.")
     r2 = round(sxy * sxy / (sxx * syy), 4)
     source = Cells(file.sha256, table.name, (x.id, y.id), tuple(p[0] for p in pairs))
