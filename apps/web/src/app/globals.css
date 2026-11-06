@@ -248,6 +248,21 @@
   @keyframes fade-in {
     from { opacity: 0; }
   }
+
+  --animate-fade-out: fade-out 150ms ease-in forwards;
+  @keyframes fade-out {
+    to { opacity: 0; }
+  }
+
+  --animate-modal-in: modal-in 240ms var(--ease-out);
+  @keyframes modal-in {
+    from { opacity: 0; transform: translateY(8px) scale(0.97); }
+  }
+
+  --animate-modal-out: modal-out 160ms ease-in forwards;
+  @keyframes modal-out {
+    to { opacity: 0; transform: translateY(4px) scale(0.98); }
+  }
 }
 
 @layer base {

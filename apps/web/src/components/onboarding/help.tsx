@@ -1,6 +1,7 @@
 "use client";
 
 import { Dialog, DropdownMenu } from "radix-ui";
+import { useState } from "react";
 import { cn } from "@/lib/cn";
 import { HELP_ANSWERS, progressText, type HelpAnswer } from "@/lib/onboarding";
 import { DeleteIcon } from "../icons/base-web";
@@ -57,27 +58,30 @@ export function HelpMenuContent({ side, align, onNavigate }: { side: "top" | "ri
   );
 }
 
-// Help opens in a sheet from the right edge (the bottom on a phone), so the page stays in view.
+// Help opens in a centered modal that scales in and eases out; moving between answers cross-fades.
 export function HelpSheet() {
   const { overlay, closeOverlay, openSheet, summary } = useOnboarding();
   const view: SheetView | null = overlay.kind === "sheet" ? overlay.view : null;
-  const answer = view?.kind === "answer" ? HELP_ANSWERS.find((a) => a.id === view.id) : undefined;
-  const title = view?.kind === "checklist" ? "Getting started" : (answer?.question ?? "");
+  // Kept through the closing animation, so the modal doesn't empty out as it fades.
+  const [shown, setShown] = useState<SheetView | null>(view);
+  if (view !== null && view !== shown) setShown(view);
+  const answer = shown?.kind === "answer" ? HELP_ANSWERS.find((a) => a.id === shown.id) : undefined;
+  const title = shown?.kind === "checklist" ? "Getting started" : (answer?.question ?? "");
   return (
     <Dialog.Root open={view !== null} onOpenChange={(open) => (open ? undefined : closeOverlay())}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 animate-fade-in bg-background-overlay" />
+        <Dialog.Overlay className="fixed inset-0 z-40 bg-background-overlay data-[state=closed]:animate-fade-out data-[state=open]:animate-fade-in" />
         <Dialog.Content
           aria-describedby={undefined}
           className={cn(
-            "fixed z-50 flex animate-fade-in flex-col overflow-y-auto border-border-raised bg-background-raised text-content-primary shadow-deep-below focus-visible:outline-none",
-            "inset-x-0 bottom-0 max-h-[85dvh] rounded-t-card border-t",
-            "sm:inset-y-0 sm:right-0 sm:left-auto sm:max-h-none sm:w-[400px] sm:rounded-none sm:border-t-0 sm:border-l",
+            "fixed inset-0 z-50 m-auto flex h-fit max-h-[min(720px,calc(100dvh-48px))] w-[min(600px,calc(100vw-32px))] flex-col overflow-y-auto",
+            "rounded-card border border-border-raised bg-background-raised text-content-primary shadow-deep-below focus-visible:outline-none",
+            "data-[state=closed]:animate-modal-out data-[state=open]:animate-modal-in",
           )}
         >
-          <div className="flex items-start gap-3 px-5 pt-5 sm:pt-6">
+          <div className="flex items-start gap-3 px-5 pt-5 sm:px-6 sm:pt-6">
             <Dialog.Title className="min-w-0 flex-1 pt-1 text-heading-xsmall">{title}</Dialog.Title>
-            {view?.kind === "checklist" ? (
+            {shown?.kind === "checklist" ? (
               <span className="pt-1.5 text-paragraph-small text-content-tertiary tabular-nums">{progressText(summary)}</span>
             ) : null}
             <Dialog.Close className={cn(buttonVariants({ variant: "tertiary", shape: "square", size: "compact" }), "-mr-2")}>
@@ -85,8 +89,8 @@ export function HelpSheet() {
               <span className="sr-only">Close</span>
             </Dialog.Close>
           </div>
-          <div className="px-5 pt-3 pb-6">
-            {view?.kind === "checklist" ? <ChecklistLines onNavigate={closeOverlay} /> : null}
+          <div key={shown?.kind === "answer" ? shown.id : "checklist"} className="animate-fade-in px-5 pt-3 pb-6 sm:px-6">
+            {shown?.kind === "checklist" ? <ChecklistLines onNavigate={closeOverlay} /> : null}
             {answer === undefined ? null : <Answer answer={answer} onOpen={(id) => openSheet({ kind: "answer", id })} />}
           </div>
         </Dialog.Content>
