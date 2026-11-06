@@ -41,6 +41,7 @@ LAB_TABLES = (
     "data_tables",
     "charts",
     "instruments",
+    "calendar_entries",
     "audit_log",
 )
 
