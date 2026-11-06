@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { RECENT_QUESTIONS_SHOWN, type AskHome, type RecentQuestion, type Verdict } from "@/lib/answers";
 import { askReducer, type AskState } from "@/lib/ask-state";
 import type { QuestionId, UserId } from "@/lib/ids";
+import { cn } from "@/lib/cn";
 import { When } from "../ui/when";
 import { useAskApi } from "./ask-api";
 
@@ -98,7 +99,7 @@ function asker(q: RecentQuestion, viewerId: UserId | null): string {
 }
 
 // The lab's latest questions on the Search home, each opening its saved answer: three, and the
-// rest of the latest ten behind "Show all". A question the records couldn't answer just says so.
+// rest opened in place by "Show all". A question the records couldn't answer says "No answer", quietly.
 export function RecentQuestions({ home, onOpen }: { home: AskHome; onOpen: (q: RecentQuestion) => void }) {
   const headingId = useId();
   const listId = useId();
@@ -108,23 +109,12 @@ export function RecentQuestions({ home, onOpen }: { home: AskHome; onOpen: (q: R
   const shown = all ? home.recent : home.recent.slice(0, RECENT_QUESTIONS_SHOWN);
   return (
     <section aria-labelledby={headingId} className="mb-10">
-      <div className="mb-1 flex items-baseline justify-between gap-4 px-3">
-        <h2 id={headingId} className="text-label-small text-content-tertiary">
-          Recent questions
-        </h2>
-        {hidden > 0 ? (
-          <button
-            type="button"
-            aria-expanded={all}
-            aria-controls={listId}
-            onClick={() => setAll((a) => !a)}
-            className="-mx-1 rounded-md px-1 text-paragraph-xsmall text-content-tertiary hover:text-content-primary max-sm:min-h-11"
-          >
-            {all ? "Show fewer" : `Show all ${home.recent.length}`}
-          </button>
-        ) : null}
-      </div>
-      <ul id={listId}>
+      <h2 id={headingId} className="mb-1 px-3 text-label-small text-content-tertiary">
+        Recent questions
+      </h2>
+      {/* Opened, the full list keeps the page's rhythm: same rows, no frame, its own scroll once it
+          passes 320px, so the files below stay in reach. */}
+      <ul id={listId} className={cn(all && "max-h-80 overflow-y-auto overscroll-contain")}>
         {shown.map((q) => (
           <li key={q.id}>
             <button
@@ -135,12 +125,26 @@ export function RecentQuestions({ home, onOpen }: { home: AskHome; onOpen: (q: R
               <span className="min-w-0 truncate text-paragraph-small text-content-primary sm:flex-1">{q.question}</span>
               <span className="shrink-0 text-paragraph-xsmall text-content-tertiary">
                 {asker(q, home.viewerId)} · <When iso={q.askedAt} />
-                {q.outcome === "not_found" ? " · Not in the files" : ""}
+                {q.outcome === "not_found" ? " · No answer" : ""}
               </span>
             </button>
           </li>
         ))}
       </ul>
+      {hidden > 0 ? (
+        <button
+          type="button"
+          aria-expanded={all}
+          aria-controls={listId}
+          onClick={() => setAll((a) => !a)}
+          className="mt-0.5 rounded-xl px-3 py-1.5 text-paragraph-small text-content-tertiary transition-colors duration-150 ease-out hover:text-content-primary focus-visible:outline-offset-[-2px] max-sm:min-h-11"
+        >
+          {all ? "Show less" : `Show all ${home.recent.length}`}
+        </button>
+      ) : null}
+      <p className="sr-only" aria-live="polite">
+        {all ? `Showing all ${home.recent.length} recent questions` : ""}
+      </p>
       {home.openSuggestions > 0 ? (
         <Link href="/suggestions" className="mt-1 block w-fit rounded-xl px-3 py-1.5 text-paragraph-small text-content-accent hover:underline">
           {home.openSuggestions === 1 ? "1 suggestion is waiting for approval" : `${home.openSuggestions} suggestions are waiting for approval`}

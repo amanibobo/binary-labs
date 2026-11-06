@@ -63,6 +63,8 @@ function quietSearchShots() {
   const details = (name) => (page) => page.getByRole("button", { name: `Details for ${name}` }).dispatchEvent("click");
   return [
     ...all({ name: "search-home", path: home }),
+    // Recent questions opened in place: twelve in the fixture, so the list scrolls on its own.
+    ...all({ name: "search-questions-all", path: home, steps: (page) => page.getByRole("button", { name: /^Show all \d+$/ }).click() }),
     ...all({ name: "search-results", path: results }),
     ...all({ name: "search-tags", path: home, steps: (page) => page.getByRole("button", { name: /^5 tags/ }).click() }),
     ...all({ name: "search-open-sheet", path: home, steps: details("Plate 7 absorbance at 420 nm") }),
