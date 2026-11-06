@@ -18,7 +18,7 @@ export const ROLE_HELP = {
   blank: "Only buffer or medium. Its reading can be taken off the others.",
   control: "Treated the same, without what you're testing.",
   standard: "A known amount, for a standard curve.",
-  sample: "What you're measuring, with a name.",
+  sample: "What you're measuring or testing: a lysate, a drug at a dose.",
 } satisfies Record<Role, string>;
 
 export const WellText = z.string().regex(/^[A-P]([1-9]|1\d|2[0-4])$/, "expected a well like A1");

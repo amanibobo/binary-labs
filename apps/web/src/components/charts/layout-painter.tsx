@@ -272,9 +272,14 @@ function PlateGrid({
                   onPointerDown={(e) => {
                     e.preventDefault();
                     dragging.current = true;
-                    anchor.current = { row: r, column: c };
                     setFocus({ row: r, column: c });
-                    onPick(e.shiftKey && picked.length > 0 ? wellsBetween(anchor.current, { row: r, column: c }) : [name]);
+                    // Shift-click stretches the pick from where it started; a plain click starts anew.
+                    if (e.shiftKey && anchor.current !== null && picked.length > 0) {
+                      onPick(wellsBetween(anchor.current, { row: r, column: c }));
+                      return;
+                    }
+                    anchor.current = { row: r, column: c };
+                    onPick([name]);
                   }}
                   onPointerMove={(e) => {
                     if (!dragging.current || anchor.current === null) return;
@@ -458,7 +463,7 @@ function Extras({ layout, picked, onLayout, saved }: { layout: SampleLayout; pic
           <Segmented<"sample" | "standard">
             label="Of"
             options={[
-              { value: "sample", label: "Samples" },
+              { value: "sample", label: "A drug or sample" },
               { value: "standard", label: "Standards" },
             ]}
             value={role}

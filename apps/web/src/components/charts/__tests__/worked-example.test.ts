@@ -65,7 +65,7 @@ describe("the worked example", () => {
 
   it("takes µM typed on the axis into the sentence", () => {
     expect(named.x).toMatchObject({ title: "Drug A", unit: "µM", scale: "log" });
-    expect(describeChart(named, table, doc.tables)).toMatch(/^A570 for 5 doses of Drug A from 0\.16 to 100 µM, 3 wells each, fitted with a four-parameter curve; IC50 \d\.\d+ µM \(\d\.\d+ to \d\.\d+\)\./);
+    expect(describeChart(named, table, doc.tables)).toMatch(/^A570 for 5 doses of Drug A from 0\.16 to 100 µM, 3 wells each, fitted with a four-parameter curve; IC50 \d\.\d+ µM \(95% CI \d\.\d+ to \d\.\d+\)\./);
   });
 
   const figure = figureMarkup(exportFigure(named, table, "Drug A viability, plate 2", "column", doc.tables), renderToStaticMarkup);
@@ -77,7 +77,7 @@ describe("the worked example", () => {
     const svg = parseSvg(figure.markup);
     const text = JSON.stringify(svg);
     expect(text).toContain("Four-parameter logistic fit to every well on log dose");
-    expect(text).toContain("Error bars show SD, n = 3 per dose.");
+    expect(text).toContain("Error bars show SD, n = 3 per dose;");
   });
 
   it("makes a PDF a reader can open: one page, 85 mm wide, every object where the index says", () => {

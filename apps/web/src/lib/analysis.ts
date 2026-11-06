@@ -219,7 +219,7 @@ export function analyzeGroups(table: DataTable, spec: GroupsSpec): GroupsAnalysi
     warnings.push("With fewer than 5 values in a group, a box's quartiles rest on a couple of points and a single value can look like an outlier. The dots show them all; bars may say it more plainly.");
   }
   if (spec.mark === "bar") facts.push({ question: "What do the error bars show?", answer: SPREAD_NAMES[spec.spread], explain: SPREAD_HELP[spec.spread] });
-  else facts.push({ question: "How is the box drawn?", answer: "Quartiles by linear interpolation", explain: "The box runs from the 25th to the 75th percentile with a line at the median, worked out as Excel's QUARTILE.INC and NumPy do. Whiskers reach the furthest values within 1.5 box heights; dots past them are outliers." });
+  else facts.push({ question: "How is the box drawn?", answer: "Quartiles as Excel's QUARTILE.INC; whiskers to 1.5 × the box", explain: "The box runs from the 25th to the 75th percentile with a line at the median, worked out as Excel's QUARTILE.INC and NumPy do. Whiskers reach the furthest values within 1.5 box heights; dots past them are outliers." });
   const named = testFacts(test);
   facts.push(...named.facts);
   caption.push(...named.caption);
@@ -244,14 +244,14 @@ function testFacts(test: TestOutcome): { facts: Fact[]; caption: string[] } {
     case "none":
       return { facts: [], caption: [] };
     case "cannot":
-      return { facts: [{ question: "Is the difference real?", answer: `${TEST_NAMES[test.test]} can't run`, explain: test.reason }], caption: [`${TEST_NAMES[test.test]}: ${test.reason}`] };
+      return { facts: [{ question: "Could the difference be chance?", answer: `${TEST_NAMES[test.test]} can't run`, explain: test.reason }], caption: [`${TEST_NAMES[test.test]}: ${test.reason}`] };
     case "welch": {
       const p = test.result.p;
       return {
         facts: [
           {
-            question: "Is the difference real?",
-            answer: `Welch's t-test, ${pEq(p)}`,
+            question: "Could the difference be chance?",
+            answer: `${p < 0.05 ? "Unlikely" : "It could be"}: Welch's t-test, ${pEq(p)}`,
             explain: `${explainP(p)} Means ${formatFit(test.a.summary.mean)} and ${formatFit(test.b.summary.mean)}, a difference of ${formatFit(test.a.summary.mean - test.b.summary.mean)}; t = ${formatFit(test.result.statistic)} on ${formatFit(test.result.df)} degrees of freedom, two-sided.`,
           },
         ],
@@ -263,8 +263,8 @@ function testFacts(test: TestOutcome): { facts: Fact[]; caption: string[] } {
       return {
         facts: [
           {
-            question: "Do the groups differ?",
-            answer: `One-way ANOVA, ${pEq(p)}`,
+            question: "Could the differences be chance?",
+            answer: `${p < 0.05 ? "Unlikely" : "They could be"}: one-way ANOVA, ${pEq(p)}`,
             explain: `One-way ANOVA asks whether any group's mean differs from the others, not which one. ${explainP(p)}`,
           },
         ],
@@ -273,9 +273,9 @@ function testFacts(test: TestOutcome): { facts: Fact[]; caption: string[] } {
     }
     case "control": {
       const facts = test.comparisons.map((c) => ({
-        question: `Is ${c.label} different from ${test.control.label}?`,
-        answer: `${pEq(c.adjusted)}, Holm-corrected (${pEq(c.p)} on its own)`,
-        explain: `Welch's t-test of ${c.label} against ${test.control.label}. Testing ${test.comparisons.length} groups at once makes a chance hit likelier, so Holm's method raises each p-value: the smallest is multiplied by ${test.comparisons.length}, the next by ${test.comparisons.length - 1}, and none may fall below the one before, which can leave two groups with the same p. ${explainP(c.adjusted)}`,
+        question: `Could ${c.label}'s difference from ${test.control.label} be chance?`,
+        answer: `${c.adjusted < 0.05 ? "Unlikely" : "It could be"}: ${pEq(c.adjusted)}, Holm-corrected`,
+        explain: `Welch's t-test of ${c.label} against ${test.control.label}. Testing ${test.comparisons.length} groups at once makes a chance hit likelier, so Holm's method raises each p-value: the smallest is multiplied by ${test.comparisons.length}, the next by ${test.comparisons.length - 1}, and none may fall below the one before, which can leave two groups with the same p. Report the corrected one; on its own the test gave ${pEq(c.p)}. ${explainP(c.adjusted)}`,
       }));
       const list = test.comparisons.map((c) => `${c.label} ${pEq(c.adjusted)}`).join("; ");
       return { facts, caption: [`Each group against ${test.control.label}: Welch's t-tests, Holm-corrected. ${list}; n = ${test.comparisons.map((c) => c.n).join(", ")} vs ${test.control.summary.n}.`] };
@@ -352,7 +352,8 @@ export function analyzeCurve(table: DataTable, spec: CurveSpec, tables: readonly
   if (fit !== null && fit.r2 < 0.98 && standards.length >= 3) warnings.push(`R² is ${fit.r2.toFixed(3)}, so the points don't sit well on a straight line. Look for a standard that's off, or one past where the assay stays straight.`);
   const outside = unknowns.filter((k) => k.outside !== null);
   for (const k of outside) {
-    warnings.push(`${k.label} reads ${k.outside === "above" ? "above your highest" : "below your lowest"} standard, outside your standards, so its number is a guess. ${k.outside === "above" ? "Dilute it more and read it again." : "Use less dilution, or a lower standard."}`);
+    const advice = k.outside === "above" ? "Dilute it more and read it again." : k.dilution !== null && k.dilution > 1 ? "Read it less diluted, or add a lower standard." : "Add a lower standard, or read more of it.";
+    warnings.push(`${k.label} reads ${k.outside === "above" ? "above your highest" : "below your lowest"} standard, outside your standards, so its number is a guess. ${advice}`);
   }
   if (fit !== null) {
     const eq = equation(fit);
@@ -505,7 +506,7 @@ export function analyzeDose(table: DataTable, spec: DoseSpec): DoseAnalysis {
     if (v.kind === "ok") {
       facts.push({
         question: `${who}Where is the halfway point?`,
-        answer: `${s.term} ${formatFit(v.mid)}${u}, 95% CI ${formatFit(v.ci[0])} to ${formatFit(v.ci[1])}`,
+        answer: `Relative ${s.term} ${formatFit(v.mid)}${u}, 95% CI ${formatFit(v.ci[0])} to ${formatFit(v.ci[1])}`,
         explain: `${TERM_HELP[s.term]} This is the relative ${s.term}: halfway between the fitted top (${formatFit(s.params?.top ?? 0)}) and bottom (${formatFit(s.params?.bottom ?? 0)}), not 50% of the control. The 95% confidence interval comes from the fit, on the log of the dose.`,
       });
     } else if (v.kind === "unsure") {
@@ -544,7 +545,7 @@ export function analyzeDose(table: DataTable, spec: DoseSpec): DoseAnalysis {
   }
   facts.push({ question: "What do the error bars show?", answer: SPREAD_NAMES[spec.spread], explain: SPREAD_HELP[spec.spread] });
   if (controls.length > 0) caption.push(`${controls.map((c) => c.label).join(", ")} (no drug) is drawn as a dashed line, since zero has no place on a log scale.`);
-  caption.push(`Error bars show ${SPREAD_NAMES[spec.spread]}, ${doses.length === 0 ? "" : nPhrase(doses, "per dose")}.`);
+  caption.push(`Error bars show ${SPREAD_NAMES[spec.spread]}, ${doses.length === 0 ? "" : nPhrase(doses, "per dose")}; where the wells agree closely they hide behind the dot.`);
   if (blank !== null) caption.push(blankLine(blank));
   if (series.length === 0) warnings.push("No doses above zero to draw. Mark the wells' concentrations in the layout.");
   return { kind: "dose", series, blank, grouped, unit, facts, warnings, caption };

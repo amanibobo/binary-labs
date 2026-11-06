@@ -447,19 +447,20 @@ export function describeSummary(spec: SummarySpec | HistogramSpec, data: ChartDa
         const v = s.verdict;
         const result =
           v.kind === "ok"
-            ? `; ${s.term} ${formatFit(v.mid)}${u} (${formatFit(v.ci[0])} to ${formatFit(v.ci[1])})`
+            ? `; ${s.term} ${formatFit(v.mid)}${u} (95% CI ${formatFit(v.ci[0])} to ${formatFit(v.ci[1])})`
             : v.kind === "unsure"
               ? `; the ${s.term} isn't pinned down`
               : `; no curve could be given`;
         return `${spec.y.title || "The effect"} for ${plural(s.doses.length, "dose")} of ${s.name} from ${formatValue(lo)} to ${formatValue(hi)}${u}${wells ? `, ${wells}` : ""}, fitted with a four-parameter curve${result}.`;
       });
       const blank = a.blank === null ? "" : ` The blank (mean of ${plural(a.blank.n, "well")}) is taken off every reading.`;
-      return `${parts.join(" ")}${blank} Bars show ${SPREAD_WORDS[spec.spread]}.`;
+      return `${parts.join(" ")}${blank} Error bars show ${SPREAD_WORDS[spec.spread]}; where the wells agree closely they hide behind the dot.`;
     }
     case "histogram": {
       if (spec.type !== "histogram") return "";
       const u = spec.x.unit ? ` ${spec.x.unit}` : "";
-      return `How ${plural(a.values.length, "value")} of ${spec.x.title || "the column"} spread from ${formatValue(Math.min(...a.values))} to ${formatValue(Math.max(...a.values))}${u}, counted in bins ${formatValue(a.width)}${u} wide.`;
+      const name = spec.x.title === "" ? "the column" : /^\p{Lu}\p{Ll}/u.test(spec.x.title) ? spec.x.title.charAt(0).toLowerCase() + spec.x.title.slice(1) : spec.x.title;
+      return `How ${plural(a.values.length, "value")} of ${name} spread from ${formatValue(Math.min(...a.values))} to ${formatValue(Math.max(...a.values))}${u}, counted in bins ${formatValue(a.width)}${u} wide.`;
     }
     default: {
       const _exhaustive: never = a;

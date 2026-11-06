@@ -68,7 +68,7 @@ describe("a dose-response plate with its layout in the export", () => {
     expect(drug.verdict.mid).toBeLessThan(2.7);
     expect(drug.verdict.ci[0]).toBeLessThan(drug.verdict.mid);
     expect(drug.verdict.ci[1]).toBeGreaterThan(drug.verdict.mid);
-    expect(describeSummary(spec, d, a)).toMatch(/^A570 for 5 doses of Drug A from 0\.16 to 100 µM, 3 wells each, fitted with a four-parameter curve; IC50 2\.\d+ µM \(2\.\d+ to 2\.\d+\)\. The blank \(mean of 3 wells\) is taken off every reading\./);
+    expect(describeSummary(spec, d, a)).toMatch(/^A570 for 5 doses of Drug A from 0\.16 to 100 µM, 3 wells each, fitted with a four-parameter curve; IC50 2\.\d+ µM \(95% CI 2\.\d+ to 2\.\d+\)\. The blank \(mean of 3 wells\) is taken off every reading\./);
   });
   it("fits the means when asked, with fewer degrees of freedom and a wider range", () => {
     const spec = start(d, "dose", "dose");
@@ -152,7 +152,7 @@ describe("two groups: knockdown vs control, n = 4", () => {
     if (a.test.kind !== "welch") throw new Error(a.test.kind);
     const reference = welch([1.02, 0.96, 1.08, 0.94], [0.61, 0.55, 0.72, 0.58]);
     expect(reference.kind === "ok" && a.test.result.p).toBeCloseTo(reference.kind === "ok" ? reference.p : 0, 12);
-    expect(a.facts.find((f) => f.question === "Is the difference real?")?.answer).toBe("Welch's t-test, p = 0.0002");
+    expect(a.facts.find((f) => f.question === "Could the difference be chance?")?.answer).toBe("Unlikely: Welch's t-test, p = 0.0002");
     expect(a.caption[0]).toMatch(/^Control siRNA vs SOX2 siRNA: Welch's t-test, t = \S+, df = \S+, p = 0\.0002; n = 4 and 4\.$/);
   });
   it("switches SD to SEM and 95% CI from the same repeats", () => {
