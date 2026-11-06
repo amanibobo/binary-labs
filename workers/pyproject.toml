@@ -19,7 +19,6 @@ dependencies = [
   "pydantic-settings>=2.6",
   "pypdfium2>=4.30",
   "python-docx>=1.1",
-  "sentence-transformers>=3.3",
   "uvicorn>=0.32",
 ]
 
@@ -36,6 +35,12 @@ dev = [
   "pytest>=8.3",
   "ruff>=0.8",
 ]
+# The model in this process (EMBEDDER=local, and `bl serve-embed`). The production worker
+# sends chunks to the embedding service instead, so its image leaves torch out.
+local-embed = ["sentence-transformers>=3.3"]
+
+[tool.uv]
+default-groups = ["dev", "local-embed"]
 
 [build-system]
 requires = ["hatchling"]
