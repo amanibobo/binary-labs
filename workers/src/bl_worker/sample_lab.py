@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from bl_worker import samples
+from bl_worker.config import WORKERS_DIR
 
 
 @dataclass(frozen=True)
@@ -215,4 +216,30 @@ def files() -> list[SampleFile]:
         "GH/rotation/week1 notes.txt",
         "Shadowed AB on the P450 SDS-PAGE. Ask about MES vs MOPS.\n",
     )
+
+    # A HeLa drug A dose series: the plate reads, and 12 handwritten notebook pages for plate 3
+    # photographed a minute or two apart (one smudged), whose outer wells drifted.
+    hela = "AB/hela_drugA"
+    add(f"{hela}/plate2_A570.csv", plate_csv(902, "A570"), datetime(2026, 10, 30, 16, 5))
+    add(f"{hela}/plate3_A570.csv", plate_csv(903, "A570"), datetime(2026, 11, 5, 16, 40))
+    add(
+        f"{hela}/plate4 notes.txt",
+        "Plate 4, repeat of the drug A dose series in HeLa with PBS in all outer wells.\n"
+        "No edge drift this time. IC50 about 11 uM. This is the one to use.\n",
+        datetime(2026, 11, 8, 15, 10),
+    )
+    for i, page in enumerate(note_pages()):
+        add(
+            f"AB/notebook/hela drug A plate 3/page_{i + 1:02d}.jpg",
+            page,
+            datetime(2026, 11, 5, 17, 2 + 2 * i),
+        )
     return list(out.values())
+
+
+NOTE_PAGES = WORKERS_DIR / "tests" / "fixtures" / "notes"
+
+
+def note_pages() -> list[bytes]:
+    """The 12 notebook pages from scripts/make_note_pages.py, when the checkout has them."""
+    return [p.read_bytes() for p in sorted(NOTE_PAGES.glob("page_*.jpg"))]

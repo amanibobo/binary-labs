@@ -107,13 +107,13 @@ def test_the_demo_lab_is_full_and_a_second_run_changes_nothing(rt, conn):
             (lab,),
         ).fetchall()
     )
-    assert counts == {"import": 55, "instrument": 4, "upload": 5}
+    assert counts == {"import": 70, "instrument": 4, "upload": 5}
     assert conn.execute(
         "select count(*), count(*) filter (where index_state = 'indexed')"
         " from file_locations where lab_id = %s and source_id in"
         " (select id from sources where kind = 'import')",
         (lab,),
-    ).fetchone() == (55, 54)  # instrument/legacy_export.pdf is truncated and fails
+    ).fetchone() == (70, 69)  # instrument/legacy_export.pdf is truncated and fails
     assert conn.execute("select count(*) from protocols where lab_id = %s", (lab,)).fetchone() == (
         len(demo_content.PROTOCOLS),
     )
@@ -179,7 +179,7 @@ def test_delete_goes_through_the_apps_lab_deletion(rt, conn):
     requested_by, completed, counts = conn.execute(
         "select requested_by, completed_at, counts from lab_deletions where lab_id = %s", (lab,)
     ).fetchone()
-    assert requested_by == admin and completed is not None and counts["file_locations"] == 64
+    assert requested_by == admin and completed is not None and counts["file_locations"] == 79
     assert conn.execute("select count(*) from labs where id = %s", (lab,)).fetchone() == (0,)
     assert stored(rt, lab) == []
     assert demo_lab.delete(rt, admin) == []

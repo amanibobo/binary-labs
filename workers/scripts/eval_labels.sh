@@ -15,4 +15,4 @@ uv run bl sample-lab ../.data/sample-lab
 while [ "$(psql -d "$DB" -Atc "select count(*) from procrastinate_jobs where status = 'todo'")" != 0 ]; do
   uv run bl worker --concurrency 4 --until-idle
 done
-uv run bl eval-labels "$DATABASE_URL"
+uv run bl eval-labels "$DATABASE_URL" --findability

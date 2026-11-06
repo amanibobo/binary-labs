@@ -258,6 +258,12 @@ def cmd_eval_labels(args: argparse.Namespace) -> None:
                 raise SystemExit(f"{len(labs)} labs in this database; pass --lab")
             lab_id = labs[0][0]
         print(score(conn, lab_id, load_expected()).text())
+        if args.findability:
+            from bl_worker.embed import build_embedder
+            from bl_worker.labels.evaluate import findability
+
+            embedder = build_embedder(load_settings(database_url=args.db).embed_model)
+            print(findability(conn, lab_id, embedder.embed_query).text())
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -306,6 +312,11 @@ def main(argv: list[str] | None = None) -> None:
     p = sub.add_parser("eval-labels", help="score stored labels against evals/labels_expected.json")
     p.add_argument("db", help="database URL")
     p.add_argument("--lab", type=UUID)
+    p.add_argument(
+        "--findability",
+        action="store_true",
+        help="also run evals/findability.json's searches (loads the embedding model)",
+    )
     p.set_defaults(func=cmd_eval_labels)
 
     args = parser.parse_args(argv)

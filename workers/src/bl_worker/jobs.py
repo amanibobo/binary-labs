@@ -146,9 +146,7 @@ async def tend_labels(context: JobContext, timestamp: int) -> None:
 
 
 def defer_note(lab_id: UUID, note_id: UUID) -> bool:
-    return _defer_locked(
-        "label_note", f"note:{note_id}", lab_id=str(lab_id), note_id=str(note_id)
-    )
+    return _defer_locked("label_note", f"note:{note_id}", lab_id=str(lab_id), note_id=str(note_id))
 
 
 @app.task(name="label_note", pass_context=True, retry=RetryStrategy(max_attempts=3, wait=10))

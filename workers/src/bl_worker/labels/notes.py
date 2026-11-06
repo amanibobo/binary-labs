@@ -349,8 +349,9 @@ def tend_notes(rt: Runtime, *, limit: int = 20) -> list[tuple[UUID, UUID]]:
             with conn.transaction():
                 suggest_notes(conn, lab_id)
         split = conn.execute(
-            "update notes set labeled_cover = null, labeled_key = null"
-            " where state = 'split' and labeled_cover is not null returning lab_id, labeled_cover"
+            "update notes n set labeled_cover = null, labeled_key = null from (select id,"
+            " labeled_cover from notes where state = 'split' and labeled_cover is not null"
+            " for update) old where n.id = old.id returning n.lab_id, old.labeled_cover"
         ).fetchall()
         todo = [(r[0], r[1]) for r in conn.execute(NOTES_TO_LABEL, (limit,))]
     for lab_id, sha in split:
