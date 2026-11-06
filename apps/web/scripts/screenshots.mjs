@@ -71,6 +71,14 @@ function calendarShots() {
     ...both({ name: "calendar-agenda", path: c("view=month"), width: 390 }),
     ...both({ name: "calendar-day", path: c("view=month&day=2026-11-03"), steps: day, width: 390 }),
     ...both({ name: "calendar-peek", path: c("view=month&entry=8c1c2c39-5a4e-4c55-9d7b-0c3c1a7c0007"), steps: peek, width: 390 }),
+    // A protocol's page with its coming entries. It reads the real clock, so it shows the
+    // fixture's November entries only until they've passed.
+    ...both({
+      name: "calendar-on-protocol",
+      path: "/dev/fixtures/protocols?view=page",
+      steps: (page) => page.getByRole("heading", { name: "On the calendar" }).evaluate((el) => el.scrollIntoView({ block: "center" })),
+      width: 1440,
+    }).map((shot) => ({ ...shot, full: false })),
   ];
 }
 

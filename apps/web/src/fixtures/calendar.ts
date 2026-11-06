@@ -94,7 +94,19 @@ export const calendarEntries: CalendarEntry[] = [
     when: { kind: "timed", start: at("2026-11-06", 22), end: at("2026-11-07", 7) },
     experiment: ref(bm3),
   }),
-  entry({ title: "Purification week", when: { kind: "allDay", first: d("2026-11-16"), last: d("2026-11-20") }, experiment: ref(bm3) }),
+  entry({
+    title: "Nickel column, batch 6",
+    when: { kind: "timed", start: at("2026-11-11", 9), end: at("2026-11-11", 12) },
+    experiment: ref(bm3),
+    protocol: { id: purification.protocolId, title: purification.title, archived: false },
+    people: [ref(priya)].filter((p) => p !== null),
+  }),
+  entry({
+    title: "Purification week",
+    when: { kind: "allDay", first: d("2026-11-16"), last: d("2026-11-20") },
+    experiment: ref(bm3),
+    protocol: { id: purification.protocolId, title: purification.title, archived: false },
+  }),
   entry({
     title: "NanoDrop service visit",
     when: { kind: "allDay", first: d("2026-11-12"), last: d("2026-11-12") },
@@ -286,5 +298,5 @@ export const calendarLists: CalendarLists = {
   authors,
 };
 
-// The protocol page's "On the calendar": Bradford's coming entries.
-export const bradfordPlans = calendarEntries.filter((e) => e.protocol?.id === bradford?.id || e.protocol?.id === purification.protocolId);
+// The protocol page's "On the calendar": the purification's entries.
+export const purificationPlans = calendarEntries.filter((e) => e.protocol?.id === purification.protocolId);

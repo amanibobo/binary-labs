@@ -24,6 +24,8 @@ import { FilePicker } from "./file-picker";
 import { OpenTalkThroughs } from "../talk-throughs/open-list";
 import { ProtocolVideos, videosKey } from "../videos/protocol-videos";
 import { ProtocolCharts, type ProtocolChart } from "../charts/protocol-charts";
+import { ProtocolPlans } from "../calendar/protocol-plans";
+import type { CalendarEntry } from "@/lib/calendar";
 import { Markdown } from "./markdown";
 import { When } from "@/components/ui/when";
 
@@ -35,6 +37,7 @@ export function ProtocolView({
   talkThroughs,
   videos,
   charts,
+  plans,
 }: {
   page: ProtocolVersion;
   files: FileHit[];
@@ -45,6 +48,8 @@ export function ProtocolView({
   videos: ProtocolVideo[];
   // Charts saved with this page as their protocol.
   charts: readonly ProtocolChart[];
+  // Coming calendar entries that use this protocol.
+  plans: { entries: readonly CalendarEntry[]; more: boolean };
 }) {
   const current = isCurrent(page);
   const editable = current && !page.archived;
@@ -94,6 +99,8 @@ export function ProtocolView({
         ) : (
           <Markdown body={page.body} className="mt-10" />
         )}
+
+        <ProtocolPlans entries={plans.entries} more={plans.more} />
 
         <ProtocolVideos protocolId={page.protocolId} initial={videos} editable={editable} />
 

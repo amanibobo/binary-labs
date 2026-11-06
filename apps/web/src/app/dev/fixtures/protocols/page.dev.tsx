@@ -11,6 +11,9 @@ import { openForPage, openNewPage } from "@/fixtures/talk-throughs";
 import { pageVideos } from "@/fixtures/videos";
 import { fixtureHit, savedCharts } from "@/fixtures/charts";
 import type { ProtocolVideo } from "@/lib/videos";
+import { purificationPlans } from "@/fixtures/calendar";
+
+const NO_PLANS = { entries: [], more: false };
 import { authors, history, linkedFiles, protocolList, purification, purificationV2, startFile } from "@/fixtures/protocols";
 
 // One fixture route for every protocol screen: ?view=list|empty|page|old|edit|stale|new|from|history,
@@ -38,16 +41,16 @@ function Screen({ view }: { view: z.infer<typeof View> }) {
     case "empty":
       return <ProtocolListView protocols={[]} authors={authors} initialFilter="all" talkThroughs={[]} />;
     case "page":
-      return <ProtocolView page={purification} files={linkedFiles} authors={authors} isAdmin talkThroughs={openForPage} videos={pageVideos} charts={[]} />;
+      return <ProtocolView page={purification} files={linkedFiles} authors={authors} isAdmin talkThroughs={openForPage} videos={pageVideos} charts={[]} plans={{ entries: purificationPlans, more: false }} />;
     case "videos":
     case "no-videos":
-      return <ProtocolView page={purification} files={linkedFiles} authors={authors} isAdmin talkThroughs={[]} videos={videosFor(view)} charts={[]} />;
+      return <ProtocolView page={purification} files={linkedFiles} authors={authors} isAdmin talkThroughs={[]} videos={videosFor(view)} charts={[]} plans={NO_PLANS} />;
     case "charts":
       return (
-        <ProtocolView page={purification} files={linkedFiles} authors={authors} isAdmin talkThroughs={[]} videos={[]} charts={pageCharts()} />
+        <ProtocolView page={purification} files={linkedFiles} authors={authors} isAdmin talkThroughs={[]} videos={[]} charts={pageCharts()} plans={NO_PLANS} />
       );
     case "old":
-      return <ProtocolView page={purificationV2} files={linkedFiles} authors={authors} isAdmin talkThroughs={[]} videos={pageVideos.slice(0, 1)} charts={[]} />;
+      return <ProtocolView page={purificationV2} files={linkedFiles} authors={authors} isAdmin talkThroughs={[]} videos={pageVideos.slice(0, 1)} charts={[]} plans={NO_PLANS} />;
     case "edit":
     case "stale":
       return <ProtocolEditor mode={{ kind: "edit", page: purification }} authors={authors} />;
