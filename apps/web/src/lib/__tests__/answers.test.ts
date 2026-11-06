@@ -44,8 +44,8 @@ const yields: DataTables = {
       truncated: false,
       rowsInFile: null,
       columns: [
-        { id: ColumnId.parse("A"), name: "Batch", kind: "text", unit: null, values: ["1", "2", "3"], invalid: 0 },
-        { id: ColumnId.parse("B"), name: "Yield", kind: "number", unit: "mg", values: [4.1, 3.8, 5.2], invalid: 0 },
+        { id: ColumnId.parse("A"), name: "Batch", kind: "text", unit: null, values: ["1", "2", "3"], invalid: 0, note: null },
+        { id: ColumnId.parse("B"), name: "Yield", kind: "number", unit: "mg", values: [4.1, 3.8, 5.2], invalid: 0, note: null },
       ],
     },
   ],

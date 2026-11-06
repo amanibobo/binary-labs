@@ -18,8 +18,8 @@ const { readTables, tablePrefix } = await import("../chart-store");
 // stored, a chart saved from it and saved again, and what the other lab can't see.
 
 const db = new Client({ connectionString: process.env.TEST_DATABASE_URL ?? "postgresql://localhost/binary_labs_web_test" });
-const rosa = "00000000-0000-4000-8000-0000000000d1";
-const sam = "00000000-0000-4000-8000-0000000000d2";
+const rosa = "00000000-0000-4000-8000-0000000002d1";
+const sam = "00000000-0000-4000-8000-0000000002d2";
 const sha = Sha256.parse("d".repeat(63) + "1");
 const plate = readFileSync(join(__dirname, "../../fixtures/tables/plate7_A420.json"));
 
@@ -50,7 +50,7 @@ let key: string;
 
 beforeAll(async () => {
   await db.connect();
-  await db.query("insert into auth.users (id, email) values ($1, 'rosa@lab.test'), ($2, 'sam@lab.test') on conflict do nothing", [rosa, sam]);
+  await db.query("insert into auth.users (id, email) values ($1, 'rosa.charts@lab.test'), ($2, 'sam.charts@lab.test') on conflict do nothing", [rosa, sam]);
   labA = LabId.parse(CreateLabResult.parse((await asUser(rosa, () => db.query("select create_lab('Charts lab A') as id"))).rows[0]?.id));
   labB = LabId.parse(CreateLabResult.parse((await asUser(sam, () => db.query("select create_lab('Charts lab B') as id"))).rows[0]?.id));
   // What the worker writes for a processed plate-reader export.

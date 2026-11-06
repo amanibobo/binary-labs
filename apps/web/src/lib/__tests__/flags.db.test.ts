@@ -12,8 +12,8 @@ import { SavedVersionRows } from "../protocols";
 // it, the answer rate admins see, what another lab sees, and a flag with no source refused.
 
 const db = new Client({ connectionString: process.env.TEST_DATABASE_URL ?? "postgresql://localhost/binary_labs_web_test" });
-const rosa = "00000000-0000-4000-8000-0000000000f1";
-const sam = "00000000-0000-4000-8000-0000000000f2";
+const rosa = "00000000-0000-4000-8000-0000000002f1";
+const sam = "00000000-0000-4000-8000-0000000002f2";
 const mo = "00000000-0000-4000-8000-0000000000f3";
 const sha = Sha256.parse("e".repeat(63) + "1");
 const CURVE = "0f8f2c1e-0001-4a4e-8c55-0c3c1a7a00f1";
@@ -48,7 +48,7 @@ const curve = { id: CURVE, name: "Standard curve fit", kind: "curve_fit", sheet:
 
 beforeAll(async () => {
   await db.connect();
-  await db.query("insert into auth.users (id, email) values ($1, 'rosa@lab.test'), ($2, 'sam@lab.test'), ($3, 'mo@lab.test') on conflict do nothing", [rosa, sam, mo]);
+  await db.query("insert into auth.users (id, email) values ($1, 'rosa.flags@lab.test'), ($2, 'sam.flags@lab.test'), ($3, 'mo@lab.test') on conflict do nothing", [rosa, sam, mo]);
   labA = LabId.parse(CreateLabResult.parse((await asUser(rosa, () => db.query("select create_lab('Flags lab A') as id"))).rows[0]?.id));
   labB = LabId.parse(CreateLabResult.parse((await asUser(sam, () => db.query("select create_lab('Flags lab B') as id"))).rows[0]?.id));
   await db.query("insert into members (lab_id, user_id, role) values ($1, $2, 'member')", [labA, mo]);
