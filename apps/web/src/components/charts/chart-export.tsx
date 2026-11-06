@@ -24,6 +24,7 @@ export const EXPORT_SIZES = {
   slides: { label: "Slides", short: "Slides", mm: null, width: 960, height: 560 },
 } as const;
 export type ExportSize = keyof typeof EXPORT_SIZES;
+export const EXPORT_SIZE_KEYS = ["column", "double", "slides"] as const satisfies readonly ExportSize[];
 export const EXPORT_SIZE = { width: EXPORT_SIZES.slides.width, height: EXPORT_SIZES.slides.height };
 
 export type ChartFile = { markup: string; width: number; height: number; mm: { width: number; height: number } | null };

@@ -9,7 +9,7 @@ import groupsJson from "@/fixtures/tables/treatments_4groups.json";
 import doseLayoutJson from "@/fixtures/tables/viability_drugA_layout.json";
 import doseJson from "@/fixtures/tables/viability_drugA.json";
 import { analyze, analyzeCurve, analyzeDose, analyzeGroups, analyzeHistogram, runTest, type GroupStat } from "../analysis";
-import { ChartSpec, type CurveSpec, type DoseSpec, type GroupsSpec, type HistogramSpec } from "../charts";
+import { ChartSpec } from "../charts";
 import { DataTables, mainTable } from "../data-tables";
 import { layoutFromFile } from "../layouts";
 import { describeSummary, startKind, summarySuggestions, summaryWarnings, type ChartData } from "../summary-guide";
@@ -26,12 +26,14 @@ function data(json: unknown, sheet?: string): ChartData {
   return { table, tables: doc.tables, layout: found === null ? null : { ...found, layoutId: null } };
 }
 
+const ofType = <T extends ChartSpec["type"]>(spec: ChartSpec | null, type: T): spec is Extract<ChartSpec, { type: T }> => spec?.type === type;
+
 function start<T extends ChartSpec["type"]>(d: ChartData, kind: Parameters<typeof startKind>[1], type: T): Extract<ChartSpec, { type: T }> {
   const spec = startKind(d, kind);
-  if (spec === null || spec.type !== type) throw new Error(`expected a ${type}, got ${spec?.type ?? "nothing"}`);
+  if (!ofType(spec, type)) throw new Error(`expected a ${type}, got ${spec?.type ?? "nothing"}`);
   // Every started chart is a valid spec.
   expect(ChartSpec.safeParse(spec).success).toBe(true);
-  return spec as Extract<ChartSpec, { type: T }>;
+  return spec;
 }
 
 const kinds = (d: ChartData) => summarySuggestions(d).map((s) => s.kind);
@@ -208,7 +210,7 @@ describe("200 cell sizes", () => {
   const d = data(cellsJson);
   it("suggests a histogram and says how its bins were chosen", () => {
     expect(kinds(d)[0]).toBe("histogram");
-    const spec = start(d, "histogram", "histogram") as HistogramSpec;
+    const spec = start(d, "histogram", "histogram");
     const a = analyzeHistogram(d.table, spec);
     expect(a.counts.reduce((s, c) => s + c, 0)).toBe(200);
     expect(a.rule).toMatch(/^Bins 1 µm wide, from the Freedman–Diaconis rule \(2 × IQR ÷ ∛n = \d\.\d+\), rounded to a round number\.$/);
@@ -221,7 +223,7 @@ describe("a pendulum, not biology", () => {
   const d = data(pendulumJson);
   it("fits a straight line whose slope is 4π²/g", () => {
     expect(kinds(d)).toEqual(["scatter"]);
-    const spec = start(d, "scatter", "curve") as CurveSpec;
+    const spec = start(d, "scatter", "curve");
     const a = analyzeCurve(d.table, { ...spec, fit: "origin" });
     const g = (4 * Math.PI ** 2) / (a.fit?.slope ?? 1);
     expect(g).toBeGreaterThan(9.6);
@@ -232,7 +234,7 @@ describe("a pendulum, not biology", () => {
 
 describe("honest refusals", () => {
   const d = data(doseLayoutJson);
-  const spec = start(d, "dose", "dose") as DoseSpec;
+  const spec = start(d, "dose", "dose");
   it("too few concentrations", () => {
     const layout = d.layout?.layout;
     if (layout === undefined || spec.source.kind !== "plate") throw new Error("no layout");
@@ -242,7 +244,7 @@ describe("honest refusals", () => {
     expect(describeSummary({ ...spec, source: { ...spec.source, layout: fewer } }, d)).toContain("no curve could be given");
   });
   it("hidden repeats are pointed out", () => {
-    const groups = start(d, "bar", "groups") as GroupsSpec;
+    const groups = start(d, "bar", "groups");
     expect(summaryWarnings({ ...groups, points: false }, d)).toContain("Every repeat is hidden. With 10 or fewer, showing them lets a reader judge the spread for themselves.");
   });
 });

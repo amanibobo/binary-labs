@@ -14,7 +14,7 @@ import {
   type NumberColumn,
 } from "./data-tables";
 import { formatValue } from "./numbers";
-import { ChartId, ColumnId, LayoutId, ProtocolId, ProtocolVersionId, Sha256, UserId, type LocationId } from "./ids";
+import { ChartId, ColumnId, ProtocolId, ProtocolVersionId, Sha256, UserId, type LocationId } from "./ids";
 import { PLATE_SHAPE, plateLayout, PlateSize, PlateSource, startingSource, type PlateLayout } from "./plates";
 import { Source } from "./replicates";
 

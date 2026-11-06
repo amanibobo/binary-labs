@@ -100,12 +100,13 @@ const f = (n: number) => (Math.abs(n) < 1e-9 ? "0" : Number(n.toFixed(3)).toStri
 
 function rgb(color: string | null): [number, number, number] | null {
   if (color === null || color === "none" || color === "transparent") return null;
-  let m = /^#([0-9a-f]{6})$/i.exec(color.trim());
-  if (m !== null) return [0, 2, 4].map((i) => parseInt(m?.[1].slice(i, i + 2) ?? "0", 16) / 255) as [number, number, number];
-  m = /^#([0-9a-f]{3})$/i.exec(color.trim());
-  if (m !== null) return [0, 1, 2].map((i) => parseInt((m?.[1][i] ?? "0").repeat(2), 16) / 255) as [number, number, number];
-  const r = /^rgba?\(([^)]+)\)$/.exec(color.trim());
-  if (r !== null) return r[1].split(",").slice(0, 3).map((v) => parseFloat(v) / 255) as [number, number, number];
+  const c = color.trim();
+  const long = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(c);
+  if (long !== null) return [parseInt(long[1], 16) / 255, parseInt(long[2], 16) / 255, parseInt(long[3], 16) / 255];
+  const short = /^#([0-9a-f])([0-9a-f])([0-9a-f])$/i.exec(c);
+  if (short !== null) return [parseInt(short[1].repeat(2), 16) / 255, parseInt(short[2].repeat(2), 16) / 255, parseInt(short[3].repeat(2), 16) / 255];
+  const r = /^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/.exec(c);
+  if (r !== null) return [parseFloat(r[1]) / 255, parseFloat(r[2]) / 255, parseFloat(r[3]) / 255];
   if (color === "white") return [1, 1, 1];
   if (color === "black") return [0, 0, 0];
   return null;
@@ -272,7 +273,7 @@ function walk(ctx: Context, node: Node, parent: Style): void {
           const u = s1.offset === s0.offset ? 0 : (t - s0.offset) / (s1.offset - s0.offset);
           const c0 = rgb(s0.color) ?? [0, 0, 0];
           const c1 = rgb(s1.color) ?? [0, 0, 0];
-          const mix = c0.map((v, i) => v + (c1[i] - v) * u);
+          const mix = [c0[0] + (c1[0] - c0[0]) * u, c0[1] + (c1[1] - c0[1]) * u, c0[2] + (c1[2] - c0[2]) * u];
           ctx.ops.push(`q ${mix.map(f).join(" ")} rg ${f(x + (w * k) / strips)} ${f(y)} ${f(w / strips + 0.3)} ${f(h)} re f Q`);
         }
         break;
