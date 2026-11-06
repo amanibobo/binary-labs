@@ -140,6 +140,30 @@ export const recentQuestions: RecentQuestion[] = [
     askedByEmail: "j.morales@university.edu",
     askedAt: "2026-11-03T16:45:00Z",
   },
+  {
+    id: QuestionId.parse("8a1c2c39-5a4e-4c55-9d7b-0c3c1a7a0004"),
+    question: "Which plate reader files are from the solubility screen?",
+    outcome: "answered",
+    askedBy: viewer,
+    askedByEmail: "priya.n@university.edu",
+    askedAt: "2026-11-03T11:10:00Z",
+  },
+  {
+    id: QuestionId.parse("8a1c2c39-5a4e-4c55-9d7b-0c3c1a7a0005"),
+    question: "What temperature was plate 7 read at?",
+    outcome: "not_found",
+    askedBy: viewer,
+    askedByEmail: "priya.n@university.edu",
+    askedAt: "2026-11-02T09:30:00Z",
+  },
+  {
+    id: QuestionId.parse("8a1c2c39-5a4e-4c55-9d7b-0c3c1a7a0006"),
+    question: "Where is the Bradford standard curve from Oct 30?",
+    outcome: "answered",
+    askedBy: UserId.parse("00000000-0000-4000-8000-00000000000a"),
+    askedByEmail: "a.okafor@university.edu",
+    askedAt: "2026-10-31T15:00:00Z",
+  },
 ];
 
 export const savedAnswer: SavedAnswer = {
