@@ -70,7 +70,7 @@ export function ChartPanel({
       </Section>
       {spec.type === "heatmap" ? <PlateData spec={spec} table={table} edit={edit} /> : <XYData spec={spec} table={table} edit={edit} />}
       <MoreOptions spec={spec} table={table} protocols={protocols} protocolId={protocolId} edit={edit} footer={footer} />
-      <p className="text-paragraph-xsmall text-content-tertiary">Your file stays as it is. Nothing you do here changes it, and ⌘Z undoes any step.</p>
+      <p className="text-paragraph-xsmall text-content-tertiary">Your file stays as it is. Nothing you do here changes it, and Undo takes back any step.</p>
     </div>
   );
 }
@@ -589,7 +589,7 @@ function ColumnPicker({
             <Input id={findId} size="compact" type="search" placeholder="Find a column" value={find} onChange={(e) => setFind(e.target.value)} className="pl-9" />
           </div>
         ) : null}
-        <ul className="mt-4 grid min-h-0 flex-1 gap-2 overflow-y-auto px-4 pb-6 sm:grid-cols-2 sm:px-6">
+        <ul className="mt-4 grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)] content-start gap-2 overflow-y-auto px-4 pb-6 sm:grid-cols-[repeat(2,minmax(0,1fr))] sm:px-6">
           {shown.length === 0 ? <li className="text-paragraph-small text-content-tertiary">No column called that.</li> : null}
           {shown.map(({ column, problem }) => {
             const isSelected = selected.includes(column.id);

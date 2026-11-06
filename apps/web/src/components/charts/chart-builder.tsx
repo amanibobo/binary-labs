@@ -353,7 +353,8 @@ function Builder({
         </Button>
       </TopBar>
       <div className="mx-auto grid w-full max-w-7xl gap-x-12 gap-y-10 px-4 pt-6 pb-24 sm:px-8 sm:pt-8 lg:grid-cols-[minmax(0,1fr)_340px]">
-        <div className="min-w-0">
+        {/* The chart stays in view while the panel beside it scrolls with the page. */}
+        <div className="min-w-0 lg:sticky lg:top-6 lg:self-start">
           <ChartTitle value={draft.title} onChange={(title) => changeDraft((d) => ({ ...d, title }), "title")} />
           {sentence === "" ? null : (
             <p className="mt-2 max-w-3xl text-paragraph-medium text-content-secondary" aria-live="polite">
@@ -399,7 +400,7 @@ function Builder({
             )}
           </div>
         </div>
-        <aside aria-label="Chart settings" className="min-w-0 lg:sticky lg:top-6 lg:max-h-[calc(100dvh-3rem)] lg:self-start lg:overflow-y-auto lg:pr-1 lg:pb-6">
+        <aside aria-label="Chart settings" className="min-w-0">
           {spec === null ? (
             <SheetOnly doc={doc} table={table} onSheet={edit.sheet} />
           ) : (

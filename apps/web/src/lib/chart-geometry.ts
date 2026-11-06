@@ -518,7 +518,9 @@ export function plotChart(
         bars: [],
         whiskers,
         // Past six lines a dot on every point is noise; the dash tells the second six apart.
-        markers: spec.type === "scatter" || (points.length <= MARKERS_UP_TO && seriesColumns.length <= 6),
+        // Dots on a line only while they have room: at least 10 px apart, or a phone-width chart
+        // is a string of beads that hides the line.
+        markers: spec.type === "scatter" || (points.length <= MARKERS_UP_TO && seriesColumns.length <= 6 && area.width / Math.max(1, points.length - 1) >= 10),
         label: roomForLabels && end !== undefined ? { x: Math.min(end.px, area.left + area.width) + 8, y: end.py } : null,
       });
     });
