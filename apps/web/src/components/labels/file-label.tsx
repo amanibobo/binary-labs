@@ -192,7 +192,7 @@ export function LabelsSection({ hit, className }: { hit: FileHit; className?: st
       {check ? (
         <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg bg-background-warning px-3 py-2">
           <span className="text-paragraph-small text-content-warning">
-            Check this: these labels were a guess. Fix any that are wrong, or confirm them all.
+            Check this: Binary guessed these labels. Fixing one, or confirming them all, clears it.
           </span>
           <button
             type="button"
