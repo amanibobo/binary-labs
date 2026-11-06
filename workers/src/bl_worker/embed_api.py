@@ -19,6 +19,17 @@ class EmbedResponse(BaseModel):
     model: str
 
 
+# File chunks for the worker, without the query prompt. A chunk is about 500 tokens; chunk 0
+# lists every path of a blob, so the cap is generous. RemoteEmbedder sends 32 at a time.
+class DocumentsRequest(BaseModel):
+    texts: list[Annotated[str, Field(max_length=100_000)]] = Field(min_length=1, max_length=64)
+
+
+class DocumentsResponse(BaseModel):
+    embeddings: list[list[float]]
+    model: str
+
+
 def create_app(api_key: str, load_embedder: Callable[[], Embedder]) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -43,5 +54,12 @@ def create_app(api_key: str, load_embedder: Callable[[], Embedder]) -> FastAPI:
     def embed(body: EmbedRequest, request: Request) -> EmbedResponse:
         embedder: Embedder = request.app.state.embedder
         return EmbedResponse(embedding=embedder.embed_query(body.text), model=embedder.model_name)
+
+    @app.post("/embed/documents", dependencies=[Depends(require_key)])
+    def embed_documents(body: DocumentsRequest, request: Request) -> DocumentsResponse:
+        embedder: Embedder = request.app.state.embedder
+        return DocumentsResponse(
+            embeddings=embedder.embed_documents(body.texts), model=embedder.model_name
+        )
 
     return app
