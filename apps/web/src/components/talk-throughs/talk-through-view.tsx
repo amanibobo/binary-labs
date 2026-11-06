@@ -1,10 +1,12 @@
 "use client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useId, useState, type ReactNode } from "react";
+import { toast } from "sonner";
 import { cn } from "@/lib/cn";
 import { KIND_NAMES, protocolHref, type AuthorNames, authorName } from "@/lib/protocols";
-import { formatClock, isSettled, recordHref, talkThroughHref, type TalkThrough, type TalkThroughStatus } from "@/lib/talk-throughs";
+import { acceptRequest, formatClock, isSettled, recordHref, talkThroughHref, type TalkThrough, type TalkThroughStatus } from "@/lib/talk-throughs";
 import { useLabApi } from "../lab-api";
 import { CrumbBar } from "../protocols/crumb-bar";
 import { Markdown } from "../protocols/markdown";
@@ -14,6 +16,8 @@ import { When } from "@/components/ui/when";
 
 const POLL_MS = 2_000;
 
+// A talk-through: what was said (a recording made for it, or a video already on the page),
+// its transcript, and the steps drafted from it, read against the page as it is now.
 export function TalkThroughView({ initial, authors }: { initial: TalkThrough; authors: AuthorNames }) {
   const api = useLabApi();
   const queryClient = useQueryClient();
@@ -41,54 +45,87 @@ export function TalkThroughView({ initial, authors }: { initial: TalkThrough; au
   }
 
   const status = tt.status;
-  const heading = status.kind === "ready" ? status.title : "Talk-through";
+  const video = tt.media.kind === "video";
+  const heading = status.kind === "ready" ? status.title : video ? "Steps from a video" : "Talk-through";
   const pageLabel = tt.page === null ? `a new ${KIND_NAMES[tt.kind].toLowerCase()}` : tt.page.title;
+  const showCurrent = tt.page !== null && tt.current !== null && tt.used === null && !tt.dismissed && status.kind === "ready";
 
   return (
     <>
       <CrumbBar
         items={[
           tt.page === null ? { label: "New protocol", href: "/protocols/new" } : { label: tt.page.title, href: protocolHref(tt.page.protocolId) },
-          { label: "Talk-through", href: talkThroughHref(tt.id) },
+          { label: video ? "Steps from a video" : "Talk-through", href: talkThroughHref(tt.id) },
         ]}
         width="max-w-6xl sm:px-6"
       />
       <div className="mx-auto w-full max-w-6xl px-4 pt-8 pb-24 sm:px-6 sm:pt-12">
         <h1 className="text-heading-medium sm:text-heading-large">{heading}</h1>
         <p className="mt-2 text-paragraph-small text-content-tertiary">
-          For {pageLabel} · Recorded <When iso={tt.recordedAt} /> by {authorName(authors, tt.recordedBy)}
-          {tt.durationMs === null ? "" : ` · ${formatClock(tt.durationMs)}`}
+          {video ? (
+            <>
+              For {pageLabel}, from {tt.media.name} · Started <When iso={tt.recordedAt} /> by {authorName(authors, tt.recordedBy)}
+            </>
+          ) : (
+            <>
+              For {pageLabel} · Recorded <When iso={tt.recordedAt} /> by {authorName(authors, tt.recordedBy)}
+              {tt.durationMs === null ? "" : ` · ${formatClock(tt.durationMs)}`}
+            </>
+          )}
         </p>
 
-        <Progress status={status} />
+        {tt.dismissed ? null : <Progress status={status} video={video} />}
 
         <NextStep tt={tt} retrying={retrying} retryError={retryError} onRetry={() => void retry()} />
 
         <div className="mt-10 grid gap-10 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] lg:gap-12">
-          <Pane title="What you said" className="lg:order-1">
-            <audio controls preload="metadata" src={`/api/files/${tt.audio.locationId}`} className="mb-5 h-11 w-full" aria-label="Play the recording" />
+          <Pane title={video ? "What was said" : "What you said"} className="lg:order-1">
+            {video ? (
+              // preload=metadata fetches only the start; the rest comes in ranges as it plays.
+              <video controls playsInline preload="metadata" src={api.mediaUrl(tt.media.locationId)} className="mb-5 aspect-video w-full rounded-card bg-[#0b0d0e]" aria-label={`Play ${tt.media.name}`} />
+            ) : (
+              <audio controls preload="metadata" src={api.mediaUrl(tt.media.locationId)} className="mb-5 h-11 w-full" aria-label="Play the recording" />
+            )}
             <Transcript status={status} />
           </Pane>
           <Pane title="Drafted steps" className="max-lg:-order-1 lg:order-2">
             <Draft status={status} />
           </Pane>
         </div>
+        {showCurrent && tt.current !== null ? (
+          <section aria-labelledby="current-heading" className="mt-12">
+            <h2 id="current-heading" className="text-heading-xsmall">
+              On the page now, version {tt.current.version}
+            </h2>
+            <p className="mt-1 text-paragraph-small text-content-tertiary">Saving the drafted steps replaces this.</p>
+            <div className="mt-4 rounded-control border border-border-opaque p-4 text-content-secondary sm:p-6">
+              <Markdown body={tt.current.body} className="text-paragraph-medium" />
+            </div>
+          </section>
+        ) : null}
       </div>
     </>
   );
 }
 
-// Where the recording has got, as three plain steps; the current one says what's happening.
-const STAGES = ["Sent", "Transcript", "Steps"] as const;
+// Where it has got, as three plain steps; the current one says what's happening.
+function stagesOf(video: boolean): readonly string[] {
+  return video ? ["Video", "Transcript", "Steps"] : ["Sent", "Transcript", "Steps"];
+}
 
-function stageOf(status: TalkThroughStatus): { done: number; note: string } {
+function stageOf(status: TalkThroughStatus, video: boolean): { done: number; note: string } {
   switch (status.kind) {
     case "transcribing":
-      return { done: 1, note: "Transcribing the recording. A few minutes of talking usually takes under a minute." };
+      return {
+        done: 1,
+        note: video
+          ? "Waiting for the video's transcript. The steps are drafted as soon as it's in."
+          : "Transcribing the recording. A few minutes of talking usually takes under a minute.",
+      };
     case "drafting":
-      return { done: 2, note: "Turning what you said into numbered steps." };
+      return { done: 2, note: video ? "Turning what was said in the video into numbered steps." : "Turning what you said into numbered steps." };
     case "ready":
-      return { done: 3, note: "Check the steps against what you meant, then use them." };
+      return { done: 3, note: "Check the steps against what was meant, then save them, edit them first, or dismiss them." };
     case "no_draft":
       return { done: 2, note: status.message };
     case "failed":
@@ -100,13 +137,13 @@ function stageOf(status: TalkThroughStatus): { done: number; note: string } {
   }
 }
 
-function Progress({ status }: { status: TalkThroughStatus }) {
-  const { done, note } = stageOf(status);
+function Progress({ status, video }: { status: TalkThroughStatus; video: boolean }) {
+  const { done, note } = stageOf(status, video);
   const stuck = status.kind === "failed" || status.kind === "no_draft";
   return (
     <div className="mt-6" aria-live="polite">
       <ol className="flex flex-wrap items-center gap-x-2 gap-y-1 text-label-small">
-        {STAGES.map((stage, i) => {
+        {stagesOf(video).map((stage, i) => {
           const reached = i < done;
           const current = i === done && !stuck;
           return (
@@ -133,6 +170,12 @@ function Progress({ status }: { status: TalkThroughStatus }) {
 }
 
 function NextStep({ tt, retrying, retryError, onRetry }: { tt: TalkThrough; retrying: boolean; retryError: string | null; onRetry: () => void }) {
+  const api = useLabApi();
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const [busy, setBusy] = useState<"accept" | "dismiss" | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
+
   if (tt.used !== null) {
     return (
       <p className="mt-6 rounded-control border border-border-opaque bg-background-secondary px-4 py-3 text-paragraph-small text-content-secondary">
@@ -143,44 +186,113 @@ function NextStep({ tt, retrying, retryError, onRetry }: { tt: TalkThrough; retr
       </p>
     );
   }
+  if (tt.dismissed) {
+    return (
+      <p className="mt-6 rounded-control border border-border-opaque bg-background-secondary px-4 py-3 text-paragraph-small text-content-secondary">
+        You dismissed these steps; the page is as it was.{" "}
+        {tt.page === null ? null : (
+          <Link href={protocolHref(tt.page.protocolId)} className="text-content-accent underline underline-offset-2">
+            Back to {tt.page.title}
+          </Link>
+        )}
+      </p>
+    );
+  }
+
+  async function accept() {
+    const req = acceptRequest(tt);
+    if (req === null) return;
+    setBusy("accept");
+    setProblem(null);
+    try {
+      const outcome = await api.applyTalkThrough(tt.id, req);
+      if (outcome.kind === "stale") {
+        setProblem("Someone saved the page since these steps were drafted. Edit them first to fold in what changed.");
+        return;
+      }
+      toast.success(`Saved as version ${outcome.version}`);
+      router.push(protocolHref(outcome.protocolId));
+    } catch (error) {
+      setProblem(error instanceof Error ? error.message : "We couldn't save these steps. Try again.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function dismiss() {
+    setBusy("dismiss");
+    setProblem(null);
+    try {
+      await api.dismissTalkThrough(tt.id);
+      await queryClient.invalidateQueries({ queryKey: ["talk-through", tt.id] });
+      toast("Dismissed. The page is as it was.");
+    } catch (error) {
+      setProblem(error instanceof Error ? error.message : "We couldn't dismiss that. Try again.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   const again = recordHref(tt.page === null ? { pageKind: tt.kind } : { protocolId: tt.page.protocolId });
   const edit = (source: "steps" | "transcript") => `${talkThroughHref(tt.id)}/edit${source === "transcript" ? "?from=transcript" : ""}`;
   const status = tt.status;
-  const startFromTranscript =
-    status.kind !== "transcribing" && status.transcript !== null && status.transcript.trim() !== "" ? (
-      <Link href={edit("transcript")} className={buttonVariants({ variant: "secondary" })}>
-        Start from the transcript
-      </Link>
-    ) : null;
+  const video = tt.media.kind === "video";
+  const hasTranscript = status.kind !== "transcribing" && status.transcript !== null && status.transcript.trim() !== "";
+  const dismissButton =
+    tt.page === null ? null : (
+      <Button variant="tertiary" onClick={() => void dismiss()} disabled={busy !== null}>
+        {busy === "dismiss" ? "Dismissing" : "Dismiss"}
+      </Button>
+    );
+  const alert =
+    problem === null && retryError === null ? null : (
+      <p role="alert" className="w-full text-paragraph-small text-content-primary">
+        {problem ?? retryError}
+      </p>
+    );
   switch (status.kind) {
     case "transcribing":
     case "drafting":
       return null;
     case "ready":
+      if (tt.page === null) {
+        return (
+          <div className="mt-6 flex flex-wrap items-center gap-3">
+            <Link href={edit("steps")} className={buttonVariants()}>
+              Use these steps
+            </Link>
+            <p className="text-paragraph-small text-content-tertiary">You can edit them before saving.</p>
+          </div>
+        );
+      }
       return (
         <div className="mt-6 flex flex-wrap items-center gap-3">
-          <Link href={edit("steps")} className={buttonVariants()}>
-            Use these steps
+          <Button onClick={() => void accept()} disabled={busy !== null}>
+            {busy === "accept" ? "Saving" : `Save as version ${(tt.current?.version ?? tt.page.baseVersion) + 1}`}
+          </Button>
+          <Link href={edit("steps")} className={buttonVariants({ variant: "secondary" })}>
+            Edit first
           </Link>
-          <p className="text-paragraph-small text-content-tertiary">
-            {tt.page === null
-              ? "You can edit them before saving."
-              : "You can edit them before saving."}
-          </p>
+          {dismissButton}
+          {alert}
         </div>
       );
     case "no_draft":
+      // With words to start from, that's the way on; with none, recording again is.
       return (
-        // With words to start from, that's the way on; with none, recording again is.
         <div className="mt-6 flex flex-wrap items-center gap-3">
-          {startFromTranscript === null ? null : (
+          {hasTranscript ? (
             <Link href={edit("transcript")} className={buttonVariants()}>
               Start from the transcript
             </Link>
+          ) : null}
+          {video ? null : (
+            <Link href={again} className={buttonVariants({ variant: hasTranscript ? "secondary" : "primary" })}>
+              Record again
+            </Link>
           )}
-          <Link href={again} className={buttonVariants({ variant: startFromTranscript === null ? "primary" : "secondary" })}>
-            Record again
-          </Link>
+          {dismissButton}
+          {alert}
         </div>
       );
     case "failed":
@@ -189,12 +301,13 @@ function NextStep({ tt, retrying, retryError, onRetry }: { tt: TalkThrough; retr
           <Button onClick={onRetry} disabled={retrying}>
             {retrying ? "Retrying" : "Retry"}
           </Button>
-          {startFromTranscript}
-          {retryError !== null ? (
-            <p role="alert" className="text-paragraph-small text-content-primary">
-              {retryError}
-            </p>
+          {hasTranscript ? (
+            <Link href={edit("transcript")} className={buttonVariants({ variant: "secondary" })}>
+              Start from the transcript
+            </Link>
           ) : null}
+          {dismissButton}
+          {alert}
         </div>
       );
     default: {

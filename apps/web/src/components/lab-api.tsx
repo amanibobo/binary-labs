@@ -39,6 +39,7 @@ import {
   talkThroughHeaders,
   TalkThroughReceipt,
   TalkThroughWire,
+  VideoSteps,
   type TalkThrough,
   type TalkThroughMeta,
   type ApplyTalkThroughRequest,
@@ -90,6 +91,11 @@ export type LabApi = {
   // These reject with an Error whose message can be shown; a stale save resolves as { kind: "stale" }.
   retryTalkThrough: (id: TalkThroughId) => Promise<void>;
   applyTalkThrough: (id: TalkThroughId, req: ApplyTalkThroughRequest) => Promise<SaveOutcome>;
+  dismissTalkThrough: (id: TalkThroughId) => Promise<void>;
+  // Where a talk-through's recording or video plays from.
+  mediaUrl: (locationId: LocationId) => string;
+  // Starts drafting steps from a video on the page, or finds the draft already open for it.
+  draftStepsFromVideo: (protocolId: ProtocolId, sha: Sha256) => Promise<TalkThroughId>;
   // A video goes up in parts; none of these three rejects, like uploadFile.
   startVideoUpload: (req: StartVideoRequest) => Promise<SendResult<VideoSession>>;
   sendVideoPart: (
@@ -270,6 +276,9 @@ export const httpLabApi: LabApi = {
     if (!outcome.success) throw failure(json);
     return outcome.data;
   },
+  dismissTalkThrough: async (id) => void (await postJson(`/api/talk-throughs/${id}/dismiss`, {})),
+  mediaUrl: (locationId) => `/api/files/${locationId}`,
+  draftStepsFromVideo: async (protocolId, sha) => VideoSteps.parse(await postJson(`/api/protocols/${protocolId}/videos/${sha}/steps`, {})).talkThroughId,
   startVideoUpload: (req) => sendForResult("/api/videos/uploads", req, VideoSession),
   sendVideoPart: sendPart,
   completeVideoUpload: (session, req) =>

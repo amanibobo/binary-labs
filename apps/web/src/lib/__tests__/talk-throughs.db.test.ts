@@ -127,7 +127,7 @@ describe("a talk-through from recording to a page", () => {
 
     const sent = await view(hana, id);
     expect(sent?.status).toEqual({ kind: "transcribing" });
-    expect(sent?.audio.name).toBe("Talk-through 2026-11-04 14.03.22.weba");
+    expect(sent?.media.name).toBe("Talk-through 2026-11-04 14.03.22.weba");
 
     // The worker: the blob, the transcript, then the draft.
     await db.query("insert into blobs (sha256, size, mime, file_kind) values ($1, 4000, 'audio/webm', 'audio')", [sha]);

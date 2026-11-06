@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useMemo, useReducer, useRef, useState, type ChangeEvent, type ReactNode } from "react";
 import { toast } from "sonner";
 import type { FileHit } from "@/lib/domain";
@@ -20,6 +21,7 @@ import {
   type UploadsAction,
   type VideoUpload,
 } from "@/lib/video-upload-state";
+import { talkThroughHref } from "@/lib/talk-throughs";
 import { isSettled, recordedName, VIDEO_TYPES, VideoType, type ProtocolVideo, type ReadyVideo } from "@/lib/videos";
 import { DeleteIcon } from "../icons/base-web";
 import { CameraIcon, FileVideoIcon, LinkIcon, OpenExternalIcon, UploadIcon } from "../icons/drawn";
@@ -45,6 +47,7 @@ export function ProtocolVideos({
   editable: boolean;
 }) {
   const api = useLabApi();
+  const router = useRouter();
   const queryClient = useQueryClient();
   const headingId = useId();
   const [adding, setAdding] = useState(false);
@@ -98,6 +101,16 @@ export function ProtocolVideos({
     }
   }
 
+  // Steps are drafted from what's said in the video, against the page as it is now; the draft
+  // opens on its own page, which waits for the transcript if it isn't in yet.
+  async function draftSteps(sha: Sha256) {
+    try {
+      router.push(talkThroughHref(await api.draftStepsFromVideo(protocolId, sha)));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "We couldn't start drafting steps.");
+    }
+  }
+
   function cancel(upload: VideoUpload) {
     driver.cancel(upload.id);
     if (upload.session !== null) void api.abortVideoUpload(upload.session);
@@ -129,7 +142,11 @@ export function ProtocolVideos({
         <ul className="grid gap-10">
           {videos.map((video) => (
             <li key={video.locationId}>
-              <VideoItem video={video} onTakeOff={editable ? () => void takeOff(video) : null} />
+              <VideoItem
+                video={video}
+                onTakeOff={editable ? () => void takeOff(video) : null}
+                onDraftSteps={editable && video.state === "ready" && video.transcript.kind !== "unavailable" ? () => void draftSteps(video.sha256) : null}
+              />
             </li>
           ))}
           {showing.map((upload) => (
@@ -337,10 +354,10 @@ function OptionLabel({
 
 const frame = "aspect-video w-full overflow-hidden rounded-card bg-[#0b0d0e]";
 
-function VideoItem({ video, onTakeOff }: { video: ProtocolVideo; onTakeOff: (() => void) | null }) {
+function VideoItem({ video, onTakeOff, onDraftSteps }: { video: ProtocolVideo; onTakeOff: (() => void) | null; onDraftSteps: (() => void) | null }) {
   switch (video.state) {
     case "ready":
-      return <ReadyVideoItem video={video} onTakeOff={onTakeOff} />;
+      return <ReadyVideoItem video={video} onTakeOff={onTakeOff} onDraftSteps={onDraftSteps} />;
     case "preparing":
       return (
         <div>
@@ -366,7 +383,7 @@ function VideoItem({ video, onTakeOff }: { video: ProtocolVideo; onTakeOff: (() 
   }
 }
 
-function ReadyVideoItem({ video, onTakeOff }: { video: ReadyVideo; onTakeOff: (() => void) | null }) {
+function ReadyVideoItem({ video, onTakeOff, onDraftSteps }: { video: ReadyVideo; onTakeOff: (() => void) | null; onDraftSteps: (() => void) | null }) {
   const api = useLabApi();
   const sources = api.videoSources(video);
   const open = video.sourceKind === "dropbox" ? { href: openInDropboxUrl(video.path), label: "Open in Dropbox" } : null;
@@ -390,6 +407,13 @@ function ReadyVideoItem({ video, onTakeOff }: { video: ReadyVideo; onTakeOff: ((
         size={video.size}
       >
         <TranscriptLine sha256={video.sha256} transcript={video.transcript} />
+        {onDraftSteps === null ? null : (
+          <span className="mt-1 block">
+            <button type="button" onClick={onDraftSteps} className="text-content-accent underline-offset-2 hover:underline">
+              Draft steps from this video
+            </button>
+          </span>
+        )}
       </Caption>
     </div>
   );

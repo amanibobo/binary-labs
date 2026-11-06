@@ -82,6 +82,13 @@
   --map-file: #9a9aa0;
   --map-edge: #d2d2d6;
   --map-edge-strong: #6f6f75;
+
+  /* The plate heatmap's ramp, low to high (SEQUENTIAL in src/lib/plate-geometry.ts). */
+  --chart-seq-0: #86b6ef;
+  --chart-seq-1: #5598e7;
+  --chart-seq-2: #2a78d6;
+  --chart-seq-3: #1c5cab;
+  --chart-seq-4: #0d366b;
   color-scheme: light;
 }
 
@@ -151,6 +158,12 @@
   --map-file: #6c6c72;
   --map-edge: #34343a;
   --map-edge-strong: #a6a6ad;
+
+  --chart-seq-0: #184f95;
+  --chart-seq-1: #256abf;
+  --chart-seq-2: #3987e5;
+  --chart-seq-3: #6da7ec;
+  --chart-seq-4: #b7d3f6;
   color-scheme: dark;
 }
 

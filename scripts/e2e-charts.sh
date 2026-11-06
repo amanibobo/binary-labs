@@ -1,15 +1,17 @@
 #!/usr/bin/env bash
-# Puts the three instrument exports from workers/tests/fixtures/tables in a local folder, scans
+# Puts the five instrument exports from workers/tests/fixtures/tables in a local folder, scans
 # it with the real worker on local Postgres and a local store, and waits for each file's full
 # table. Then a file indexed "before charts" (its table row removed) is asked for as a member,
-# the way the chart builder asks, and the worker parses it again. Last, the routes' core reads
-# each table from the store, saves a chart of it as the member and exports it as SVG. Embeddings
-# use the hash embedder and labels the rules only. Cleans up after itself unless E2E_KEEP is set.
+# the way the chart builder asks, and the worker parses it again. The routes' core reads each
+# table from the store, saves a chart of it as the member (the ELISA list as a plate heatmap,
+# the bioreactor log on a time axis) and exports it as SVG. Last, every table is marked as an
+# older parser's and the worker's sweep reads them all again, keeping each chart. Embeddings use
+# the hash embedder and labels the rules only. Cleans up after itself unless E2E_KEEP is set.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 export PATH="/opt/homebrew/opt/postgresql@17/bin:$PATH"
-DB=binary_labs_e2e_charts
+DB="${E2E_DB:-binary_labs_e2e_charts}"
 export DATABASE_URL="postgresql://localhost/$DB"
 export PREVIEW_STORE=local
 export PREVIEW_DIR=.data/e2e-charts-store
@@ -62,7 +64,8 @@ echo "lab $LAB_ID"
 
 uv run bl worker > "$DIR/worker.log" 2>&1 & PIDS+=($!)
 uv run bl scan-local "$LAB_ID" "$DIR/lab"
-wait_for_tables 3
+FILES=$(ls tests/fixtures/tables | wc -l | tr -d ' ')
+wait_for_tables "$FILES"
 psql -qtAX -d "$DB" -c "select fl.original_name, t.state, t.parser_version, t.storage_key from data_tables t
   join file_locations fl on fl.sha256 = t.sha256 and fl.lab_id = t.lab_id where t.lab_id = '$LAB_ID' order by 1"
 
@@ -70,7 +73,7 @@ echo "== a file indexed before charts: its table is asked for, then parsed"
 SHA="$(psql -qtAX -d "$DB" -c "select sha256 from file_locations where lab_id = '$LAB_ID' and original_name = 'plate7_A420.csv'")"
 psql -qtAX -d "$DB" -c "delete from data_tables where lab_id = '$LAB_ID' and sha256 = '$SHA'"
 as_member "select request_data_table('$LAB_ID', '$SHA')"
-wait_for_tables 3
+wait_for_tables "$FILES"
 
 echo "== the routes' core: read each table, save a chart as the member, export SVG"
 cd "$ROOT/apps/web"
@@ -80,4 +83,21 @@ echo "== charts saved, and their audit rows"
 psql -qtAX -d "$DB" -c "select title, spec ->> 'type', jsonb_array_length(spec -> 'series') from charts where lab_id = '$LAB_ID' order by title"
 psql -qtAX -d "$DB" -c "select action, count(*) from audit_log where lab_id = '$LAB_ID' and action::text like 'chart.%' group by 1"
 ls -l "$OUT"
+
+echo "== a parser bump: every table marked as version 1, then the sweep reads them again"
+cd "$ROOT/workers"
+VERSION="$(uv run python -c 'from bl_worker import tables; print(tables.VERSION)')"
+psql -qtAX -d "$DB" -c "update data_tables set parser_version = 1 where lab_id = '$LAB_ID'"
+start=$(date +%s)
+while :; do
+  row="$(psql -qtAX -d "$DB" -c "select count(*) filter (where parser_version = $VERSION and state = 'ready'), count(*) from data_tables where lab_id = '$LAB_ID'")"
+  echo "re-parsed|all: $row"
+  [[ "$row" == "$FILES|$FILES" ]] && break
+  (( $(date +%s) - start > 180 )) && { echo "the sweep did not finish in 3 min"; exit 1; }
+  sleep 5
+done
+echo "re-parsed in $(( $(date +%s) - start ))s"
+grep -E "table re-parses|re-parse of" "$DIR/worker.log" | tail -8
+echo "== charts kept, unchanged"
+psql -qtAX -d "$DB" -c "select title, spec ->> 'type' from charts where lab_id = '$LAB_ID' order by title"
 if [[ -n "${E2E_SVG_COPY:-}" ]]; then cp "$OUT"/*.svg "$E2E_SVG_COPY"/; fi

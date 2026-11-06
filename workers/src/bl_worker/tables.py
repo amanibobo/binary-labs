@@ -8,7 +8,10 @@ The output is the JSON the chart builder reads (apps/web/src/lib/data-tables.ts 
       {"name": "Standards", "sheet": "Standards", "notes": ["Read on: Synergy H1"],
        "rows": 8, "truncated": false, "rowsInFile": null,
        "columns": [{"id": "A", "name": "BSA", "unit": "µg/mL", "kind": "number",
-                    "values": [0, 125, ...], "invalid": 0}, ...]}]}
+                    "values": [0, 125, ...], "invalid": 0, "note": null}, ...]}]}
+
+A date column has kind "date", its values in milliseconds since 1970 of the wall-clock time as
+written (bl_worker/table_dates.py), and "time" saying whether any value carries a time of day.
 """
 
 from __future__ import annotations
@@ -25,9 +28,11 @@ from typing import Any, Literal
 
 from openpyxl.utils import get_column_letter, range_boundaries
 
+from bl_worker import table_dates
 from bl_worker.extract import UNIT_RE, decode_text
 
-VERSION = 1
+# 2: date columns, and a note per column.
+VERSION = 2
 # One file's tables keep at most this many cells: about 1.5 MB of JSON (0.64 MB gzipped) for
 # 3-decimal numbers, parsed in about 0.3 s, and about a second to send on 5 Mbps bench Wi-Fi.
 # A 2 h kinetic read of a 96-well plate (24k cells), a full spectrum scan of one (38k) or an
@@ -39,7 +44,7 @@ MAX_COLUMNS = 512
 MAX_TEXT = 200
 MAX_NOTES = 20
 
-Kind = Literal["number", "text"]
+Kind = Literal["number", "text", "date"]
 Raw = str | int | float | bool | datetime | date | time | timedelta | None
 
 
@@ -55,6 +60,10 @@ class Column:
     kind: Kind
     values: list[Any]
     invalid: int
+    # What the reader should know about how the column was read, like a date order assumed.
+    note: str | None = None
+    # Date columns: whether any value has a time of day.
+    has_time: bool = False
 
 
 @dataclass(frozen=True)
@@ -85,17 +94,7 @@ class Parsed:
                         "rows": t.rows,
                         "truncated": t.truncated,
                         "rowsInFile": t.rows_in_file,
-                        "columns": [
-                            {
-                                "id": c.id,
-                                "name": c.name,
-                                "unit": c.unit,
-                                "kind": c.kind,
-                                "values": c.values,
-                                "invalid": c.invalid,
-                            }
-                            for c in t.columns
-                        ],
+                        "columns": [_column_json(c) for c in t.columns],
                     }
                     for t in self.tables
                 ],
@@ -106,13 +105,29 @@ class Parsed:
         ).encode()
 
 
-# A cell as read: its number when it is one, and its text.
+def _column_json(c: Column) -> dict[str, Any]:
+    out: dict[str, Any] = {
+        "id": c.id,
+        "name": c.name,
+        "unit": c.unit,
+        "kind": c.kind,
+        "values": c.values,
+        "invalid": c.invalid,
+        "note": c.note,
+    }
+    if c.kind == "date":
+        out["time"] = c.has_time
+    return out
+
+
+# A cell as read: its number when it is one, its date when it is one, and its text.
 @dataclass(frozen=True)
 class Cell:
     text: str
     number: float | None = None
     # Seconds, for h:mm:ss text and Excel times; the column picks its unit later.
     duration: bool = False
+    date: table_dates.DateParts | None = None
 
     @property
     def blank(self) -> bool:
@@ -129,6 +144,8 @@ class Sheet:
     # More rows followed the ones read, and how many when that's known.
     cut: bool = False
     unread: int | None = None
+    # A workbook's sheet, where a number under a "Date" header may be an Excel serial date.
+    excel: bool = False
 
 
 def parse(data: bytes) -> Parsed:
@@ -161,6 +178,8 @@ def text_cell(raw: str, *, decimal_comma: bool) -> Cell:
         return Cell(text, float(text.replace(",", "")))
     if m := _DURATION.fullmatch(text):
         return Cell(text, int(m[1]) * 3600 + int(m[2]) * 60 + float(m[3]), duration=True)
+    if d := table_dates.parse(text):
+        return Cell(text, date=d)
     return Cell(text)
 
 
@@ -175,7 +194,7 @@ def value_cell(raw: Raw) -> Cell:
                 return Cell(str(raw))
             return Cell(_number_text(float(raw)), float(raw))
         case datetime() | date():
-            return Cell(raw.isoformat())
+            return Cell(raw.isoformat(), date=table_dates.from_value(raw))
         case time():
             seconds = raw.hour * 3600 + raw.minute * 60 + raw.second + raw.microsecond / 1e6
             return Cell(raw.isoformat(), seconds, duration=True)
@@ -254,7 +273,7 @@ def _shares(sizes: list[int]) -> list[int]:
 
 def _read_sheet(wb: Any, ws: Any, share: int) -> Sheet:
     merges = _merges(wb, ws)
-    sheet = Sheet(ws.title)
+    sheet = Sheet(ws.title, excel=True)
     cells = 0
     for r, values in enumerate(ws.iter_rows(values_only=True), start=1):
         if cells >= share:
@@ -317,7 +336,8 @@ def _filled(row: list[Cell]) -> int:
 
 
 def _numbers(row: list[Cell]) -> int:
-    return sum(1 for c in row if c.number is not None)
+    """Cells that are data rather than labels: numbers and dates."""
+    return sum(1 for c in row if c.number is not None or c.date is not None)
 
 
 def _texty(row: list[Cell]) -> bool:
@@ -410,7 +430,8 @@ def _tables(sheet: Sheet) -> Iterator[Table]:
     for n, (heads, body, table_notes) in enumerate(found):
         cut = sheet.cut and n == len(found) - 1
         rows_in_file = len(body) + sheet.unread if cut and sheet.unread is not None else None
-        yield _build(_name(sheet.name, n), heads, body, table_notes, cut, rows_in_file, sheet.name)
+        name = _name(sheet.name, n)
+        yield _build(name, heads, body, table_notes, cut, rows_in_file, sheet.name, sheet.excel)
 
 
 def _continues(block: list[list[Cell]], width: int) -> bool:
@@ -484,6 +505,7 @@ def _build(
     truncated: bool,
     rows_in_file: int | None,
     sheet: str,
+    excel: bool = False,
 ) -> Table:
     width = max([len(r) for r in body] + [len(h) for h in heads])
     names = _header_names(heads, width)
@@ -494,13 +516,39 @@ def _build(
         if header == "" and all(cell.blank for cell in cells):
             continue
         letter = get_column_letter(c + 1)
-        columns.append(_column(letter, header or f"Column {letter}", unit, cells))
+        columns.append(_column(letter, header or f"Column {letter}", unit, cells, excel=excel))
     return Table(name, sheet, notes, len(body), truncated, rows_in_file, columns)
 
 
-def _column(letter: str, name: str, unit: str | None, cells: list[Cell]) -> Column:
+def _column(
+    letter: str, name: str, unit: str | None, cells: list[Cell], *, excel: bool = False
+) -> Column:
     filled = [c for c in cells if not c.blank]
     numbers = [c for c in filled if c.number is not None]
+    dates = [c.date for c in filled if c.date is not None]
+    if dates and len(dates) * 2 > len(filled):
+        reading = table_dates.read_column(dates)
+        if reading is not None:
+            read = [table_dates.to_ms(c.date, reading.order) if c.date else None for c in cells]
+            values = [_compact(v) if v is not None else None for v in read]
+            invalid = len(filled) - sum(v is not None for v in values)
+            return Column(
+                letter, name, None, "date", values, invalid, reading.note, reading.has_time
+            )
+    if (
+        excel
+        and numbers
+        and len(numbers) == len(filled)
+        and not any(c.duration for c in numbers)
+        and table_dates.looks_like_excel_dates(name, [c.number or 0 for c in numbers])
+    ):
+        values = [
+            _compact(table_dates.excel_ms(c.number)) if c.number is not None else None
+            for c in cells
+        ]
+        has_time = any(c.number is not None and not c.number.is_integer() for c in cells)
+        note = "Read as Excel dates, days counted from 1900."
+        return Column(letter, name, None, "date", values, 0, note, has_time)
     if numbers and len(numbers) * 2 > len(filled):
         durations = sum(1 for c in numbers if c.duration)
         scale = 1.0

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
-import { PALETTE, type SeriesColor } from "@/lib/charts";
+import { PALETTE, type SeriesColor, type Stroke } from "@/lib/charts";
 import { LABEL_FONT, TICK_FONT, TITLE_FONT, type Plot } from "@/lib/chart-geometry";
+import { exportFill, screenFill, type PlatePlot } from "@/lib/plate-geometry";
 
 // The colors a chart is drawn in. On screen they're the theme's CSS variables, so a chart
 // follows light and dark; an exported file carries the light hex values, as a printed figure.
@@ -15,6 +16,10 @@ export type ChartInk = {
   font: string;
   // A page background behind an exported chart; on screen the page is the background.
   background: string | null;
+  // A plate well's color at a place on the scale, 0 to 1.
+  ramp: (t: number) => string;
+  // The ramp's stops for the scale's bar, low to high.
+  rampStops: readonly string[];
 };
 
 function byColor(color: (slot: SeriesColor) => string): Record<SeriesColor, string> {
@@ -38,6 +43,8 @@ export const SCREEN_INK: ChartInk = {
   title: "var(--content-primary)",
   font: "inherit",
   background: null,
+  ramp: screenFill,
+  rampStops: [0, 1, 2, 3, 4].map((i) => `var(--chart-seq-${i})`),
 };
 
 // The light tokens from globals.css; chart-ink.test.ts checks they still match.
@@ -51,7 +58,12 @@ export const EXPORT_INK: ChartInk = {
   title: "#18181a",
   font: "Geist, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif",
   background: "#ffffff",
+  ramp: exportFill,
+  rampStops: [0, 0.25, 0.5, 0.75, 1].map(exportFill),
 };
+
+// A dashed line's pattern; solid lines have none.
+export const DASH: Record<Stroke, string | undefined> = { solid: undefined, dashed: "6 4" };
 
 const CAP = 3;
 
@@ -150,11 +162,17 @@ export function ChartSvg({
                 />
               ))}
               {s.path === null ? null : (
-                <path d={s.path} stroke={color} strokeWidth={2} fill="none" strokeLinejoin="round" strokeLinecap="round" />
+                <path
+                  d={s.path}
+                  stroke={color}
+                  strokeWidth={2}
+                  strokeDasharray={DASH[s.stroke]}
+                  fill="none"
+                  strokeLinejoin="round"
+                  strokeLinecap={s.stroke === "dashed" ? "butt" : "round"}
+                />
               )}
-              {s.markers
-                ? s.points.map((p) => <circle key={p.row} cx={p.px} cy={p.py} r={4} fill={color} stroke={ink.surface} strokeWidth={2} />)
-                : null}
+              {s.markers ? s.points.map((p) => <Marker key={p.row} x={p.px} y={p.py} color={color} stroke={s.stroke} surface={ink.surface} />) : null}
             </g>
           );
         })}
@@ -171,8 +189,8 @@ export function ChartSvg({
       {plot.legend.length === 0 ? null : (
         <g fontSize={TICK_FONT} fill={ink.label}>
           {plot.legend.map((item) => (
-            <g key={item.name + item.color}>
-              <LegendMark mark={plot.legendMark} x={item.x} y={item.y} color={ink.series[item.color]} />
+            <g key={`${item.name}-${item.color}-${item.stroke}`}>
+              <LegendMark mark={plot.legendMark} x={item.x} y={item.y} color={ink.series[item.color]} stroke={item.stroke} surface={ink.surface} />
               <text x={item.x + 22} y={item.y} dominantBaseline="middle">
                 {item.name}
               </text>
@@ -185,12 +203,46 @@ export function ChartSvg({
   );
 }
 
-function LegendMark({ mark, x, y, color }: { mark: Plot["legendMark"]; x: number; y: number; color: string }) {
+// A dot on a line or a scatter: filled for a solid series, a ring for a dashed one.
+export function Marker({ x, y, r = 4, color, stroke, surface }: { x: number; y: number; r?: number; color: string; stroke: Stroke; surface: string }) {
+  return stroke === "dashed" ? (
+    <circle cx={x} cy={y} r={r - 0.5} fill={surface} stroke={color} strokeWidth={2} />
+  ) : (
+    <circle cx={x} cy={y} r={r} fill={color} stroke={surface} strokeWidth={2} />
+  );
+}
+
+function LegendMark({
+  mark,
+  x,
+  y,
+  color,
+  stroke,
+  surface,
+}: {
+  mark: Plot["legendMark"];
+  x: number;
+  y: number;
+  color: string;
+  stroke: Stroke;
+  surface: string;
+}) {
   switch (mark) {
     case "line":
-      return <line x1={x} x2={x + 16} y1={y} y2={y} stroke={color} strokeWidth={2} strokeLinecap="round" />;
+      return (
+        <line
+          x1={x}
+          x2={x + 16}
+          y1={y}
+          y2={y}
+          stroke={color}
+          strokeWidth={2}
+          strokeDasharray={stroke === "dashed" ? "5 3" : undefined}
+          strokeLinecap={stroke === "dashed" ? "butt" : "round"}
+        />
+      );
     case "dot":
-      return <circle cx={x + 8} cy={y} r={4} fill={color} />;
+      return <Marker x={x + 8} y={y} color={color} stroke={stroke} surface={surface} />;
     case "bar":
       return <rect x={x + 3} y={y - 5} width={10} height={10} rx={2} fill={color} />;
     default: {
@@ -198,4 +250,88 @@ function LegendMark({ mark, x, y, color }: { mark: Plot["legendMark"]; x: number
       return _exhaustive;
     }
   }
+}
+
+// A plate heatmap: a circle per well colored along the ramp, row letters and column numbers,
+// and the scale under it. A well the table doesn't give is an empty ring.
+export function PlateSvg({
+  plot,
+  ink,
+  gradientId,
+  label,
+  children,
+}: {
+  plot: PlatePlot;
+  ink: ChartInk;
+  gradientId: string;
+  label: string;
+  children?: ReactNode;
+}) {
+  const { scale } = plot;
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width={plot.width}
+      height={plot.height}
+      viewBox={`0 0 ${plot.width} ${plot.height}`}
+      role="img"
+      aria-label={label}
+      fontFamily={ink.font}
+      style={{ display: "block", fontVariantNumeric: "tabular-nums" }}
+    >
+      {ink.background === null ? null : <rect width={plot.width} height={plot.height} fill={ink.background} />}
+      <defs>
+        <linearGradient id={gradientId} x1="0" x2="1" y1="0" y2="0">
+          {ink.rampStops.map((color, i) => (
+            <stop key={i} offset={i / (ink.rampStops.length - 1)} stopColor={color} style={{ stopColor: color }} />
+          ))}
+        </linearGradient>
+      </defs>
+      {plot.title === null ? null : (
+        <text x={plot.title.x} y={plot.title.y} fontSize={TITLE_FONT} fontWeight={600} fill={ink.title}>
+          {plot.title.text}
+        </text>
+      )}
+      <g fontSize={TICK_FONT} fill={ink.tick}>
+        {plot.columnLabels.map((l) => (
+          <text key={`c${l.text}`} x={l.x} y={l.y} textAnchor="middle">
+            {l.text}
+          </text>
+        ))}
+        {plot.rowLabels.map((l) => (
+          <text key={`r${l.text}`} x={l.x} y={l.y} textAnchor="end" dominantBaseline="middle">
+            {l.text}
+          </text>
+        ))}
+      </g>
+      <g>
+        {plot.wells.map((w) =>
+          w.t === null ? (
+            <circle key={w.name} cx={w.cx} cy={w.cy} r={plot.radius - 0.5} fill="none" stroke={ink.axis} strokeWidth={1} />
+          ) : (
+            <circle key={w.name} cx={w.cx} cy={w.cy} r={plot.radius} fill={ink.ramp(w.t)} />
+          ),
+        )}
+      </g>
+      {scale === null ? null : (
+        <g fontSize={TICK_FONT}>
+          <rect x={scale.left} y={scale.top} width={scale.width} height={scale.height} rx={2} fill={`url(#${gradientId})`} />
+          {scale.ticks.map((t) => (
+            <g key={t.label}>
+              <line x1={t.pos} x2={t.pos} y1={scale.top + scale.height} y2={scale.top + scale.height + 4} stroke={ink.axis} strokeWidth={1} shapeRendering="crispEdges" />
+              <text x={t.pos} y={scale.top + scale.height + 6 + TICK_FONT} textAnchor="middle" fill={ink.tick}>
+                {t.label}
+              </text>
+            </g>
+          ))}
+          {scale.title === "" ? null : (
+            <text x={scale.left} y={scale.top + scale.height + 6 + TICK_FONT * 2 + 8} fill={ink.label} fontSize={LABEL_FONT}>
+              {scale.title}
+            </text>
+          )}
+        </g>
+      )}
+      {children}
+    </svg>
+  );
 }

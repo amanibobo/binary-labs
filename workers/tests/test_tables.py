@@ -1,4 +1,5 @@
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -161,9 +162,111 @@ def test_json_is_compact_and_round_trips():
         "kind": "number",
         "values": [0.5, None],
         "invalid": 0,
+        "note": None,
     }
 
 
 def test_garbage_is_a_table_failure():
     with pytest.raises(tables.TableFailed):
         tables.parse(b"PK\x03\x04 not really a workbook")
+
+
+def ms(*parts: int) -> int:
+    return int(datetime(*parts, tzinfo=UTC).timestamp() * 1000)
+
+
+def dated(rows: list[list[object]]) -> tables.Column:
+    [table] = tables.parse(samples.csv_text([["When", "OD600"], *rows])).tables
+    return column(table, "A")
+
+
+def test_iso_dates_and_times_are_a_date_column_in_wall_clock_milliseconds():
+    when = dated([["2026-11-03 17:44:12", "0.1"], ["2026-11-03T17:54:12.5", "0.2"]])
+    assert (when.kind, when.unit, when.has_time, when.note) == ("date", None, True, None)
+    assert when.values == [ms(2026, 11, 3, 17, 44, 12), ms(2026, 11, 3, 17, 54, 12) + 500]
+    days = dated([["2026-11-03", "1"], ["2026-11-04", "2"]])
+    assert (days.kind, days.has_time) == ("date", False)
+
+
+def test_a_day_over_12_decides_the_order_for_the_whole_column():
+    eu = dated([["03/11/2026 09:00", "1"], ["13/11/2026 09:00", "2"]])
+    assert eu.values == [ms(2026, 11, 3, 9), ms(2026, 11, 13, 9)]
+    assert eu.note == "Read as day/month/year."
+    us = dated([["11/3/2026 5:44:12 PM", "1"], ["11/13/2026 5:44:12 AM", "2"]])
+    assert us.values == [ms(2026, 11, 3, 17, 44, 12), ms(2026, 11, 13, 5, 44, 12)]
+    assert us.note == "Read as month/day/year."
+
+
+def test_an_ambiguous_column_is_read_the_way_that_keeps_it_in_time_order_and_says_so():
+    # Day first: 12 Nov, 1 Dec, 2 Dec. Month first: 11 Dec, 12 Jan, 12 Feb, which goes back.
+    turn = dated([["12/11/2026", "1"], ["01/12/2026", "2"], ["02/12/2026", "3"]])
+    assert turn.values == [ms(2026, 11, 12), ms(2026, 12, 1), ms(2026, 12, 2)]
+    assert turn.note == (
+        "Read as day/month/year, since it keeps the rows in time order. Check a date you know."
+    )
+    # Day first: 1 Dec, 2 Nov, back again. Month first: 12 Jan, 11 Feb.
+    back = dated([["01/12/2026", "1"], ["02/11/2026", "2"]])
+    assert back.values == [ms(2026, 1, 12), ms(2026, 2, 11)]
+    assert back.note is not None and back.note.startswith("Read as month/day/year, since it keeps")
+    # Nothing to go on: slashes are read the US way, dots the European way.
+    slashes = dated([["01/02/2026", "1"], ["01/02/2026", "2"]])
+    assert slashes.values == [ms(2026, 1, 2)] * 2
+    dots = dated([["01.02.2026", "1"], ["01.02.2026", "2"]])
+    assert dots.values == [ms(2026, 2, 1)] * 2
+    assert dots.note == (
+        "Read as day/month/year, since nothing in the column says which. Check a date you know."
+    )
+
+
+def test_dates_no_order_fits_stay_text_and_stray_cells_are_counted():
+    mixed = dated([["13/01/2026", "1"], ["01/13/2026", "2"]])
+    assert mixed.kind == "text"
+    stray = dated([["2026-11-03", "1"], ["2026-11-04", "2"], ["not run", "3"]])
+    assert (stray.kind, stray.invalid, stray.values[2]) == ("date", 1, None)
+
+
+def test_month_names_compact_stamps_and_offsets():
+    named = dated([["3 Nov 2026", "1"], ["4-Nov-2026 10:00", "2"], ["Nov 5 2026", "3"]])
+    assert named.values == [ms(2026, 11, 3), ms(2026, 11, 4, 10), ms(2026, 11, 5)]
+    stamp = dated([["20261103_174412", "1"], ["20261103T174413", "2"]])
+    assert stamp.values == [ms(2026, 11, 3, 17, 44, 12), ms(2026, 11, 3, 17, 44, 13)]
+    offset = dated([["2026-11-03T17:44:12+01:00", "1"], ["2026-11-03T17:44:12Z", "2"]])
+    assert offset.values == [ms(2026, 11, 3, 16, 44, 12), ms(2026, 11, 3, 17, 44, 12)]
+    assert offset.note == "Times are in UTC, from the offsets in the file."
+
+
+def test_excel_dates_from_cell_formats_and_serial_numbers():
+    data = samples.xlsx(
+        {
+            "Log": [
+                ["Sampled", "Date", "Count"],
+                [datetime(2026, 11, 3, 9, 30), 46329, 46329],
+                [datetime(2026, 11, 4, 9, 30), 46330.5, 46330],
+            ]
+        }
+    )
+    [table] = tables.parse(data).tables
+    sampled, serial, count = table.columns
+    assert sampled.kind == "date" and sampled.values == [
+        ms(2026, 11, 3, 9, 30),
+        ms(2026, 11, 4, 9, 30),
+    ]
+    assert serial.kind == "date" and serial.values == [ms(2026, 11, 3), ms(2026, 11, 4, 12)]
+    assert serial.note == "Read as Excel dates, days counted from 1900."
+    # The same numbers under any other header are numbers.
+    assert count.kind == "number"
+
+
+def test_date_columns_round_trip_with_their_time_flag():
+    data = samples.csv_text([["When", "v"], ["2026-11-03", "1"], ["2026-11-04", "2"]])
+    [table] = json.loads(tables.parse(data).to_json())["tables"]
+    assert table["columns"][0] == {
+        "id": "A",
+        "name": "When",
+        "unit": None,
+        "kind": "date",
+        "values": [ms(2026, 11, 3), ms(2026, 11, 4)],
+        "invalid": 0,
+        "note": None,
+        "time": False,
+    }

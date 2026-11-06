@@ -185,8 +185,13 @@ def defer_transcript(lab_id: UUID, sha256: str) -> bool:
 
 @app.task(name="transcribe_video", pass_context=True, retry=RetryStrategy(max_attempts=3, wait=10))
 def transcribe_video(context: JobContext, lab_id: str, sha256: str) -> None:
-    outcome = videos.transcribe_video(_runtime(context), UUID(lab_id), sha256)
+    rt = _runtime(context)
+    outcome = videos.transcribe_video(rt, UUID(lab_id), sha256)
     log.info("transcript of video %s: %s", sha256[:12], outcome or "skipped")
+    # Steps someone asked for from this video were waiting for its words.
+    with rt.pool.connection() as conn:
+        for talk_through_id in talk_throughs.waiting_for_steps(conn, video=(UUID(lab_id), sha256)):
+            defer_steps(UUID(lab_id), talk_through_id)
 
 
 @app.periodic(cron="* * * * * */10")
@@ -295,6 +300,37 @@ async def tend_checks(context: JobContext, timestamp: int) -> None:
     deferred = await asyncio.to_thread(tend)
     if deferred:
         log.info("deferred %d file checks", deferred)
+
+
+def defer_reparse(lab_id: UUID, sha256: str) -> bool:
+    # The same lock as parse_table: one job at a time reads a lab's copy of a file.
+    return _defer_locked(
+        "reparse_table", f"table:{lab_id}:{sha256}", lab_id=str(lab_id), sha256=sha256
+    )
+
+
+@app.task(name="reparse_table", pass_context=True, retry=RetryStrategy(max_attempts=3, wait=30))
+def reparse_table(context: JobContext, lab_id: str, sha256: str) -> None:
+    outcome = data_tables.reparse(_runtime(context), UUID(lab_id), sha256)
+    log.info("re-parse of %s: %s", sha256[:12], outcome or "skipped")
+
+
+@app.periodic(cron="* * * * *")
+@app.task(name="sweep_stale_tables", pass_context=True, queueing_lock="sweep_stale_tables")
+async def sweep_stale_tables(context: JobContext, timestamp: int) -> None:
+    """After the table parser's version rises, queues a few of the tables an older version
+    read each minute, those used longest ago first (decisions.md, "re-parsing tables")."""
+    rt = _runtime(context)
+
+    def sweep() -> tuple[int, data_tables.Progress]:
+        with rt.pool.connection() as conn:
+            todo = data_tables.stale(conn)
+            done = data_tables.progress(conn)
+        return sum(defer_reparse(lab_id, sha) for lab_id, sha in todo), done
+
+    deferred, done = await asyncio.to_thread(sweep)
+    if deferred:
+        log.info("deferred %d table re-parses; tables: %s", deferred, done)
 
 
 @app.task(name="delete_lab", pass_context=True, retry=RetryStrategy(max_attempts=3, wait=30))

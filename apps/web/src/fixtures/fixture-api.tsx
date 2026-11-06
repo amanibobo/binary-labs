@@ -13,7 +13,7 @@ import { PREVIEW_BY_FIRST_CHAR } from "./previews";
 import { protocolHits, purification, purificationTheirs } from "./protocols";
 import { fixtureUploadTalkThrough, fixtureApplyTalkThrough, talkThrough as fixtureTalkThrough } from "./talk-throughs";
 import { createFixtureUploads } from "./uploads";
-import { createFixtureVideoUploads, fixtureVideoSources, pageVideos } from "./videos";
+import { createFixtureVideoUploads, FIXTURE_VIDEO, fixtureVideoSources, pageVideos } from "./videos";
 import { chartsOf, fixtureTable, savedCharts } from "./charts";
 import { fixtureHubFiles, fixtureLab, fixtureLocal, type LabSize } from "./map";
 import { ChartId, UserId } from "@/lib/ids";
@@ -130,6 +130,12 @@ export function FixtureLabApi({
     },
     retryTalkThrough: async () => wait(150),
     applyTalkThrough: fixtureApplyTalkThrough,
+    dismissTalkThrough: async () => wait(150),
+    mediaUrl: () => FIXTURE_VIDEO,
+    draftStepsFromVideo: async () => {
+      await wait(150);
+      return (talkThrough ?? fixtureTalkThrough("ready")).id;
+    },
     ...videoUploads,
     abortVideoUpload: async () => wait(100),
     protocolVideos: async (_id, signal) => {
