@@ -207,3 +207,53 @@ def test_deleting_the_lab_removes_its_charts_and_tables(rt, conn, charted):
     assert counts["charts"] == 1 and counts["data_tables"] == 3
     assert rt.previews.get(data_tables.table_key(charted.id, sha)) is None
     assert conn.execute("select count(*) from blobs where sha256 = %s", (sha,)).fetchone() == (0,)
+
+
+COLORS = ["blue", "orange", "aqua", "violet", "magenta", "green"]
+TWELVE = [
+    {
+        "column": c,
+        "name": c,
+        "color": COLORS[i % 6],
+        "error": None,
+        "stroke": "dashed" if i >= 6 else "solid",
+    }
+    for i, c in enumerate("BCDEFGHIJKLM")
+]
+PLATE = {
+    "version": 1,
+    "type": "heatmap",
+    "plate": {"size": 96, "source": {"kind": "wells", "well": "A", "value": "C"}},
+    "value": {"title": "OD450", "unit": "", "min": None, "max": None},
+}
+
+
+def test_the_database_takes_what_charts_draw_now(conn, charted):
+    sha = sha_of(conn, charted, "SEC_trace_141026.csv")
+    good = [
+        {**SPEC, "type": "line", "series": TWELVE},
+        {**SPEC, "type": "line", "series": [{**SPEC["series"][0], "x": "E"}]},
+        {**SPEC, "series": [{**SPEC["series"][0], "x": None, "stroke": "solid"}]},
+        PLATE,
+        {**PLATE, "plate": {"size": 384, "source": {"kind": "grid", "rows": "A"}}},
+        {**PLATE, "plate": {"size": 96, "source": {"kind": "read", "row": 30}}},
+    ]
+    for spec in good:
+        with as_user(conn, charted.user_id):
+            insert_chart(conn, charted, sha, spec)
+    bad = [
+        {**SPEC, "type": "line", "series": [*TWELVE, {**TWELVE[0], "column": "N"}]},
+        {**SPEC, "type": "bar", "series": [{**s, "stroke": "solid"} for s in TWELVE[:7]]},
+        {**SPEC, "series": [{**SPEC["series"][0], "stroke": "dashed"}]},
+        {**SPEC, "type": "bar", "series": [{**SPEC["series"][0], "x": "B"}]},
+        {**SPEC, "type": "line", "series": [{**SPEC["series"][0], "x": "B1"}]},
+        {**PLATE, "plate": {"size": 48, "source": PLATE["plate"]["source"]}},
+        {**PLATE, "plate": {"size": 96, "source": {"kind": "read", "row": -1}}},
+        {**PLATE, "plate": {"size": 96, "source": {"kind": "read", "row": 1.5}}},
+        {**PLATE, "plate": {"size": 96, "source": {"kind": "read", "row": "3"}}},
+        {**PLATE, "plate": {"size": 96, "source": {"kind": "wells", "well": "A"}}},
+        {k: v for k, v in PLATE.items() if k != "value"},
+    ]
+    for spec in bad:
+        with as_user(conn, charted.user_id), raises_code("23514"):
+            insert_chart(conn, charted, sha, spec)
