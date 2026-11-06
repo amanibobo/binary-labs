@@ -90,12 +90,12 @@ export function MonthPicker({
         setOpen(next);
       }}
     >
-      <Popover.Trigger className="group inline-flex max-w-full min-w-0 items-center gap-1 rounded-lg px-2 py-0.5 text-left transition-colors duration-150 hover:bg-background-secondary focus-visible:bg-background-secondary data-[state=open]:bg-background-secondary">
+      <Popover.Trigger title="Change month or year" className="group inline-flex max-w-full min-w-0 items-center gap-1 rounded-lg px-2 py-0.5 text-left transition-colors duration-150 hover:bg-background-secondary focus-visible:bg-background-secondary data-[state=open]:bg-background-secondary">
         <span className="truncate">{title}</span>
         <span className="sr-only">, change month or year</span>
         <ChevronDownIcon
           aria-hidden
-          className="size-5 shrink-0 text-content-tertiary opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100 group-data-[state=open]:opacity-100 [@media(hover:none)]:opacity-100"
+          className="size-5 shrink-0 text-content-tertiary opacity-50 transition-opacity duration-150 group-hover:text-content-primary group-hover:opacity-100 group-focus-visible:opacity-100 group-data-[state=open]:opacity-100 [@media(hover:none)]:opacity-100"
         />
       </Popover.Trigger>
       <Popover.Portal>

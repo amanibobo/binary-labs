@@ -54,7 +54,7 @@ export function YearView({
           Something added
         </span>
         <span className="flex items-center gap-2">
-          <span aria-hidden className="grid size-4 place-items-end justify-center pb-0.5">
+          <span aria-hidden className="grid size-4 place-items-center">
             <span className="size-1 rounded-full bg-content-secondary" />
           </span>
           Something planned
