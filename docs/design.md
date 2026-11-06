@@ -66,6 +66,14 @@ pending ──process──▶ failed (index_error set; retried on next rescan)
 
 The web app calls the worker's `POST /embed` with a 250 ms timeout. On error or timeout it calls `search_files` with a null embedding and returns `{ kind: "keyword", reason }`. Otherwise it returns `{ kind: "hybrid" }`.
 
+### Search rows
+
+One row component (`components/search/file-result.tsx`) serves the Search home, results and the calendar's day; Browse and a protocol's Files keep their own closed rows and share the opened one (`components/files/preview-panel.tsx`).
+
+- **Closed:** `FileThumb` (also on Needs a look), the name with `CheckMark` and `FlagMark`, the summary line, then where it lives · date and the matching text. `rowSummary` (`lib/row-summary.ts`) decides the summary: `unlabeled`, `needs_look`, or `labeled` with at most two facts (experiment and person, the instrument filling a gap), the free tags and whether it's `check`. The tag count toggles `TagList` in place; nothing on a closed row edits.
+- **Opened:** a grid of the preview and the actions (Open, then Make a chart, Map around this file, Make a protocol from this file), then `LabelsSection` (passed in as `labels` by rows that edit labels) and, only when there are any, Checks, Also in and Charts. A data sheet previews `mainTable` of `GET /api/tables/<sha>` through `tableSlice` (`lib/table-preview.ts`: 5 by 5, then 30 by 24), with the table's `notes` behind "Notes from the instrument"; a sheet whose table isn't ready, and every other text file, previews the snippet, cut at eight lines or 480 characters with Show more.
+- **Keys:** the row toggles carry `data-row-toggle`; Up and Down move between the toggles of one list (`rowStep` in `lib/row-keys.ts`), Down from the search box enters it and Up from the first row leaves it, Escape inside an opened row closes it.
+
 ## Secrets
 
 `TOKEN_ENCRYPTION_KEY` is 32 random bytes, base64-encoded, shared by web and worker. `sources.token_ciphertext` is `nonce(12) || ciphertext || tag(16)`, AES-256-GCM, holding the Dropbox **refresh** token (`token_access_type=offline`). The worker mints short-lived access tokens with the app key and secret.
