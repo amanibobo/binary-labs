@@ -1,5 +1,8 @@
 import { MAX_SERIES, type SeriesColor, type Stroke, type XYSpec } from "./charts";
 import { findColumn, formatDate, type DataColumn, type DataTable } from "./data-tables";
+import { formatValue } from "./numbers";
+
+export { formatValue };
 
 // Where every mark of a line, scatter or bar chart goes, from its spec, its table and a size.
 // Pure, so the live chart, the exported SVG and the tests all draw from the same numbers. Text
@@ -69,12 +72,6 @@ export function textWidth(text: string, size: number): number {
 
 const sig = new Intl.NumberFormat("en-US", { maximumSignificantDigits: 5 });
 const compact = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 });
-
-// A value as the tooltip and table show it.
-export function formatValue(v: number): string {
-  if (v !== 0 && Math.abs(v) < 1e-4) return v.toExponential(2);
-  return sig.format(v);
-}
 
 function tickFormat(step: number, span: number): (v: number) => string {
   if (span >= 10_000) return (v) => compact.format(v);
@@ -201,9 +198,9 @@ export function timeTicks(lo: number, hi: number, count: number): { values: numb
   }
 }
 
-type Scale = { map: (v: number) => number; ticks: Tick[] };
+export type Scale = { map: (v: number) => number; ticks: Tick[] };
 
-function linearScale(lo: number, hi: number, r0: number, r1: number, count: number): Scale {
+export function linearScale(lo: number, hi: number, r0: number, r1: number, count: number): Scale {
   const map = (v: number) => r0 + ((v - lo) / (hi - lo)) * (r1 - r0);
   const values = linearTicks(lo, hi, count);
   const format = tickFormat(tickStep(lo, hi, count), Math.max(Math.abs(lo), Math.abs(hi)));
@@ -216,7 +213,7 @@ function timeScale(lo: number, hi: number, r0: number, r1: number, count: number
   return { map, ticks: values.map((v) => ({ pos: map(v), label: label(v) })) };
 }
 
-function logScale(lo: number, hi: number, r0: number, r1: number): Scale {
+export function logScale(lo: number, hi: number, r0: number, r1: number): Scale {
   const [l0, l1] = [Math.log10(lo), Math.log10(hi)];
   const map = (v: number) => r0 + ((Math.log10(v) - l0) / (l1 - l0)) * (r1 - r0);
   return { map, ticks: logTicks(lo, hi).map((v) => ({ pos: map(v), label: v >= 10_000 ? compact.format(v) : sig.format(v) })) };
@@ -469,7 +466,18 @@ export function plotChart(
     const auto: [number, number] = spec.type === "line" && xLo < xHi ? [xLo, xHi] : xLo < xHi ? [xLo - pad, xHi + pad] : single;
     let xDomain: [number, number] = [spec.x.min ?? auto[0], spec.x.max ?? auto[1]];
     if (xDomain[0] >= xDomain[1]) xDomain = auto;
-    const xScale = (isTime ? timeScale : linearScale)(xDomain[0], xDomain[1], area.left, area.left + area.width, xCount);
+    // A log x (checkSpec refuses zero and below): from the data's own ends, with a little air
+    // in log space for dots.
+    const isLogX = spec.x.scale === "log" && !isTime && xLo > 0;
+    if (isLogX) {
+      const air = spec.type === "scatter" && xLo < xHi ? (Math.log10(xHi) - Math.log10(xLo)) * 0.03 : 0;
+      const lo = spec.x.min !== null && spec.x.min > 0 ? spec.x.min : xLo / 10 ** air;
+      const hi = spec.x.max !== null && spec.x.max > lo ? spec.x.max : xLo < xHi ? xHi * 10 ** air : xLo * 10;
+      xDomain = [lo, hi];
+    }
+    const xScale = isLogX
+      ? logScale(xDomain[0], xDomain[1], area.left, area.left + area.width)
+      : (isTime ? timeScale : linearScale)(xDomain[0], xDomain[1], area.left, area.left + area.width, xCount);
     xTicks = xScale.ticks;
 
     for (const r of sharedRows) {

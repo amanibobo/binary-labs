@@ -47,6 +47,7 @@ const shots = [
   ...talkThroughShots(),
   ...videoShots(),
   ...chartShots(),
+  ...repeatShots(),
   ...mapShots(),
   ...onboardingShots(),
   ...calendarShots(),
@@ -242,6 +243,87 @@ function mapShots() {
 // chart page; then the readout on hover, the worker still reading a table, dates, curves on
 // their own x, plates, past six lines, a chart whose file was read again, a data sheet's opened
 // row in search and a protocol showing its charts (read-only).
+// Charts of repeats (decisions.md, "charts round 1"): marking a plate's wells, bars with every
+// repeat and a test, a line with its spread, a standard curve with its samples, a
+// dose-response curve with its IC50, a box plot, a histogram, the export sizes and a saved
+// chart's "Made from".
+function repeatShots() {
+  const c = (view) => `/dev/fixtures/charts?view=${view}`;
+  const all = (shot) => ["dark", "light"].flatMap((scheme) => [1440, 390].map((width) => ({ ...shot, width, scheme })));
+  const ready = (page) =>
+    page.waitForFunction(() => {
+      const button = document.querySelector("main button");
+      return button !== null && Object.keys(button).some((k) => k.startsWith("__reactProps"));
+    });
+  const answer = (question) => async (page) => {
+    await ready(page);
+    await page.getByRole("button", { name: new RegExp(`^${question}`) }).first().click();
+    await page.locator("figure svg").first().waitFor();
+  };
+  const well = (page, name) => page.getByRole("gridcell", { name: new RegExp(`^${name},`) });
+  const drag = async (page, from, to) => {
+    await well(page, from).scrollIntoViewIfNeeded();
+    const a = await well(page, from).boundingBox();
+    const b = await well(page, to).boundingBox();
+    await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 6 });
+    await page.mouse.up();
+  };
+  const paint = async (page) => {
+    await ready(page);
+    await page.getByRole("button", { name: "Mark the wells" }).click();
+    const dialog = page.getByRole("dialog");
+    await dialog.waitFor();
+    await drag(page, "B1", "D1");
+    await dialog.getByRole("radio", { name: /^Blank/ }).click();
+    await dialog.getByRole("button", { name: /^Mark 3 wells/ }).click();
+    await drag(page, "B2", "D2");
+    await dialog.getByRole("radio", { name: /^Control/ }).click();
+    await dialog.getByRole("button", { name: /^Mark 3 wells/ }).click();
+    await drag(page, "B3", "D7");
+    await dialog.getByRole("button", { name: "Fill a dilution series" }).click();
+    await dialog.getByLabel("Name", { exact: true }).last().fill("Drug A");
+    await dialog.getByLabel(/^Start at/).fill("100");
+    await dialog.getByLabel("Divide by").fill("5");
+  };
+  return [
+    ...all({ name: "repeats-question", path: c("dose") }),
+    ...all({ name: "repeats-paint", path: c("dose-paint"), steps: paint, full: false }),
+    ...all({ name: "repeats-dose", path: c("dose"), steps: answer("How a dose changes the effect") }),
+    ...all({ name: "repeats-bars-test", path: c("knockdown"), steps: answer("Compare groups") }),
+    ...all({ name: "repeats-bars-control", path: c("groups"), steps: answer("Compare groups") }),
+    ...all({ name: "repeats-band", path: c("growth-reps"), steps: answer("How something changes") }),
+    ...all({ name: "repeats-curve", path: c("bradford-plate"), steps: answer("How two measurements relate") }),
+    ...all({ name: "repeats-box", path: c("groups"), steps: answer("How values spread in each group") }),
+    ...all({ name: "repeats-histogram", path: c("cells"), steps: answer("How values are spread") }),
+    ...all({ name: "repeats-pendulum", path: c("pendulum"), steps: answer("How two measurements relate") }),
+    ...all({ name: "repeats-saved", path: c("saved-dose") }),
+    ...all({
+      name: "repeats-export",
+      path: c("saved-dose"),
+      steps: async (page) => {
+        await ready(page);
+        await page.getByRole("button", { name: "Download" }).click();
+        await page.getByRole("menu").waitFor();
+      },
+      full: false,
+    }),
+    ...["dark", "light"].map((scheme) => ({
+      name: "repeats-explain",
+      path: c("knockdown"),
+      steps: async (page) => {
+        await answer("Compare groups")(page);
+        await page.getByRole("button", { name: /^Unlikely: Welch's t-test, p/ }).hover();
+        await page.getByRole("dialog").waitFor();
+      },
+      full: false,
+      width: 1440,
+      scheme,
+    })),
+  ];
+}
+
 function chartShots() {
   const c = (view) => `/dev/fixtures/charts?view=${view}`;
   const all = (shot) => ["dark", "light"].flatMap((scheme) => [1440, 390].map((width) => ({ ...shot, width, scheme })));
@@ -265,9 +347,9 @@ function chartShots() {
     ...all({ name: "chart-question", path: c("bradford") }),
     ...all({
       name: "chart-pick-data",
-      path: c("bradford"),
+      path: c("dates"),
       steps: async (page) => {
-        await answer("How two measurements relate")(page);
+        await answer("How something changes")(page);
         await page.getByRole("button", { name: "Add another measurement" }).click();
         await page.getByRole("dialog").waitFor();
       },
@@ -635,6 +717,7 @@ function protocolShots() {
     ...extras,
   ];
 }
+// A pattern picks the shots to take: "chart-saved" or "^repeats-.*-1440-dark$".
 const only = process.argv[2];
 
 // A fake microphone, allowed without a prompt, for the talk-through recorder.
@@ -649,7 +732,7 @@ try {
   gelPng = await drawGel(browser);
   for (const shot of shots) {
     const tag = `${shot.name}-${shot.width}-${shot.scheme}`;
-    if (only !== undefined && !tag.includes(only)) continue;
+    if (only !== undefined && !new RegExp(only).test(tag)) continue;
     const context = await browser.newContext({
       viewport: { width: shot.width, height: shot.width < 500 ? 844 : 900 },
       colorScheme: shot.scheme,

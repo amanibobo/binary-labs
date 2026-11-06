@@ -1,7 +1,7 @@
 import "server-only";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { checkSpec, CHART_COLUMNS, ChartRows, type ChartSpec, type SavedChart } from "./charts";
+import { checkSpec, CHART_COLUMNS, ChartRows, isSummary, type ChartSpec, type SavedChart } from "./charts";
 import { DataTables, TableState } from "./data-tables";
 import { LocationId, Sha256, type ChartId, type LabId, type ProtocolId } from "./ids";
 import { FileKind } from "./domain";
@@ -71,7 +71,20 @@ export async function chartProblem(
   if (state.state !== "ready") return "This file's table isn't ready yet.";
   const table = state.tables.tables.find((t) => t.name === chart.sheet);
   if (table === undefined) return `There's no table called ${chart.sheet} in this file.`;
-  return checkSpec(chart.spec, table);
+  return checkSpec(chart.spec, table, state.tables.tables);
+}
+
+// What a saved chart was made from, beyond its file and sheet: the protocol version it was saved
+// on and the saved layout its wells came from, when they're still there.
+export async function loadProvenance(supabase: Supabase, labId: LabId, chart: SavedChart): Promise<{ protocolVersion: { version: number; title: string } | null; layoutName: string | null }> {
+  const layoutId = isSummary(chart.spec) && chart.spec.source.kind === "plate" ? chart.spec.source.layoutId : null;
+  const [versions, layouts] = await Promise.all([
+    chart.protocolVersionId === null
+      ? Promise.resolve([])
+      : z.array(z.object({ version: z.number(), title: z.string() })).parse(unwrap(await supabase.from("protocol_versions").select("version, title").eq("lab_id", labId).eq("id", chart.protocolVersionId).limit(1))),
+    layoutId === null ? Promise.resolve([]) : z.array(z.object({ name: z.string() })).parse(unwrap(await supabase.from("sample_layouts").select("name").eq("lab_id", labId).eq("id", layoutId).limit(1))),
+  ]);
+  return { protocolVersion: versions[0] ?? null, layoutName: layouts[0]?.name ?? null };
 }
 
 export async function loadCharts(

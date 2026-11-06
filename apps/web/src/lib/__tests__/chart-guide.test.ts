@@ -4,7 +4,7 @@ import bradfordJson from "@/fixtures/tables/Bradford_2026-10-30.json";
 import elisaJson from "@/fixtures/tables/ELISA_plate3.json";
 import plateJson from "@/fixtures/tables/plate7_A420.json";
 import secJson from "@/fixtures/tables/SEC_trace_141026.json";
-import { ChartSpec, type XYSpec } from "../charts";
+import { ChartSpec, isXY, type XYSpec } from "../charts";
 import { plotChart } from "../chart-geometry";
 import {
   chartWarnings,
@@ -36,7 +36,7 @@ const bioreactor = table(bioreactorJson);
 const elisa = table(elisaJson);
 const col = (id: string) => ColumnId.parse(id);
 const xy = (spec: ChartSpec | null): XYSpec => {
-  if (spec === null || spec.type === "heatmap") throw new Error("not an x/y chart");
+  if (spec === null || !isXY(spec)) throw new Error("not an x/y chart");
   return spec;
 };
 
@@ -78,13 +78,14 @@ describe("the suggested chart", () => {
 });
 
 describe("a chart's first columns", () => {
-  it("plot the standards' mean with its SD as error bars, not a single repeat", () => {
+  it("start a standard curve from the repeats themselves, and the sheet's Mean ± SD columns as a plain scatter", () => {
+    expect(startingChart(standards)).toMatchObject({ type: "curve", source: { kind: "rows", key: "A", series: [{ name: "A595", values: ["B", "C", "D"] }] }, fit: "line" });
     expect(spreadFor(standards, standards.columns[4])?.id).toBe("F");
     expect(spreadFor(standards, standards.columns[1])).toBeNull();
-    expect(startingChart(standards)).toEqual({
+    expect(startFor(standards, "scatter")).toEqual({
       version: 1,
       type: "scatter",
-      x: { column: "A", title: "BSA", unit: "µg/mL", min: null, max: null },
+      x: { column: "A", title: "BSA", unit: "µg/mL", scale: "linear", min: null, max: null },
       y: { title: "Mean", unit: "AU", scale: "linear", min: null, max: null },
       series: [{ column: "E", name: "Mean", color: "blue", stroke: "solid", error: "F", x: null }],
       legend: "top",
@@ -128,13 +129,13 @@ describe("a chart's first columns", () => {
 
 describe("the sentence under a chart", () => {
   it("names the measurement, the count, the range with units, the repeats and the error bars", () => {
-    expect(describeChart(xy(startingChart(standards)), standards)).toBe(
+    expect(describeChart(xy(startFor(standards, "scatter")), standards)).toBe(
       "Mean (AU) for 8 BSA values from 0 to 2,000 µg/mL, each the mean of 3 repeats in the sheet, with bars showing how much the repeats vary (± SD).",
     );
   });
 
   it("follows renamed axes and a log scale", () => {
-    const spec = xy(startingChart(standards));
+    const spec = xy(startFor(standards, "scatter"));
     const renamed = { ...spec, x: { ...spec.x, title: "BSA standard" }, y: { ...spec.y, title: "Absorbance at 595 nm", scale: "log" as const } };
     expect(describeChart(renamed, standards)).toBe(
       "Absorbance at 595 nm (AU) for 8 BSA standard values from 0 to 2,000 µg/mL, each the mean of 3 repeats in the sheet, with bars showing how much the repeats vary (± SD). The side axis is a log scale, so each step up is ten times the one before.",
@@ -142,7 +143,7 @@ describe("the sentence under a chart", () => {
   });
 
   it("drops the error bars and repeats when they're off", () => {
-    const spec = xy(startingChart(standards));
+    const spec = xy(startFor(standards, "scatter"));
     const plain = { ...spec, series: [{ ...spec.series[0], column: col("B"), name: "A595 Rep 1", error: null }], y: { ...spec.y, title: "A595 Rep 1" } };
     expect(describeChart(plain, standards)).toBe("A595 Rep 1 (AU) for 8 BSA values from 0 to 2,000 µg/mL.");
   });
@@ -175,17 +176,17 @@ describe("warnings", () => {
     const both = { ...spec, series: [...spec.series, { ...spec.series[0], column: col("F"), name: "Cond", color: "orange" as const, x: col("E") }] };
     expect(chartWarnings(both, sec)).toEqual(["UV 1_280 and Cond have different units (mAU and mS/cm) but share one side axis. A chart for each may read better."]);
     const backwards = { ...standards, columns: standards.columns.map((c) => (c.id === "A" && c.kind === "number" ? { ...c, values: [...c.values].reverse() } : c)) };
-    expect(chartWarnings({ ...xy(startingChart(standards)), type: "line" }, backwards)).toEqual([
+    expect(chartWarnings({ ...xy(startFor(standards, "scatter")), type: "line" }, backwards)).toEqual([
       "BSA doesn't go up row by row, so the line doubles back. A scatter chart may read better.",
     ]);
   });
 
   it("count cells that aren't numbers, and crowded bars", () => {
     const odd = { ...standards, columns: standards.columns.map((c) => (c.id === "E" ? { ...c, invalid: 2 } : c)) };
-    expect(chartWarnings(xy(startingChart(standards)), odd)).toEqual(["Mean has 2 cells that aren't numbers, so they're left out."]);
+    expect(chartWarnings(xy(startFor(standards, "scatter")), odd)).toEqual(["Mean has 2 cells that aren't numbers, so they're left out."]);
     const long = xy(startFor(kinetic, "bar"));
     expect(chartWarnings(long, kinetic)).toEqual(["These 31 bars are crowded. A line may read better."]);
-    expect(chartWarnings(xy(startingChart(standards)), standards)).toEqual([]);
+    expect(chartWarnings(xy(startFor(standards, "scatter")), standards)).toEqual([]);
   });
 });
 
@@ -209,7 +210,7 @@ describe("what a chart says about itself", () => {
   });
 
   it("says when error bars are hidden behind their dots, so they don't read as missing", () => {
-    const plot = plotChart(xy(startingChart(standards)), standards, { width: 760, height: 440 });
+    const plot = plotChart(xy(startFor(standards, "scatter")), standards, { width: 760, height: 440 });
     expect(plot.notes).toEqual(["2 error bars on Mean are shorter than the dot, so they hide behind it. Show the numbers lists every value."]);
   });
 });

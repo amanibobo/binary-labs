@@ -17,6 +17,7 @@ import {
   SERIES_COLORS,
   startingHeatmap,
 
+  isXY,
   withType,
   type Series,
   type XYSpec,
@@ -38,7 +39,7 @@ const table = (doc: DataTables, name: string): DataTable => {
 };
 const col = (id: string) => ColumnId.parse(id);
 const xy = (spec: ChartSpec | null): XYSpec => {
-  if (spec === null || spec.type === "heatmap") throw new Error("not an x/y chart");
+  if (spec === null || !isXY(spec)) throw new Error("not an x/y chart");
   return spec;
 };
 
@@ -47,7 +48,7 @@ const akta = table(sec, "Table 1");
 const base = {
   version: 1 as const,
   type: "scatter" as const,
-  x: { column: col("A"), title: "BSA", unit: "µg/mL", min: null, max: null },
+  x: { column: col("A"), title: "BSA", unit: "µg/mL", scale: "linear", min: null, max: null },
   y: { title: "A595", unit: "AU", scale: "linear" as const, min: null, max: null },
   series: [{ column: col("E"), name: "Mean", color: "blue" as const, error: col("F") }],
   legend: "top" as const,

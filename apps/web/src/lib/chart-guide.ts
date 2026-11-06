@@ -1,5 +1,7 @@
 import {
   checkSpec,
+  isHeatmap,
+  isXY,
   MAX_BARS,
   MAX_SERIES,
   nextStyle,
@@ -9,12 +11,12 @@ import {
   startingXY,
   withType,
   type ChartSpec,
-  type ChartType,
   type HeatmapSpec,
   type Series,
   type XYSpec,
   type XYType,
 } from "./charts";
+import { describeSummary, KINDS, kindOf, kindProblem, startKind, summarySuggestions, summaryWarnings, type ChartData, type ChartKind, type KindSuggestion } from "./summary-guide";
 import { formatValue } from "./chart-geometry";
 import {
   axisColumns,
@@ -36,6 +38,9 @@ import { readLabel } from "./plate-geometry";
 // first-year student"): which kind of chart to suggest and why, how each kind starts from a
 // table, and what a chart shows, in one sentence, with what's off in plain words. Pure, so the
 // builder, its tests and the fixtures all read the same answers.
+
+// Charts of a sheet's columns as they are, and the plate heatmap.
+export type ChartType = XYType | "heatmap";
 
 // The first question, "What do you want to show?", one answer per kind of chart.
 export const CHOICES = [
@@ -123,7 +128,7 @@ function xySpec(table: DataTable, type: XYType, x: DataColumn, measured: readonl
   return {
     version: 1,
     type,
-    x: { column: x.id, title: x.name, unit: x.kind === "number" ? (x.unit ?? "") : "", min: null, max: null },
+    x: { column: x.id, title: x.name, unit: x.kind === "number" ? (x.unit ?? "") : "", scale: "linear", min: null, max: null },
     y: { title: only?.name ?? "", unit: units.size === 1 ? [...units][0] : "", scale: "linear", min: null, max: null },
     series,
     legend: "top",
@@ -178,10 +183,79 @@ export function startFor(table: DataTable, type: ChartType): ChartSpec | null {
   return xySpec(table, type, x, [measured]);
 }
 
-// The chart a new chart opens on: the suggested kind, started.
+// The chart a new chart of a lone sheet opens on: the suggested kind, started.
 export function startingChart(table: DataTable): ChartSpec | null {
-  const suggested = recommend(table);
-  return suggested === null ? null : startFor(table, suggested.type);
+  return startChart({ table, tables: [table], layout: null });
+}
+
+// ---------------------------------------------------------------------------------------------
+// Kinds of chart (lib/summary-guide.ts): a kind is what a student picks; it starts as a chart
+// of repeats when the sheet or the plate's layout has them, and as a chart of the sheet's own
+// columns when it doesn't.
+
+const RAW: Record<ChartKind, ChartType | null> = { line: "line", bar: "bar", scatter: "scatter", heatmap: "heatmap", dose: null, box: null, histogram: null };
+
+// A scatter of a few rows reads best as a curve with a fitted line; a long trace as dots.
+const CURVE_ROWS = 60;
+
+// A chart of this kind of the data, or null when it can't be made.
+export function startChart(data: ChartData, kind?: ChartKind): ChartSpec | null {
+  const pick = kind ?? suggestionsFor(data)[0]?.kind;
+  if (pick === undefined) return null;
+  const summary = pick === "heatmap" ? null : startKind(data, pick);
+  if (summary !== null && !(summary.type === "curve" && summary.source.kind === "rows" && summary.source.series[0]?.values.length === 1 && data.table.rows > CURVE_ROWS)) return summary;
+  const raw = RAW[pick];
+  return raw === null ? null : startFor(data.table, raw);
+}
+
+// The kinds to offer, best first, each with why in a line: what the repeats or the plate's
+// layout suggest, then what the sheet's own columns do.
+export function suggestionsFor(data: ChartData): KindSuggestion[] {
+  const out: KindSuggestion[] = summarySuggestions(data).filter((s) => !(s.kind === "scatter" && data.table.rows > CURVE_ROWS && data.layout === null));
+  const raw = recommend(data.table);
+  const plate = plateLayout(data.table);
+  if (raw !== null && !out.some((s) => s.kind === raw.type)) {
+    const reason = raw.type === "heatmap" && plate !== null && plate.kind !== "read" && data.layout === null ? `${raw.reason} Mark its blanks, standards and samples to compare them or fit a curve.` : raw.reason;
+    if (data.layout !== null || out.length === 0) out.push({ kind: raw.type, reason });
+    else out.splice(Math.min(out.length, 1), 0, { kind: raw.type, reason });
+  }
+  return out.filter((s) => startChart(data, s.kind) !== null);
+}
+
+// Why this data can't make a kind, in a line, or null when it can.
+export function kindChoiceProblem(data: ChartData, kind: ChartKind): string | null {
+  if (startChart(data, kind) !== null) return null;
+  const raw = RAW[kind];
+  return raw === null ? kindProblem(data, kind) : (choiceProblem(data.table, raw) ?? kindProblem(data, kind));
+}
+
+export function kindsFor(data: ChartData): ChartKind[] {
+  return KINDS.filter((k) => k !== "heatmap" || plateLayout(data.table) !== null);
+}
+
+// The chart a switch to another kind lands on. Between the sheet's own kinds it keeps the same
+// columns; to and from a chart of repeats it starts that kind afresh, keeping the spread, the
+// blank and the axis titles a student already set.
+export function switchKind(spec: ChartSpec, kind: ChartKind, data: ChartData, other: ChartSpec | null): ChartSpec | null {
+  if (kindOf(spec) === kind) return spec;
+  if (other !== null && kindOf(other) === kind) return other;
+  const next = startChart(data, kind);
+  if (next === null) return null;
+  const raw = RAW[kind];
+  if (raw !== null && (isXY(next) || isHeatmap(next)) && (isXY(spec) || isHeatmap(spec))) return switched(spec, raw, data.table, other);
+  if (next.type === "groups" && spec.type === "groups") return { ...spec, mark: next.mark, points: spec.points || next.mark === "box", y: next.mark === "bar" ? { ...spec.y, scale: "linear" } : spec.y };
+  if ("spread" in next && "spread" in spec) return { ...next, spread: spec.spread, blank: spec.blank && next.blank };
+  return next;
+}
+
+export function kindSwitchProblem(spec: ChartSpec, kind: ChartKind, data: ChartData, other: ChartSpec | null): string | null {
+  if (kindOf(spec) === kind) return null;
+  const next = switchKind(spec, kind, data, other);
+  if (next === null) return kindChoiceProblem(data, kind);
+  if (isXY(spec) && next.type === "scatter" && spec.series.length > MAX_SERIES.scatter) {
+    return `A scatter chart shows up to ${MAX_SERIES.scatter} columns, and this one has ${spec.series.length}.`;
+  }
+  return barProblem(next, data.table) ?? specProblem(next) ?? checkSpec(next, data.table, data.tables);
 }
 
 function barProblem(spec: ChartSpec, table: DataTable): string | null {
@@ -219,7 +293,7 @@ export function switchProblem(spec: ChartSpec, type: ChartType, table: DataTable
   if (spec.type === type) return null;
   const next = switched(spec, type, table, other);
   if (next === null || next.type !== type) return choiceProblem(table, type);
-  if (next.type === "scatter" && spec.type !== "heatmap" && spec.series.length > MAX_SERIES.scatter) {
+  if (next.type === "scatter" && isXY(spec) && spec.series.length > MAX_SERIES.scatter) {
     return `A scatter chart shows up to ${MAX_SERIES.scatter} columns, and this one has ${spec.series.length}.`;
   }
   return barProblem(next, table) ?? specProblem(next) ?? checkSpec(next, table);
@@ -291,8 +365,10 @@ function bound(v: number, column: DataColumn | undefined): string {
 // What a chart shows, in one or two sentences a student can check against what they meant:
 // "Mean (AU) for 8 BSA values from 0 to 2,000 µg/mL, each the mean of 3 repeats in the sheet, with bars showing
 // how much the repeats vary (± SD)."
-export function describeChart(spec: ChartSpec, table: DataTable): string {
-  return spec.type === "heatmap" ? describePlate(spec, table) : describeXY(spec, table);
+export function describeChart(spec: ChartSpec, table: DataTable, tables: readonly DataTable[] = [table]): string {
+  if (isHeatmap(spec)) return describePlate(spec, table);
+  if (isXY(spec)) return describeXY(spec, table);
+  return describeSummary(spec, { table, tables, layout: null });
 }
 
 function describeXY(spec: XYSpec, table: DataTable): string {
@@ -355,6 +431,7 @@ function describeXY(spec: XYSpec, table: DataTable): string {
   }
 
   const more: string[] = [];
+  if (spec.x.scale === "log") more.push("The bottom axis is a log scale, so each step along is ten times the one before.");
   if (spec.y.scale === "log") more.push("The side axis is a log scale, so each step up is ten times the one before.");
   const { min: xMin, max: xMax } = spec.x;
   if (xMin !== null || xMax !== null) {
@@ -390,12 +467,13 @@ function describePlate(spec: HeatmapSpec, table: DataTable): string {
 }
 
 // What's off about a chart, each in one plain sentence; empty when nothing is.
-export function chartWarnings(spec: ChartSpec, table: DataTable): string[] {
+export function chartWarnings(spec: ChartSpec, table: DataTable, tables: readonly DataTable[] = [table]): string[] {
   if (spec.type === "heatmap") {
     const source = spec.plate.source;
     const value = source.kind === "wells" ? findColumn(table, source.value) : undefined;
     return value === undefined ? [] : invalidCells([value]);
   }
+  if (!isXY(spec)) return summaryWarnings(spec, { table, tables, layout: null });
   const out: string[] = [];
   const x = findColumn(table, spec.x.column);
   const drawn = drawnSeries(spec, table);

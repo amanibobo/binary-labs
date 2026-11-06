@@ -25,6 +25,24 @@ For checks (decisions.md, "checking results: expected values and flags"):
 - plate9_A595_endpoint.csv: the same read on another day, blanks at 0.04 to 0.06.
 - spectrum_BM3_2026-11-03.csv: a UV scan from 240 to 340 nm with its maximum at 280 nm.
 - nanodrop_2026-11-03.csv: a NanoDrop protein export with each sample's 260/280 ratio.
+
+For layouts, repeats, fits and tests (decisions.md, "charts round 1"):
+
+- viability_drugA_layout.csv: a Gen5 endpoint read of a viability plate (A570) with its layout
+  block and a concentration grid: 3 blanks, 3 vehicle controls and Drug A at 100, 20, 4, 0.8
+  and 0.16 µM, 3 wells each, IC50 about 2.4 µM.
+- viability_drugA.csv: the same plate exported without the layout, to paint by hand.
+- Bradford_plate_2026-11-05.csv: a Bradford plate listed by well (Well, Sample, Conc, Dilution,
+  A595): 3 blanks, standards 125 to 1000 µg/mL in duplicate and four samples in triplicate, one
+  of them reading above the top standard.
+- knockdown_qpcr.csv: relative expression after control and SOX2 siRNA, 4 repeats each, one
+  column per group.
+- treatments_4groups.csv: cell counts for vehicle and three treatments, 4 wells each, as a
+  group column beside a value column.
+- growth_curve.xlsx: OD600 every hour for 12 h, wild type and a mutant in triplicate, "Rep 1"
+  to "Rep 3" under a merged strain name.
+- cell_sizes.csv: 200 cell diameters from an image analysis export.
+- pendulum.csv: a physics lab's pendulum: length against the period squared.
 """
 
 from __future__ import annotations
@@ -276,7 +294,139 @@ def elisa() -> bytes:
     return ("\r\n".join(lines) + "\r\n").encode("utf-8")
 
 
+DRUG_DOSES = [100, 20, 4, 0.8, 0.16]
+
+
+def viability(layout_block: bool) -> bytes:
+    """A Gen5 endpoint read of a viability plate: blanks in B1:D1, vehicle controls in B2:D2,
+    Drug A from 100 µM down by fives in columns 3 to 7, rows B to D."""
+    rng = random.Random(570)
+    blank, top, bottom, ic50, hill = 0.052, 1.08, 0.13, 2.4, 1.1
+    grid = [["" for _ in range(12)] for _ in ROWS]
+    labels = [["" for _ in range(12)] for _ in ROWS]
+    concs = [["" for _ in range(12)] for _ in ROWS]
+    for r in range(8):
+        for c in range(12):
+            grid[r][c] = f"{0.045 + rng.gauss(0, 0.003):.3f}"
+    for r in (1, 2, 3):
+        grid[r][0] = f"{blank + rng.gauss(0, 0.004):.3f}"
+        labels[r][0] = "BLK"
+        grid[r][1] = f"{blank + top + rng.gauss(0, 0.03):.3f}"
+        labels[r][1], concs[r][1] = "CTL", "0"
+        for i, dose in enumerate(DRUG_DOSES):
+            effect = bottom + (top - bottom) / (1 + (dose / ic50) ** hill)
+            grid[r][2 + i] = f"{blank + effect + rng.gauss(0, 0.025):.3f}"
+            labels[r][2 + i], concs[r][2 + i] = "Drug A", f"{dose:g}"
+
+    def block(rows: list[list[str]]) -> list[list[str]]:
+        return [["", *[str(c) for c in range(1, 13)]]] + [[ROWS[r], *rows[r]] for r in range(8)]
+
+    lines: list[list[str]] = [
+        ["Software Version", "3.11.19"],
+        ["Experiment File Path:", r"C:\Users\Public\Documents\Experiments\viability_drugA.xpt"],
+        ["Plate Number", "Plate 2"],
+        ["Date", "11/5/2026"],
+        ["Reader Type:", "Synergy H1"],
+        ["Read", "Absorbance Endpoint"],
+        ["", "Wavelengths:  570"],
+        [],
+        ["Results"],
+        [],
+        *block(grid),
+    ]
+    if layout_block:
+        lines += [[], ["Layout"], [], *block(labels), [], ["Concentration (µM)"], [], *block(concs)]
+    return ("\r\n".join(",".join(row) for row in lines) + "\r\n").encode("utf-8")
+
+
+def bradford_plate() -> bytes:
+    rng = random.Random(595)
+    rows = [["Well", "Sample", "Conc (µg/mL)", "Dilution", "A595"]]
+    wells = iter(f"{ROWS[i % 8]}{i // 8 + 1}" for i in range(96))
+    reagent = 0.43
+    for _ in range(3):
+        rows.append([next(wells), "Blank", "", "", f"{reagent + rng.gauss(0, 0.006):.3f}"])
+    for conc in (125, 250, 500, 750, 1000):
+        for _ in range(2):
+            a = reagent + 0.00061 * conc + rng.gauss(0, 0.008)
+            rows.append([next(wells), "Standard", str(conc), "", f"{a:.3f}"])
+    for name, dilution, conc in [
+        ("Lysate", 20, 640.0),
+        ("Flow-through", 10, 310.0),
+        ("Wash", 1, 42.0),
+        ("Elution 1", 5, 1250.0),
+    ]:
+        for _ in range(3):
+            a = reagent + 0.00061 * conc + rng.gauss(0, 0.008)
+            rows.append([next(wells), name, "", str(dilution), f"{a:.3f}"])
+    return samples.csv_text(rows)
+
+
+def knockdown() -> bytes:
+    rows = [["Control siRNA", "SOX2 siRNA"]]
+    for a, b in zip([1.02, 0.96, 1.08, 0.94], [0.61, 0.55, 0.72, 0.58], strict=True):
+        rows.append([f"{a:.2f}", f"{b:.2f}"])
+    note = ["Relative SOX2 expression (2^-ΔΔCt), normalized to GAPDH"]
+    return samples.csv_text([note, [], *rows])
+
+
+def four_groups() -> bytes:
+    rng = random.Random(4)
+    rows = [["Treatment", "Well", "Cells (\u00d710³)"]]
+    for name, level in [("Vehicle", 52), ("Drug A", 38), ("Drug B", 49), ("Drug A + B", 21)]:
+        for rep in range(4):
+            rows.append([name, f"{rep + 1}", f"{level + rng.gauss(0, 3):.1f}"])
+    return samples.csv_text(rows)
+
+
+def growth_curve() -> bytes:
+    rng = random.Random(600)
+    wb = openpyxl.Workbook()
+    wb.properties.created = wb.properties.modified = samples.FIXED_DATE.replace(tzinfo=None)
+    ws = wb.active
+    ws.title = "OD600"
+    ws.append(["Time (h)", "Wild type", None, None, "ΔsigB", None, None])
+    ws.append([None, "Rep 1", "Rep 2", "Rep 3", "Rep 1", "Rep 2", "Rep 3"])
+    ws.merge_cells("A1:A2")
+    ws.merge_cells("B1:D1")
+    ws.merge_cells("E1:G1")
+    for hour in range(13):
+        wt = 0.05 + 1.6 / (1 + math.exp(-(hour - 5.5) / 1.1))
+        mutant = 0.05 + 1.1 / (1 + math.exp(-(hour - 7.0) / 1.3))
+        reps = [wt * (1 + rng.gauss(0, 0.05)) for _ in range(3)]
+        reps += [mutant * (1 + rng.gauss(0, 0.06)) for _ in range(3)]
+        ws.append([hour, *[round(v, 3) for v in reps]])
+    out = io.BytesIO()
+    wb.save(out)
+    return samples._stable_zip(out.getvalue())
+
+
+def cell_sizes() -> bytes:
+    rng = random.Random(200)
+    rows = [["#", "Cell diameter (µm)"]]
+    for i in range(200):
+        rows.append([str(i + 1), f"{rng.lognormvariate(math.log(12), 0.22):.2f}"])
+    return samples.csv_text(rows)
+
+
+def pendulum() -> bytes:
+    rng = random.Random(981)
+    rows = [["Length (m)", "Period squared (s²)"]]
+    for length in (0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0):
+        t2 = 4 * math.pi**2 * length / 9.81 + rng.gauss(0, 0.03)
+        rows.append([f"{length:.1f}", f"{t2:.3f}"])
+    return samples.csv_text(rows)
+
+
 FILES: dict[str, Callable[[], bytes]] = {
+    "viability_drugA_layout.csv": lambda: viability(True),
+    "viability_drugA.csv": lambda: viability(False),
+    "Bradford_plate_2026-11-05.csv": bradford_plate,
+    "knockdown_qpcr.csv": knockdown,
+    "treatments_4groups.csv": four_groups,
+    "growth_curve.xlsx": growth_curve,
+    "cell_sizes.csv": cell_sizes,
+    "pendulum.csv": pendulum,
     "plate7_A420.csv": plate_reader,
     "SEC_trace_141026.csv": akta,
     "Bradford_2026-10-30.xlsx": bradford,

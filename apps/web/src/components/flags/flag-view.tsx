@@ -161,7 +161,7 @@ function SourceChart({ cells, table, kind }: { cells: Cells; table: DataTable; k
   const spec: ChartSpec = {
     version: 1,
     type: kind === "curve_fit" ? "scatter" : "line",
-    x: { column: xc.id, title: xc.name, unit: xc.unit ?? "", min: null, max: null },
+    x: { column: xc.id, title: xc.name, unit: xc.unit ?? "", scale: "linear", min: null, max: null },
     y: { title: yc.name, unit: yc.unit ?? "", scale: "linear", min: null, max: null },
     series: [{ column: yc.id, name: yc.name, color: "blue", stroke: "solid", error: null, x: null }],
     legend: "top",

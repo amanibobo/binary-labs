@@ -1,5 +1,5 @@
 import { axisText, splitAxisText } from "./chart-guide";
-import { MAX_SERIES, nextStyle, type ChartSpec, type HeatmapSpec, type Series, type SeriesColor, type Stroke, type XYSpec } from "./charts";
+import { isXY, MAX_SERIES, nextStyle, type ChartSpec, type HeatmapSpec, type HistogramSpec, type Series, type SeriesColor, type Stroke, type SummaryAxis, type SummarySpec, type XYSpec } from "./charts";
 import { findColumn, spreadFor, type DataColumn, type DataTable } from "./data-tables";
 import type { ColumnId } from "./ids";
 
@@ -96,6 +96,11 @@ export function setErrorBars(spec: XYSpec, table: DataTable, on: boolean): XYSpe
 
 // The text a label edits in place, units included.
 export function labelText(spec: ChartSpec, target: LabelTarget): string {
+  if (!isXY(spec) && spec.type !== "heatmap") {
+    if (target.kind === "x") return "unit" in spec.x ? axisText(spec.x.title, spec.x.unit) : spec.x.title;
+    if (target.kind === "y") return "unit" in spec.y ? axisText(spec.y.title, spec.y.unit) : spec.y.title;
+    return "";
+  }
   switch (target.kind) {
     case "x":
       return spec.type === "heatmap" ? "" : axisText(spec.x.title, spec.x.unit);
@@ -118,6 +123,20 @@ export function rename(spec: ChartSpec, table: DataTable, target: LabelTarget, t
   const parts = splitAxisText(text.slice(0, 80));
   const unit = parts.unit.slice(0, 24);
   if (spec.type === "heatmap") return target.kind === "value" ? renameValue(spec, parts.title, unit) : spec;
+  if (!isXY(spec)) {
+    // A chart of repeats: its two axis titles. A bar chart of groups names its bottom only.
+    const whole = text.trim().slice(0, 80);
+    if (target.kind === "x") {
+      if (spec.type === "groups") return { ...spec, x: { title: whole } };
+      if (spec.type === "histogram") return { ...spec, x: { ...spec.x, title: parts.title, unit } };
+      return { ...spec, x: { ...spec.x, title: parts.title, unit } };
+    }
+    if (target.kind === "y") {
+      if (spec.type === "histogram") return { ...spec, y: { title: whole } };
+      return { ...spec, y: { ...spec.y, title: parts.title, unit } };
+    }
+    return spec;
+  }
   switch (target.kind) {
     case "x": {
       const isDate = findColumn(table, spec.x.column)?.kind === "date";
@@ -133,6 +152,58 @@ export function rename(spec: ChartSpec, table: DataTable, target: LabelTarget, t
       return spec;
     default: {
       const _exhaustive: never = target;
+      return _exhaustive;
+    }
+  }
+}
+
+export type AxisPatch = { title?: string; unit?: string; min?: number | null; max?: number | null; scale?: "linear" | "log" };
+
+type Ranged = { title: string; unit: string; min: number | null; max: number | null };
+
+function patched<T extends Ranged>(axis: T, p: AxisPatch): T {
+  return { ...axis, title: p.title ?? axis.title, unit: p.unit ?? axis.unit, min: p.min === undefined ? axis.min : p.min, max: p.max === undefined ? axis.max : p.max };
+}
+
+function scaled(axis: SummaryAxis, p: AxisPatch): SummaryAxis {
+  return { ...patched(axis, p), scale: p.scale ?? axis.scale };
+}
+
+// One axis of a chart of repeats changed: its title, unit, range or scale, as far as that kind
+// of chart has them (a groups chart names its bottom only; a histogram counts up its side).
+export function withSummaryAxis(spec: SummarySpec | HistogramSpec, axis: "x" | "y", p: AxisPatch): SummarySpec | HistogramSpec {
+  switch (spec.type) {
+    case "groups":
+      return axis === "x" ? { ...spec, x: { title: p.title ?? spec.x.title } } : { ...spec, y: scaled(spec.y, p) };
+    case "histogram":
+      return axis === "x" ? { ...spec, x: patched(spec.x, p) } : { ...spec, y: { title: p.title ?? spec.y.title } };
+    case "curve":
+      return axis === "x" ? { ...spec, x: scaled(spec.x, p) } : { ...spec, y: scaled(spec.y, p) };
+    case "band":
+      return axis === "x" ? { ...spec, x: scaled(spec.x, p) } : { ...spec, y: scaled(spec.y, p) };
+    case "dose":
+      return axis === "x" ? { ...spec, x: scaled(spec.x, p) } : { ...spec, y: scaled(spec.y, p) };
+    default: {
+      const _exhaustive: never = spec;
+      return _exhaustive;
+    }
+  }
+}
+
+// What every chart of repeats shares: the spread its bars show, every repeat, the blank.
+export function withRepeats(spec: SummarySpec, p: { spread?: SummarySpec["spread"]; points?: boolean; blank?: boolean }): SummarySpec {
+  const next = { spread: p.spread ?? spec.spread, points: p.points ?? spec.points, blank: p.blank ?? spec.blank };
+  switch (spec.type) {
+    case "groups":
+      return { ...spec, ...next };
+    case "curve":
+      return { ...spec, ...next };
+    case "band":
+      return { ...spec, ...next };
+    case "dose":
+      return { ...spec, ...next };
+    default: {
+      const _exhaustive: never = spec;
       return _exhaustive;
     }
   }

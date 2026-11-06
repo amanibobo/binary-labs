@@ -3,10 +3,12 @@ import { Popover } from "radix-ui";
 import { useId, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/cn";
-import { addSeries, editSeries, removeSeries, restyle, setBottom, setErrorBars, spreadsFor } from "@/lib/chart-edits";
+import { addSeries, editSeries, removeSeries, restyle, setBottom, setErrorBars, spreadsFor, withSummaryAxis } from "@/lib/chart-edits";
 import { formatValue } from "@/lib/chart-geometry";
-import { bottomChoices, choicesFor, columnKind, columnSample, measureChoices, switchProblem } from "@/lib/chart-guide";
+import { bottomChoices, columnKind, columnSample, kindsFor, kindSwitchProblem, measureChoices } from "@/lib/chart-guide";
 import {
+  isHeatmap,
+  isXY,
   LEGEND_POSITIONS,
   MAX_SERIES,
   PALETTE,
@@ -14,6 +16,8 @@ import {
   type ChartSpec,
   type ChartType,
   type HeatmapSpec,
+  type HistogramSpec,
+  type SummarySpec,
   type LegendPosition,
   type Series,
   type Stroke,
@@ -30,6 +34,8 @@ import { Input, inputVariants } from "../ui/field";
 import { menuSurface } from "../ui/menu";
 import { ChartKindGlyph } from "./chart-thumb";
 import type { ProtocolChoice } from "./chart-builder";
+import { KIND_NAMES, KIND_QUESTIONS, kindOf, type ChartData, type ChartKind } from "@/lib/summary-guide";
+import { SummaryData, SummaryOptions, type SummaryEdit } from "./summary-panel";
 
 // The builder's one panel beside the chart: the kind of chart, what runs along the bottom, what
 // was measured and whether to show how much repeats vary. Everything a first chart rarely needs
@@ -38,13 +44,17 @@ import type { ProtocolChoice } from "./chart-builder";
 export type PanelEdit = {
   xy: (f: (s: XYSpec) => XYSpec, group?: string) => void;
   plate: (f: (s: HeatmapSpec) => HeatmapSpec, group?: string) => void;
-  type: (type: ChartType) => void;
+  summary: SummaryEdit;
+  kind: (kind: ChartKind) => void;
+  // Opens the plate's wells to mark; null when the sheet isn't a plate.
+  markWells: (() => void) | null;
   sheet: (name: string) => void;
   protocol: (id: ProtocolId | null) => void;
 };
 
 export function ChartPanel({
   doc,
+  data,
   table,
   spec,
   other,
@@ -54,6 +64,7 @@ export function ChartPanel({
   footer,
 }: {
   doc: DataTables;
+  data: ChartData;
   table: DataTable;
   spec: ChartSpec;
   other: ChartSpec | null;
@@ -67,9 +78,23 @@ export function ChartPanel({
     <div className="grid gap-8">
       <DataSource doc={doc} table={table} onSheet={edit.sheet} />
       <Section title="Kind of chart">
-        <KindTiles table={table} spec={spec} other={other} onType={edit.type} />
+        <KindTiles data={data} spec={spec} other={other} onKind={edit.kind} />
       </Section>
-      {spec.type === "heatmap" ? <PlateData spec={spec} table={table} edit={edit} /> : <XYData spec={spec} table={table} edit={edit} />}
+      {isHeatmap(spec) ? (
+        <PlateData spec={spec} table={table} edit={edit} />
+      ) : isXY(spec) ? (
+        <XYData spec={spec} table={table} edit={edit} />
+      ) : (
+        <SummaryData spec={spec} data={data} edit={edit.summary} onMarkWells={edit.markWells} />
+      )}
+      {isHeatmap(spec) && edit.markWells !== null ? (
+        <div className="grid gap-2">
+          <p className="text-paragraph-small text-content-secondary">To compare wells or fit a curve, say which are blanks, controls, standards and samples.</p>
+          <Button size="compact" variant="secondary" className="w-max" onClick={edit.markWells}>
+            Mark the wells
+          </Button>
+        </div>
+      ) : null}
       {linked === undefined ? null : (
         <p className="text-paragraph-small text-content-secondary">
           Shown on the protocol{" "}
@@ -147,27 +172,26 @@ function DataSource({ doc, table, onSheet }: { doc: DataTables; table: DataTable
   );
 }
 
-const KIND_NAMES = { line: "Line", bar: "Bar", scatter: "Scatter", heatmap: "Heatmap" } satisfies Record<ChartType, string>;
-
-function KindTiles({ table, spec, other, onType }: { table: DataTable; spec: ChartSpec; other: ChartSpec | null; onType: (type: ChartType) => void }) {
-  const choices = choicesFor(table);
+function KindTiles({ data, spec, other, onKind }: { data: ChartData; spec: ChartSpec; other: ChartSpec | null; onKind: (kind: ChartKind) => void }) {
+  const kinds = kindsFor(data);
+  const current = kindOf(spec);
   return (
-    <div role="radiogroup" aria-label="Kind of chart" className={cn("grid gap-2", choices.length === 4 ? "grid-cols-4" : "grid-cols-3")}>
-      {choices.map((c) => {
-        const problem = switchProblem(spec, c.type, table, other);
-        const checked = spec.type === c.type;
+    <div role="radiogroup" aria-label="Kind of chart" className="grid grid-cols-4 gap-2">
+      {kinds.map((kind) => {
+        const problem = kindSwitchProblem(spec, kind, data, other);
+        const checked = current === kind;
         return (
           <button
-            key={c.type}
+            key={kind}
             type="button"
             role="radio"
             aria-checked={checked}
             aria-disabled={problem !== null}
             aria-describedby={undefined}
-            title={problem ?? c.question}
+            title={problem ?? KIND_QUESTIONS[kind].question}
             onClick={() => {
               if (problem !== null) toast(problem);
-              else onType(c.type);
+              else onKind(kind);
             }}
             className={cn(
               "flex min-h-16 flex-col items-center justify-center gap-1 rounded-control px-1 py-2 text-label-small transition-colors duration-150",
@@ -175,9 +199,9 @@ function KindTiles({ table, spec, other, onType }: { table: DataTable; spec: Cha
               problem !== null && !checked ? "cursor-not-allowed opacity-45 hover:bg-transparent hover:text-content-secondary" : "",
             )}
           >
-            <ChartKindGlyph type={c.type} />
-            {KIND_NAMES[c.type]}
-            <span className="sr-only">: {problem ?? c.question}</span>
+            <ChartKindGlyph type={kind} />
+            <span className="text-center leading-tight">{KIND_NAMES[kind]}</span>
+            <span className="sr-only">: {problem ?? KIND_QUESTIONS[kind].question}</span>
           </button>
         );
       })}
@@ -691,7 +715,7 @@ function MoreOptions({
       </button>
       {open ? (
         <div id={regionId} className="mt-4 grid gap-7">
-          {spec.type === "heatmap" ? <PlateOptions spec={spec} edit={edit} /> : <XYOptions spec={spec} table={table} edit={edit} />}
+          {isHeatmap(spec) ? <PlateOptions spec={spec} edit={edit} /> : isXY(spec) ? <XYOptions spec={spec} table={table} edit={edit} /> : <SummaryAxes spec={spec} edit={edit.summary} />}
           <Option title="Show on a protocol" help="Puts this chart on the protocol's page, under its videos.">
             {(id) => (
               <>
@@ -856,6 +880,47 @@ function XYOptions({ spec, table, edit }: { spec: XYSpec; table: DataTable; edit
           )}
         </Option>
       )}
+    </>
+  );
+}
+
+// A chart of repeats' axis titles, scales and ranges.
+function SummaryAxes({ spec, edit }: { spec: SummarySpec | HistogramSpec; edit: SummaryEdit }) {
+  const hasXUnit = spec.type !== "groups";
+  return (
+    <>
+      <Option title="Axis titles" help="Or click a title on the chart to rename it.">
+        {(id) => (
+          <div className="grid gap-3">
+            <TitleAndUnit
+              id={id}
+              label="Bottom"
+              axis={{ title: spec.x.title, unit: "unit" in spec.x ? spec.x.unit : "" }}
+              noUnit={!hasXUnit}
+              onChange={(x) => edit((s) => withSummaryAxis(s, "x", x), "x-title")}
+            />
+            <TitleAndUnit
+              label="Side"
+              axis={{ title: spec.y.title, unit: "unit" in spec.y ? spec.y.unit : "" }}
+              noUnit={spec.type === "histogram"}
+              onChange={(y) => edit((s) => withSummaryAxis(s, "y", y), "y-title")}
+            />
+          </div>
+        )}
+      </Option>
+      <SummaryOptions spec={spec} edit={edit} Option={Option} />
+      <Option title="Axis ranges" help="Where each axis starts and ends. Leave blank to fit your data.">
+        {(id) => (
+          <div className="grid gap-3">
+            {spec.type === "groups" ? null : (
+              <Range id={id} label="Bottom" axis={spec.x} time={null} onChange={(x) => edit((s) => withSummaryAxis(s, "x", x), "x-range")} />
+            )}
+            {spec.type === "histogram" ? null : (
+              <Range id={spec.type === "groups" ? id : undefined} label="Side" axis={spec.y} time={null} onChange={(y) => edit((s) => withSummaryAxis(s, "y", y), "y-range")} />
+            )}
+          </div>
+        )}
+      </Option>
     </>
   );
 }

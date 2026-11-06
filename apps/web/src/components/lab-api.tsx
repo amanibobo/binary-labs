@@ -9,7 +9,8 @@ import { BrowseResponse, type FolderPath } from "@/lib/folders";
 import { SourceStateWire, type SourceState } from "@/lib/source-state";
 import { answerOf, resultOf, type SendResult, type UploadResult } from "@/lib/upload-queue";
 import { uploadHeaders, UploadRowsWire, type UploadMeta, type UploadRow } from "@/lib/uploads";
-import type { ChartId, CorrectionId, FlagId, LocationId, ProtocolId, Sha256, TalkThroughId } from "@/lib/ids";
+import type { ChartId, CorrectionId, FlagId, LayoutId, LocationId, ProtocolId, Sha256, TalkThroughId } from "@/lib/ids";
+import { LayoutsWire, LayoutWire, type SavedLayout, type SaveLayoutRequest } from "@/lib/layouts";
 import type { SaveChecksRequest } from "@/lib/checks";
 import { FileChecksWire, FlagAnswerWire, FlagMarksWire, type FileChecks, type FlagAnswer, type ReviewRequest } from "@/lib/flags";
 import { TableState } from "@/lib/data-tables";
@@ -119,6 +120,11 @@ export type LabApi = {
   createChart: (req: CreateChartRequest) => Promise<SavedChart>;
   saveChart: (id: ChartId, req: SaveChartRequest) => Promise<ChartSaveOutcome>;
   deleteChart: (id: ChartId) => Promise<void>;
+  // Plate layouts saved to use again, newest first. These reject with an Error whose message can be shown.
+  layouts: (signal: AbortSignal) => Promise<SavedLayout[]>;
+  saveLayout: (req: SaveLayoutRequest) => Promise<SavedLayout>;
+  updateLayout: (id: LayoutId, req: SaveLayoutRequest) => Promise<SavedLayout>;
+  deleteLayout: (id: LayoutId) => Promise<void>;
   // The lab map: one hub's files, and the map around one node.
   mapHub: (q: HubQuery, signal: AbortSignal) => Promise<HubFiles>;
   mapLocal: (q: LocalQuery, signal: AbortSignal) => Promise<LocalView>;
@@ -302,6 +308,10 @@ export const httpLabApi: LabApi = {
     return outcome.data;
   },
   deleteChart: async (id) => void (await postJson(`/api/charts/${id}`, {}, "DELETE")),
+  layouts: async (signal) => LayoutsWire.parse(await getJson("/api/layouts", signal)),
+  saveLayout: async (req) => LayoutWire.parse(await postJson("/api/layouts", req)),
+  updateLayout: async (id, req) => LayoutWire.parse(await postJson(`/api/layouts/${id}`, req)),
+  deleteLayout: async (id) => void (await postJson(`/api/layouts/${id}`, {}, "DELETE")),
   mapHub: async (q, signal) => {
     const params = new URLSearchParams({ id: q.id });
     if (q.similar) params.set("similar", "1");

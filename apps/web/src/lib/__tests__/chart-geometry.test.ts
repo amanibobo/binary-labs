@@ -3,7 +3,7 @@ import bioreactorJson from "@/fixtures/tables/Bioreactor_run12.json";
 import bradfordJson from "@/fixtures/tables/Bradford_2026-10-30.json";
 import plateJson from "@/fixtures/tables/plate7_A420.json";
 import secJson from "@/fixtures/tables/SEC_trace_141026.json";
-import { ChartSpec, nextStyle, type Series, type XYSpec } from "../charts";
+import { ChartSpec, isXY, nextStyle, type Series, type XYSpec } from "../charts";
 import { barPath, linearTicks, logTicks, niceDomain, plotChart, pointAt, timeTicks } from "../chart-geometry";
 import { DataTables } from "../data-tables";
 
@@ -17,13 +17,13 @@ const spec = (over: object): XYSpec => {
   const s = ChartSpec.parse({
     version: 1,
     type: "line",
-    x: { column: "A", title: "Volume", unit: "ml", min: null, max: null },
+    x: { column: "A", title: "Volume", unit: "ml", scale: "linear", min: null, max: null },
     y: { title: "A280", unit: "mAU", scale: "linear", min: null, max: null },
     series: [{ column: "B", name: "A280", color: "blue", error: null }],
     legend: "top",
     ...over,
   });
-  if (s.type === "heatmap") throw new Error("not x/y");
+  if (!isXY(s)) throw new Error("not x/y");
   return s;
 };
 
@@ -123,7 +123,7 @@ describe("AKTA curves each on their own volume column", () => {
 
 describe("a time axis", () => {
   const log = plotChart(
-    spec({ x: { column: "A", title: "Timestamp", unit: "", min: null, max: null }, series: [{ column: "E", name: "OD600", color: "blue", error: null }] }),
+    spec({ x: { column: "A", title: "Timestamp", unit: "", scale: "linear", min: null, max: null }, series: [{ column: "E", name: "OD600", color: "blue", error: null }] }),
     bioreactor,
     size,
   );
@@ -139,7 +139,7 @@ describe("a time axis", () => {
 describe("twelve lines", () => {
   const series: Series[] = [];
   for (const c of kinetic.columns.slice(2, 14)) series.push({ column: c.id, name: c.name, ...nextStyle(series, "line"), error: null, x: null });
-  const plot = plotChart(spec({ x: { column: "A", title: "Time", unit: "min", min: null, max: null }, series }), kinetic, size);
+  const plot = plotChart(spec({ x: { column: "A", title: "Time", unit: "min", scale: "linear", min: null, max: null }, series }), kinetic, size);
 
   it("draws the second six dashed, with hollow markers in the legend", () => {
     expect(plot.series).toHaveLength(12);
@@ -153,7 +153,7 @@ describe("twelve lines", () => {
 describe("the Bradford curve", () => {
   it("draws error bars around each mean", () => {
     const plot = plotChart(
-      spec({ type: "scatter", x: { column: "A", title: "BSA", unit: "µg/mL", min: null, max: null }, series: [{ column: "E", name: "Mean", color: "blue", error: "F" }] }),
+      spec({ type: "scatter", x: { column: "A", title: "BSA", unit: "µg/mL", scale: "linear", min: null, max: null }, series: [{ column: "E", name: "Mean", color: "blue", error: "F" }] }),
       standards,
       size,
     );
@@ -169,7 +169,7 @@ describe("the Bradford curve", () => {
 
   it("draws samples as bars from zero, at most 24px wide", () => {
     const bars = plotChart(
-      spec({ type: "bar", x: { column: "A", title: "", unit: "", min: null, max: null }, series: [{ column: "D", name: "Protein", color: "blue", error: null }] }),
+      spec({ type: "bar", x: { column: "A", title: "", unit: "", scale: "linear", min: null, max: null }, series: [{ column: "D", name: "Protein", color: "blue", error: null }] }),
       samples,
       size,
     );

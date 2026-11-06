@@ -31,8 +31,9 @@ from openpyxl.utils import get_column_letter, range_boundaries
 from bl_worker import table_dates
 from bl_worker.extract import UNIT_RE, decode_text
 
-# 2: date columns, and a note per column.
-VERSION = 2
+# 2: date columns, and a note per column. 3: a plate grid of text labels (an instrument's
+# layout block: BLK, STD1, SPL1) is a table, not notes.
+VERSION = 3
 # One file's tables keep at most this many cells: about 1.5 MB of JSON (0.64 MB gzipped) for
 # 3-decimal numbers, parsed in about 0.3 s, and about a second to send on 5 Mbps bench Wi-Fi.
 # A 2 h kinetic read of a 96-well plate (24k cells), a full spectrum scan of one (38k) or an
@@ -379,6 +380,8 @@ def _find_header(block: list[list[Cell]]) -> _Header | None:
         corner = r == 0 and row[0].blank and _filled(row) >= 2
         if corner and nxt and not nxt[0].blank and nxt[0].number is None and _is_data(nxt):
             return _Header(r, 1)
+        if r == 0 and _is_plate_corner(row, block[1:]):
+            return _Header(0, 1)
         if _filled(row) < 2 or not _texty(row) or _filled(row) * 2 < width:
             continue
         if _is_data(nxt) and _filled(nxt) * 2 >= _filled(row):
@@ -393,6 +396,21 @@ def _find_header(block: list[list[Cell]]) -> _Header | None:
 def _is_body(rows: list[list[Cell]]) -> bool:
     data = sum(1 for row in rows if _is_data(row))
     return data >= 2 and data * 3 >= len(rows) * 2
+
+
+_PLATE_ROWS = "ABCDEFGHIJKLMNOP"
+
+
+def _is_plate_corner(head: list[Cell], body: list[list[Cell]]) -> bool:
+    """A plate grid's top-left: a blank corner, column numbers 1, 2, ... across, and row
+    letters A, B, ... down the side, whatever the wells hold (numbers, or a layout's labels)."""
+    if not head or not head[0].blank or len(body) < 2:
+        return False
+    numbers = [c.number for c in head[1:] if not c.blank]
+    if len(numbers) < 2 or numbers != list(range(1, len(numbers) + 1)):
+        return False
+    letters = [row[0].text.strip().upper() if row else "" for row in body]
+    return letters == list(_PLATE_ROWS[: len(letters)])
 
 
 def _note(row: list[Cell]) -> str:
@@ -413,7 +431,8 @@ def _tables(sheet: Sheet) -> Iterator[Table]:
         block = blocks[i]
         header = _find_header(block)
         body = block[header.at + header.rows :] if header else []
-        if header is None or not _is_body(body):
+        plate = header is not None and header.at == 0 and _is_plate_corner(block[0], body)
+        if header is None or not (_is_body(body) or plate):
             notes += [_note(row) for row in block]
             i += 1
             continue

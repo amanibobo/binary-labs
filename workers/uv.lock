@@ -119,8 +119,10 @@ whisper = [
 [package.dev-dependencies]
 dev = [
     { name = "fpdf2" },
+    { name = "numpy" },
     { name = "pytest" },
     { name = "ruff" },
+    { name = "scipy" },
 ]
 
 [package.metadata]
@@ -149,8 +151,10 @@ provides-extras = ["whisper"]
 [package.metadata.requires-dev]
 dev = [
     { name = "fpdf2", specifier = ">=2.8" },
+    { name = "numpy", specifier = ">=2" },
     { name = "pytest", specifier = ">=8.3" },
     { name = "ruff", specifier = ">=0.8" },
+    { name = "scipy", specifier = ">=1.13" },
 ]
 
 [[package]]

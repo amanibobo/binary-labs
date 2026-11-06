@@ -1,12 +1,14 @@
 import type { ReactNode } from "react";
 import { PALETTE, type SeriesColor, type Stroke } from "@/lib/charts";
 import { LABEL_FONT, TICK_FONT, TITLE_FONT, type Plot } from "@/lib/chart-geometry";
-import { exportFill, screenFill, type PlatePlot } from "@/lib/plate-geometry";
+import { exportFill, mixOklab, screenFill, type PlatePlot } from "@/lib/plate-geometry";
 
 // The colors a chart is drawn in. On screen they're the theme's CSS variables, so a chart
 // follows light and dark; an exported file carries the light hex values, as a printed figure.
 export type ChartInk = {
   series: Record<SeriesColor, string>;
+  // Each hue mixed most of the way to the surface: a bar behind its own dots.
+  soft: Record<SeriesColor, string>;
   surface: string;
   grid: string;
   axis: string;
@@ -35,6 +37,7 @@ function byColor(color: (slot: SeriesColor) => string): Record<SeriesColor, stri
 
 export const SCREEN_INK: ChartInk = {
   series: byColor((slot) => `var(--chart-${slot})`),
+  soft: byColor((slot) => `color-mix(in oklab, var(--chart-${slot}) 28%, var(--background-primary))`),
   surface: "var(--background-primary)",
   grid: "var(--border-opaque)",
   axis: "var(--border-raised)",
@@ -50,6 +53,7 @@ export const SCREEN_INK: ChartInk = {
 // The light tokens from globals.css; chart-ink.test.ts checks they still match.
 export const EXPORT_INK: ChartInk = {
   series: byColor((slot) => PALETTE[slot].light),
+  soft: byColor((slot) => mixOklab(PALETTE[slot].light, "#ffffff", 0.72)),
   surface: "#ffffff",
   grid: "#e6e6e8",
   axis: "#dadadd",

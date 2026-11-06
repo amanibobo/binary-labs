@@ -4,7 +4,7 @@ import elisaJson from "@/fixtures/tables/ELISA_plate3.json";
 import plateJson from "@/fixtures/tables/plate7_A420.json";
 import { addSeries, labelText, removeSeries, rename, restyle, setBottom, setErrorBars, spreadsFor } from "../chart-edits";
 import { startFor, startingChart, switched, switchProblem } from "../chart-guide";
-import { specProblem, type ChartSpec, type XYSpec } from "../charts";
+import { isXY, specProblem, type ChartSpec, type XYSpec } from "../charts";
 import { DataTables, findColumn, type DataColumn, type DataTable } from "../data-tables";
 import { ColumnId } from "../ids";
 
@@ -22,10 +22,10 @@ const col = (t: DataTable, id: string): DataColumn => {
   return c;
 };
 const xy = (spec: ChartSpec | null): XYSpec => {
-  if (spec === null || spec.type === "heatmap") throw new Error("not an x/y chart");
+  if (spec === null || !isXY(spec)) throw new Error("not an x/y chart");
   return spec;
 };
-const curve = xy(startingChart(standards));
+const curve = xy(startFor(standards, "scatter"));
 
 describe("editing on the chart", () => {
   it("renames an axis with its unit, and a series, from what was typed", () => {
