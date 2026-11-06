@@ -33,10 +33,11 @@ primary_region = "iad"
   retries = 10
   processes = ["worker"]
 
-# 2 GB: a 500 MB video or instrument file is read whole, and it's hashed and copied around it
-# (docs/decisions.md, "going online"). shared-cpu-2x: jobs wait on Dropbox, R2 and the
-# embedding service far more than on the CPU.
+# Memory, measured (docs/decisions.md, "going online"): about 80 MB at rest, and a file in
+# flight costs about 1.07 times its size, since it's read whole. Four jobs at once on files at
+# the 500 MB cap come to about 2.2 GB, so 4 GB. shared-cpu-2x is enough day to day; a lab's
+# first scan runs faster on performance-2x (docs/deploy.md, "first scan").
 [[vm]]
   size = "shared-cpu-2x"
-  memory = "2gb"
+  memory = "4gb"
   processes = ["worker"]
