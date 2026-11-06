@@ -48,7 +48,7 @@ function Marks({ sentence, sources, numbers }: { sentence: AnswerSentence; sourc
             aria-label={`Source ${n}: ${label}`}
             data-lit={lit}
             className={cn(
-              "ml-0.5 inline-block min-w-[1.4em] rounded px-0.5 text-center align-super text-[0.68em] leading-[1.35] font-medium text-content-accent tabular-nums transition-colors duration-150 ease-out hover:underline",
+              "ml-px inline-block rounded px-[0.25em] align-super text-[0.68em] leading-[1.35] font-medium text-content-accent tabular-nums transition-colors duration-150 ease-out hover:underline",
               lit && "bg-tag-blue-background-secondary text-tag-blue-content-secondary",
             )}
             {...pointProps(link, c.source)}
@@ -260,7 +260,7 @@ export function AnswerPanel({
         aria-labelledby={headingId}
         aria-busy={live}
         data-testid="answer"
-        className="mx-3 mb-10 rounded-card border border-border-opaque bg-background-raised shadow-raised sm:mx-0"
+        className="mx-3 mb-10 rounded-card border border-border-opaque bg-background-raised shadow-raised"
       >
         <header className="flex items-center justify-between gap-3 py-2 pr-2 pl-4 sm:pl-6">
           <h2 id={headingId} className="text-label-small text-content-secondary">

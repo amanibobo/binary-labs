@@ -101,10 +101,10 @@ export function AskActivity({
           aria-expanded={open}
           aria-controls={listId}
           onClick={() => setOpened((o) => !o)}
-          className="-mx-2 flex min-h-11 max-w-full items-center gap-1.5 rounded-control px-2 text-left text-paragraph-small text-content-secondary transition-colors duration-150 ease-out hover:bg-background-secondary hover:text-content-primary sm:min-h-8"
+          className="-mx-2 flex min-h-11 max-w-full items-center gap-1.5 rounded-control px-2 py-1.5 text-left text-paragraph-small text-content-secondary transition-colors duration-150 ease-out hover:bg-background-secondary hover:text-content-primary sm:min-h-8"
         >
           <ChevronRightIcon className={cn("size-4 text-content-tertiary transition-transform duration-200 ease-out", open && "rotate-90")} />
-          <span className="min-w-0 truncate">
+          <span className="min-w-0">
             {activitySummary(steps)}
             {cached ? " · answered before" : ""}
           </span>
