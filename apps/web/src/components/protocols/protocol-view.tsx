@@ -26,6 +26,7 @@ import { ProtocolVideos, videosKey } from "../videos/protocol-videos";
 import { ProtocolCharts, type ProtocolChart } from "../charts/protocol-charts";
 import { Markdown } from "./markdown";
 import { When } from "@/components/ui/when";
+import { SuggestEditButton, WaitingEdits, type ProtocolSuggestions } from "../ask/protocol-suggest";
 
 export function ProtocolView({
   page,
@@ -35,6 +36,7 @@ export function ProtocolView({
   talkThroughs,
   videos,
   charts,
+  suggestions,
 }: {
   page: ProtocolVersion;
   files: FileHit[];
@@ -45,6 +47,8 @@ export function ProtocolView({
   videos: ProtocolVideo[];
   // Charts saved with this page as their protocol.
   charts: readonly ProtocolChart[];
+  // AI edits waiting for approval, and whether one can be asked for.
+  suggestions?: ProtocolSuggestions;
 }) {
   const current = isCurrent(page);
   const editable = current && !page.archived;
@@ -85,7 +89,9 @@ export function ProtocolView({
           >
             History
           </Link>
+          {editable && suggestions !== undefined ? <SuggestEditButton protocolId={page.protocolId} suggestions={suggestions} /> : null}
         </div>
+        {current && suggestions !== undefined ? <WaitingEdits suggestions={suggestions} /> : null}
 
         {editable ? <OpenTalkThroughs items={talkThroughs} authors={authors} heading="Talk-throughs to check" className="mt-8" /> : null}
 
