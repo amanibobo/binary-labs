@@ -84,12 +84,21 @@ def main() -> int:
         pre = urllib.request.Request(
             url,
             method="OPTIONS",
-            headers={"Origin": args.origin, "Access-Control-Request-Method": "PUT"},
+            # Bench uploads send the content-type their URL was signed with.
+            headers={
+                "Origin": args.origin,
+                "Access-Control-Request-Method": "PUT",
+                "Access-Control-Request-Headers": "content-type",
+            },
         )
         with urllib.request.urlopen(pre) as r:
             allowed = r.headers.get("Access-Control-Allow-Origin")
             exposed = (r.headers.get("Access-Control-Expose-Headers") or "").lower()
+            allowed_headers = (r.headers.get("Access-Control-Allow-Headers") or "").lower()
         assert allowed in (args.origin, "*"), f"CORS doesn't allow {args.origin} (got {allowed!r})"
+        assert "content-type" in allowed_headers or allowed_headers == "*", (
+            "CORS rule doesn't allow the content-type header; bench uploads can't go up"
+        )
         put = urllib.request.Request(
             url, data=b"hello", method="PUT", headers={"Origin": args.origin}
         )
