@@ -110,7 +110,7 @@ describe("the lab map", () => {
     expect(byName["Plate reader kinetics"]?.files).toBe(1);
     expect(view.files).toBe(4);
     expect(view.links.find((l) => l.kind === "uses")).toMatchObject({ source: `experiment:${experiment}`, target: `protocol:${protocol}` });
-    expect(view.links.some((l) => l.kind === "shared" && [l.source, l.target].includes(`experiment:${experiment}`))).toBe(true);
+    expect(view.links.some((l) => l.kind === "shared" && (l.source === `experiment:${experiment}` || l.target === `experiment:${experiment}`))).toBe(true);
   });
 
   it("opens a hub's files with their links, and similar pairs only when asked", async () => {
@@ -152,7 +152,7 @@ describe("the lab map", () => {
     const mine = HubView.parse(await call(sam, "lab_map($1)", [labB]));
     expect(mine.hubs.map((h) => h.name).sort()).toEqual(["ChemiDoc", "Lab B secret"]);
     const gel = LocalView.parse(await call(sam, "lab_map_local($1, $2, 2, true)", [labB, `file:${SHARED}`]));
-    expect(gel.nodes.map((n) => n.kind === "file" || n.kind === "more" ? n.id : n.name).sort()).toEqual(["ChemiDoc", "Lab B secret", `file:${SHARED}`].sort());
+    expect(gel.nodes.map((n) => n.kind === "file" ? n.id : n.name).sort()).toEqual(["ChemiDoc", "Lab B secret", `file:${SHARED}`].sort());
     expect(gel.nodes.find((n) => n.id === `file:${SHARED}`)).toMatchObject({ name: "Lab B gel" });
     // Lab A's hubs asked for by id from lab B are no such thing there.
     expect(await call(sam, "lab_map_hub($1, $2)", [labB, `experiment:${experiment}`])).toBeNull();

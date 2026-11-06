@@ -70,6 +70,7 @@ type CanvasState = {
   autoFit: boolean;
   raf: number;
   reduced: boolean;
+  zoomedAt: number;
 };
 
 const MIN_K = 0.04;
@@ -107,6 +108,7 @@ export function MapCanvas({ graph, active, onActiveChange, onActivate, centerOn,
     autoFit: true,
     raf: 0,
     reduced: false,
+    zoomedAt: 0,
   });
   const latest = useRef({ graph, layout, nodes, neighbors, edgeKinds, onActiveChange, onActivate });
   useEffect(() => {
@@ -139,7 +141,10 @@ export function MapCanvas({ graph, active, onActiveChange, onActivate, centerOn,
     const s = state.current;
     s.raf = 0;
     const L = latest.current.layout;
-    if (!isSettled(L)) {
+    // While someone pans or zooms a big map, the layout waits, so the camera keeps up.
+    const moving = s.gesture.kind === "pan" || s.gesture.kind === "pinch" || performance.now() - s.zoomedAt < 150;
+    if (!isSettled(L) && moving && L.ids.length > 2000) schedule();
+    else if (!isSettled(L)) {
       const start = performance.now();
       // Small maps settle in a couple of seconds; big ones take what a frame allows.
       do tick(L);
@@ -267,7 +272,8 @@ export function MapCanvas({ graph, active, onActiveChange, onActivate, centerOn,
     }
     order.sort((a, b) => a.p - b.p);
     const taken: [number, number, number, number][] = [];
-    for (const { i, p } of order.slice(0, 400)) {
+    // At most 150 names: past that a screen is all text, and placing them costs the frame.
+    for (const { i, p } of order.slice(0, 150)) {
       const node = ns[i];
       if (node === undefined) continue;
       const text = node.kind === "more" ? `${node.hidden.toLocaleString("en-US")} more` : node.name;
@@ -368,6 +374,7 @@ export function MapCanvas({ graph, active, onActiveChange, onActivate, centerOn,
     const k = clampK(s.cam.k * factor);
     const f = k / s.cam.k;
     s.autoFit = false;
+    s.zoomedAt = performance.now();
     s.cam = { k, x: px - (px - s.cam.x) * f, y: py - (py - s.cam.y) * f };
     schedule();
   }

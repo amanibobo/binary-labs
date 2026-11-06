@@ -9,8 +9,10 @@ import type { Graph, MapEdge, MapNode, MapNodeId } from "./map";
 // most HUB_FILE_LIMIT files) and a tick past it takes longer than a frame.
 export const MAX_LAYOUT_NODES = 25_000;
 export const ALPHA_MIN = 0.002;
-// About 300 ticks from a cold start to rest, as d3 does.
-const ALPHA_DECAY = 1 - Math.pow(ALPHA_MIN, 1 / 300);
+// About 300 ticks from a cold start to rest, as d3 does; a map past BIG nodes takes 100, since
+// each of its ticks costs most of a frame.
+const BIG = 5000;
+const decayOver = (ticks: number) => 1 - Math.pow(ALPHA_MIN, 1 / ticks);
 const VELOCITY_DECAY = 0.4;
 const THETA2 = 0.81;
 const GRAVITY = 0.03;
@@ -37,6 +39,7 @@ export type Layout = {
   readonly bias: Float32Array;
   alpha: number;
   alphaTarget: number;
+  readonly alphaDecay: number;
   readonly tree: QuadTree;
 };
 
@@ -238,6 +241,7 @@ export function createLayout(graph: Graph, previous: Layout | null = null): Layo
     // A layout that kept most of its places only needs a nudge.
     alpha: previous !== null && kept * 2 >= n ? 0.35 : 1,
     alphaTarget: 0,
+    alphaDecay: decayOver(n > BIG ? 100 : 300),
     tree: new QuadTree(),
   };
 }
@@ -249,7 +253,7 @@ export function isSettled(layout: Layout): boolean {
 export function tick(layout: Layout): void {
   const { x, y, vx, vy, fixed, gravity, source, target, length, strength, bias } = layout;
   const n = layout.ids.length;
-  layout.alpha += (layout.alphaTarget - layout.alpha) * ALPHA_DECAY;
+  layout.alpha += (layout.alphaTarget - layout.alpha) * layout.alphaDecay;
   const alpha = layout.alpha;
 
   for (let k = 0; k < source.length; k++) {
