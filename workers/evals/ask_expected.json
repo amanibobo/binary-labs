@@ -1,0 +1,25 @@
+{
+  "about": "Questions over the sample lab (scripts/make_sample_lab.py plus the two protocol pages scripts/eval-ask.sh adds), each with the sources a right answer cites. A file is named by the end of its path; 'protocol:<title start>' is a protocol page. Any one of them counts. 'expect': null means the lab's records don't answer it, so the right outcome is no answer.",
+  "questions": [
+    { "q": "Which running buffer do we use for SDS-PAGE gels?", "expect": ["protocols/SDS-PAGE_protocol.pdf", "protocol:SDS-PAGE"] },
+    { "q": "How long do we heat SDS-PAGE samples, and at what temperature?", "expect": ["protocols/SDS-PAGE_protocol.pdf", "protocol:SDS-PAGE"] },
+    { "q": "What imidazole concentration do we wash the HisTrap column with?", "expect": ["protocols/Ni-NTA purification.docx", "protocols/buffers.pdf", "protocol:Ni-NTA"] },
+    { "q": "What's in our lysis buffer?", "expect": ["protocols/buffers.pdf"] },
+    { "q": "Which fractions showed the strong 118 kDa band for P450 batch 2?", "expect": ["batch2/gel notes.pdf"] },
+    { "q": "Did P450 batch 3 show any degradation on the gel?", "expect": ["batch3/gel notes.pdf"] },
+    { "q": "Which file has the final kinetics for P450 batch 3?", "expect": ["shared/lab meeting.docx", "batch3/final_v2_REAL.xlsx"] },
+    { "q": "What was the Tm shift for lysozyme with NAG3?", "expect": ["lysozyme/Tm_summary.xlsx", "shared/lab meeting.docx"] },
+    { "q": "What was the Tm of apo lysozyme?", "expect": ["lysozyme/Tm_summary.xlsx"] },
+    { "q": "Which compounds were hits on thermal shift screen plate 07?", "expect": ["screen_plate_07/hits.xlsx"] },
+    { "q": "What dTm did compound EF-0457 give?", "expect": ["screen_plate_07/hits.xlsx"] },
+    { "q": "What went wrong in DSF run 2 for lysozyme?", "expect": ["2026-10-14/notes.txt"] },
+    { "q": "What reservoir conditions are planned for the lysozyme crystal tray?", "expect": ["lysozyme/crystal tray plan.docx"] },
+    { "q": "What Km and kcat are in the batch 3 final_v2_REAL kinetics file?", "expect": ["batch3/final_v2_REAL.xlsx"] },
+    { "q": "How many HisTrap columns were on invoice 2219?", "expect": ["CD/scan0003.pdf"] },
+    { "q": "What ligand shift counts as a hit in the thermal shift assay?", "expect": ["thermal_shift_DSF.pdf"] },
+    { "q": "What concentration of SYPRO Orange do we use for DSF?", "expect": ["thermal_shift_DSF.pdf"] },
+    { "q": "What was the yield of P450 batch 3 in mg?", "expect": null },
+    { "q": "Which buffer did we use for the SEC run in October?", "expect": null },
+    { "q": "Who ordered the new centrifuge rotor?", "expect": null }
+  ]
+}
