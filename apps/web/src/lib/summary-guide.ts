@@ -106,6 +106,17 @@ function measuredTitle(grouped: Grouped): { title: string; unit: string } {
   return { title: grouped.measure.name, unit: grouped.measure.unit };
 }
 
+// A side axis title from a line written above a short sheet ("Relative SOX2 expression
+// (2^-ΔΔCt), normalized to GAPDH" gives "Relative SOX2 expression" in "2^-ΔΔCt"), else the
+// sheet's own name.
+function noteTitle(table: DataTable, unit: string): { title: string; unit: string } {
+  const note = table.notes.length <= 2 ? table.notes[0] : undefined;
+  const head = note?.split(/[:,;]/)[0]?.trim() ?? "";
+  if (head === "" || head.length > 60) return { title: sheetTitle(table), unit };
+  const m = /^(.*?)\s*\(([^()]{1,24})\)$/.exec(head);
+  return m === null ? { title: head, unit } : { title: m[1], unit: unit || m[2] };
+}
+
 // A sheet's own name as an axis title, when it's a name rather than "Table 1".
 const sheetTitle = (table: DataTable) => (/^Table \d+$|^Sheet\d*$/i.test(table.name) ? "" : table.name);
 
@@ -139,7 +150,7 @@ export function startKind(data: ChartData, kind: ChartKind): SummarySpec | Histo
         control: null,
         marks: false,
         x: { title: grouped.key.numeric ? grouped.key.name : "" },
-        y: { title: grouped.measure.name || sheetTitle(table), unit: grouped.measure.unit, scale: "linear", min: null, max: null },
+        y: grouped.measure.name ? { title: grouped.measure.name, unit: grouped.measure.unit, scale: "linear", min: null, max: null } : { ...noteTitle(table, grouped.measure.unit), scale: "linear", min: null, max: null },
       };
       const groups = prepared(table, spec).groups;
       const test = suggestTest(groups).test;
@@ -409,7 +420,7 @@ export function describeSummary(spec: SummarySpec | HistogramSpec, data: ChartDa
       const hi = s.at(-1)?.at ?? 0;
       const what = spec.y.title || a.grouped.measure.name || "The reading";
       const each = reps.length === 1 && reps[0] > 1 ? `, each the mean of ${plural(reps[0], "repeat")}` : "";
-      const fit = a.fit === null ? "" : `, with a straight line${a.fit.origin ? " through zero" : ""} fitted to them (R² ${a.fit.r2.toFixed(3)})`;
+      const fit = a.fit === null ? "" : `, with a straight line${a.fit.origin ? " through zero" : ""} fitted to them (R² ${a.fit.r2.toFixed(4)})`;
       const unknowns = a.unknowns.length === 0 ? "" : ` ${plural(a.unknowns.length, "sample")} ${a.unknowns.length === 1 ? "is" : "are"} read off the line${a.unknowns.some((k) => k.outside !== null) ? `, ${a.unknowns.filter((k) => k.outside !== null).length} outside your standards` : ""}.`;
       const blank = a.blank === null ? "" : ` The blank (mean of ${plural(a.blank.n, "well")}) is taken off every reading.`;
       const points = spec.source.kind === "plate" ? plural(s.length, "standard") : plural(s.length, `${spec.x.title || "x"} value`);

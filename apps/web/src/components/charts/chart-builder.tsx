@@ -624,6 +624,7 @@ function ExportMenu({ disabled, size, onSize, onExport }: { disabled: boolean; s
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
         <DropdownMenu.Content align="end" sideOffset={6} className={cn(menuSurface, "w-80")}>
+          <p className="px-3 pt-2 pb-1 text-paragraph-xsmall text-content-tertiary">On white, with the title, and the test or fit written under the chart. Type prints at 7 pt.</p>
           <DropdownMenu.Label className="px-3 pt-2 pb-1 text-paragraph-xsmall text-content-tertiary">Size</DropdownMenu.Label>
           <DropdownMenu.RadioGroup value={size} onValueChange={(v) => onSize(v === "double" ? "double" : v === "slides" ? "slides" : "column")}>
             {EXPORT_SIZE_KEYS.map((key) => (

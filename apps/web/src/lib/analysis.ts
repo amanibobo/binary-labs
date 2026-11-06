@@ -88,7 +88,7 @@ export function explainP(p: number): string {
           : p < 0.1
             ? `about ${Math.max(1, Math.round(p * 100))} times in 100`
             : `about ${Math.max(1, Math.round(p * 10))} times in 10`;
-  return `p: if there were no real difference, a gap this big would turn up by chance ${chance} experiments like this one. Below 0.05 is usually called significant.`;
+  return `p: if there were no real difference, a gap at least this big, either way, would turn up by chance ${chance} experiments like this one. Below 0.05 is usually called significant.`;
 }
 
 export function stars(p: number): string {
@@ -207,7 +207,17 @@ export function analyzeGroups(table: DataTable, spec: GroupsSpec): GroupsAnalysi
   const missing = groups.reduce((n, g) => n + g.missing, 0);
   if (missing > 0) warnings.push(`${plural(missing, "well or cell", "wells or cells")} in these groups ${missing === 1 ? "has" : "have"} no number and ${missing === 1 ? "is" : "are"} left out.`);
 
-  facts.push({ question: "How many repeats?", answer: nPhrase(groups.filter((g) => g.role !== "blank")), explain: "n: how many separate measurements make up each group. Every one is drawn as a dot when there are 10 or fewer." });
+  facts.push({
+    question: "How many repeats?",
+    answer: nPhrase(groups.filter((g) => g.role !== "blank")),
+    explain:
+      spec.source.kind === "plate"
+        ? "n: how many wells make up each group. Wells on one plate are technical repeats: they show how precise the plate is, not whether the result holds next time. For a paper, repeat the experiment and compare those."
+        : "n: how many separate measurements make up each group. Every one is drawn as a dot when there are 10 or fewer.",
+  });
+  if (spec.mark === "box" && groups.some((g) => g.role !== "blank" && g.summary.n < 5)) {
+    warnings.push("With fewer than 5 values in a group, a box's quartiles rest on a couple of points and a single value can look like an outlier. The dots show them all; bars may say it more plainly.");
+  }
   if (spec.mark === "bar") facts.push({ question: "What do the error bars show?", answer: SPREAD_NAMES[spec.spread], explain: SPREAD_HELP[spec.spread] });
   else facts.push({ question: "How is the box drawn?", answer: "Quartiles by linear interpolation", explain: "The box runs from the 25th to the 75th percentile with a line at the median, worked out as Excel's QUARTILE.INC and NumPy do. Whiskers reach the furthest values within 1.5 box heights; dots past them are outliers." });
   const named = testFacts(test);
@@ -238,7 +248,13 @@ function testFacts(test: TestOutcome): { facts: Fact[]; caption: string[] } {
     case "welch": {
       const p = test.result.p;
       return {
-        facts: [{ question: "Is the difference real?", answer: `Welch's t-test, ${pEq(p)}`, explain: explainP(p) }],
+        facts: [
+          {
+            question: "Is the difference real?",
+            answer: `Welch's t-test, ${pEq(p)}`,
+            explain: `${explainP(p)} Means ${formatFit(test.a.summary.mean)} and ${formatFit(test.b.summary.mean)}, a difference of ${formatFit(test.a.summary.mean - test.b.summary.mean)}; t = ${formatFit(test.result.statistic)} on ${formatFit(test.result.df)} degrees of freedom, two-sided.`,
+          },
+        ],
         caption: [`${test.a.label} vs ${test.b.label}: Welch's t-test, t = ${formatFit(test.result.statistic)}, df = ${formatFit(test.result.df)}, ${pEq(p)}; n = ${test.a.summary.n} and ${test.b.summary.n}.`],
       };
     }
@@ -258,8 +274,8 @@ function testFacts(test: TestOutcome): { facts: Fact[]; caption: string[] } {
     case "control": {
       const facts = test.comparisons.map((c) => ({
         question: `Is ${c.label} different from ${test.control.label}?`,
-        answer: `${pEq(c.adjusted)}, Holm-corrected`,
-        explain: `Welch's t-test of ${c.label} against ${test.control.label}, with the p-value raised by Holm's method because ${test.comparisons.length} groups are tested at once (uncorrected ${pEq(c.p)}). ${explainP(c.adjusted)}`,
+        answer: `${pEq(c.adjusted)}, Holm-corrected (${pEq(c.p)} on its own)`,
+        explain: `Welch's t-test of ${c.label} against ${test.control.label}. Testing ${test.comparisons.length} groups at once makes a chance hit likelier, so Holm's method raises each p-value: the smallest is multiplied by ${test.comparisons.length}, the next by ${test.comparisons.length - 1}, and none may fall below the one before, which can leave two groups with the same p. ${explainP(c.adjusted)}`,
       }));
       const list = test.comparisons.map((c) => `${c.label} ${pEq(c.adjusted)}`).join("; ");
       return { facts, caption: [`Each group against ${test.control.label}: Welch's t-tests, Holm-corrected. ${list}; n = ${test.comparisons.map((c) => c.n).join(", ")} vs ${test.control.summary.n}.`] };
@@ -487,7 +503,11 @@ export function analyzeDose(table: DataTable, spec: DoseSpec): DoseAnalysis {
     const v = s.verdict;
     const who = series.length > 1 ? `${s.name}: ` : "";
     if (v.kind === "ok") {
-      facts.push({ question: `${who}Where is the halfway point?`, answer: `${s.term} ${formatFit(v.mid)}${u} (${formatFit(v.ci[0])} to ${formatFit(v.ci[1])})`, explain: `${TERM_HELP[s.term]} The range in brackets is its 95% confidence interval.` });
+      facts.push({
+        question: `${who}Where is the halfway point?`,
+        answer: `${s.term} ${formatFit(v.mid)}${u}, 95% CI ${formatFit(v.ci[0])} to ${formatFit(v.ci[1])}`,
+        explain: `${TERM_HELP[s.term]} This is the relative ${s.term}: halfway between the fitted top (${formatFit(s.params?.top ?? 0)}) and bottom (${formatFit(s.params?.bottom ?? 0)}), not 50% of the control. The 95% confidence interval comes from the fit, on the log of the dose.`,
+      });
     } else if (v.kind === "unsure") {
       facts.push({ question: `${who}Where is the halfway point?`, answer: v.mid === null ? `${s.term} not measured` : `${s.term} about ${formatFit(v.mid)}${u}, not pinned down`, explain: `${TERM_HELP[s.term]} ${v.reason}` });
       warnings.push(`${who}${v.reason}`);
@@ -510,12 +530,18 @@ export function analyzeDose(table: DataTable, spec: DoseSpec): DoseAnalysis {
     if (s.doses.some((g) => g.summary.n < 2)) warnings.push(`${who}Some doses have a single well, so the curve rests on few points.`);
     if (s.verdict.kind === "ok" || s.verdict.kind === "unsure") {
       const p = s.params;
-      const what = s.verdict.kind === "ok" ? `${s.term} ${formatFit(s.verdict.mid)}${u} (95% CI ${formatFit(s.verdict.ci[0])} to ${formatFit(s.verdict.ci[1])})` : `${s.term} not pinned down`;
+      const what = s.verdict.kind === "ok" ? `relative ${s.term} ${formatFit(s.verdict.mid)}${u} (95% CI ${formatFit(s.verdict.ci[0])} to ${formatFit(s.verdict.ci[1])})` : `${s.term} not pinned down`;
       caption.push(`${series.length > 1 ? `${s.name}: ` : ""}four-parameter logistic fit to ${spec.fit === "means" ? "the means" : "every well"} on log dose; ${what}${p === null ? "" : `, top ${formatFit(p.top)}, bottom ${formatFit(p.bottom)}, Hill slope ${formatFit(p.hill)}`}.`);
     }
   }
   const doses = series.flatMap((s) => s.doses);
-  if (doses.length > 0) facts.push({ question: "How many repeats?", answer: nPhrase(doses, "per dose"), explain: `n: how many wells each dose's mean is made from. The curve is fitted to ${spec.fit === "means" ? "the means" : "every well, so it counts each repeat"}.` });
+  if (doses.length > 0) {
+    facts.push({
+      question: "How many repeats?",
+      answer: nPhrase(doses, "per dose"),
+      explain: `n: how many wells each dose's mean is made from. The curve is fitted to ${spec.fit === "means" ? "the means" : "every well"}; the control wells aren't in the fit. Wells on one plate are technical repeats, so the 95% CI says how precisely this plate pins the ${series[0]?.term ?? "IC50"} down, not how it varies between experiments.`,
+    });
+  }
   facts.push({ question: "What do the error bars show?", answer: SPREAD_NAMES[spec.spread], explain: SPREAD_HELP[spec.spread] });
   if (controls.length > 0) caption.push(`${controls.map((c) => c.label).join(", ")} (no drug) is drawn as a dashed line, since zero has no place on a log scale.`);
   caption.push(`Error bars show ${SPREAD_NAMES[spec.spread]}, ${doses.length === 0 ? "" : nPhrase(doses, "per dose")}.`);
@@ -607,7 +633,7 @@ export function analyzeHistogram(table: DataTable, spec: HistogramSpec): Histogr
       answer: `Median ${formatFit(quantile(sorted, 0.5))}${unit}, middle half ${formatFit(quantile(sorted, 0.25))} to ${formatFit(quantile(sorted, 0.75))}`,
       explain: "Half the values are below the median and half above. The middle half runs from the 25th to the 75th percentile (by linear interpolation, as Excel's QUARTILE.INC).",
     },
-    { question: "How wide is each bar?", answer: `${formatValue(width)}${unit}`, explain: rule },
+    { question: "How wide is each bar?", answer: `${formatValue(width)}${unit}`, explain: `${rule} Each bar counts the values from its left edge up to, not including, its right edge; the last bar includes its right edge.` },
   ];
   if (values.length < 20) warnings.push(`With ${values.length} values a histogram's shape is mostly chance. A box plot or the dots themselves may say more.`);
   const invalid = column?.invalid ?? 0;

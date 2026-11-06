@@ -74,7 +74,7 @@ export default async function ChartsFixture({ searchParams }: FixtureProps) {
   const mode: BuilderMode =
     chart === null
       ? { kind: "create", protocolId: null }
-      : { kind: "edit", chart, provenance: view === "saved-dose" ? { protocolVersion: { version: 2, title: "Bradford assay" }, layoutName: "Drug A, 5 doses by fives" } : undefined };
+      : { kind: "edit", chart, provenance: view === "saved-dose" ? { protocolVersion: { version: 3, title: "Cell viability (MTT)" }, layoutName: "Drug A, 5 doses by fives" } : undefined };
   return (
     <FixtureLabApi mode="hybrid" source={doneSource} tables={view === "waiting" ? "waiting" : "ready"}>
       <AppShell shell={fixtureShell} location={{ section: "search" }}>

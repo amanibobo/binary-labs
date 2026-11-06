@@ -225,15 +225,44 @@ export function Explained({ text, children }: { text: string; children: ReactNod
 }
 
 // The samples read off a standard curve, as students hand them in, with their own download.
+// Units a sample's amount can be shown in, as multiples of the one it was measured in.
+const CONVERSIONS: Record<string, { unit: string; by: number }[]> = {
+  "µg/mL": [{ unit: "mg/mL", by: 1 / 1000 }],
+  "ng/mL": [{ unit: "µg/mL", by: 1 / 1000 }],
+  "mg/mL": [{ unit: "µg/mL", by: 1000 }],
+  "µM": [{ unit: "nM", by: 1000 }, { unit: "mM", by: 1 / 1000 }],
+};
+
 function SamplesTable({ analysis, spec, title }: { analysis: Extract<Analysis, { kind: "curve" }>; spec: SummarySpec | HistogramSpec; title: string }) {
-  const unit = analysis.grouped.key.unit;
+  const measured = analysis.grouped.key.unit;
+  const choices = [{ unit: measured, by: 1 }, ...(CONVERSIONS[measured] ?? [])];
+  const [shownUnit, setShownUnit] = useState(measured);
+  const by = choices.find((c) => c.unit === shownUnit)?.by ?? 1;
+  const unit = choices.some((c) => c.unit === shownUnit) ? shownUnit : measured;
   const u = unit ? ` (${unit})` : "";
+  const amount = (v: number | null) => (v === null ? "—" : formatFit(v * by));
   const diluted = analysis.unknowns.some((k) => k.dilution !== null && k.dilution !== 1);
   const samples = chartNumbers(spec, analysis).find((t) => t.title === "Samples");
   return (
     <section aria-label="Your samples" className="mt-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-label-medium text-content-primary">Your samples, read off the line</h3>
+        {choices.length > 1 ? (
+          <div role="radiogroup" aria-label="Show amounts in" className="inline-flex rounded-control bg-background-secondary p-0.5 ring-1 ring-border-opaque ring-inset">
+            {choices.map((c) => (
+              <button
+                key={c.unit}
+                type="button"
+                role="radio"
+                aria-checked={c.unit === unit}
+                onClick={() => setShownUnit(c.unit)}
+                className={cn("min-h-9 rounded-[8px] px-2.5 text-label-small sm:min-h-7", c.unit === unit ? "bg-background-raised text-content-primary shadow-raised" : "text-content-secondary hover:text-content-primary")}
+              >
+                {c.unit}
+              </button>
+            ))}
+          </div>
+        ) : null}
         {samples === undefined ? null : (
           <Button variant="tertiary" size="compact" className="-mr-2 text-content-secondary" onClick={() => saveText(numbersCsv([samples], [title]), `${title} samples.csv`, "text/csv")}>
             Download as CSV
@@ -245,7 +274,7 @@ function SamplesTable({ analysis, spec, title }: { analysis: Extract<Analysis, {
           <thead className="bg-background-secondary">
             <tr>
               <th scope="col" className="px-3 py-2 font-medium text-content-secondary">Sample</th>
-              <th scope="col" className="px-3 py-2 font-medium text-content-secondary">Reading</th>
+              <th scope="col" className="px-3 py-2 font-medium text-content-secondary">Reading{analysis.blank === null ? "" : ", blank taken off"}</th>
               <th scope="col" className="px-3 py-2 font-medium text-content-secondary">In the well{u}</th>
               {diluted ? <th scope="col" className="px-3 py-2 font-medium text-content-secondary">In the sample{u}</th> : null}
             </tr>
@@ -259,13 +288,14 @@ function SamplesTable({ analysis, spec, title }: { analysis: Extract<Analysis, {
                 </td>
                 <td className="px-3 py-1.5 text-content-primary">{formatFit(k.reading)}</td>
                 <td className="px-3 py-1.5 text-content-primary">
-                  {k.conc === null ? "—" : formatFit(k.conc)}
+                  {k.outside === null ? amount(k.conc) : `${amount(k.conc)}?`}
                   {k.outside === null ? null : <span className="block text-content-secondary">Outside your standards, so this number is a guess</span>}
                 </td>
                 {diluted ? (
                   <td className="px-3 py-1.5 text-content-primary">
-                    {k.original === null ? "—" : formatFit(k.original)}
-                    {k.dilution !== null && k.dilution !== 1 ? <span className="text-content-tertiary"> (× {formatValue(k.dilution)})</span> : null}
+                    {k.outside === null ? amount(k.original) : `${amount(k.original)}?`}
+                    {k.dilution !== null && k.dilution !== 1 ? <span className="text-content-tertiary"> (× {formatValue(k.dilution)}, its dilution)</span> : null}
+                    {k.outside === null ? null : <span className="block text-content-secondary">A guess too</span>}
                   </td>
                 ) : null}
               </tr>

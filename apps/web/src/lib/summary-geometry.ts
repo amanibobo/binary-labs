@@ -480,14 +480,22 @@ function plotXY(spec: XYish, a: XYAnalysis, size: { width: number; height: numbe
 
   if (a.kind === "curve" && a.fit !== null) {
     const fit = a.fit;
-    const [x0, x1] = logX ? [xDomain[0], xDomain[1]] : [Math.max(xDomain[0], fit.origin ? 0 : xDomain[0]), xDomain[1]];
-    const steps = logX ? 80 : 1;
-    const path: string[] = [];
-    for (let k = 0; k <= steps; k++) {
-      const x = logX ? 10 ** (Math.log10(x0) + ((Math.log10(x1) - Math.log10(x0)) * k) / steps) : x0 + ((x1 - x0) * k) / steps;
-      path.push(`${k === 0 ? "M" : "L"}${round(mapX(x))} ${round(clampY(fit.intercept + fit.slope * x))}`);
-    }
-    out.curves.push({ path: path.join(""), color: SERIES_COLORS[0], dashed: false });
+    const line = (x0: number, x1: number): string => {
+      const steps = logX ? 80 : 1;
+      const path: string[] = [];
+      for (let k = 0; k <= steps; k++) {
+        const x = logX ? 10 ** (Math.log10(x0) + ((Math.log10(x1) - Math.log10(x0)) * k) / steps) : x0 + ((x1 - x0) * k) / steps;
+        path.push(`${k === 0 ? "M" : "L"}${round(mapX(x))} ${round(clampY(fit.intercept + fit.slope * x))}`);
+      }
+      return path.join("");
+    };
+    // Solid across the standards, where the line is measured; dashed past them, where a
+    // sample read off it is a guess.
+    const [lo, hi] = a.range ?? [xDomain[0], xDomain[1]];
+    const start = logX ? xDomain[0] : Math.max(xDomain[0], fit.origin ? 0 : xDomain[0]);
+    out.curves.push({ path: line(lo, hi), color: SERIES_COLORS[0], dashed: false });
+    if (start < lo) out.curves.push({ path: line(start, lo), color: SERIES_COLORS[0], dashed: true });
+    if (xDomain[1] > hi) out.curves.push({ path: line(hi, xDomain[1]), color: SERIES_COLORS[0], dashed: true });
     const sign = fit.intercept < 0 ? "−" : "+";
     const eq = fit.origin ? `y = ${formatFit(fit.slope)}x` : `y = ${formatFit(fit.slope)}x ${sign} ${formatFit(Math.abs(fit.intercept))}`;
     out.labels.push({ x: area.left + 8, y: area.top + 14, text: eq, anchor: "start", ink: "label", size: TICK_FONT, weight: 600 });

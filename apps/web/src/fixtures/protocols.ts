@@ -123,6 +123,7 @@ export const history = HistoryRows.parse([
 
 export const protocolList = ProtocolListRows.parse([
   { id: "7a1c2c39-5a4e-4c55-9d7b-0c3c1a7a0002", kind: "protocol", title: "Bradford assay", version: 2, author: jordan, updated_at: "2026-10-28T13:00:00Z" },
+  { id: "7a1c2c39-5a4e-4c55-9d7b-0c3c1a7a0019", kind: "protocol", title: "Cell viability (MTT)", version: 3, author: priya, updated_at: "2026-11-01T09:00:00Z" },
   { id: "7a1c2c39-5a4e-4c55-9d7b-0c3c1a7a0003", kind: "tutorial", title: "Imaging a gel on the ChemiDoc", version: 1, author: priya, updated_at: "2026-10-19T16:30:00Z" },
   { id: purificationId, kind: "protocol", title: "P450 BM3 purification", version: 4, author: priya, updated_at: "2026-11-02T15:20:00Z" },
   { id: "7a1c2c39-5a4e-4c55-9d7b-0c3c1a7a0004", kind: "protocol", title: "SDS-PAGE for BM3 fractions", version: 3, author: ade, updated_at: "2026-10-15T11:10:00Z" },

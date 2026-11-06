@@ -296,6 +296,7 @@ const DRUG_PLATE = (() => {
 
 export const DRUG_LAYOUT_ID = "9d1c2c39-5a4e-4c55-9d7b-0c3c1a7d0001";
 const BRADFORD_PROTOCOL = "7a1c2c39-5a4e-4c55-9d7b-0c3c1a7a0002";
+const VIABILITY_PROTOCOL = "7a1c2c39-5a4e-4c55-9d7b-0c3c1a7a0019";
 
 export const savedLayouts: SavedLayout[] = LayoutRows.parse([
   {
@@ -334,7 +335,7 @@ savedCharts.push(
         x: { title: "Drug A", unit: "µM", scale: "log", min: null, max: null },
         y: { title: "A570", unit: "", scale: "linear", min: null, max: null },
       },
-      protocol_id: BRADFORD_PROTOCOL,
+      protocol_id: VIABILITY_PROTOCOL,
       protocol_version_id: "7a1c2c39-5a4e-4c55-9d7b-0c3c1a7b0022",
       created_by: priya,
       created_at: "2026-11-05T15:00:00Z",

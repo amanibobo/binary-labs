@@ -156,8 +156,9 @@ function PainterBody({
         </div>
       </div>
       <DialogDock>
+        <p className="text-paragraph-xsmall text-content-tertiary">Mark as many groups of wells as you need, then use the layout for the chart.</p>
         <Button onClick={() => onDone(savedAs?.id ?? null, savedAs?.from ?? null)} disabled={layout.groups.length === 0}>
-          Use this layout
+          Done, use this layout
         </Button>
         <Button variant="secondary" onClick={onCancel}>
           Cancel
@@ -334,12 +335,12 @@ function MarkForm({ layout, picked, onApply, onClear }: { layout: SampleLayout; 
   const key = picked.join(" ");
   if (shown !== key) {
     setShown(key);
-    if (first !== null) {
-      setRole(first.role);
-      setName(first.name);
-      setConc(first.conc === null ? "" : String(first.conc));
-      setDilution(first.dilution === null ? "" : String(first.dilution));
-    }
+    // Unmarked wells start as samples, so wells picked after the controls aren't marked as
+    // controls by a click on Mark.
+    setRole(first?.role ?? "sample");
+    setName(first?.name ?? "");
+    setConc(first?.conc === null || first?.conc === undefined ? "" : String(first.conc));
+    setDilution(first?.dilution === null || first?.dilution === undefined ? "" : String(first.dilution));
   }
   const needsName = role === "sample";
   const hasConc = role === "standard" || role === "sample";
@@ -440,7 +441,7 @@ function Extras({ layout, picked, onLayout, saved }: { layout: SampleLayout; pic
   const [role, setRole] = useState<"sample" | "standard">("sample");
   const [name, setName] = useState("");
   const [text, setText] = useState("");
-  const ids = { start: useId(), factor: useId(), name: useId(), paste: useId() };
+  const ids = { start: useId(), factor: useId(), name: useId(), paste: useId(), unit: useId() };
   const steps = new Set(picked.map((w) => (direction === "across" ? w.slice(1) : w[0]))).size;
   const s = parseNumber(start);
   const f = parseNumber(factor);
@@ -451,7 +452,9 @@ function Extras({ layout, picked, onLayout, saved }: { layout: SampleLayout; pic
       <Disclosure open={open === "series"} onClick={() => toggle("series")} label="Fill a dilution series" />
       {open === "series" ? (
         <div className="grid gap-3 pl-6">
-          <p className="text-paragraph-xsmall text-content-tertiary">Pick the wells first. Each {direction === "across" ? "column" : "row"} gets one amount; the wells in it are repeats.</p>
+          <p className="text-paragraph-xsmall text-content-tertiary">
+            Pick the wells first. The {direction === "across" ? "leftmost column" : "top row"} gets the start amount, and each next {direction === "across" ? "column" : "row"} is divided by the factor; the wells in one {direction === "across" ? "column" : "row"} are repeats.
+          </p>
           <Segmented<"sample" | "standard">
             label="Of"
             options={[
@@ -472,9 +475,15 @@ function Extras({ layout, picked, onLayout, saved }: { layout: SampleLayout; pic
           <div className="grid grid-cols-2 gap-2">
             <div className="grid gap-1">
               <label htmlFor={ids.start} className="text-paragraph-small text-content-secondary">
-                Start at{layout.unit ? ` (${layout.unit})` : ""}
+                Start at
               </label>
-              <Input id={ids.start} size="compact" inputMode="decimal" value={start} onChange={(e) => setStart(e.target.value)} />
+              <div className="flex items-center gap-1.5">
+                <Input id={ids.start} size="compact" inputMode="decimal" value={start} onChange={(e) => setStart(e.target.value)} />
+                <label htmlFor={ids.unit} className="sr-only">
+                  Unit
+                </label>
+                <Input id={ids.unit} size="compact" className="w-20" value={layout.unit} maxLength={24} placeholder="µM" onChange={(e) => onLayout({ ...layout, unit: e.target.value })} />
+              </div>
             </div>
             <div className="grid gap-1">
               <label htmlFor={ids.factor} className="text-paragraph-small text-content-secondary">
