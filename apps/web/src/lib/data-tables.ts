@@ -3,10 +3,17 @@ import { ColumnId } from "./ids";
 
 // A file's full tables as the worker parsed them (workers/src/bl_worker/tables.py), read from
 // <lab_id>/tables/<sha256>.json in the object store. One column per spreadsheet column, with
-// its values in row order: null for a blank cell, or for a cell in a number column that held
-// text (counted in `invalid`).
+// its values in row order: null for a blank cell, or for a cell in a number or date column that
+// held something else (counted in `invalid`).
 
-const Common = { id: ColumnId, name: z.string(), invalid: z.number().int().nonnegative() };
+const Common = {
+  id: ColumnId,
+  name: z.string(),
+  invalid: z.number().int().nonnegative(),
+  // How the column was read, when the reader should know: a date order that was assumed. Tables
+  // parsed before parser version 2 have none.
+  note: z.string().nullable().default(null),
+};
 
 export const NumberColumn = z.object({
   ...Common,
@@ -24,7 +31,19 @@ export const TextColumn = z.object({
 });
 export type TextColumn = z.infer<typeof TextColumn>;
 
-export const DataColumn = z.discriminatedUnion("kind", [NumberColumn, TextColumn]);
+// Milliseconds since 1970 of the wall-clock time as the file wrote it, so a chart prints what
+// the instrument printed and never shifts with the reader's time zone (formatted in UTC).
+export const DateColumn = z.object({
+  ...Common,
+  kind: z.literal("date"),
+  unit: z.null(),
+  values: z.array(z.number().nullable()),
+  // Whether any value has a time of day; a column of days prints days.
+  time: z.boolean(),
+});
+export type DateColumn = z.infer<typeof DateColumn>;
+
+export const DataColumn = z.discriminatedUnion("kind", [NumberColumn, TextColumn, DateColumn]);
 export type DataColumn = z.infer<typeof DataColumn>;
 
 export const DataTable = z.object({
@@ -66,6 +85,48 @@ export function findColumn(table: DataTable, id: ColumnId): DataColumn | undefin
 
 export function numberColumns(table: DataTable): NumberColumn[] {
   return table.columns.filter((c): c is NumberColumn => c.kind === "number");
+}
+
+// What can run along a line or scatter chart's x: numbers, or dates on a time axis.
+export type AxisColumn = NumberColumn | DateColumn;
+
+export function axisColumns(table: DataTable): AxisColumn[] {
+  return table.columns.filter((c): c is AxisColumn => c.kind === "number" || c.kind === "date");
+}
+
+const dateParts = { timeZone: "UTC", year: "numeric", month: "short", day: "numeric" } as const;
+const dayFormat = new Intl.DateTimeFormat("en-US", dateParts);
+const minuteFormat = new Intl.DateTimeFormat("en-US", { ...dateParts, hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+const secondFormat = new Intl.DateTimeFormat("en-US", { ...dateParts, hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" });
+
+// A date as a readout or the numbers table prints it: "Nov 3, 2026", with the time when the
+// column has times, and seconds when the value has them.
+export function formatDate(ms: number, withTime: boolean): string {
+  if (!withTime) return dayFormat.format(ms);
+  if (ms % 60_000 === 0) return minuteFormat.format(ms);
+  const text = secondFormat.format(ms);
+  const rest = Math.round(((ms % 1000) + 1000) % 1000);
+  return rest === 0 ? text : `${text}.${String(rest).padStart(3, "0")}`;
+}
+
+// One cell as the numbers table prints it.
+export function cellText(column: DataColumn, row: number, formatNumber: (v: number) => string): string {
+  switch (column.kind) {
+    case "number": {
+      const v = column.values[row];
+      return v === null || v === undefined ? "" : formatNumber(v);
+    }
+    case "date": {
+      const v = column.values[row];
+      return v === null || v === undefined ? "" : formatDate(v, column.time);
+    }
+    case "text":
+      return column.values[row] ?? "";
+    default: {
+      const _exhaustive: never = column;
+      return _exhaustive;
+    }
+  }
 }
 
 const count = new Intl.NumberFormat("en-US");

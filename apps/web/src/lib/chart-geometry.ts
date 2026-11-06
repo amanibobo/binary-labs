@@ -1,9 +1,10 @@
-import { MAX_SERIES, type ChartSpec, type SeriesColor } from "./charts";
-import { findColumn, type DataColumn, type DataTable } from "./data-tables";
+import { MAX_SERIES, type SeriesColor, type Stroke, type XYSpec } from "./charts";
+import { findColumn, formatDate, type DataColumn, type DataTable } from "./data-tables";
 
-// Where every mark of a chart goes, from its spec, its table and a size. Pure, so the live
-// chart, the exported SVG and the tests all draw from the same numbers. Text widths are
-// estimated, not measured, so this runs on the server and in tests too.
+// Where every mark of a line, scatter or bar chart goes, from its spec, its table and a size.
+// Pure, so the live chart, the exported SVG and the tests all draw from the same numbers. Text
+// widths are estimated, not measured, so this runs on the server and in tests too. Plates are
+// drawn by plate-geometry.ts.
 
 export type Tick = { pos: number; label: string };
 export type Point = { row: number; x: number; y: number; px: number; py: number };
@@ -13,6 +14,9 @@ export type PlotSeries = {
   column: string;
   name: string;
   color: SeriesColor;
+  stroke: Stroke;
+  // Read along its own x column, so the hover layer finds its nearest point, not its row.
+  ownX: boolean;
   points: Point[];
   // Line charts: the line, broken where a value is blank.
   path: string | null;
@@ -21,8 +25,10 @@ export type PlotSeries = {
   markers: boolean;
   label: { x: number; y: number } | null;
 };
-export type LegendItem = { name: string; color: SeriesColor; x: number; y: number };
-export type Stop = { row: number; px: number; label: string };
+export type LegendItem = { name: string; color: SeriesColor; stroke: Stroke; x: number; y: number };
+// A place the hover layer snaps to along x. row is the table row when every series that shares
+// the chart's x has its value there; series with their own x find their nearest point.
+export type Stop = { row: number | null; px: number; label: string };
 export type Plot = {
   width: number;
   height: number;
@@ -116,6 +122,80 @@ export function logTicks(lo: number, hi: number): number[] {
   return out;
 }
 
+const SECOND = 1000;
+const MINUTE = 60 * SECOND;
+const HOUR = 60 * MINUTE;
+const DAY = 24 * HOUR;
+// Steps a time axis may tick at, from a second to a week; past that, months and years.
+const TIME_STEPS = [1, 2, 5, 10, 15, 30].map((s) => s * SECOND).concat(
+  [1, 2, 5, 10, 15, 30].map((m) => m * MINUTE),
+  [1, 2, 3, 6, 12].map((h) => h * HOUR),
+  [1, 2, 7].map((d) => d * DAY),
+);
+const MONTH_STEPS = [1, 2, 3, 6];
+
+const utc = (opts: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat("en-US", { timeZone: "UTC", ...opts });
+const clockSeconds = utc({ hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" });
+const clock = utc({ hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+const monthDay = utc({ month: "short", day: "numeric" });
+const month = utc({ month: "short" });
+const year = utc({ year: "numeric" });
+
+export type TimeStep = { kind: "fixed"; ms: number } | { kind: "months"; months: number } | { kind: "years"; years: number };
+
+export function timeStep(lo: number, hi: number, count: number): TimeStep {
+  const target = (hi - lo) / Math.max(1, count);
+  const fixed = TIME_STEPS.find((s) => s >= target);
+  if (fixed !== undefined && (fixed < 7 * DAY || target <= 10 * DAY)) return { kind: "fixed", ms: fixed };
+  const months = MONTH_STEPS.find((m) => m * 30 * DAY >= target);
+  if (months !== undefined) return { kind: "months", months };
+  const years = tickStep(0, target / (365 * DAY), 1);
+  return { kind: "years", years: Math.max(1, Math.round(years)) };
+}
+
+// Ticks on a time axis, minutes to months, each labeled at the coarsest unit that changes:
+// "06:00", then "Nov 4" at midnight; "Nov 3"; "Dec", then "2027" in January.
+export function timeTicks(lo: number, hi: number, count: number): { values: number[]; label: (v: number) => string } {
+  const step = timeStep(lo, hi, count);
+  const values: number[] = [];
+  switch (step.kind) {
+    case "fixed": {
+      for (let v = Math.ceil(lo / step.ms) * step.ms; v <= hi && values.length < 500; v += step.ms) values.push(v);
+      const midnight = (v: number) => v % DAY === 0;
+      if (step.ms < MINUTE) return { values, label: (v) => (midnight(v) ? monthDay.format(v) : clockSeconds.format(v)) };
+      if (step.ms < DAY) return { values, label: (v) => (midnight(v) ? monthDay.format(v) : clock.format(v)) };
+      return { values, label: (v) => monthDay.format(v) };
+    }
+    case "months": {
+      const start = new Date(lo);
+      let y = start.getUTCFullYear();
+      let m = start.getUTCMonth();
+      if (Date.UTC(y, m, 1) < lo) m += 1;
+      m = Math.ceil(m / step.months) * step.months;
+      for (let v = Date.UTC(y, m, 1); v <= hi && values.length < 500; v = Date.UTC(y, m, 1)) {
+        values.push(v);
+        m += step.months;
+        if (m >= 12) {
+          y += Math.floor(m / 12);
+          m %= 12;
+        }
+      }
+      return { values, label: (v) => (new Date(v).getUTCMonth() === 0 ? year.format(v) : month.format(v)) };
+    }
+    case "years": {
+      const first = Math.ceil(new Date(lo).getUTCFullYear() / step.years) * step.years;
+      for (let y = first; Date.UTC(y, 0, 1) <= hi && values.length < 500; y += step.years) {
+        if (Date.UTC(y, 0, 1) >= lo) values.push(Date.UTC(y, 0, 1));
+      }
+      return { values, label: (v) => year.format(v) };
+    }
+    default: {
+      const _exhaustive: never = step;
+      return _exhaustive;
+    }
+  }
+}
+
 type Scale = { map: (v: number) => number; ticks: Tick[] };
 
 function linearScale(lo: number, hi: number, r0: number, r1: number, count: number): Scale {
@@ -123,6 +203,12 @@ function linearScale(lo: number, hi: number, r0: number, r1: number, count: numb
   const values = linearTicks(lo, hi, count);
   const format = tickFormat(tickStep(lo, hi, count), Math.max(Math.abs(lo), Math.abs(hi)));
   return { map, ticks: values.map((v) => ({ pos: map(v), label: format(v) })) };
+}
+
+function timeScale(lo: number, hi: number, r0: number, r1: number, count: number): Scale {
+  const map = (v: number) => r0 + ((v - lo) / (hi - lo)) * (r1 - r0);
+  const { values, label } = timeTicks(lo, hi, count);
+  return { map, ticks: values.map((v) => ({ pos: map(v), label: label(v) })) };
 }
 
 function logScale(lo: number, hi: number, r0: number, r1: number): Scale {
@@ -138,48 +224,75 @@ function axisText(title: string, unit: string): string {
   return u === "" ? t : `${t} (${u})`;
 }
 
+// A number column's value, or a date column's milliseconds: anything that has a place on an axis.
 function numberAt(column: DataColumn | undefined, row: number): number | null {
-  if (column?.kind !== "number") return null;
+  if (column === undefined || column.kind === "text") return null;
   return column.values[row] ?? null;
 }
 
 function categoryLabel(column: DataColumn, row: number): string | null {
-  const v = column.values[row];
-  if (v === null || v === undefined) return null;
-  return typeof v === "number" ? formatValue(v) : v;
+  switch (column.kind) {
+    case "text":
+      return column.values[row] ?? null;
+    case "number": {
+      const v = column.values[row];
+      return v === null || v === undefined ? null : formatValue(v);
+    }
+    case "date": {
+      const v = column.values[row];
+      return v === null || v === undefined ? null : formatDate(v, column.time);
+    }
+    default: {
+      const _exhaustive: never = column;
+      return _exhaustive;
+    }
+  }
+}
+
+// A position along x as the readout says it.
+export function xLabel(column: DataColumn | undefined, v: number): string {
+  return column?.kind === "date" ? formatDate(v, column.time) : formatValue(v);
 }
 
 const round = (v: number) => Math.round(v * 10) / 10;
 
 export function plotChart(
-  spec: ChartSpec,
+  spec: XYSpec,
   table: DataTable,
   size: { width: number; height: number },
   options: { title?: string } = {},
 ): Plot {
   const notes: string[] = [];
-  const xColumn = findColumn(table, spec.x.column);
-  const seriesColumns = spec.series.slice(0, MAX_SERIES[spec.type]).map((s) => ({
-    spec: s,
-    column: findColumn(table, s.column),
-    error: s.error === null ? undefined : findColumn(table, s.error),
-  }));
   const isBar = spec.type === "bar";
+  const xColumn = findColumn(table, spec.x.column);
+  const seriesColumns = spec.series.slice(0, MAX_SERIES[spec.type]).map((s) => {
+    const own = isBar || s.x === null ? undefined : findColumn(table, s.x);
+    return { spec: s, column: findColumn(table, s.column), error: s.error === null ? undefined : findColumn(table, s.error), x: own ?? xColumn, ownX: own !== undefined };
+  });
   const isLog = spec.y.scale === "log" && !isBar;
 
-  // Rows that carry an x and at least one value.
-  const rows: number[] = [];
+  // Rows that carry an x and a value, per series: a series with its own x has its own rows.
+  const rowsOf = seriesColumns.map((s) => {
+    const rows: number[] = [];
+    for (let r = 0; r < table.rows; r++) {
+      const hasX = s.x !== undefined && (isBar ? categoryLabel(s.x, r) !== null : numberAt(s.x, r) !== null);
+      if (hasX && numberAt(s.column, r) !== null) rows.push(r);
+    }
+    return rows;
+  });
+  // The shared rows: an x and at least one value of a series that reads along it.
+  const sharedRows: number[] = [];
   for (let r = 0; r < table.rows; r++) {
     const hasX = xColumn !== undefined && (isBar ? categoryLabel(xColumn, r) !== null : numberAt(xColumn, r) !== null);
-    if (hasX && seriesColumns.some((s) => numberAt(s.column, r) !== null)) rows.push(r);
+    if (hasX && seriesColumns.some((s) => !s.ownX && numberAt(s.column, r) !== null)) sharedRows.push(r);
   }
 
   // The y extent, error bars included.
   let yLo = Infinity;
   let yHi = -Infinity;
   let dropped = 0;
-  for (const s of seriesColumns) {
-    for (const r of rows) {
+  seriesColumns.forEach((s, si) => {
+    for (const r of rowsOf[si]) {
       const y = numberAt(s.column, r);
       if (y === null) continue;
       if (isLog && y <= 0) {
@@ -191,7 +304,7 @@ export function plotChart(
       yLo = Math.min(yLo, lo);
       yHi = Math.max(yHi, y + e);
     }
-  }
+  });
   if (dropped > 0) notes.push(`${dropped} ${dropped === 1 ? "value" : "values"} at or below zero left off the log scale.`);
   const hasData = Number.isFinite(yLo);
   if (!hasData) {
@@ -223,7 +336,8 @@ export function plotChart(
         x = start;
         line += 20;
       }
-      legend.push({ name, color: seriesColumns[i].spec.color, x, y: line });
+      const { color, stroke } = seriesColumns[i].spec;
+      legend.push({ name, color, stroke, x, y: line });
       x += w;
     }
     return line - y + 20;
@@ -236,7 +350,7 @@ export function plotChart(
   }
 
   const yTitleText = axisText(spec.y.title, spec.y.unit);
-  const xTitleText = axisText(spec.x.title, spec.x.unit);
+  const xTitleText = axisText(spec.x.title, xColumn?.kind === "date" ? "" : spec.x.unit);
 
   // The y domain, so the tick labels can be measured.
   const plotHeightGuess = Math.max(80, size.height - top - 60);
@@ -279,13 +393,13 @@ export function plotChart(
   const yClamp = (v: number) => Math.min(area.top + area.height, Math.max(area.top, yScale.map(v)));
 
   // Bottom and right legends are placed now that the plot area is known.
-  for (const item of legend) {
+  for (const [i, item] of legend.entries()) {
     if (spec.legend === "bottom") {
       item.x += area.left;
       item.y += area.top + area.height + bottomLegendAt + 6;
     } else if (spec.legend === "right") {
       item.x = size.width - legendRight;
-      item.y = area.top + 6 + legend.indexOf(item) * 20;
+      item.y = area.top + 6 + i * 20;
     } else {
       item.x += area.left;
     }
@@ -294,8 +408,10 @@ export function plotChart(
   let xTicks: Tick[] = [];
   const stops: Stop[] = [];
   const series: PlotSeries[] = [];
+  const style = (s: (typeof seriesColumns)[number]) => ({ column: s.spec.column, name: s.spec.name, color: s.spec.color, stroke: s.spec.stroke, ownX: s.ownX });
 
   if (isBar && xColumn !== undefined) {
+    const rows = sharedRows;
     const band = area.width / Math.max(1, rows.length);
     const k = seriesColumns.length;
     const group = Math.min(band * 0.8, k * BAR_MAX + (k - 1) * GAP);
@@ -323,48 +439,50 @@ export function plotChart(
         const e = numberAt(s.error, r);
         if (e !== null) whiskers.push({ px: x + barWidth / 2, top: yClamp(y + Math.abs(e)), bottom: yClamp(y - Math.abs(e)) });
       });
-      series.push({ column: s.spec.column, name: s.spec.name, color: s.spec.color, points, path: null, bars, whiskers, markers: false, label: null });
+      series.push({ ...style(s), points, path: null, bars, whiskers, markers: false, label: null });
     });
   } else if (xColumn !== undefined) {
     let xLo = Infinity;
     let xHi = -Infinity;
-    for (const r of rows) {
-      const x = numberAt(xColumn, r);
-      if (x === null) continue;
-      xLo = Math.min(xLo, x);
-      xHi = Math.max(xHi, x);
-    }
-    if (!Number.isFinite(xLo)) [xLo, xHi] = [0, 1];
+    seriesColumns.forEach((s, si) => {
+      for (const r of rowsOf[si]) {
+        const x = numberAt(s.x, r);
+        if (x === null) continue;
+        xLo = Math.min(xLo, x);
+        xHi = Math.max(xHi, x);
+      }
+    });
+    const isTime = xColumn.kind === "date";
+    if (!Number.isFinite(xLo)) [xLo, xHi] = isTime ? [0, DAY] : [0, 1];
     const xCount = Math.max(2, Math.floor(area.width / 90));
     // A line runs edge to edge over its data; a scatter keeps a little air around its points,
     // so a dot at the first or last value isn't cut in half by the frame.
     const pad = spec.type === "scatter" && xLo < xHi ? (xHi - xLo) * 0.03 : 0;
-    const auto: [number, number] = spec.type === "line" && xLo < xHi ? [xLo, xHi] : xLo < xHi ? [xLo - pad, xHi + pad] : niceDomain(xLo, xHi, xCount);
+    const single: [number, number] = isTime ? [xLo - HOUR, xHi + HOUR] : niceDomain(xLo, xHi, xCount);
+    const auto: [number, number] = spec.type === "line" && xLo < xHi ? [xLo, xHi] : xLo < xHi ? [xLo - pad, xHi + pad] : single;
     let xDomain: [number, number] = [spec.x.min ?? auto[0], spec.x.max ?? auto[1]];
     if (xDomain[0] >= xDomain[1]) xDomain = auto;
-    const xScale = linearScale(xDomain[0], xDomain[1], area.left, area.left + area.width, xCount);
+    const xScale = (isTime ? timeScale : linearScale)(xDomain[0], xDomain[1], area.left, area.left + area.width, xCount);
     xTicks = xScale.ticks;
-    const xFormat = (v: number) => formatValue(v);
-    const seen = new Set<number>();
-    for (const r of rows) {
+
+    for (const r of sharedRows) {
       const x = numberAt(xColumn, r);
-      if (x === null) continue;
-      const px = xScale.map(x);
-      if (!seen.has(r)) {
-        seen.add(r);
-        stops.push({ row: r, px, label: xFormat(x) });
-      }
+      if (x !== null) stops.push({ row: r, px: xScale.map(x), label: xLabel(xColumn, x) });
     }
-    stops.sort((a, b) => a.px - b.px);
-    for (const s of seriesColumns) {
+    seriesColumns.forEach((s, si) => {
       let points: Point[] = [];
       const whiskers: Whisker[] = [];
       const breaks = new Set<number>();
       let gap = false;
-      for (const r of rows) {
-        const x = numberAt(xColumn, r);
+      let last = -1;
+      for (const r of rowsOf[si]) {
+        const x = numberAt(s.x, r);
         const y = numberAt(s.column, r);
-        if (x === null || y === null || (isLog && y <= 0)) {
+        if (x === null || y === null) continue;
+        // A blank row between two values breaks the line.
+        if (last >= 0 && r > last + 1) gap = true;
+        last = r;
+        if (isLog && y <= 0) {
           gap = true;
           continue;
         }
@@ -385,19 +503,23 @@ export function plotChart(
       }
       const drawn = spec.type === "line" && points.length > area.width * 2 ? thin(points, breaks) : { points, breaks };
       const path = spec.type === "line" ? linePath(drawn.points, drawn.breaks) : null;
-      const last = points.at(-1);
+      const end = points.at(-1);
+      const hover = points.length <= HOVER_POINTS ? points : drawn.points;
+      if (s.ownX) for (const p of hover) stops.push({ row: null, px: p.px, label: xLabel(s.x, p.x) });
       series.push({
-        column: s.spec.column,
-        name: s.spec.name,
-        color: s.spec.color,
-        points: points.length <= HOVER_POINTS ? points : drawn.points,
+        ...style(s),
+        points: hover,
         path,
         bars: [],
         whiskers,
         markers: spec.type === "scatter" || points.length <= MARKERS_UP_TO,
-        label: roomForLabels && last !== undefined ? { x: Math.min(last.px, area.left + area.width) + 8, y: last.py } : null,
+        label: roomForLabels && end !== undefined ? { x: Math.min(end.px, area.left + area.width) + 8, y: end.py } : null,
       });
-    }
+    });
+    stops.sort((a, b) => a.px - b.px || (a.row === null ? 1 : 0) - (b.row === null ? 1 : 0));
+    // One stop per place: a shared row wins over a series' own point at the same spot.
+    const unique = stops.filter((s, i) => i === 0 || Math.abs(s.px - stops[i - 1].px) > 0.01);
+    stops.splice(0, stops.length, ...unique);
     // Labels that would sit on top of each other go; the legend still names every line.
     const ys = series.flatMap((s) => (s.label ? [s.label.y] : [])).sort((a, b) => a - b);
     if (ys.some((y, i) => i > 0 && y - ys[i - 1] < TICK_FONT + 2)) for (const s of series) s.label = null;
@@ -423,6 +545,22 @@ export function plotChart(
     stops,
     notes,
   };
+}
+
+// The point of a series the readout shows at a stop: its row when it shares the chart's x and
+// the stop is a shared row, otherwise its nearest point along x within reach.
+export function pointAt(series: PlotSeries, stop: Stop, reach: number): Point | undefined {
+  if (!series.ownX && stop.row !== null) return series.points.find((p) => p.row === stop.row);
+  let best: Point | undefined;
+  let bestD = reach;
+  for (const p of series.points) {
+    const d = Math.abs(p.px - stop.px);
+    if (d <= bestD) {
+      bestD = d;
+      best = p;
+    }
+  }
+  return best;
 }
 
 function ordinal(n: number): string {
