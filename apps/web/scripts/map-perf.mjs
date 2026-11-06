@@ -57,7 +57,7 @@ try {
     await page.mouse.up();
     const pan = await stopFrames(page);
     const heap = await page.evaluate(() => performance.memory?.usedJSHeapSize ?? 0);
-    console.log(
+    process.stdout.write(
       JSON.stringify({
         view: v.name,
         shown: dots,
@@ -69,7 +69,7 @@ try {
         panP95: q(pan, 0.95),
         heapMB: +(heap / 1e6).toFixed(0),
         wallS: (Date.now() - t0) / 1000,
-      }),
+      }) + "\n",
     );
     await page.close();
   }
