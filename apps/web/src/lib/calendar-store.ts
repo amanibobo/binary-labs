@@ -62,7 +62,7 @@ export async function loadDayFiles(
 ): Promise<FileHit[]> {
   const base = supabase
     .rpc("calendar_files", rangeArgs(labId, { first: at.day, last: at.day }, at.timeZone, at.filters))
-    .select("sha256, kind, group_id")
+    .select("sha256, kind, group_id, name")
     .eq("kind", at.kind);
   const grouped = at.groupId === null ? base.is("group_id", null) : base.eq("group_id", at.groupId);
   const rows = DayFileRows.parse(

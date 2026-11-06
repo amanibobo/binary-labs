@@ -10,6 +10,8 @@ import type { Member } from "./viewer";
 export type ShellData = {
   labName: string;
   memberCount: number;
+  // Members' emails, oldest first, for the invite row's faces.
+  memberEmails: string[];
   isAdmin: boolean;
   email: string;
   folders: FolderRow[];
@@ -31,6 +33,7 @@ export async function loadShell(member: Member): Promise<ShellData> {
   return {
     labName: lab.name,
     memberCount: members.length,
+    memberEmails: members.flatMap((m) => (m.email === null ? [] : [m.email])),
     isAdmin: lab.role === "admin",
     email: user.email,
     folders,

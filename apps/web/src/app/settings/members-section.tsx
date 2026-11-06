@@ -1,6 +1,7 @@
 "use client";
 import { useActionState, useId } from "react";
 import { Avatar } from "@/components/ui/avatar";
+import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { DataCell, DataHeaderCell, DataTable } from "@/components/ui/data-table";
 import { Input, Label } from "@/components/ui/field";
@@ -47,12 +48,12 @@ export function MembersSection({ members, isAdmin, email }: { members: LabMember
   );
 }
 
-export function InviteForm({ className }: { className: string }) {
+export function InviteForm({ className }: { className?: string }) {
   const [state, action, pending] = useActionState<InviteState, FormData>(inviteMember, { kind: "idle" });
   const id = useId();
   const error = state.kind === "error" ? state : null;
   return (
-    <form action={action} className={`grid gap-2 ${className}`}>
+    <form action={action} className={cn("grid gap-2", className)}>
       <Label htmlFor={`${id}-email`}>Invite by email</Label>
       <div className="flex flex-col gap-2 sm:flex-row">
         <Input

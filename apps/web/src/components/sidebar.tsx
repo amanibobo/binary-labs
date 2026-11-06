@@ -8,13 +8,14 @@ import { InviteForm } from "@/app/settings/members-section";
 import { cn } from "@/lib/cn";
 import type { ShellData } from "@/lib/shell-data";
 import { PaletteTrigger } from "./command-palette";
-import { ChevronDownIcon, DeleteIcon, MenuIcon } from "./icons/base-web";
-import { InfoIcon, SearchOutlineIcon, SendIcon, SidebarIcon, UploadIcon } from "./icons/drawn";
+import { ChevronDownIcon, DeleteIcon, MenuIcon, PlusIcon } from "./icons/base-web";
+import { InfoIcon, SearchOutlineIcon, SidebarIcon, UploadIcon } from "./icons/drawn";
 import { FlagCountText, useFlagCount } from "./flags/flag-count";
 import { NeedsLookCountText, useNeedsLookCount } from "./labels/needs-look-count";
 import { LogoMark } from "./logo";
 import { NAV, SETTINGS_NAV, SIDEBAR_COOKIE, type NavItem, type Section } from "./nav";
 import { HelpMenuContent } from "./onboarding/help";
+import { Avatar } from "./ui/avatar";
 import { buttonVariants } from "./ui/button";
 import { Dialog as Modal, DialogContent, DialogTrigger } from "./ui/dialog";
 import { menuItem, menuSurface } from "./ui/menu";
@@ -131,35 +132,83 @@ function SidebarBody({ shell, current, onNavigate }: ShellProps & { onNavigate?:
   );
 }
 
-// A quiet card above Settings: one click to bring someone into the lab.
+// The faces already in the lab, then an empty seat for the next one.
+const FACES = 3;
+
+function AddSeat() {
+  return (
+    <span
+      aria-hidden
+      className="flex size-6 shrink-0 items-center justify-center rounded-full border border-dashed border-border-raised text-content-tertiary transition-colors duration-150 ease-out group-hover:border-content-tertiary group-hover:text-content-primary"
+    >
+      <PlusIcon className="size-3.5" />
+    </span>
+  );
+}
+
+// Above Settings: who's in the lab, and one click to bring someone else in.
 function InvitePeople({ shell }: { shell: ShellData }) {
   const collapsed = use(Collapsed);
-  const others = shell.memberCount === 1 ? "Just you so far" : `${shell.memberCount} people in the lab`;
+  const others = shell.memberCount === 1 ? "Just you so far" : `${shell.memberCount} in the lab`;
+  const faces = shell.memberEmails.slice(0, FACES);
+  const more = shell.memberCount - faces.length;
   return (
     <Modal>
       <Tip label="Invite people">
         <DialogTrigger
           aria-label={collapsed ? "Invite people" : undefined}
           className={cn(
-            "group flex min-h-11 w-full items-center rounded-xl text-left transition-colors duration-150 ease-out",
-            collapsed
-              ? "justify-center py-1 hover:bg-background-secondary"
-              : "gap-3 border border-border-opaque bg-background-secondary px-3 py-2.5 hover:border-border-raised hover:bg-background-tertiary",
+            "group flex min-h-11 w-full items-center rounded-lg text-left transition-colors duration-150 ease-out hover:bg-background-secondary",
+            collapsed ? "justify-center py-1" : "gap-3 px-2.5 py-2",
           )}
         >
-          <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-tint-blue-wash text-tint-blue-ink">
-            <SendIcon className="size-[18px] transition-transform duration-200 ease-out group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-          </span>
-          {collapsed ? null : (
-            <span className="min-w-0 flex-1">
-              <span className="block text-label-medium text-content-primary">Invite people</span>
-              <span className="block truncate text-paragraph-xsmall text-content-tertiary">{others}</span>
-            </span>
+          {collapsed ? (
+            <AddSeat />
+          ) : (
+            <>
+              <span className="flex shrink-0 items-center">
+                {faces.map((email) => (
+                  <Avatar key={email} label={email} size="small" className="-mr-1.5 ring-2 ring-background-primary" />
+                ))}
+                {more > 0 ? (
+                  <span className="-mr-1.5 flex size-6 items-center justify-center rounded-full bg-background-tertiary text-label-xsmall text-content-secondary ring-2 ring-background-primary">
+                    +{more}
+                  </span>
+                ) : null}
+                <span className="ml-3">
+                  <AddSeat />
+                </span>
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-label-medium text-content-primary">Invite people</span>
+                <span className="block truncate text-paragraph-xsmall text-content-tertiary">{others}</span>
+              </span>
+            </>
           )}
         </DialogTrigger>
       </Tip>
-      <DialogContent title="Invite people" aria-describedby={undefined}>
-        <InviteForm className="px-4 pt-2 pb-6 sm:px-6" />
+      <DialogContent title={`Invite people to ${shell.labName}`} aria-describedby={undefined}>
+        <div className="grid gap-6 px-4 pt-1 pb-6 sm:px-6">
+          <p className="text-paragraph-medium text-content-secondary">
+            They get an email with a link to sign in, then find the lab&apos;s files, protocols and charts here. Nothing in your Dropbox changes.
+          </p>
+          <InviteForm />
+          <section aria-label="Already in the lab" className="grid gap-2 border-t border-border-opaque pt-5">
+            <h3 className="text-label-small text-content-tertiary">Already in the lab</h3>
+            <ul className="grid gap-1">
+              {shell.memberEmails.slice(0, 5).map((email) => (
+                <li key={email} className="flex min-h-9 items-center gap-3">
+                  <Avatar label={email} size="small" />
+                  <span className="min-w-0 flex-1 truncate text-paragraph-medium text-content-primary">{email}</span>
+                  {email === shell.email ? <span className="text-paragraph-small text-content-tertiary">You</span> : null}
+                </li>
+              ))}
+            </ul>
+            <Link href="/settings/members" className="justify-self-start text-paragraph-small text-content-accent underline-offset-2 hover:underline">
+              {shell.memberCount > 5 ? `See all ${shell.memberCount} in Settings` : "Manage members in Settings"}
+            </Link>
+          </section>
+        </div>
       </DialogContent>
     </Modal>
   );
