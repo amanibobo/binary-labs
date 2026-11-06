@@ -5,6 +5,9 @@ import { isTalkThroughUpload } from "@/lib/talk-throughs";
 import { completeTalkThrough, completeUpload } from "@/lib/upload-accept";
 import { CompleteUploadRequest, UploadId } from "@/lib/uploads";
 
+// A 100 MB recording is read back from R2 and hashed before it's recorded.
+export const maxDuration = 120;
+
 // Checks the file that reached the store (its size, and its sha256 against the one the browser
 // computed), keeps it under the lab's prefix and records it. What the file is rides in the
 // same headers as before; a talk-through is marked by its x-upload-purpose header.
