@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { useCallback, useId, useReducer, useRef, useState } from "react";
 import { toast } from "sonner";
-import type { AskHome, RecentQuestion, Verdict } from "@/lib/answers";
+import { RECENT_QUESTIONS_SHOWN, type AskHome, type RecentQuestion, type Verdict } from "@/lib/answers";
 import { askReducer, type AskState } from "@/lib/ask-state";
 import type { QuestionId, UserId } from "@/lib/ids";
+import { cn } from "@/lib/cn";
 import { When } from "../ui/when";
 import { useAskApi } from "./ask-api";
 
@@ -97,24 +98,31 @@ function asker(q: RecentQuestion, viewerId: UserId | null): string {
   return q.askedByEmail?.split("@")[0] ?? "Someone";
 }
 
-// The lab's latest questions on the Search home, each opening its saved answer.
+// The lab's latest questions on the Search home, each opening its saved answer: three, and the
+// rest opened in place by "Show all". A question the records couldn't answer says "No answer", quietly.
 export function RecentQuestions({ home, onOpen }: { home: AskHome; onOpen: (q: RecentQuestion) => void }) {
   const headingId = useId();
+  const listId = useId();
+  const [all, setAll] = useState(false);
   if (home.recent.length === 0 && home.openSuggestions === 0) return null;
+  const hidden = home.recent.length - RECENT_QUESTIONS_SHOWN;
+  const shown = all ? home.recent : home.recent.slice(0, RECENT_QUESTIONS_SHOWN);
   return (
-    <section aria-labelledby={headingId} className="mb-8">
+    <section aria-labelledby={headingId} className="mb-10">
       <h2 id={headingId} className="mb-1 px-3 text-label-small text-content-tertiary">
         Recent questions
       </h2>
-      <ul>
-        {home.recent.slice(0, 4).map((q) => (
+      {/* Opened, the full list keeps the page's rhythm: same rows, no frame, its own scroll once it
+          passes 296px (a part row shows there's more), so the files below stay in reach. */}
+      <ul id={listId} className={cn(all && "max-h-[18.5rem] overflow-y-auto overscroll-contain")}>
+        {shown.map((q) => (
           <li key={q.id}>
             <button
               type="button"
               onClick={() => onOpen(q)}
-              className="flex w-full flex-col items-start gap-0.5 rounded-xl px-3 py-2 text-left transition-colors duration-150 ease-out hover:bg-background-secondary focus-visible:outline-offset-[-2px] sm:flex-row sm:items-baseline sm:justify-between sm:gap-4"
+              className="flex w-full flex-col items-start gap-0.5 rounded-xl px-3 py-1.5 text-left transition-colors duration-150 ease-out hover:bg-background-secondary focus-visible:outline-offset-[-2px] sm:flex-row sm:items-baseline sm:justify-between sm:gap-4"
             >
-              <span className="min-w-0 truncate text-paragraph-medium text-content-primary sm:flex-1">{q.question}</span>
+              <span className="min-w-0 truncate text-paragraph-small text-content-primary sm:flex-1">{q.question}</span>
               <span className="shrink-0 text-paragraph-xsmall text-content-tertiary">
                 {asker(q, home.viewerId)} · <When iso={q.askedAt} />
                 {q.outcome === "not_found" ? " · No answer" : ""}
@@ -123,8 +131,22 @@ export function RecentQuestions({ home, onOpen }: { home: AskHome; onOpen: (q: R
           </li>
         ))}
       </ul>
+      {hidden > 0 ? (
+        <button
+          type="button"
+          aria-expanded={all}
+          aria-controls={listId}
+          onClick={() => setAll((a) => !a)}
+          className="mt-0.5 rounded-xl px-3 py-1.5 text-paragraph-small text-content-tertiary transition-colors duration-150 ease-out hover:text-content-primary focus-visible:outline-offset-[-2px] max-sm:min-h-11"
+        >
+          {all ? "Show less" : `Show all ${home.recent.length}`}
+        </button>
+      ) : null}
+      <p className="sr-only" aria-live="polite">
+        {all ? `Showing all ${home.recent.length} recent questions` : ""}
+      </p>
       {home.openSuggestions > 0 ? (
-        <Link href="/suggestions" className="mt-1 block rounded-xl px-3 py-2 text-paragraph-small text-content-accent hover:underline">
+        <Link href="/suggestions" className="mt-1 block w-fit rounded-xl px-3 py-1.5 text-paragraph-small text-content-accent hover:underline">
           {home.openSuggestions === 1 ? "1 suggestion is waiting for approval" : `${home.openSuggestions} suggestions are waiting for approval`}
         </Link>
       ) : null}

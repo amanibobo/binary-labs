@@ -326,6 +326,11 @@ export const RecentQuestionRows = z.array(
     ),
 );
 
+// The Search home shows the lab's last three questions and loads up to fifty (the most recent_questions
+// returns) for "Show all", which opens them in place.
+export const RECENT_QUESTIONS_LOADED = 50;
+export const RECENT_QUESTIONS_SHOWN = 3;
+
 // What the Search page needs to ask: whether a model is set up, the lab's recent questions
 // and how many suggestions wait for someone.
 export type AskHome = {

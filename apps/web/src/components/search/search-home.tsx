@@ -50,6 +50,7 @@ export function SearchHome({
   const [expanded, setExpanded] = useState<string | null>(urlOpen);
   const inputId = useId();
   const input = useRef<HTMLInputElement>(null);
+  const results = useRef<HTMLElement>(null);
   const { markDone } = useOnboarding();
   const asking = useAsk();
   const { open: openAnswer } = asking;
@@ -115,6 +116,13 @@ export function SearchHome({
               if (e.key === "Enter" && offerAsk) {
                 e.preventDefault();
                 startAsk();
+              } else if (e.key === "ArrowDown") {
+                // Down from the box goes to the first file row; Up from there comes back.
+                const first = results.current?.querySelector<HTMLElement>("[data-row-toggle]");
+                if (first) {
+                  e.preventDefault();
+                  first.focus();
+                }
               }
             }}
             end={indexed ? <FiltersToggle open={filtersOpen} onToggle={() => setFiltersOpen((o) => !o)} controls={filtersId} /> : undefined}
@@ -132,7 +140,7 @@ export function SearchHome({
           {offerAsk ? <AskRow question={query} available={ask.available} onAsk={startAsk} className="mt-2" /> : null}
           {searching ? null : <GettingStartedCard className="mt-8 sm:mt-10" />}
 
-          <section aria-labelledby={headingId} className="-mx-3 mt-8 sm:mt-10">
+          <section ref={results} aria-labelledby={headingId} className="-mx-3 mt-8 sm:mt-12">
             {asking.state.kind !== "idle" && askedThis ? (
               <AnswerPanel
                 key={asking.round}
@@ -236,7 +244,7 @@ function SearchResults({
         <h2 id={headingId} className="text-label-small text-content-tertiary" aria-live="polite">
           {count === 0 ? `No ${noun[1]}` : count === 1 ? `1 ${noun[0]}` : `${count} ${noun[1]}`}
         </h2>
-        {data.kind === "keyword" ? <p className="text-paragraph-xsmall text-content-tertiary">Showing exact word matches only right now.</p> : null}
+        {data.kind === "keyword" ? <p className="text-paragraph-xsmall text-content-tertiary">Showing exact word matches only right now.</p> : <KeysHint />}
       </div>
       {count === 0 ? (
         <p className="px-3 pt-2 text-paragraph-medium text-content-secondary">
@@ -250,6 +258,15 @@ function SearchResults({
         </ul>
       )}
     </div>
+  );
+}
+
+// For keyboards only: says once, quietly, that the rows answer the arrow keys.
+function KeysHint() {
+  return (
+    <p className="text-paragraph-xsmall text-content-tertiary max-md:hidden pointer-coarse:hidden" aria-hidden>
+      ↑ ↓ to move, Enter opens, Esc closes
+    </p>
   );
 }
 
@@ -272,7 +289,7 @@ function ResultSkeleton() {
     <div className="grid gap-1" aria-hidden>
       {[0, 1, 2, 3, 4].map((i) => (
         <div key={i} className="flex items-start gap-4 p-3">
-          <Skeleton className="size-14 shrink-0 sm:size-16" />
+          <Skeleton className="size-12 shrink-0 sm:size-14" />
           <div className="flex-1 space-y-2.5 pt-1">
             <Skeleton className="h-4 w-2/5" />
             <Skeleton className="h-3 w-1/3" />
@@ -314,9 +331,12 @@ function RecentFiles({
   }
   return (
     <>
-      <h2 id={headingId} className="mb-1 px-3 text-label-small text-content-tertiary">
-        Recent files
-      </h2>
+      <div className="mb-1 flex items-baseline justify-between gap-4 px-3">
+        <h2 id={headingId} className="text-label-small text-content-tertiary">
+          Recent files
+        </h2>
+        <KeysHint />
+      </div>
       <ul data-tour="results" className="space-y-1">
         {recent.map((hit) => (
           <FileResult key={hit.sha256} hit={hit} query="" expanded={expanded === hit.sha256} onToggle={() => onToggle(hit.sha256)} />

@@ -1,7 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import { embedConfig } from "@/env";
-import { AnswerSource, Answer, AskStep, RecentQuestionRows, SavedAnswer, Verdict, type AskHome, type RecentQuestion } from "./answers";
+import { AnswerSource, Answer, AskStep, RECENT_QUESTIONS_LOADED, RecentQuestionRows, SavedAnswer, Verdict, type AskHome, type RecentQuestion } from "./answers";
 import { BudgetRows, CachedOutput, ContextRows, ProtocolContextRows, QUESTION_EMBED_TIMEOUT_MS, type AnswerWriter, type AskReads } from "./ask";
 import { readTables } from "./chart-store";
 import { FileLabelRows, type Label } from "./domain";
@@ -215,7 +215,7 @@ export async function loadSuggestion(supabase: Supabase, labId: LabId, id: Sugge
 // The Search home's part. It never fails the page, since search works without it.
 export async function loadAskHome(supabase: Supabase, labId: LabId, viewerId: UserId): Promise<AskHome> {
   try {
-    const [recent, open] = await Promise.all([loadRecentQuestions(supabase, labId, 4), loadOpenSuggestions(supabase, labId, null)]);
+    const [recent, open] = await Promise.all([loadRecentQuestions(supabase, labId, RECENT_QUESTIONS_LOADED), loadOpenSuggestions(supabase, labId, null)]);
     return { available: askAvailable(), recent, openSuggestions: open.length, viewerId };
   } catch (error) {
     logError("ask.home_failed", { labId, error });

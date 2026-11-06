@@ -241,7 +241,7 @@ const TOUR: Record<TourStepId, Omit<TourStep, "id">> = {
   fix: {
     anchors: [`${tour("results")} > li:first-child ${tour("label")}`, `${tour("results")} > li:first-child`],
     side: "bottom",
-    text: "Click a name or tag to fix it. Enter saves, and similar files learn from it.",
+    text: "Open a file and fix its name, experiment or tags under Labels. Enter saves, and similar files learn from it.",
     clip: "fix",
   },
   "needs-look": { anchors: [tour("needs-look"), tour("menu")], side: "right", text: "Files we couldn't label wait in Needs a look for you to name.", clip: "needs-look" },
@@ -267,7 +267,7 @@ export const HINTS: readonly Hint[] = [
   {
     id: "check-this",
     anchor: '[data-hint~="check-this"]',
-    text: "Check this means we're not sure about this label. Click it to say it looks right, or fix the name or tag.",
+    text: "Check this means these labels were a guess. Open the file to confirm them, or fix what's wrong under Labels.",
     coarseOnly: false,
   },
   {
@@ -294,7 +294,7 @@ export const HELP_ANSWERS: readonly HelpAnswer[] = [
   {
     id: "fix-label",
     question: "Fix a label",
-    answer: "Click the name or a tag on any file, type, and press Enter. Similar files learn from what you fix.",
+    answer: "Click a file to open it, then click the name, experiment, person or a tag under Labels, type, and press Enter. Similar files learn from what you fix.",
     clip: "fix",
   },
   {

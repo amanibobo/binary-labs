@@ -14,6 +14,7 @@ export function InlineEdit({
   onSubmit,
   onRemove,
   removeLabel,
+  suggestions,
   trigger,
   triggerClassName,
   inputClassName,
@@ -25,6 +26,8 @@ export function InlineEdit({
   onSubmit: (text: string) => EditOutcome;
   onRemove?: () => void;
   removeLabel?: string;
+  // The lab's own names (experiments, people), offered as the field is typed in.
+  suggestions?: readonly string[];
   trigger: ReactNode;
   triggerClassName?: string;
   inputClassName?: string;
@@ -35,6 +38,8 @@ export function InlineEdit({
   const [error, setError] = useState<string | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const errorId = useId();
+  const listId = useId();
+  const offered = suggestions !== undefined && suggestions.length > 0;
 
   const open = () => {
     setText(initial);
@@ -85,6 +90,7 @@ export function InlineEdit({
             }
           }}
           aria-label={inputLabel}
+          list={offered ? listId : undefined}
           aria-invalid={error !== null}
           aria-describedby={error === null ? undefined : errorId}
           placeholder={placeholder}
@@ -96,6 +102,13 @@ export function InlineEdit({
             inputClassName,
           )}
         />
+        {offered ? (
+          <datalist id={listId}>
+            {suggestions.map((name) => (
+              <option key={name} value={name} />
+            ))}
+          </datalist>
+        ) : null}
         {onRemove === undefined ? null : (
           <button
             type="button"

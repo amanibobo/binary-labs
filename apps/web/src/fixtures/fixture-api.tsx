@@ -35,6 +35,18 @@ const wait = (ms: number, signal?: AbortSignal) =>
     });
   });
 
+// Every query gets the same results, except that recent files holding the whole query come
+// first ("plate 7" finds the plate 7 read), so the cold reads can search for something.
+function fixtureResults(q: string): FileHit[] {
+  const wanted = q.trim().toLowerCase();
+  const text = (h: FileHit) =>
+    [h.locations[0].path, h.snippet ?? "", h.label?.cleanName ?? "", ...(h.label?.tags ?? [])].join(" ").toLowerCase();
+  const found = recentFiles
+    .filter((h) => !searchHits.some((s) => s.sha256 === h.sha256) && text(h).includes(wanted))
+    .map((h): FileHit => ({ ...h, matchedBy: ["words"] }));
+  return [...found, ...searchHits];
+}
+
 function keywordOnly(hits: FileHit[]): FileHit[] {
   return hits.filter((h) => h.matchedBy.includes("words")).map((h) => ({ ...h, matchedBy: ["words"] }));
 }
@@ -77,11 +89,12 @@ export function FixtureLabApi({
   );
   const withLabels = (hits: FileHit[]) => hits.map((h) => ({ ...h, label: labels.get(h.sha256) }));
   const api: LabApi = {
-    search: async (_params, signal) => {
+    search: async (params, signal) => {
       await wait(120, signal);
+      const hits = fixtureResults(params.q);
       return mode === "hybrid"
-        ? { kind: "hybrid", results: withLabels(searchHits), protocols: protocolHits }
-        : { kind: "keyword", reason: "embed_timeout", results: withLabels(keywordOnly(searchHits)), protocols: protocolHits };
+        ? { kind: "hybrid", results: withLabels(hits), protocols: protocolHits }
+        : { kind: "keyword", reason: "embed_timeout", results: withLabels(keywordOnly(hits)), protocols: protocolHits };
     },
     sourceState: async () => source,
     folders: async (path, signal) => {

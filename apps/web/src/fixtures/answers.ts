@@ -140,6 +140,47 @@ export const recentQuestions: RecentQuestion[] = [
     askedByEmail: "j.morales@university.edu",
     askedAt: "2026-11-03T16:45:00Z",
   },
+  {
+    id: QuestionId.parse("8a1c2c39-5a4e-4c55-9d7b-0c3c1a7a0004"),
+    question: "Which plate reader files are from the solubility screen?",
+    outcome: "answered",
+    askedBy: viewer,
+    askedByEmail: "priya.n@university.edu",
+    askedAt: "2026-11-03T11:10:00Z",
+  },
+  {
+    id: QuestionId.parse("8a1c2c39-5a4e-4c55-9d7b-0c3c1a7a0005"),
+    question: "What temperature was plate 7 read at?",
+    outcome: "not_found",
+    askedBy: viewer,
+    askedByEmail: "priya.n@university.edu",
+    askedAt: "2026-11-02T09:30:00Z",
+  },
+  {
+    id: QuestionId.parse("8a1c2c39-5a4e-4c55-9d7b-0c3c1a7a0006"),
+    question: "Where is the Bradford standard curve from Oct 30?",
+    outcome: "answered",
+    askedBy: UserId.parse("00000000-0000-4000-8000-00000000000a"),
+    askedByEmail: "a.okafor@university.edu",
+    askedAt: "2026-10-31T15:00:00Z",
+  },
+  ...[
+    ["What concentration of imidazole elutes BM3 from the nickel column?", "answered", "2026-10-30T10:20:00Z"],
+    ["Which gel shows batch 2 after the SEC column?", "answered", "2026-10-29T16:05:00Z"],
+    ["Did anyone run a thermal shift on the A82F variant?", "not_found", "2026-10-28T13:40:00Z"],
+    ["What was the A420/A280 ratio for batch 1?", "answered", "2026-10-27T09:15:00Z"],
+    ["Where are the ELISA plate layouts from October?", "answered", "2026-10-24T14:30:00Z"],
+    ["How much lysozyme goes into the lysis buffer?", "answered", "2026-10-22T11:00:00Z"],
+  ].map(
+    ([question, outcome, askedAt], i): RecentQuestion => ({
+      id: QuestionId.parse(`8a1c2c39-5a4e-4c55-9d7b-0c3c1a7a00${String(i + 7).padStart(2, "0")}`),
+      question,
+      outcome: outcome === "not_found" ? "not_found" : "answered",
+      askedBy: i % 2 === 0 ? viewer : UserId.parse("00000000-0000-4000-8000-00000000000c"),
+      askedByEmail: i % 2 === 0 ? "priya.n@university.edu" : "j.morales@university.edu",
+      askedAt,
+    }),
+  ),
 ];
 
 export const savedAnswer: SavedAnswer = {
