@@ -52,3 +52,11 @@ export type ColumnId = z.infer<typeof ColumnId>;
 // instruments.id: one instrument PC whose uploader sends files to the lab.
 export const InstrumentId = z.uuid().brand<"InstrumentId">();
 export type InstrumentId = z.infer<typeof InstrumentId>;
+
+// One check on a protocol version; it keeps its id across versions, so its flags add up.
+export const CheckId = z.uuid().brand<"CheckId">();
+export type CheckId = z.infer<typeof CheckId>;
+
+// flags.id: one failed check of one file.
+export const FlagId = z.uuid().brand<"FlagId">();
+export type FlagId = z.infer<typeof FlagId>;

@@ -1,5 +1,6 @@
 import "server-only";
 import type { FolderRow } from "./folders";
+import { loadFlagQueueCount } from "./flag-store";
 import { loadFolderTree, loadMembers, loadNeedsLookCount } from "./lab-data";
 import type { OnboardingData } from "./onboarding";
 import { loadOnboarding } from "./onboarding-data";
@@ -13,15 +14,18 @@ export type ShellData = {
   email: string;
   folders: FolderRow[];
   needsLookCount: number;
+  // Open flags nobody has answered yet.
+  flagCount: number;
   onboarding: OnboardingData;
 };
 
 export async function loadShell(member: Member): Promise<ShellData> {
   const { supabase, lab, user } = member;
-  const [members, folders, needsLookCount, onboarding] = await Promise.all([
+  const [members, folders, needsLookCount, flagCount, onboarding] = await Promise.all([
     loadMembers(supabase, lab.id),
     loadFolderTree(supabase, lab.id),
     loadNeedsLookCount(supabase, lab.id),
+    loadFlagQueueCount(supabase, lab.id),
     loadOnboarding(member),
   ]);
   return {
@@ -31,6 +35,7 @@ export async function loadShell(member: Member): Promise<ShellData> {
     email: user.email,
     folders,
     needsLookCount,
+    flagCount,
     onboarding,
   };
 }

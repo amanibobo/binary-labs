@@ -471,6 +471,17 @@ language sql immutable parallel safe as $$
   from unnest(r) s
 $$;
 
+-- The newest live place a file lives, shaped like search's locations, and its clean name;
+-- null once the file is gone from the lab.
+create function flag_file_json(p_lab_id uuid, p_sha256 text) returns jsonb
+language sql stable security invoker set search_path = public as $$
+  select case when l.loc is null then null else jsonb_build_object(
+    'location', l.loc,
+    'cleanName', (select lb.clean_name from labels lb where lb.lab_id = p_lab_id and lb.sha256 = p_sha256)
+  ) end
+  from (select live_locations_json(p_lab_id, p_sha256) -> 0 as loc) l
+$$;
+
 -- A lab's flags with what a reader needs beside them: the cited version's title and number, the
 -- check's name, and a live place each file lives (null once the file is gone).
 create function lab_flags(p_lab_id uuid)
@@ -511,16 +522,8 @@ language sql stable security invoker set search_path = public as $$
     f.control_sha256, f.control_sheet, f.control_columns,
     case when f.control_rows is null then null else row_spans(f.control_rows) end,
     f.raised_at, f.cleared_at, f.cleared_reason, f.review, f.review_note, f.reviewed_by, f.reviewed_at,
-    (select jsonb_build_object('locationId', fl.id, 'name', fl.original_name, 'path', fl.path,
-        'cleanName', (select lb.clean_name from labels lb where lb.lab_id = f.lab_id and lb.sha256 = f.sha256))
-      from file_locations fl
-      where fl.lab_id = f.lab_id and fl.sha256 = f.sha256 and fl.deleted_at is null
-      order by fl.modified_at desc limit 1),
-    (select jsonb_build_object('locationId', fl.id, 'name', fl.original_name, 'path', fl.path,
-        'cleanName', (select lb.clean_name from labels lb where lb.lab_id = f.lab_id and lb.sha256 = f.control_sha256))
-      from file_locations fl
-      where f.control_sha256 is not null and fl.lab_id = f.lab_id and fl.sha256 = f.control_sha256 and fl.deleted_at is null
-      order by fl.modified_at desc limit 1)
+    flag_file_json(f.lab_id, f.sha256),
+    case when f.control_sha256 is null then null else flag_file_json(f.lab_id, f.control_sha256) end
   from flags f
   join protocol_versions v on v.id = f.protocol_version_id
   where f.lab_id = p_lab_id
@@ -604,7 +607,8 @@ revoke all on function
   request_checks(uuid, text[]), same_day_files(uuid, uuid, date), protocol_check_files(uuid),
   data_tables_request_checks(), labels_request_checks(), protocols_request_checks(),
   experiments_request_checks(), protocol_files_request_checks(),
-  row_spans(int4multirange), lab_flags(uuid), flag_queue_count(uuid), file_flag_marks(uuid, text[]),
+  row_spans(int4multirange), flag_file_json(uuid, text), lab_flags(uuid), flag_queue_count(uuid),
+  file_flag_marks(uuid, text[]),
   file_checks(uuid, text), check_usefulness(uuid)
 from public, anon, authenticated;
 
@@ -614,6 +618,7 @@ grant execute on function
   check_range_ok(jsonb), range_holds(jsonb, float8), check_column_ok(jsonb, boolean), check_text_ok(jsonb, int),
   check_spec_ok(jsonb), expected_values_ok(jsonb), source_columns_ok(text[]), source_rows_ok(int4multirange),
   review_flag(uuid, flag_review, text), save_checks(uuid, uuid, jsonb, text),
-  row_spans(int4multirange), lab_flags(uuid), flag_queue_count(uuid), file_flag_marks(uuid, text[]),
+  row_spans(int4multirange), flag_file_json(uuid, text), lab_flags(uuid), flag_queue_count(uuid),
+  file_flag_marks(uuid, text[]),
   file_checks(uuid, text), check_usefulness(uuid)
 to authenticated;

@@ -25,6 +25,8 @@ import { OpenTalkThroughs } from "../talk-throughs/open-list";
 import { ProtocolVideos, videosKey } from "../videos/protocol-videos";
 import { ProtocolCharts, type ProtocolChart } from "../charts/protocol-charts";
 import { Markdown } from "./markdown";
+import { FlagMark } from "../flags/flag-marks";
+import { ProtocolChecks, type ProtocolChecksData } from "../flags/protocol-checks";
 import { When } from "@/components/ui/when";
 
 export function ProtocolView({
@@ -35,6 +37,7 @@ export function ProtocolView({
   talkThroughs,
   videos,
   charts,
+  checks,
 }: {
   page: ProtocolVersion;
   files: FileHit[];
@@ -45,6 +48,8 @@ export function ProtocolView({
   videos: ProtocolVideo[];
   // Charts saved with this page as their protocol.
   charts: readonly ProtocolChart[];
+  // The version's checks and the flags raised against them; tutorials have none.
+  checks: ProtocolChecksData;
 }) {
   const current = isCurrent(page);
   const editable = current && !page.archived;
@@ -96,6 +101,8 @@ export function ProtocolView({
         )}
 
         <ProtocolVideos protocolId={page.protocolId} initial={videos} editable={editable} />
+
+        {page.kind === "protocol" ? <ProtocolChecks protocolId={page.protocolId} data={checks} editable={editable} /> : null}
 
         <ProtocolCharts charts={charts} />
 
@@ -234,6 +241,7 @@ function LinkedFileRow({
           <span className={cn("block truncate font-mono text-paragraph-xsmall text-content-tertiary", cleanName === null && "mt-1")}>
             {folderOf(primary)}
           </span>
+          <FlagMark sha={hit.sha256} className="mt-2 flex w-fit" />
         </span>
         <span className="relative mt-3 mr-2 flex shrink-0 self-start sm:mt-4">
           {open === null ? null : (

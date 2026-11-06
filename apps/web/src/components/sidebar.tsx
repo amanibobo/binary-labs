@@ -10,6 +10,7 @@ import type { ShellData } from "@/lib/shell-data";
 import { PaletteTrigger } from "./command-palette";
 import { ChevronDownIcon, DeleteIcon, MenuIcon } from "./icons/base-web";
 import { InfoIcon, SearchOutlineIcon, SendIcon, SidebarIcon, UploadIcon } from "./icons/drawn";
+import { FlagCountText, useFlagCount } from "./flags/flag-count";
 import { NeedsLookCountText, useNeedsLookCount } from "./labels/needs-look-count";
 import { LogoMark } from "./logo";
 import { NAV, SETTINGS_NAV, SIDEBAR_COOKIE, type NavItem, type Section } from "./nav";
@@ -52,9 +53,11 @@ function Tip({ label, children }: { label: ReactNode; children: ReactNode }) {
 
 function NavLink({ item, current, onNavigate }: { item: NavItem; current: Section; onNavigate?: () => void }) {
   const collapsed = use(Collapsed);
-  const { count } = useNeedsLookCount();
+  const needsLook = useNeedsLookCount().count;
+  const flags = useFlagCount().count;
+  const count = item.section === "needs-look" ? needsLook : item.section === "flags" ? flags : 0;
   const active = item.section === current;
-  const label = item.section === "needs-look" && count > 0 ? `${item.label} · ${count}` : item.label;
+  const label = count > 0 ? `${item.label} · ${count}` : item.label;
   return (
     <Tip label={label}>
       <Link
@@ -67,13 +70,14 @@ function NavLink({ item, current, onNavigate }: { item: NavItem; current: Sectio
       >
         <item.Icon className={cn("size-5 shrink-0", active ? "text-content-primary" : "text-content-tertiary")} />
         {collapsed ? (
-          item.section === "needs-look" && count > 0 ? (
+          count > 0 ? (
             <span aria-hidden className="absolute top-1.5 right-2.5 size-1.5 rounded-full bg-content-tertiary" />
           ) : null
         ) : (
           <>
             <span className="min-w-0 flex-1 truncate">{item.label}</span>
             {item.section === "needs-look" ? <NeedsLookCountText className="text-label-small text-content-tertiary tabular-nums" /> : null}
+            {item.section === "flags" ? <FlagCountText className="text-label-small text-content-tertiary tabular-nums" /> : null}
             {item.section === "search" ? (
               <kbd className="hidden rounded-md border border-border-raised px-1.5 font-sans text-label-xsmall text-content-tertiary md:inline">⌘K</kbd>
             ) : null}

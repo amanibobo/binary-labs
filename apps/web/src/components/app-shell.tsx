@@ -2,6 +2,8 @@ import { cookies } from "next/headers";
 import type { ReactNode } from "react";
 import type { ShellData } from "@/lib/shell-data";
 import { CommandPalette } from "./command-palette";
+import { FlagCountProvider } from "./flags/flag-count";
+import { FlagMarksProvider } from "./flags/flag-marks";
 import { NeedsLookCountProvider } from "./labels/needs-look-count";
 import { SIDEBAR_COOKIE, type ShellLocation } from "./nav";
 import { HelpSheet } from "./onboarding/help";
@@ -15,6 +17,8 @@ export async function AppShell({ shell, location, children }: { shell: ShellData
   const collapsed = (await cookies()).get(SIDEBAR_COOKIE)?.value === "collapsed";
   return (
     <NeedsLookCountProvider initial={shell.needsLookCount}>
+      <FlagCountProvider initial={shell.flagCount}>
+      <FlagMarksProvider>
       <OnboardingProvider data={shell.onboarding} tourHere={location.section === "search"}>
         <CommandPalette>
           <a
@@ -35,6 +39,8 @@ export async function AppShell({ shell, location, children }: { shell: ShellData
         <Hints />
         <HelpSheet />
       </OnboardingProvider>
+      </FlagMarksProvider>
+      </FlagCountProvider>
     </NeedsLookCountProvider>
   );
 }

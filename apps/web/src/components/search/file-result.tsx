@@ -12,6 +12,7 @@ import { PreviewPanel } from "../files/preview-panel";
 import { LabelTags, LabelTitle } from "../labels/file-label";
 import { useLabels } from "../labels/labels-context";
 import { OpenExternalIcon } from "../icons/drawn";
+import { FlagMark } from "../flags/flag-marks";
 import { buttonVariants } from "../ui/button";
 import { When } from "../ui/when";
 import { Highlighted } from "./highlighted";
@@ -82,6 +83,7 @@ export function FileResult({
             </span>
           ) : null}
           {label === null ? null : <LabelTags hit={hit} label={label} expanded={expanded} />}
+          <FlagMark sha={hit.sha256} className="mt-2 flex w-fit" />
         </span>
         {open === null ? null : (
           <a

@@ -6,6 +6,7 @@ import { openTarget } from "@/lib/format";
 import { newProtocolHref } from "@/lib/protocols";
 import { OpenExternalIcon, ProtocolIcon } from "../icons/drawn";
 import { FileCharts, MakeChartLink } from "../charts/file-charts";
+import { FileFlags } from "../flags/file-flags";
 import { useLabApi } from "../lab-api";
 import { Highlighted } from "../search/highlighted";
 import { buttonVariants } from "../ui/button";
@@ -42,6 +43,7 @@ export function PreviewPanel({
             <span className="sr-only"> (opens in a new tab)</span>
           </a>
         )}
+        {isSheet ? <FileFlags sha={hit.sha256} /> : null}
         {others.length === 0 ? null : (
           <div className="w-full min-w-0">
             <h3 className="text-label-medium text-content-primary">Also in</h3>

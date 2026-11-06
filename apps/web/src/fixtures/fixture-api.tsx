@@ -17,6 +17,8 @@ import { createFixtureVideoUploads, fixtureVideoSources, pageVideos } from "./vi
 import { chartsOf, fixtureTable, savedCharts } from "./charts";
 import { ChartId, UserId } from "@/lib/ids";
 import { CreateChartRequest, SaveChartRequest } from "@/lib/charts";
+import { ReviewRequest } from "@/lib/flags";
+import { bradfordAssay, fixtureFileChecks, fixtureFlagMarks, flagTable } from "./flags";
 
 // The provider has already applied the event on screen; there's no server to tell.
 const keepOnboardingInMemory = async () => undefined;
@@ -134,7 +136,7 @@ export function FixtureLabApi({
     removePendingVideo: async () => wait(150),
     dataTable: async (sha, signal) => {
       await wait(120, signal);
-      return tables === "waiting" ? { state: "waiting" } : fixtureTable(sha);
+      return tables === "waiting" ? { state: "waiting" } : (flagTable(sha) ?? fixtureTable(sha));
     },
     requestDataTable: async () => wait(100),
     fileCharts: async (sha, signal) => {
@@ -156,6 +158,23 @@ export function FixtureLabApi({
       return { kind: "saved", chart: { ...chart, sheet, title, spec, protocolId, updatedAt: new Date().toISOString() } };
     },
     deleteChart: async () => wait(150),
+    fileChecks: async (sha, signal) => {
+      await wait(80, signal);
+      return fixtureFileChecks(sha);
+    },
+    flagMarks: async (shas, signal) => {
+      await wait(60, signal);
+      return fixtureFlagMarks(shas);
+    },
+    reviewFlag: async (_id, req) => {
+      await wait(150);
+      const { review, note } = ReviewRequest.parse(req);
+      return { review, note, by: UserId.parse("00000000-0000-4000-8000-00000000000a"), at: new Date().toISOString() };
+    },
+    saveChecks: async (id) => {
+      await wait(200);
+      return saves === "stale" ? { kind: "stale" } : { kind: "saved", protocolId: id, versionId: bradfordAssay.id, version: bradfordAssay.version + 1 };
+    },
   };
   return (
     <LabApiProvider value={api}>

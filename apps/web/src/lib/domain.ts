@@ -42,6 +42,8 @@ export const AuditAction = z.enum([
   "chart.create",
   "chart.save",
   "chart.delete",
+  "check.save",
+  "flag.review",
 ]);
 export type AuditAction = z.infer<typeof AuditAction>;
 
