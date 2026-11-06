@@ -8,8 +8,8 @@ import { requireFixtures, type FixtureProps } from "@/fixtures/gate";
 import { calendarStart } from "@/lib/calendar-start";
 
 // The lab calendar on November 2026 in New York, the week the clocks went back. Takes the
-// page's own parameters: ?view=month|week, &date=, &day= (a day opened), &entry= (one in the
-// side peek). The clock is pinned to 10:20 am on Nov 5 so screenshots hold still.
+// page's own parameters: ?view=day|week|month|year, &date=, &day= (a day opened), &entry= (one
+// in the side peek). The clock is pinned to 10:20 am on Nov 5 so screenshots hold still.
 export default async function CalendarFixture({ searchParams }: FixtureProps) {
   requireFixtures();
   const params = await searchParams;
@@ -18,7 +18,7 @@ export default async function CalendarFixture({ searchParams }: FixtureProps) {
     <FixtureLabApi mode="hybrid" source={doneSource}>
       <FixtureCalendar>
         <AppShell shell={fixtureShell} location={{ section: "calendar" }}>
-          <CalendarScreen start={start} lists={calendarLists} timeZone={CALENDAR_ZONE} now={CALENDAR_NOW} />
+          <CalendarScreen start={start} lists={calendarLists} viewer="fixture" timeZone={CALENDAR_ZONE} now={CALENDAR_NOW} />
         </AppShell>
       </FixtureCalendar>
     </FixtureLabApi>

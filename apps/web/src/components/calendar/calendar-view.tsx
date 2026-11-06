@@ -4,52 +4,70 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { DropdownMenu } from "radix-ui";
 import { useEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
 import { draftOf, type CalendarEntry, type CalendarEntryId, type CalendarFilters, type EntryWhen } from "@/lib/calendar";
-import type { CalendarMode, CalendarOpen, CalendarStart } from "@/lib/calendar-start";
 import { allDayOn, shiftWhen, stretchWhen, whenLine } from "@/lib/calendar-edit";
+import { jumpToMonth, stepAnchor, startOfYear, viewRange, yearOf } from "@/lib/calendar-nav";
+import {
+  calendarSearch,
+  calendarStart,
+  isNewHistoryEntry,
+  resolveStart,
+  storedMode,
+  viewStorageKey,
+  type CalendarMode,
+  type CalendarOpen,
+  type CalendarPlace,
+  type CalendarStart,
+} from "@/lib/calendar-start";
 import {
   addDays,
   addMonths,
   CalendarDay,
   daysBetween,
   formatCalendarDay,
-  formatWeekTitle,
   inRange,
-  monthGrid,
   snap,
   startOfMonth,
   todayIn,
   viewerTimeZone,
   wallClock,
   weekOf,
-  type DayRange,
 } from "@/lib/calendar-time";
 import { cn } from "@/lib/cn";
-import { CheckIcon, ChevronDownIcon, ChevronRightIcon, PlusIcon } from "../icons/base-web";
-import { Button, buttonVariants } from "../ui/button";
+import { CheckIcon, ChevronDownIcon } from "../icons/base-web";
+import { buttonVariants } from "../ui/button";
 import { menuItem, menuSurface } from "../ui/menu";
 import { Skeleton } from "../ui/skeleton";
 import { useCalendarApi } from "./calendar-api";
 import { CalendarProvider, ENTRY_KEYS_HELP, ENTRY_KEYS_ID, type CalendarActions, type CalendarLists, type DragMode } from "./calendar-context";
+import { CalendarHeader } from "./calendar-header";
 import { Agenda } from "./agenda";
 import { DayPeek } from "./day-peek";
+import { recordGroupAnchor } from "./day-record";
+import { DAY_RECORD_ID, DayView, PhoneDay } from "./day-view";
 import { EntryPeek } from "./entry-peek";
 import type { PendingEntry } from "./inline-title";
 import { MonthView } from "./month-view";
 import { useEntryWrites } from "./use-entry-writes";
 import { HOUR_PX, WeekView } from "./week-view";
+import { YearView } from "./year-view";
 
 const noSubscribe = () => () => {};
+const WIDE = "(min-width: 768px)";
+const VIEW_KEYS: Record<string, CalendarMode> = { d: "day", w: "week", m: "month", y: "year" };
 
 // The server can't know the viewer's zone, so the calendar draws once the browser can say.
 // Fixture pages pin the zone and the clock so screenshots hold still.
 export function CalendarView({
   start,
   lists,
+  viewer,
   timeZone: pinnedZone,
   now: pinnedNow,
 }: {
   start: CalendarStart;
   lists: CalendarLists;
+  // Whose last view to remember in this browser.
+  viewer: string;
   timeZone?: string;
   now?: string;
 }) {
@@ -67,13 +85,23 @@ export function CalendarView({
     );
   }
   const now = pinnedNow === undefined ? null : new Date(pinnedNow);
-  return <CalendarBody start={start} lists={lists} timeZone={zone} pinnedNow={now} today={todayIn(zone, now ?? new Date())} />;
+  return <CalendarBody start={start} lists={lists} viewer={viewer} timeZone={zone} pinnedNow={now} today={todayIn(zone, now ?? new Date())} />;
 }
 
-function rangeOf(mode: CalendarMode, anchor: CalendarDay): DayRange {
-  const days = mode === "month" ? monthGrid(anchor).flat() : weekOf(anchor);
-  const first = days[0] ?? anchor;
-  return { first, last: days.at(-1) ?? first };
+function readStoredMode(viewer: string): CalendarMode | null {
+  try {
+    return storedMode(window.localStorage.getItem(viewStorageKey(viewer)));
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredMode(viewer: string, mode: CalendarMode) {
+  try {
+    window.localStorage.setItem(viewStorageKey(viewer), mode);
+  } catch {
+    // Private windows and blocked storage just don't remember.
+  }
 }
 
 type Drag = { id: CalendarEntryId; when: EntryWhen };
@@ -81,56 +109,99 @@ type Drag = { id: CalendarEntryId; when: EntryWhen };
 function CalendarBody({
   start,
   lists,
+  viewer,
   timeZone,
   today,
   pinnedNow,
 }: {
   start: CalendarStart;
   lists: CalendarLists;
+  viewer: string;
   timeZone: string;
   today: CalendarDay;
   pinnedNow: Date | null;
 }) {
   const api = useCalendarApi();
   const writes = useEntryWrites();
-  const [mode, setMode] = useState<CalendarMode>(start.mode);
-  const [anchor, setAnchor] = useState<CalendarDay>(start.date ?? today);
+  // This only renders in the browser, so the first place can read the screen and storage.
+  const [initial] = useState<CalendarPlace>(() =>
+    resolveStart(start, { stored: readStoredMode(viewer), phone: !window.matchMedia(WIDE).matches, today }),
+  );
+  const [mode, setMode] = useState<CalendarMode>(initial.mode);
+  const [anchor, setAnchor] = useState<CalendarDay>(initial.anchor);
+  const [open, setOpen] = useState<CalendarOpen>(initial.open);
   const [filters, setFilters] = useState<CalendarFilters>({});
-  const [open, setOpen] = useState<CalendarOpen>(start.open);
   const [pending, setPending] = useState<PendingEntry | null>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
   const [said, setSaid] = useState("");
   const justDragged = useRef(false);
+  const shownPlace = useRef<CalendarPlace | null>(null);
 
-  const range = rangeOf(mode, anchor);
+  const range = viewRange(mode, anchor);
+  const year = yearOf(anchor);
   const data = useQuery({
     queryKey: ["calendar", "range", range.first, range.last, timeZone, filters],
     queryFn: ({ signal }) => api.range({ range, timeZone, filters }, signal),
     placeholderData: keepPreviousData,
+    enabled: mode !== "year",
+  });
+  const yearData = useQuery({
+    queryKey: ["calendar", "year", year, timeZone, filters],
+    queryFn: ({ signal }) => api.year({ year, timeZone, filters }, signal),
+    placeholderData: keepPreviousData,
+    enabled: mode === "year",
   });
   const plans = (data.data?.plans ?? []).map((p) => (drag !== null && p.id === drag.id ? { ...p, when: drag.when } : p));
   const record = data.data?.record ?? [];
 
   // The address follows what's on screen, so a reload or a shared link opens the same thing.
+  // A new view or date is a step Back can retrace; the side peek only rewrites the step.
   useEffect(() => {
+    const place: CalendarPlace = { mode, anchor, open };
     const url = new URL(window.location.href);
-    url.searchParams.set("view", mode);
-    url.searchParams.set("date", anchor);
-    url.searchParams.delete("day");
-    url.searchParams.delete("entry");
-    if (open.kind === "day") url.searchParams.set("day", open.day);
-    if (open.kind === "entry") url.searchParams.set("entry", open.id);
-    window.history.replaceState(null, "", url);
+    url.search = calendarSearch(place, url.searchParams);
+    const before = shownPlace.current;
+    if (before !== null && isNewHistoryEntry(before, place)) window.history.pushState(null, "", url);
+    else window.history.replaceState(window.history.state, "", url);
+    shownPlace.current = place;
   }, [mode, anchor, open]);
 
-  const step = (n: number) => setAnchor((a) => (mode === "month" ? addMonths(a, n) : addDays(a, 7 * n)));
+  useEffect(() => {
+    const onPop = () => {
+      const place = resolveStart(calendarStart(Object.fromEntries(new URLSearchParams(window.location.search))), {
+        stored: mode,
+        phone: false,
+        today,
+      });
+      shownPlace.current = place;
+      setPending(null);
+      setMode(place.mode);
+      setAnchor(place.anchor);
+      setOpen(place.open);
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  });
+
+  useEffect(() => writeStoredMode(viewer, mode), [viewer, mode]);
+
+  const go = (next: { mode?: CalendarMode; anchor?: CalendarDay }) => {
+    setPending(null);
+    if (next.mode !== undefined) setMode(next.mode);
+    if (next.anchor !== undefined) setAnchor(next.anchor);
+  };
+  const step = (n: number) => go({ anchor: stepAnchor(mode, anchor, n) });
+  const showDay = (day: CalendarDay) => {
+    setOpen({ kind: "none" });
+    go({ mode: "day", anchor: day });
+  };
 
   function focusEntry(id: CalendarEntryId) {
     requestAnimationFrame(() => document.querySelector<HTMLElement>(`[data-entry="${id}"]`)?.focus());
   }
 
-  function moveBy(entry: CalendarEntry, mode: DragMode, by: { days: number; minutes: number }) {
-    const when = mode === "move" ? shiftWhen(entry.when, by, timeZone) : stretchWhen(entry.when, by, timeZone);
+  function moveBy(entry: CalendarEntry, dragMode: DragMode, by: { days: number; minutes: number }) {
+    const when = dragMode === "move" ? shiftWhen(entry.when, by, timeZone) : stretchWhen(entry.when, by, timeZone);
     void writes.save(entry, { ...draftOf(entry), when });
     const day = when.kind === "allDay" ? when.first : wallClock(new Date(when.start), timeZone).day;
     setSaid(`${entry.title}: ${formatCalendarDay(day, "medium")}, ${whenLine(when, timeZone)}`);
@@ -143,7 +214,20 @@ function CalendarBody({
       setPending(null);
       setOpen({ kind: "entry", id });
     },
-    openDay: (day) => setOpen({ kind: "day", day }),
+    openDay: (day, group) => {
+      if (mode !== "day") {
+        setOpen({ kind: "day", day });
+        return;
+      }
+      // The day view has the record beside it already.
+      if (day !== anchor) {
+        go({ anchor: day });
+        return;
+      }
+      const target = document.getElementById(group === undefined ? DAY_RECORD_ID : recordGroupAnchor(day, group));
+      target?.scrollIntoView({ block: "start", behavior: "smooth" });
+      target?.focus({ preventScroll: true });
+    },
     beginCreate: (when) => {
       if (justDragged.current) return;
       setPending({ when });
@@ -158,8 +242,8 @@ function CalendarBody({
     entryKeys: (entry, event) => entryKeys(entry, event),
   };
 
-  // Dragging: the entry follows the pointer to the day (and on the week's grid, the quarter
-  // hour) under it, and saves where it's let go. A press that doesn't move is a click.
+  // Dragging: the entry follows the pointer to the day (and on the hours, the quarter hour)
+  // under it, and saves where it's let go. A press that doesn't move is a click.
   function startDrag(entry: CalendarEntry, dragMode: DragMode, event: PointerEvent<HTMLElement>) {
     if (event.button !== 0 || event.pointerType === "touch") return;
     event.stopPropagation();
@@ -199,19 +283,19 @@ function CalendarBody({
   // The keyboard's way to drag: Alt and an arrow moves an entry, Shift too changes its end.
   function entryKeys(entry: CalendarEntry, event: KeyboardEvent<HTMLElement>) {
     if (!event.altKey) return;
-    const timedGrid = mode === "week" && entry.when.kind === "timed";
+    const onHours = (mode === "week" || mode === "day") && entry.when.kind === "timed";
     const by = {
       ArrowLeft: { days: -1, minutes: 0 },
       ArrowRight: { days: 1, minutes: 0 },
-      ArrowUp: timedGrid ? { days: 0, minutes: -15 } : { days: -7, minutes: 0 },
-      ArrowDown: timedGrid ? { days: 0, minutes: 15 } : { days: 7, minutes: 0 },
+      ArrowUp: onHours ? { days: 0, minutes: -15 } : { days: -7, minutes: 0 },
+      ArrowDown: onHours ? { days: 0, minutes: 15 } : { days: 7, minutes: 0 },
     }[event.key];
     if (by === undefined) return;
     event.preventDefault();
     moveBy(entry, event.shiftKey ? "resize" : "move", by);
   }
 
-  // T for today, M and W for the views, the arrow keys for the next and last month or week.
+  // T for today; D, W, M and Y for the views; the arrow keys for the next and last one.
   useEffect(() => {
     const onKey = (e: globalThis.KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey || e.defaultPrevented) return;
@@ -222,9 +306,9 @@ function CalendarBody({
       )
         return;
       const key = e.key.toLowerCase();
-      if (key === "t") setAnchor(today);
-      else if (key === "m") setMode("month");
-      else if (key === "w") setMode("week");
+      const view = VIEW_KEYS[key];
+      if (key === "t") go({ anchor: today });
+      else if (view !== undefined) go({ mode: view });
       else if (key === "arrowleft" && target === document.body) step(-1);
       else if (key === "arrowright" && target === document.body) step(1);
       else return;
@@ -235,8 +319,9 @@ function CalendarBody({
   });
 
   const openEntry = open.kind === "entry" ? (data.data?.plans.find((p) => p.id === open.id) ?? null) : null;
-  const title = mode === "month" ? formatCalendarDay(anchor, "month") : formatWeekTitle(range.first, range.last);
   const newWhen = allDayOn(inRange(today, range) ? today : mode === "month" ? startOfMonth(anchor) : range.first);
+  const onHours = mode === "week" || mode === "day";
+  const failed = <p className="py-10 text-paragraph-medium text-content-tertiary">We couldn&apos;t load the calendar. Reload the page to try again.</p>;
 
   return (
     <CalendarProvider
@@ -251,73 +336,59 @@ function CalendarBody({
         pinnedNow,
       }}
     >
-      <div className={cn("flex flex-col", mode === "week" && "md:h-dvh")}>
-        <header className="flex flex-wrap items-center gap-x-1 gap-y-3 px-4 pt-5 pb-3 sm:gap-x-2 sm:px-8 sm:pt-8">
-          <h1 className="mr-auto min-w-0 text-heading-xsmall sm:text-heading-medium" aria-live="polite">
-            {title}
-          </h1>
-          <div
-            role="group"
-            aria-label="View"
-            className="hidden rounded-control bg-background-secondary p-0.5 ring-1 ring-border-opaque ring-inset md:flex"
-          >
-            {(["month", "week"] as const).map((m) => (
-              <button
-                key={m}
-                type="button"
-                aria-pressed={mode === m}
-                aria-keyshortcuts={m === "month" ? "M" : "W"}
-                onClick={() => setMode(m)}
-                className={cn(
-                  "min-h-7 rounded-[8px] px-3 text-label-small transition-colors duration-150",
-                  mode === m ? "bg-background-raised text-content-primary shadow-raised" : "text-content-secondary hover:text-content-primary",
-                )}
-              >
-                {m === "month" ? "Month" : "Week"}
-              </button>
-            ))}
-          </div>
-          <div className="flex items-center">
-            <Button variant="tertiary" size="compact" shape="square" onClick={() => step(-1)}>
-              <ChevronRightIcon className="size-5 rotate-180" />
-              <span className="sr-only">{mode === "month" ? "Previous month" : "Previous week"}</span>
-            </Button>
-            <Button variant="tertiary" size="compact" aria-keyshortcuts="T" onClick={() => setAnchor(today)}>
-              Today
-            </Button>
-            <Button variant="tertiary" size="compact" shape="square" onClick={() => step(1)}>
-              <ChevronRightIcon className="size-5" />
-              <span className="sr-only">{mode === "month" ? "Next month" : "Next week"}</span>
-            </Button>
-          </div>
-          <Button size="compact" className="max-sm:w-11 max-sm:px-0" onClick={() => setOpen({ kind: "new", when: newWhen })}>
-            <PlusIcon className="size-5" />
-            <span className="max-sm:sr-only">New entry</span>
-          </Button>
-        </header>
+      <div className={cn("flex flex-col", onHours && "md:h-dvh")}>
+        <CalendarHeader
+          mode={mode}
+          anchor={anchor}
+          today={today}
+          onMode={(m) => go({ mode: m })}
+          onStep={step}
+          onToday={() => go({ anchor: today })}
+          onPick={(to) => go(jumpToMonth({ mode, anchor }, to))}
+          onYear={(y) => go({ anchor: startOfYear(y) })}
+          onNew={() => setOpen({ kind: "new", when: newWhen })}
+        />
         <Filters lists={lists} value={filters} onChange={setFilters} />
 
-        <div className={cn("hidden px-4 pb-10 sm:px-8 md:block", mode === "week" && "md:flex md:min-h-0 md:flex-1 md:flex-col md:pb-0")}>
-          {data.isPending ? (
-            <Skeleton className="h-[600px] w-full" />
-          ) : data.isError ? (
-            <p className="py-10 text-paragraph-medium text-content-tertiary">We couldn&apos;t load the calendar. Reload the page to try again.</p>
-          ) : mode === "month" ? (
-            <MonthView anchor={anchor} plans={plans} record={record} pending={pending} />
-          ) : (
-            <WeekView anchor={anchor} plans={plans} record={record} pending={pending} />
-          )}
-        </div>
-        <div className="pb-24 md:hidden">
-          {data.isPending ? (
-            <div className="grid gap-3 px-4 pt-4">
-              <Skeleton className="h-14 w-full" />
-              <Skeleton className="h-14 w-full" />
+        {mode === "year" ? (
+          <div className="px-4 pt-2 pb-24 sm:px-8 md:pb-10">
+            {yearData.isPending ? (
+              <Skeleton className="h-[600px] w-full" />
+            ) : yearData.isError ? (
+              failed
+            ) : (
+              <YearView year={year} activity={yearData.data} onMonth={(first) => go({ mode: "month", anchor: first })} onDay={showDay} />
+            )}
+          </div>
+        ) : (
+          <>
+            <div className={cn("hidden px-4 pb-10 sm:px-8 md:block", onHours && "md:flex md:min-h-0 md:flex-1 md:flex-col md:pb-0")}>
+              {data.isPending ? (
+                <Skeleton className="h-[600px] w-full" />
+              ) : data.isError ? (
+                failed
+              ) : mode === "month" ? (
+                <MonthView anchor={anchor} plans={plans} record={record} pending={pending} />
+              ) : mode === "week" ? (
+                <WeekView anchor={anchor} plans={plans} record={record} pending={pending} />
+              ) : (
+                <DayView day={anchor} plans={plans} record={record} pending={pending} filters={filters} />
+              )}
             </div>
-          ) : (
-            <Agenda days={mode === "month" ? monthDays(anchor) : weekOf(anchor)} plans={plans} record={record} />
-          )}
-        </div>
+            <div className="pb-24 md:hidden">
+              {data.isPending ? (
+                <div className="grid gap-3 px-4 pt-4">
+                  <Skeleton className="h-14 w-full" />
+                  <Skeleton className="h-14 w-full" />
+                </div>
+              ) : mode === "day" ? (
+                <PhoneDay day={anchor} plans={plans} filters={filters} />
+              ) : (
+                <Agenda days={mode === "month" ? monthDays(anchor) : weekOf(anchor)} plans={plans} record={record} />
+              )}
+            </div>
+          </>
+        )}
       </div>
 
       <p aria-live="polite" className="sr-only">
@@ -335,6 +406,7 @@ function CalendarBody({
           plans={plans}
           onClose={() => setOpen({ kind: "none" })}
           onNewEntry={() => setOpen({ kind: "new", when: allDayOn(open.day) })}
+          onDayView={() => showDay(open.day)}
         />
       ) : null}
       {open.kind === "entry" && openEntry !== null ? (
@@ -366,7 +438,7 @@ function monthDays(anchor: CalendarDay): CalendarDay[] {
   return Array.from({ length: daysBetween(first, addMonths(first, 1)) }, (_, i) => addDays(first, i));
 }
 
-// The day and, on the week's grid, the quarter hour under a point.
+// The day and, on the hours, the quarter hour under a point.
 function slotAt(x: number, y: number): { day: CalendarDay; minutes: number | null } | null {
   const cell = document.elementsFromPoint(x, y).find((el): el is HTMLElement => el instanceof HTMLElement && el.dataset.day !== undefined);
   if (cell === undefined) return null;
