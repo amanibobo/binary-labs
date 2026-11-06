@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useId, useRef, useState } from "react";
-import { areaHref } from "@/app/lab/areas";
+import { DROPBOX_FOLDER_HREF, settingsHref } from "@/app/settings/sections";
 import type { FileHit, SearchFilters } from "@/lib/domain";
 import { exampleQueries } from "@/lib/example-queries";
 import { hasFilters, matchesFilters } from "@/lib/filters";
@@ -281,7 +281,7 @@ function EmptyLab({ source, isAdmin, filtered }: { source: SourceState; isAdmin:
           <p className="max-w-prose text-paragraph-medium text-content-secondary">
             Connect your lab&apos;s Dropbox to start. Binary reads one folder and never changes a file.
           </p>
-          <Link href={areaHref("dropbox")} className={cn(buttonVariants(), "mt-4")}>
+          <Link href={settingsHref("dropbox")} className={cn(buttonVariants(), "mt-4")}>
             Connect Dropbox
           </Link>
         </div>
@@ -292,7 +292,7 @@ function EmptyLab({ source, isAdmin, filtered }: { source: SourceState; isAdmin:
       return isAdmin ? (
         <div>
           <p className="text-paragraph-medium text-content-secondary">Dropbox is connected. Pick the folder to index.</p>
-          <Link href="/lab/folder" className={cn(buttonVariants(), "mt-4")}>
+          <Link href={DROPBOX_FOLDER_HREF} className={cn(buttonVariants(), "mt-4")}>
             Choose folder
           </Link>
         </div>
@@ -307,7 +307,7 @@ function EmptyLab({ source, isAdmin, filtered }: { source: SourceState; isAdmin:
           <p className="max-w-prose text-paragraph-medium text-content-secondary">
             Dropbox is disconnected, so no new files are read. Connect it again from Settings.
           </p>
-          <Link href={areaHref("dropbox")} className={cn(buttonVariants(), "mt-4")}>
+          <Link href={settingsHref("dropbox")} className={cn(buttonVariants(), "mt-4")}>
             Open settings
           </Link>
         </div>

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { codeFromBytes, displayCode, InstrumentPath, instrumentsLine, LabInstrumentsRows, normalizeCode, seenLine } from "../instruments";
+import { codeFromBytes, displayCode, InstrumentPath, LabInstrumentsRows, normalizeCode, seenLine } from "../instruments";
 
 vi.mock("server-only", () => ({}));
 const { bearerToken, newPairingCode } = await import("../instrument-upload");
@@ -49,14 +49,12 @@ describe("what Settings says", () => {
     expect(seenLine(27 * 3600)).toBe("Seen yesterday");
   });
 
-  it("counts live instruments and their files on the tile", () => {
+  it("reads each row's state", () => {
     const rows = LabInstrumentsRows.parse([
       { id: "00000000-0000-4000-8000-000000000001", name: "Plate reader", state: "paired", pairing_expires_at: null, paired_at: "2026-11-01T00:00:00Z", seen_seconds_ago: 60, revoked_at: null, files: 1200 },
       { id: "00000000-0000-4000-8000-000000000002", name: "qPCR", state: "waiting", pairing_expires_at: "2026-11-05T12:10:00Z", paired_at: null, seen_seconds_ago: null, revoked_at: null, files: "0" },
       { id: "00000000-0000-4000-8000-000000000003", name: "Old reader", state: "revoked", pairing_expires_at: null, paired_at: null, seen_seconds_ago: null, revoked_at: "2026-10-01T00:00:00Z", files: 40 },
     ]);
     expect(rows.map((r) => r.state.kind)).toEqual(["paired", "waiting", "revoked"]);
-    expect(instrumentsLine(rows)).toBe("2 instruments, 1,200 files");
-    expect(instrumentsLine([])).toBe("None yet");
   });
 });

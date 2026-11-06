@@ -10,5 +10,5 @@ export const CLIP_SIZES = {
   "talk-through": { width: 720, height: 468 },
   "video": { width: 720, height: 664 },
   "chart": { width: 720, height: 396 },
-  "settings": { width: 720, height: 486 },
+  "settings": { width: 720, height: 450 },
 } as const satisfies Record<ClipId, { width: number; height: number }>;

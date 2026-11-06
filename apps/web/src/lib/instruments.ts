@@ -124,12 +124,3 @@ export function filesLine(files: number): string {
   if (files === 0) return "No files yet";
   return files === 1 ? "1 file sent" : `${files.toLocaleString("en-US")} files sent`;
 }
-
-// The Settings tile's one line.
-export function instrumentsLine(instruments: readonly Instrument[]): string {
-  const live = instruments.filter((i) => i.state.kind !== "revoked");
-  if (live.length === 0) return "None yet";
-  const files = live.reduce((sum, i) => sum + i.files, 0);
-  const count = live.length === 1 ? "1 instrument" : `${live.length} instruments`;
-  return files === 0 ? count : `${count}, ${filesLine(files).replace(" sent", "")}`;
-}

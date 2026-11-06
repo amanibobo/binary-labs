@@ -21,19 +21,19 @@ export async function GET(request: NextRequest) {
   const { supabase, lab, user } = access.member;
 
   const params = request.nextUrl.searchParams;
-  if (params.get("error") !== null) return finish(request, "/lab?dropbox=denied");
+  if (params.get("error") !== null) return finish(request, "/settings/dropbox?dropbox=denied");
 
   const pending = readPendingOAuth(request.cookies.get(OAUTH_COOKIE)?.value);
   const code = params.get("code");
   const state = params.get("state");
   if (pending === null || code === null || state === null || !stateMatches(pending.state, state) || pending.labId !== lab.id) {
-    return finish(request, "/lab?dropbox=expired");
+    return finish(request, "/settings/dropbox?dropbox=expired");
   }
 
-  let next = "/lab/folder";
+  let next = "/settings/dropbox/folder";
   try {
     const existing = await loadSourceState(supabase, lab.id);
-    if (existing.kind !== "not_connected" && existing.kind !== "disconnected") return finish(request, "/lab");
+    if (existing.kind !== "not_connected" && existing.kind !== "disconnected") return finish(request, "/settings/dropbox");
     const env = dropboxEnv();
     const tokens = await exchangeCode({
       appKey: env.DROPBOX_APP_KEY,
@@ -55,14 +55,14 @@ export async function GET(request: NextRequest) {
           .select("id")
           .single(),
       );
-      if (existing.rootPath !== null) next = "/lab";
+      if (existing.rootPath !== null) next = "/settings/dropbox";
     } else {
       unwrap(await supabase.from("sources").insert({ lab_id: lab.id, kind: "dropbox", account_label: label, token_ciphertext: ciphertext }));
     }
     await audit(supabase, { labId: lab.id, actor: user.id, action: "source.connect", target: label });
   } catch (error) {
     logError("dropbox.connect_failed", { labId: lab.id, error });
-    return finish(request, "/lab?dropbox=failed");
+    return finish(request, "/settings/dropbox?dropbox=failed");
   }
   return finish(request, next);
 }

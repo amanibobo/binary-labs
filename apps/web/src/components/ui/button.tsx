@@ -15,6 +15,9 @@ export const buttonVariants = cva(
         secondary:
           "bg-background-secondary text-content-primary ring-1 ring-border-opaque ring-inset hover:bg-button-secondary-hover disabled:text-content-tertiary",
         tertiary: "text-content-primary hover:bg-button-secondary-hover disabled:bg-transparent disabled:text-content-tertiary",
+        // Red text is kept for actions that can't be undone.
+        negative:
+          "bg-background-secondary text-content-negative ring-1 ring-border-opaque ring-inset hover:bg-button-secondary-hover disabled:text-content-tertiary",
       },
       size: {
         compact: "min-h-11 px-3 text-label-small sm:min-h-8",

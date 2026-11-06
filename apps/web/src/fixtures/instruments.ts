@@ -1,6 +1,6 @@
 import { InstrumentId } from "@/lib/ids";
 import type { Instrument } from "@/lib/instruments";
-import type { PairingCode } from "@/app/lab/actions";
+import type { PairingCode } from "@/app/settings/actions";
 
 const NOW = Date.parse("2026-11-05T15:00:00Z");
 const ago = (minutes: number) => new Date(NOW - minutes * 60_000).toISOString();

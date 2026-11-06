@@ -135,27 +135,25 @@ function onboardingShots() {
   ];
 }
 
-// Settings: the overview and each area, in both schemes at desktop and phone width.
+// Settings: /settings (the section list on a phone, General beside it on a desktop) and every
+// section, in both schemes at desktop and phone width.
 function settingsShots() {
-  const lab = (query) => `/dev/fixtures/lab${query}`;
+  const s = (path) => `/dev/fixtures/settings${path}`;
   const all = (shot) => ["dark", "light"].flatMap((scheme) => [1440, 390].map((width) => ({ ...shot, width, scheme })));
+  const sections = ["general", "members", "dropbox", "instruments", "experiments", "people", "account", "appearance"];
   return [
-    ...all({ name: "settings", path: lab("") }),
-    ...all({ name: "settings-dropbox", path: lab("?area=dropbox") }),
-    ...all({ name: "settings-experiments", path: lab("?area=experiments") }),
-    { name: "settings-people", path: lab("?area=people"), width: 1440, scheme: "dark" },
-    ...all({ name: "settings-members", path: lab("?area=members") }),
-    ...all({ name: "settings-instruments", path: lab("?area=instruments") }),
-    ...all({ name: "settings-instruments-code", path: lab("?area=instruments&code=shown") }),
-    { name: "settings-instruments-paired", path: lab("?area=instruments&code=paired"), width: 1440, scheme: "dark" },
-    { name: "settings-instruments-empty", path: lab("?area=instruments&state=connect"), width: 390, scheme: "light" },
-    { name: "settings-member-instruments", path: lab("?role=member&area=instruments"), width: 1440, scheme: "light" },
-    { name: "settings-account", path: lab("?area=account"), width: 390, scheme: "dark" },
-    { name: "settings-connect", path: lab("?area=dropbox&state=connect"), width: 1440, scheme: "dark" },
-    { name: "settings-empty-list", path: lab("?area=people&state=connect"), width: 390, scheme: "light" },
-    ...all({ name: "settings-member", path: lab("?role=member") }),
-    { name: "settings-member-dropbox", path: lab("?role=member&area=dropbox"), width: 1440, scheme: "dark" },
-    { name: "settings-member-members", path: lab("?role=member&area=members"), width: 390, scheme: "dark" },
+    ...all({ name: "settings", path: s("") }),
+    ...sections.flatMap((section) => all({ name: `settings-${section}`, path: s(`/${section}`) })),
+    ...all({ name: "settings-member-members", path: s("/members?role=member") }),
+    ...all({ name: "settings-instruments-code", path: s("/instruments?code=shown") }),
+    { name: "settings-instruments-paired", path: s("/instruments?code=paired"), width: 1440, scheme: "dark" },
+    { name: "settings-instruments-empty", path: s("/instruments?state=connect"), width: 390, scheme: "light" },
+    { name: "settings-member-instruments", path: s("/instruments?role=member"), width: 1440, scheme: "light" },
+    { name: "settings-connect", path: s("/dropbox?state=connect"), width: 1440, scheme: "dark" },
+    { name: "settings-dropbox-notice", path: s("/dropbox?state=connect&dropbox=denied"), width: 390, scheme: "dark" },
+    { name: "settings-empty-list", path: s("/people?state=connect"), width: 390, scheme: "light" },
+    { name: "settings-member-general", path: s("/general?role=member"), width: 1440, scheme: "dark" },
+    { name: "settings-member-dropbox", path: s("/dropbox?role=member"), width: 1440, scheme: "dark" },
   ];
 }
 
@@ -216,16 +214,15 @@ function deletionShots() {
     await page.getByLabel("Type Okafor Lab to confirm").fill("Okafor Lab");
   };
   const openDisconnect = (page) => page.getByRole("button", { name: "Disconnect", exact: true }).click();
+  const general = "/dev/fixtures/settings/general";
+  const dropbox = "/dev/fixtures/settings/dropbox";
   return [
-    ...both({ name: "settings-delete-section", path: "/dev/fixtures/lab?area=delete&state=connect" }),
-    { name: "settings-delete-section", path: "/dev/fixtures/lab?area=delete", width: 390, scheme: "dark" },
-    ...both({ name: "settings-delete-dialog", path: "/dev/fixtures/lab?area=delete", steps: openDelete, full: false }),
-    { name: "settings-delete-dialog", path: "/dev/fixtures/lab?area=delete", steps: openDelete, full: false, width: 390, scheme: "dark" },
-    ...both({ name: "settings-disconnect-dialog", path: "/dev/fixtures/lab?area=dropbox", steps: openDisconnect, full: false }),
-    { name: "settings-disconnect-dialog", path: "/dev/fixtures/lab?area=dropbox", steps: openDisconnect, full: false, width: 390, scheme: "dark" },
-    ...both({ name: "settings-disconnected", path: "/dev/fixtures/lab?area=dropbox&state=disconnected" }),
-    { name: "settings-disconnected", path: "/dev/fixtures/lab?area=dropbox&state=disconnected", width: 390, scheme: "dark" },
-    { name: "settings-disconnected-overview", path: "/dev/fixtures/lab?state=disconnected", width: 1440, scheme: "dark" },
+    ...both({ name: "settings-delete-dialog", path: general, steps: openDelete, full: false }),
+    { name: "settings-delete-dialog", path: general, steps: openDelete, full: false, width: 390, scheme: "dark" },
+    ...both({ name: "settings-disconnect-dialog", path: dropbox, steps: openDisconnect, full: false }),
+    { name: "settings-disconnect-dialog", path: dropbox, steps: openDisconnect, full: false, width: 390, scheme: "dark" },
+    ...both({ name: "settings-disconnected", path: `${dropbox}?state=disconnected` }),
+    { name: "settings-disconnected", path: `${dropbox}?state=disconnected`, width: 390, scheme: "dark" },
     ...both({ name: "lab-deleted-pending", path: "/dev/fixtures/deleted?state=pending" }),
     ...both({ name: "lab-deleted-done", path: "/dev/fixtures/deleted?state=done" }),
   ];
