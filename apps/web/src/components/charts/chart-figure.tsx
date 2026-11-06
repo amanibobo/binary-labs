@@ -1,30 +1,246 @@
 "use client";
-import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
+import { Popover } from "radix-ui";
+import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
 import { cn } from "@/lib/cn";
 import { isHeatmap, type ChartSpec, type HeatmapSpec, type XYSpec } from "@/lib/charts";
-import { formatValue, plotChart, pointAt, xLabel, type Plot, type Point } from "@/lib/chart-geometry";
+import { formatValue, LABEL_FONT, plotChart, pointAt, textWidth, TICK_FONT, xLabel, type Plot, type Point } from "@/lib/chart-geometry";
 import { cellText, columnLabel, findColumn, rowsNote, type DataColumn, type DataTable } from "@/lib/data-tables";
+import type { LabelTarget } from "@/lib/chart-edits";
+import type { ColumnId } from "@/lib/ids";
 import { plateHeight, plotPlate, readLabel, type PlatePlot, type PlateWell } from "@/lib/plate-geometry";
 import { rowLetter } from "@/lib/plates";
+import { PencilIcon } from "../icons/drawn";
+import { menuSurface } from "../ui/menu";
 import { Button } from "../ui/button";
 import { ChartSvg, DASH, PlateSvg, SCREEN_INK } from "./chart-svg";
 
 const HIT = 24;
 // How far from the pointer a series with its own x still counts as there.
 const REACH = 12;
+// How near a line the pointer has to be to pick it.
+const NEAR_LINE = 10;
 const TABLE_ROWS = 500;
 
 export function chartHeight(width: number): number {
-  return Math.round(Math.min(460, Math.max(260, width * 0.58)));
+  return Math.round(Math.min(480, Math.max(260, width * 0.56)));
 }
 
+// What makes a chart editable in place (the builder; a protocol page's chart has none).
+export type FigureEdit = {
+  rename: (target: LabelTarget, text: string) => void;
+  // The text a label edits, which can differ from what's drawn ("A595 (AU)" is title and unit).
+  textOf: (target: LabelTarget) => string;
+  // What opens when a line, bar or dot is clicked: its name, color and style.
+  seriesEditor: (column: ColumnId, close: () => void) => ReactNode;
+};
+
 // A chart that fills its container's width, with a readout on hover and focus, and the numbers
-// it draws one click away.
-export function ChartFigure({ spec, table, label, className }: { spec: ChartSpec; table: DataTable; label: string; className?: string }) {
+// it draws one click away. With `edit`, its words rename in place and its marks open their
+// editor when clicked.
+export function ChartFigure({
+  spec,
+  table,
+  label,
+  className,
+  edit,
+  hint,
+}: {
+  spec: ChartSpec;
+  table: DataTable;
+  label: string;
+  className?: string;
+  edit?: FigureEdit;
+  // A line under the chart, beside "Show the numbers".
+  hint?: ReactNode;
+}) {
   return isHeatmap(spec) ? (
-    <PlateFigure spec={spec} table={table} label={label} className={className} />
+    <PlateFigure spec={spec} table={table} label={label} className={className} edit={edit} hint={hint} />
   ) : (
-    <XYFigure spec={spec} table={table} label={label} className={className} />
+    <XYFigure spec={spec} table={table} label={label} className={className} edit={edit} hint={hint} />
+  );
+}
+
+type LabelBox = { target: LabelTarget; text: string; name: string; style: CSSProperties; rotate: boolean; input: CSSProperties };
+
+const keyOf = (t: LabelTarget) => (t.kind === "series" ? `series-${t.column}` : t.kind);
+
+// Where each renameable word of an x/y chart sits, from its plot.
+function xyLabels(plot: Plot, spec: XYSpec): LabelBox[] {
+  const out: LabelBox[] = [];
+  const pad = 6;
+  const inputWidth = (w: number) => Math.min(plot.width, Math.max(200, w + 48));
+  if (plot.xTitle !== null) {
+    const w = textWidth(plot.xTitle.text, LABEL_FONT);
+    out.push({
+      target: { kind: "x" },
+      text: plot.xTitle.text,
+      name: "the bottom axis title",
+      rotate: false,
+      style: { left: plot.xTitle.x - w / 2 - pad, top: plot.xTitle.y - LABEL_FONT - 3, width: w + pad * 2, height: LABEL_FONT + 10 },
+      input: { left: Math.max(0, Math.min(plot.width - inputWidth(w), plot.xTitle.x - inputWidth(w) / 2)), top: plot.xTitle.y - LABEL_FONT - 9, width: inputWidth(w) },
+    });
+  }
+  if (plot.yTitle !== null) {
+    const w = textWidth(plot.yTitle.text, LABEL_FONT);
+    out.push({
+      target: { kind: "y" },
+      text: plot.yTitle.text,
+      name: "the side axis title",
+      rotate: true,
+      style: { left: plot.yTitle.x - (LABEL_FONT + 10) / 2 - 4, top: plot.yTitle.y - w / 2 - pad, width: LABEL_FONT + 10, height: w + pad * 2 },
+      input: { left: 0, top: plot.yTitle.y - 18, width: inputWidth(w) },
+    });
+  }
+  const names = new Map(spec.series.map((s) => [s.column, s.name]));
+  for (const item of plot.legend) {
+    const s = spec.series.find((q) => q.name === item.name && q.color === item.color && q.stroke === item.stroke);
+    if (s === undefined) continue;
+    const w = 22 + textWidth(item.name, TICK_FONT);
+    out.push({
+      target: { kind: "series", column: s.column },
+      text: item.name,
+      name: `${item.name} in the legend`,
+      rotate: false,
+      style: { left: item.x - 4, top: item.y - 11, width: w + 10, height: 22 },
+      input: { left: Math.max(0, Math.min(plot.width - inputWidth(w), item.x - 4)), top: item.y - 17, width: inputWidth(w) },
+    });
+  }
+  for (const s of plot.series) {
+    if (s.label === null) continue;
+    const column = spec.series.find((q) => q.column === s.column)?.column;
+    if (column === undefined) continue;
+    const w = textWidth(names.get(column) ?? s.name, TICK_FONT);
+    out.push({
+      target: { kind: "series", column },
+      text: s.name,
+      name: `${s.name} at the end of its line`,
+      rotate: false,
+      style: { left: s.label.x - 4, top: s.label.y - 11, width: w + 8, height: 22 },
+      input: { left: Math.max(0, Math.min(plot.width - inputWidth(w), s.label.x - 4)), top: s.label.y - 17, width: inputWidth(w) },
+    });
+  }
+  return out;
+}
+
+// The plate's one renameable word: what its colors stand for, under the scale.
+function plateLabels(plot: PlatePlot): LabelBox[] {
+  const scale = plot.scale;
+  if (scale === null || scale.title === "") return [];
+  const w = textWidth(scale.title, LABEL_FONT);
+  const y = scale.top + scale.height + 6 + TICK_FONT * 2 + 8;
+  return [
+    {
+      target: { kind: "value" },
+      text: scale.title,
+      name: "what the colors show",
+      rotate: false,
+      style: { left: scale.left - 6, top: y - LABEL_FONT - 3, width: w + 12, height: LABEL_FONT + 10 },
+      input: { left: Math.max(0, scale.left - 6), top: y - LABEL_FONT - 9, width: Math.min(plot.width, Math.max(220, w + 48)) },
+    },
+  ];
+}
+
+// The renameable words over a chart: each shows a pencil on hover and turns into a text field
+// when clicked; Enter or leaving keeps the change, Escape drops it.
+function EditableLabels({ labels, edit }: { labels: readonly LabelBox[]; edit: FigureEdit }) {
+  const [editing, setEditing] = useState<string | null>(null);
+  return (
+    <>
+      {labels.map((l, i) => {
+        const key = `${keyOf(l.target)}-${i}`;
+        return editing === key ? (
+          <LabelInput
+            key={key}
+            style={l.input}
+            initial={edit.textOf(l.target)}
+            name={l.name}
+            onDone={(text) => {
+              setEditing(null);
+              if (text !== null) edit.rename(l.target, text);
+            }}
+          />
+        ) : (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setEditing(key)}
+            className="group/label absolute z-[5] cursor-text rounded-[6px] ring-border-raised hover:bg-[color-mix(in_oklab,var(--background-secondary)_55%,transparent)] hover:ring-1 focus-visible:ring-2 focus-visible:ring-border-accent focus-visible:outline-none"
+            style={l.style}
+          >
+            <span className="sr-only">Rename {l.name}</span>
+            <PencilIcon
+              className={cn(
+                "pointer-events-none absolute size-4 rounded-full bg-background-raised p-0.5 text-content-secondary opacity-0 shadow-raised ring-1 ring-border-opaque group-hover/label:opacity-100 group-focus-visible/label:opacity-100",
+                l.rotate ? "-top-5 left-1/2 -translate-x-1/2" : "top-1/2 -right-5 -translate-y-1/2",
+              )}
+            />
+          </button>
+        );
+      })}
+    </>
+  );
+}
+
+function LabelInput({ style, initial, name, onDone }: { style: CSSProperties; initial: string; name: string; onDone: (text: string | null) => void }) {
+  const done = useRef(false);
+  const finish = (text: string | null) => {
+    if (done.current) return;
+    done.current = true;
+    onDone(text);
+  };
+  return (
+    <input
+      autoFocus
+      aria-label={`Rename ${name}`}
+      defaultValue={initial}
+      maxLength={80}
+      onFocus={(e) => e.currentTarget.select()}
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.key === "Enter") finish(e.currentTarget.value);
+        if (e.key === "Escape") finish(null);
+      }}
+      onBlur={(e) => finish(e.currentTarget.value)}
+      className="absolute z-20 h-9 rounded-control border border-border-accent bg-background-raised px-2.5 text-paragraph-small text-content-primary shadow-deep-below ring-1 ring-border-accent focus-visible:outline-none"
+      style={style}
+    />
+  );
+}
+
+// The series a pointer is on, if any: the dot under it, the bar it's in, or the line nearest it
+// at that place along x.
+function seriesAt(plot: Plot, type: XYSpec["type"], active: Active | null, x: number, y: number): number | null {
+  if (type === "scatter") return active?.kind === "point" ? active.series : null;
+  if (type === "bar") {
+    const i = plot.series.findIndex((s) => s.bars.some((b) => x >= b.x - 2 && x <= b.x + b.width + 2 && y >= b.top - 4 && y <= b.bottom));
+    return i < 0 ? null : i;
+  }
+  if (active?.kind !== "row") return null;
+  let best: number | null = null;
+  let bestD = NEAR_LINE;
+  for (const { series, point } of activePoints(plot, active)) {
+    const d = Math.abs(point.py - y);
+    if (d <= bestD) {
+      bestD = d;
+      best = series;
+    }
+  }
+  return best;
+}
+
+// The editor a clicked mark opens, beside where it was clicked.
+function MarkPopover({ at, onClose, children }: { at: { x: number; y: number } | null; onClose: () => void; children: ReactNode }) {
+  return (
+    <Popover.Root open={at !== null} onOpenChange={(open) => (open ? null : onClose())}>
+      <Popover.Anchor asChild>
+        <span aria-hidden className="pointer-events-none absolute size-px" style={at === null ? { left: 0, top: 0 } : { left: at.x, top: at.y }} />
+      </Popover.Anchor>
+      <Popover.Portal>
+        <Popover.Content side="right" align="start" sideOffset={10} collisionPadding={12} className={cn(menuSurface, "w-72 p-4")}>
+          {children}
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
   );
 }
 
@@ -41,15 +257,16 @@ function useWidth(): [React.RefObject<HTMLDivElement | null>, number | null] {
   return [box, width];
 }
 
-function Caption({ notes, showTable, onToggle }: { notes: string[]; showTable: boolean; onToggle: () => void }) {
+function Caption({ notes, hint, showTable, onToggle }: { notes: string[]; hint?: ReactNode; showTable: boolean; onToggle: () => void }) {
   return (
     <figcaption className="mt-3 flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-      <div className="min-w-0 text-paragraph-xsmall text-content-tertiary">
+      <div className="min-w-0 flex-1 basis-72 text-paragraph-xsmall text-content-tertiary">
+        {hint === undefined ? null : <div className="mb-1 flex items-center gap-1.5 pt-2.5">{hint}</div>}
         {notes.map((n) => (
           <p key={n}>{n}</p>
         ))}
       </div>
-      <Button variant="tertiary" size="compact" className="-mr-3 text-content-secondary" aria-expanded={showTable} onClick={onToggle}>
+      <Button variant="secondary" size="compact" className="shrink-0 text-content-secondary" aria-expanded={showTable} onClick={onToggle}>
         {showTable ? "Hide the numbers" : "Show the numbers"}
       </Button>
     </figcaption>
@@ -78,8 +295,9 @@ function Frame({
       ref={box}
       tabIndex={0}
       onKeyDown={onKeyDown}
-      onFocus={onFocus}
-      onBlur={onBlur}
+      // Only the chart itself, not a word being renamed on it, starts the keyboard readout.
+      onFocus={(e) => (e.target === e.currentTarget ? onFocus() : undefined)}
+      onBlur={(e) => (e.target === e.currentTarget ? onBlur() : undefined)}
       aria-label={label}
       className="relative w-full rounded-control focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-border-accent"
       style={{ height }}
@@ -92,20 +310,41 @@ function Frame({
 // What the hover layer points at: a place along x (line and bar), or one dot (scatter).
 type Active = { kind: "row"; stop: number } | { kind: "point"; series: number; index: number };
 
-function XYFigure({ spec, table, label, className }: { spec: XYSpec; table: DataTable; label: string; className?: string }) {
+function XYFigure({ spec, table, label, className, edit, hint }: { spec: XYSpec; table: DataTable; label: string; className?: string; edit?: FigureEdit; hint?: ReactNode }) {
   const [box, width] = useWidth();
   const [active, setActive] = useState<Active | null>(null);
   const [showTable, setShowTable] = useState(false);
+  const [onMark, setOnMark] = useState<number | null>(null);
+  const [opened, setOpened] = useState<{ column: ColumnId; x: number; y: number } | null>(null);
   const clipId = useId();
+  const editable = edit !== undefined;
 
-  const plot = useMemo(() => (width === null ? null : plotChart(spec, table, { width, height: chartHeight(width) })), [spec, table, width]);
+  const plot = useMemo(
+    () => (width === null ? null : plotChart(spec, table, { width, height: chartHeight(width) }, { placeholders: editable })),
+    [spec, table, width, editable],
+  );
   const notes = [...(plot?.notes ?? []), ...columnNotes(spec, table), rowsNote(table)].filter((n): n is string => n !== null);
+  const labels = useMemo(() => (plot === null || !editable ? [] : xyLabels(plot, spec)), [plot, spec, editable]);
+
+  function at(event: PointerEvent<SVGRectElement>): { x: number; y: number } | null {
+    const rect = event.currentTarget.ownerSVGElement?.getBoundingClientRect();
+    return rect === undefined ? null : { x: event.clientX - rect.left, y: event.clientY - rect.top };
+  }
 
   function point(event: PointerEvent<SVGRectElement>) {
-    if (plot === null) return;
-    const rect = event.currentTarget.ownerSVGElement?.getBoundingClientRect();
-    if (rect === undefined) return;
-    setActive(nearest(plot, spec.type, event.clientX - rect.left, event.clientY - rect.top));
+    const p = at(event);
+    if (plot === null || p === null) return;
+    const next = nearest(plot, spec.type, p.x, p.y);
+    setActive(next);
+    if (editable) setOnMark(seriesAt(plot, spec.type, next, p.x, p.y));
+  }
+
+  function open(event: PointerEvent<SVGRectElement>) {
+    const p = at(event);
+    if (plot === null || p === null || !editable) return;
+    const i = seriesAt(plot, spec.type, nearest(plot, spec.type, p.x, p.y), p.x, p.y);
+    const column = i === null ? undefined : spec.series.find((s) => s.column === plot.series[i]?.column)?.column;
+    if (column !== undefined) setOpened({ column, ...p });
   }
 
   function step(event: KeyboardEvent<HTMLDivElement>) {
@@ -135,14 +374,27 @@ function XYFigure({ spec, table, label, className }: { spec: XYSpec; table: Data
               width={plot.area.width}
               height={plot.area.height}
               fill="transparent"
+              style={{ cursor: onMark === null ? undefined : "pointer" }}
               onPointerMove={point}
-              onPointerLeave={() => setActive(null)}
+              onPointerUp={open}
+              onPointerLeave={() => {
+                setActive(null);
+                setOnMark(null);
+              }}
             />
           </ChartSvg>
         )}
-        {plot === null || active === null ? null : <Readout plot={plot} spec={spec} table={table} active={active} />}
+        {plot === null || active === null || opened !== null ? null : (
+          <Readout plot={plot} spec={spec} table={table} active={active} hint={onMark === null ? null : (plot.series[onMark]?.name ?? null)} />
+        )}
+        {edit === undefined ? null : <EditableLabels labels={labels} edit={edit} />}
+        {edit === undefined ? null : (
+          <MarkPopover at={opened} onClose={() => setOpened(null)}>
+            {opened === null ? null : edit.seriesEditor(opened.column, () => setOpened(null))}
+          </MarkPopover>
+        )}
       </Frame>
-      <Caption notes={notes} showTable={showTable} onToggle={() => setShowTable((v) => !v)} />
+      <Caption notes={notes} hint={hint} showTable={showTable} onToggle={() => setShowTable((v) => !v)} />
       {showTable && plot !== null ? <NumbersTable spec={spec} table={table} plot={plot} /> : null}
     </figure>
   );
@@ -255,7 +507,7 @@ function HoverMarks({ plot, active }: { plot: Plot; active: Active | null }) {
   );
 }
 
-function Readout({ plot, spec, table, active }: { plot: Plot; spec: XYSpec; table: DataTable; active: Active }) {
+function Readout({ plot, spec, table, active, hint = null }: { plot: Plot; spec: XYSpec; table: DataTable; active: Active; hint?: string | null }) {
   const points = activePoints(plot, active);
   const first = points[0];
   if (first === undefined) return null;
@@ -292,6 +544,12 @@ function Readout({ plot, spec, table, active }: { plot: Plot; spec: XYSpec; tabl
           );
         })}
       </ul>
+      {hint === null ? null : (
+        <p className="mt-2 flex items-center gap-1.5 border-t border-border-opaque pt-2 text-paragraph-xsmall text-content-secondary">
+          <PencilIcon className="size-3.5" />
+          Click to change {hint}
+        </p>
+      )}
     </div>
   );
 }
@@ -354,13 +612,18 @@ function RowsTable({ columns, rows }: { columns: DataColumn[]; rows: number[] })
 
 // A plate heatmap that fills its container's width. Hover or arrow keys read a well; the
 // numbers are the plate as a grid.
-function PlateFigure({ spec, table, label, className }: { spec: HeatmapSpec; table: DataTable; label: string; className?: string }) {
+function PlateFigure({ spec, table, label, className, edit, hint }: { spec: HeatmapSpec; table: DataTable; label: string; className?: string; edit?: FigureEdit; hint?: ReactNode }) {
   const [box, width] = useWidth();
   const [active, setActive] = useState<number | null>(null);
   const [showTable, setShowTable] = useState(false);
   const gradientId = useId();
   const height = width === null ? 320 : plateHeight(spec, width);
-  const plot = useMemo(() => (width === null ? null : plotPlate(spec, table, { width, height: plateHeight(spec, width) })), [spec, table, width]);
+  const editable = edit !== undefined;
+  const plot = useMemo(
+    () => (width === null ? null : plotPlate(spec, table, { width, height: plateHeight(spec, width) }, { placeholders: editable })),
+    [spec, table, width, editable],
+  );
+  const labels = useMemo(() => (plot === null || !editable ? [] : plateLabels(plot)), [plot, editable]);
   const read = readLabel(spec, table);
   const notes = [...(read === null ? [] : [`${read}.`]), ...(plot?.notes ?? []), rowsNote(table)].filter((n): n is string => n !== null);
 
@@ -417,8 +680,9 @@ function PlateFigure({ spec, table, label, className }: { spec: HeatmapSpec; tab
           </PlateSvg>
         )}
         {plot === null || well === undefined ? null : <WellReadout plot={plot} well={well} spec={spec} />}
+        {edit === undefined ? null : <EditableLabels labels={labels} edit={edit} />}
       </Frame>
-      <Caption notes={notes} showTable={showTable} onToggle={() => setShowTable((v) => !v)} />
+      <Caption notes={notes} hint={hint} showTable={showTable} onToggle={() => setShowTable((v) => !v)} />
       {showTable && plot !== null ? <PlateTable plot={plot} /> : null}
     </figure>
   );

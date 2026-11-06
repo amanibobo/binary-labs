@@ -185,21 +185,29 @@ const CLIPS = [
   },
   {
     id: "chart",
-    path: "/dev/fixtures/charts?view=new",
+    // The Bradford workbook: the question, the suggested answer drawn with its error bars, the
+    // side axis renamed where it sits, then Save.
+    path: "/dev/fixtures/charts?view=bradford",
     async crop(page) {
       const main = await box(page.locator("main"));
-      return { x: main.x + 16, y: 64, width: main.width - 24, height: 560 };
+      return { x: main.x + 8, y: 0, width: main.width - 8, height: 600 };
     },
     async run(page) {
-      await page.waitForTimeout(400);
-      await clickAt(page, page.getByRole("checkbox", { name: /A2/ }));
-      await page.waitForTimeout(500);
-      await clickAt(page, page.getByRole("checkbox", { name: /A3/ }));
-      await page.waitForTimeout(600);
-      await clickAt(page, page.getByPlaceholder("Chart title"));
+      await page.waitForFunction(() => {
+        const button = document.querySelector("main button");
+        return button !== null && Object.keys(button).some((k) => k.startsWith("__reactProps"));
+      });
+      await page.waitForTimeout(1100);
+      await clickAt(page, page.getByRole("button", { name: "How two measurements relate" }));
+      await page.locator("figure svg").first().waitFor();
+      await page.waitForTimeout(1300);
+      await clickAt(page, page.getByRole("button", { name: "Rename the side axis title" }));
       await page.keyboard.press("ControlOrMeta+a");
-      await page.keyboard.type("Plate 7, wells A1 to A3", { delay: 50 });
-      await page.waitForTimeout(1500);
+      await page.keyboard.type("Absorbance at 595 nm (AU)", { delay: 45 });
+      await page.keyboard.press("Enter");
+      await page.waitForTimeout(900);
+      await pointAt(page, page.getByRole("button", { name: "Save", exact: true }));
+      await page.waitForTimeout(1200);
     },
   },
   {

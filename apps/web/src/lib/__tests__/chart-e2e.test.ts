@@ -6,7 +6,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { ChartSvg, EXPORT_INK, PlateSvg } from "@/components/charts/chart-svg";
-import { ChartRows, ChartSpec, checkSpec, startingSpec } from "../charts";
+import { ChartRows, ChartSpec, checkSpec } from "../charts";
+import { startingChart } from "../chart-guide";
 import { plotChart } from "../chart-geometry";
 import { plotPlate } from "../plate-geometry";
 import { LabId } from "../ids";
@@ -63,7 +64,7 @@ describe.runIf(env.success)("a chart from a processed file, through the routes' 
         const doc = await readTables(lab, file.storage_key);
         const table = file.name.endsWith(".xlsx") ? doc.tables.find((t) => t.name === "Standards") : doc.tables[0];
         if (table === undefined) throw new Error(`no table in ${file.name}`);
-        const start = startingSpec(table);
+        const start = startingChart(table);
         if (start === null) throw new Error(`nothing to plot in ${file.name}`);
         // The Bradford curve as a lab plots it: means with their SDs.
         const spec = file.name.endsWith(".xlsx")

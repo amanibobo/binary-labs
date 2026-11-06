@@ -3,7 +3,11 @@ import {
   axisColumns,
   columnLabel,
   findColumn,
+  isBookkeepingColumn,
+  isMeanColumn,
+  isSpreadColumn,
   numberColumns,
+  spreadFor,
   type AxisColumn,
   type DataColumn,
   type DataTable,
@@ -237,16 +241,10 @@ function isIncreasing(column: AxisColumn): boolean {
   return true;
 }
 
-// What a new chart of a table starts as. A plate grid or a list of wells starts as a plate;
-// otherwise the first numbers or dates column runs along x with the next numbers plotted, as a
-// line when x only goes up. A table of names and numbers starts as bars. Null when there's
-// nothing to plot.
-export function startingSpec(table: DataTable): ChartSpec | null {
-  const layout = plateLayout(table);
-  if (layout !== null && layout.kind !== "read") return startingHeatmap(table, layout);
-  return startingXY(table);
-}
-
+// How an x/y chart of a table starts before anyone picks (startingColumns): a line when x only
+// goes up, dots when it doesn't, bars along names, with the measured column's spreads as error
+// bars when the table has them. lib/chart-guide.ts picks the kind of chart a new one starts as;
+// this is also where a type switch or a mended chart lands. Null when there's nothing to plot.
 export function startingXY(table: DataTable): XYSpec | null {
   const start = startingColumns(table);
   if (start === null) return null;
@@ -257,7 +255,7 @@ export function startingXY(table: DataTable): XYSpec | null {
     type,
     x: { column: x.id, title: x.name, unit: x.unit ?? "", min: null, max: null },
     y: { title: y.name, unit: y.unit ?? "", scale: "linear", min: null, max: null },
-    series: [{ column: y.id, name: y.name, color: SERIES_COLORS[0], stroke: "solid", error: null, x: null }],
+    series: [{ column: y.id, name: y.name, color: SERIES_COLORS[0], stroke: "solid", error: spreadFor(table, y)?.id ?? null, x: null }],
     legend: "top",
   };
 }
@@ -367,17 +365,35 @@ function isFlat(column: NumberColumn): boolean {
   return !Number.isFinite(lo) || hi - lo <= 0.01 * Math.max(Math.abs(lo), Math.abs(hi));
 }
 
+// The column a chart of this table measures first, other than x: a mean when there is one,
+// else the first that moves, passing over spreads (they're error bars) and columns that number
+// or dilute the rows.
+export function startingMeasure(table: DataTable, x: DataColumn | null): NumberColumn | null {
+  const all = numberColumns(table).filter((c) => c.id !== x?.id);
+  const readings = all.filter((c) => !isSpreadColumn(c) && !isBookkeepingColumn(c));
+  return readings.find(isMeanColumn) ?? readings.find((c) => !isFlat(c)) ?? readings[0] ?? all[0] ?? null;
+}
+
+function barNames(table: DataTable): DataColumn | null {
+  const names = table.columns.find((c) => c.kind === "text");
+  return names !== undefined && names.values.filter((v) => v !== null).length <= MAX_BARS ? names : null;
+}
+
+// A table whose first column names its rows ("Sample": Lysate, Wash, …) starts as bars of
+// them; otherwise its first numbers or dates column runs along x.
 function startingColumns(table: DataTable): { x: DataColumn; y: NumberColumn } | null {
+  const names = barNames(table);
+  if (names !== null && table.columns[0]?.id === names.id) {
+    const y = startingMeasure(table, names);
+    if (y !== null) return { x: names, y };
+  }
   const [first] = axisColumns(table);
   if (first !== undefined) {
-    const rest = numberColumns(table).filter((c) => c.id !== first.id);
-    const second = rest.find((c) => !isFlat(c)) ?? rest[0];
-    if (second !== undefined) return { x: first, y: second };
+    const y = startingMeasure(table, first);
+    if (y !== null) return { x: first, y };
   }
-  const [y] = numberColumns(table);
-  const names = table.columns.find((c) => c.kind === "text");
-  if (y !== undefined && names !== undefined && names.values.filter((v) => v !== null).length <= MAX_BARS) return { x: names, y };
-  return null;
+  const y = startingMeasure(table, null);
+  return y !== null && names !== null ? { x: names, y } : null;
 }
 
 export const TITLE_MAX = 200;

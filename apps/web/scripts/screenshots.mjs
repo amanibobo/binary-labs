@@ -138,9 +138,6 @@ function askShots() {
   ];
 }
 
-// Charts: the builder as it opens on the plate read, a saved curve with error bars, the
-// readout on hover, the worker still reading a table, a data sheet's opened row in search
-// and a protocol showing its charts.
 // The lab map: the hubs, a hub opened, similar in meaning on, and the map around one file, in
 // both schemes at desktop and phone width; plus two steps out and a protocol's map. The map
 // settles before it's drawn (reduced motion), so each shot holds still.
@@ -166,35 +163,97 @@ function mapShots() {
   ];
 }
 
+// Charts, the builder as a first-year student meets it (decisions.md, "charts for a first-year
+// student"): the first question, picking what was measured, the chart with its sentence, a name
+// edited on the chart and a line's own editor, More options open, a plate map, and the saved
+// chart page; then the readout on hover, the worker still reading a table, dates, curves on
+// their own x, plates, past six lines, a chart whose file was read again, a data sheet's opened
+// row in search and a protocol showing its charts (read-only).
 function chartShots() {
   const c = (view) => `/dev/fixtures/charts?view=${view}`;
   const all = (shot) => ["dark", "light"].flatMap((scheme) => [1440, 390].map((width) => ({ ...shot, width, scheme })));
+  // The builder is a client page; a click before React has hydrated its buttons goes nowhere.
+  const ready = (page) =>
+    page.waitForFunction(() => {
+      const button = document.querySelector("main button");
+      return button !== null && Object.keys(button).some((k) => k.startsWith("__reactProps"));
+    });
+  const answer = (question) => async (page) => {
+    await ready(page);
+    await page.getByRole("button", { name: question }).click();
+    await page.locator("figure svg").first().waitFor();
+  };
   const hover = async (page) => {
+    await ready(page);
     const box = await page.locator("figure svg").first().boundingBox();
     await page.mouse.move(box.x + box.width * 0.55, box.y + box.height * 0.5);
   };
   return [
-    ...all({ name: "chart-builder", path: c("new") }),
+    ...all({ name: "chart-question", path: c("bradford") }),
+    ...all({
+      name: "chart-pick-data",
+      path: c("bradford"),
+      steps: async (page) => {
+        await answer("How two measurements relate")(page);
+        await page.getByRole("button", { name: "Add another measurement" }).click();
+        await page.getByRole("dialog").waitFor();
+      },
+      full: false,
+    }),
+    ...all({ name: "chart-editor", path: c("new"), steps: answer("How something changes") }),
+    ...all({
+      name: "chart-edit-on-chart",
+      path: c("sec"),
+      steps: async (page) => {
+        await ready(page);
+        await page.getByRole("button", { name: "Rename A260 in the legend" }).click();
+        await page.keyboard.press("ControlOrMeta+a");
+        await page.keyboard.type("A260, nucleic acid");
+      },
+      full: false,
+    }),
+    ...["dark", "light"].map((scheme) => ({
+      name: "chart-line-editor",
+      path: c("sec"),
+      // The click lands on the A280 peak, which opens that line's name, color and style.
+      steps: async (page) => {
+        await ready(page);
+        const box = await page.locator("figure svg").first().boundingBox();
+        await page.mouse.click(box.x + box.width * 0.545, box.y + box.height * 0.2);
+        await page.getByRole("dialog").waitFor();
+      },
+      full: false,
+      width: 1440,
+      scheme,
+    })),
+    ...all({
+      name: "chart-more-options",
+      path: c("saved"),
+      steps: async (page) => {
+        await ready(page);
+        await page.getByRole("button", { name: "More options" }).click();
+      },
+    }),
+    ...all({ name: "chart-heatmap", path: c("elisa"), steps: answer("A whole plate at a glance") }),
     ...all({ name: "chart-saved", path: c("saved") }),
-    { name: "chart-sec", path: c("sec"), width: 1440, scheme: "dark" },
-    { name: "chart-bradford-new", path: c("bradford"), width: 1440, scheme: "light" },
     { name: "chart-hover", path: c("sec"), steps: hover, full: false, width: 1440, scheme: "dark" },
     { name: "chart-hover", path: c("saved"), steps: hover, full: false, width: 1440, scheme: "light" },
     { name: "chart-waiting", path: c("waiting"), width: 1440, scheme: "dark" },
-    // Dates along x, curves on their own x, plates, past six lines, and a chart whose file was
-    // read again (decisions.md, "dates along x" and the entries after it).
+    // Saved charts with dates along x, curves on their own x, plates, past six lines, and one
+    // whose file was read again.
     ...all({ name: "chart-dates", path: c("growth") }),
     ...all({ name: "chart-sec-own-x", path: c("sec") }),
     ...all({ name: "chart-plate", path: c("plate") }),
     ...all({ name: "chart-plate-read", path: c("plate-read") }),
     ...all({ name: "chart-lines", path: c("lines") }),
     { name: "chart-broken", path: c("broken"), width: 1440, scheme: "dark" },
-    { name: "chart-dates-new", path: c("dates"), width: 1440, scheme: "light" },
-    { name: "chart-dates-hover", path: c("growth"), steps: hover, full: false, width: 1440, scheme: "light" },
+    { name: "chart-dates-new", path: c("dates"), steps: answer("How something changes"), width: 1440, scheme: "light" },
+    { name: "chart-hover", path: c("growth"), steps: hover, full: false, width: 1440, scheme: "light" },
     {
       name: "chart-plate-hover",
       path: c("plate"),
       steps: async (page) => {
+        await ready(page);
         const box = await page.locator("figure svg").first().boundingBox();
         await page.mouse.move(box.x + box.width * 0.4, box.y + box.height * 0.35);
       },

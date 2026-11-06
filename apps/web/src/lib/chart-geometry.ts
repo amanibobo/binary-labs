@@ -25,6 +25,7 @@ export type PlotSeries = {
   markers: boolean;
   label: { x: number; y: number } | null;
 };
+export type AxisTitle = { text: string; x: number; y: number; placeholder: boolean };
 export type LegendItem = { name: string; color: SeriesColor; stroke: Stroke; x: number; y: number };
 // A place the hover layer snaps to along x. row is the table row when every series that shares
 // the chart's x has its value there; series with their own x find their nearest point.
@@ -36,8 +37,9 @@ export type Plot = {
   title: { text: string; x: number; y: number } | null;
   xTicks: Tick[];
   yTicks: Tick[];
-  xTitle: { text: string; x: number; y: number } | null;
-  yTitle: { text: string; x: number; y: number } | null;
+  // An axis title; a placeholder is the "Add a title" an editable chart shows where none is set.
+  xTitle: AxisTitle | null;
+  yTitle: AxisTitle | null;
   // The y position of the zero line when it's in view; bars stand on it.
   baseline: number | null;
   series: PlotSeries[];
@@ -51,8 +53,11 @@ export type Plot = {
 export const TICK_FONT = 12;
 export const LABEL_FONT = 13;
 export const TITLE_FONT = 17;
+export const PLACEHOLDER = "Click to name this axis";
 const MAX_POINTS = 5_000;
 const MARKERS_UP_TO = 40;
+// A marker's height on screen: a 4 px radius and the outer half of its 2 px ring.
+const MARKER_SPAN = 10;
 // Past this many points the hover layer reads the thinned line instead of every row.
 const HOVER_POINTS = 20_000;
 const BAR_MAX = 24;
@@ -260,7 +265,7 @@ export function plotChart(
   spec: XYSpec,
   table: DataTable,
   size: { width: number; height: number },
-  options: { title?: string } = {},
+  options: { title?: string; placeholders?: boolean } = {},
 ): Plot {
   const notes: string[] = [];
   const isBar = spec.type === "bar";
@@ -349,8 +354,10 @@ export function plotChart(
     right += legendRight;
   }
 
-  const yTitleText = axisText(spec.y.title, spec.y.unit);
-  const xTitleText = axisText(spec.x.title, xColumn?.kind === "date" ? "" : spec.x.unit);
+  const yTitleSet = axisText(spec.y.title, spec.y.unit);
+  const xTitleSet = axisText(spec.x.title, xColumn?.kind === "date" ? "" : spec.x.unit);
+  const yTitleText = yTitleSet || (options.placeholders ? PLACEHOLDER : "");
+  const xTitleText = xTitleSet || (options.placeholders ? PLACEHOLDER : "");
 
   // The y domain, so the tick labels can be measured.
   const plotHeightGuess = Math.max(80, size.height - top - 60);
@@ -506,14 +513,23 @@ export function plotChart(
       const end = points.at(-1);
       const hover = points.length <= HOVER_POINTS ? points : drawn.points;
       if (s.ownX) for (const p of hover) stops.push({ row: null, px: p.px, label: xLabel(s.x, p.x) });
+      // Past six lines a dot on every point is noise; the dash tells the second six apart.
+      // Dots on a line only while they have room: at least 10 px apart, or a phone-width chart
+      // is a string of beads that hides the line.
+      const markers = spec.type === "scatter" || (points.length <= MARKERS_UP_TO && seriesColumns.length <= 6 && area.width / Math.max(1, points.length - 1) >= 10);
+      // An error bar shorter than its dot is hidden behind it; say so, or it reads as missing.
+      const hidden = markers ? whiskers.filter((w) => w.bottom - w.top < MARKER_SPAN).length : 0;
+      if (hidden > 0) {
+        const many = hidden > 1;
+        notes.push(`${hidden} ${many ? "error bars" : "error bar"} on ${s.spec.name} ${many ? "are" : "is"} shorter than the dot, so ${many ? "they hide" : "it hides"} behind it. Show the numbers lists every value.`);
+      }
       series.push({
         ...style(s),
         points: hover,
         path,
         bars: [],
         whiskers,
-        // Past six lines a dot on every point is noise; the dash tells the second six apart.
-        markers: spec.type === "scatter" || (points.length <= MARKERS_UP_TO && seriesColumns.length <= 6),
+        markers,
         label: roomForLabels && end !== undefined ? { x: Math.min(end.px, area.left + area.width) + 8, y: end.py } : null,
       });
     });
@@ -526,8 +542,8 @@ export function plotChart(
     if (ys.some((y, i) => i > 0 && y - ys[i - 1] < TICK_FONT + 2)) for (const s of series) s.label = null;
   }
 
-  const xTitle = xTitleText ? { text: xTitleText, x: area.left + area.width / 2, y: area.top + area.height + TICK_FONT + 10 + LABEL_FONT + 8 } : null;
-  const yTitle = yTitleText ? { text: yTitleText, x: LABEL_FONT, y: area.top + area.height / 2 } : null;
+  const xTitle = xTitleText ? { text: xTitleText, x: area.left + area.width / 2, y: area.top + area.height + TICK_FONT + 10 + LABEL_FONT + 8, placeholder: xTitleSet === "" } : null;
+  const yTitle = yTitleText ? { text: yTitleText, x: LABEL_FONT, y: area.top + area.height / 2, placeholder: yTitleSet === "" } : null;
   const baseline = !isLog && yDomain[0] <= 0 && yDomain[1] >= 0 ? yScale.map(0) : null;
 
   return {
