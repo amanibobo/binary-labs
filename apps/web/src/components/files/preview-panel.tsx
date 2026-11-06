@@ -4,7 +4,8 @@ import { isTextBearing, type FileHit } from "@/lib/domain";
 import { cn } from "@/lib/cn";
 import { openTarget } from "@/lib/format";
 import { newProtocolHref } from "@/lib/protocols";
-import { OpenExternalIcon, ProtocolIcon } from "../icons/drawn";
+import { MapIcon, OpenExternalIcon, ProtocolIcon } from "../icons/drawn";
+import { fileNodeId, localMapHref } from "@/lib/map";
 import { FileCharts, MakeChartLink } from "../charts/file-charts";
 import { useLabApi } from "../lab-api";
 import { Highlighted } from "../search/highlighted";
@@ -72,9 +73,15 @@ export function PreviewPanel({
             </ul>
           </div>
         )}
-        {isSheet || newPage ? (
-          <div className="flex flex-col items-start gap-1">
-            {isSheet ? <MakeChartLink hit={hit} /> : null}
+        <div className="flex flex-col items-start gap-1">
+          <Link
+            href={localMapHref(fileNodeId(hit.sha256))}
+            className={cn(buttonVariants({ variant: "tertiary", size: "compact" }), "-ml-3 text-content-secondary")}
+          >
+            <MapIcon className="size-5" />
+            Map around this file
+          </Link>
+          {isSheet ? <MakeChartLink hit={hit} /> : null}
             {newPage ? (
               <Link
                 href={newProtocolHref(hit.sha256)}
@@ -84,8 +91,7 @@ export function PreviewPanel({
                 Make a protocol from this file
               </Link>
             ) : null}
-          </div>
-        ) : null}
+        </div>
         {isSheet ? <FileCharts hit={hit} /> : null}
       </div>
     </div>

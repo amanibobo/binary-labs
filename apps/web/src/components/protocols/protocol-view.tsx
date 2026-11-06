@@ -14,7 +14,8 @@ import type { ProtocolVideo } from "@/lib/videos";
 import { KindIcon } from "../files/kind-icon";
 import { PreviewPanel } from "../files/preview-panel";
 import { DeleteIcon } from "../icons/base-web";
-import { LinkIcon, MicIcon, OpenExternalIcon } from "../icons/drawn";
+import { LinkIcon, MapIcon, MicIcon, OpenExternalIcon } from "../icons/drawn";
+import { localMapHref, protocolNodeId } from "@/lib/map";
 import { useLabApi } from "../lab-api";
 import { Button, buttonVariants } from "../ui/button";
 import { dataRow, dataSurface } from "../ui/data-table";
@@ -84,6 +85,10 @@ export function ProtocolView({
             className={buttonVariants({ variant: editable ? "tertiary" : "secondary", size: "compact" })}
           >
             History
+          </Link>
+          <Link href={localMapHref(protocolNodeId(page.protocolId))} className={buttonVariants({ variant: "tertiary", size: "compact" })}>
+            <MapIcon className="size-5" />
+            Map
           </Link>
         </div>
 
