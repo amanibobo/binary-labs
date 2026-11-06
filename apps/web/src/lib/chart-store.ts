@@ -29,7 +29,18 @@ export async function readTables(labId: LabId, key: string): Promise<DataTables>
   return DataTables.parse(JSON.parse(Buffer.concat(chunks).toString("utf8")));
 }
 
+// A re-parse moves the row to a new key and then removes the old object, so a read that lost
+// that race looks again once and finds the new table.
 export async function tableState(supabase: Supabase, labId: LabId, sha: Sha256): Promise<TableState> {
+  try {
+    return await readTableState(supabase, labId, sha);
+  } catch (error) {
+    logError("table.reread", { labId, sha, error });
+    return readTableState(supabase, labId, sha);
+  }
+}
+
+async function readTableState(supabase: Supabase, labId: LabId, sha: Sha256): Promise<TableState> {
   const rows = z
     .array(TableRow)
     .parse(unwrap(await supabase.from("data_tables").select("state, storage_key, error").eq("lab_id", labId).eq("sha256", sha).limit(1)));
