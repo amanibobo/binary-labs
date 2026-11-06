@@ -145,7 +145,7 @@ function TestPicker({ spec, data, edit }: { spec: Extract<SummarySpec, { type: "
   const compared = groups.filter((g) => g.role !== "blank");
   const set = (patch: Partial<typeof spec>) => edit((s) => (s.type === "groups" ? { ...s, ...patch } : s));
   return (
-    <Section title="Is the difference real?" help={suggested.reason}>
+    <Section title="Could the difference be chance?" help={suggested.reason}>
       <label htmlFor={id} className="sr-only">
         Statistical test
       </label>
