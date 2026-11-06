@@ -172,8 +172,13 @@ def defer_transcript(lab_id: UUID, sha256: str) -> bool:
 
 @app.task(name="transcribe_video", pass_context=True, retry=RetryStrategy(max_attempts=3, wait=10))
 def transcribe_video(context: JobContext, lab_id: str, sha256: str) -> None:
-    outcome = videos.transcribe_video(_runtime(context), UUID(lab_id), sha256)
+    rt = _runtime(context)
+    outcome = videos.transcribe_video(rt, UUID(lab_id), sha256)
     log.info("transcript of video %s: %s", sha256[:12], outcome or "skipped")
+    # Steps someone asked for from this video were waiting for its words.
+    with rt.pool.connection() as conn:
+        for talk_through_id in talk_throughs.waiting_for_steps(conn, video=(UUID(lab_id), sha256)):
+            defer_steps(UUID(lab_id), talk_through_id)
 
 
 @app.periodic(cron="* * * * * */10")

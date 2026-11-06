@@ -56,14 +56,25 @@ BLOB_REFERENCES = (
     "videos",
     "data_tables",
     "charts",
+    "talk_throughs",
 )
+# The column a table names its blob by, where it isn't sha256: a talk-through drafted from a
+# video names the video (its recording is a file_locations row).
+BLOB_COLUMNS = {"talk_throughs": "video_sha256"}
+
+
+def _blob_column(table: str) -> str:
+    return BLOB_COLUMNS.get(table, "sha256")
+
 
 LAB_CONTENT = " union ".join(
-    f"select sha256 from {t} where lab_id = %(lab)s" for t in BLOB_REFERENCES
+    f"select {_blob_column(t)} from {t} where lab_id = %(lab)s and {_blob_column(t)} is not null"
+    for t in BLOB_REFERENCES
 )
 
 ORPHANS = "select b.sha256 from blobs b where b.sha256 = any(%(shas)s) " + " ".join(
-    f"and not exists (select 1 from {t} r where r.sha256 = b.sha256)" for t in BLOB_REFERENCES
+    f"and not exists (select 1 from {t} r where r.{_blob_column(t)} = b.sha256)"
+    for t in BLOB_REFERENCES
 )
 
 # Jobs that name the lab or one of its sources or files. A job in progress is left alone;
