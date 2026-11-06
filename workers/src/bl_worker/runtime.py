@@ -6,7 +6,7 @@ from psycopg_pool import ConnectionPool
 
 from bl_worker.config import Settings
 from bl_worker.db import configure
-from bl_worker.embed import Embedder, build_embedder
+from bl_worker.embed import Embedder, RemoteEmbedder, build_embedder
 from bl_worker.models import Models, build_models
 from bl_worker.previews import PreviewStore, build_preview_store
 from bl_worker.transcribe import Transcriber, build_transcriber
@@ -42,6 +42,17 @@ def open_pool(url: str, max_size: int) -> ConnectionPool:
     )
 
 
+def embedder_for(settings: Settings) -> Embedder:
+    """In-process for dev; the embedding service when EMBEDDER=remote (production)."""
+    if settings.embedder == "local":
+        return build_embedder(settings.embed_model)
+    if settings.embed_url is None or settings.embed_api_key is None:
+        raise ValueError("EMBEDDER=remote needs EMBED_URL and EMBED_API_KEY")
+    return RemoteEmbedder(
+        settings.embed_url, settings.embed_api_key.get_secret_value(), settings.embed_model
+    )
+
+
 def build_runtime(
     settings: Settings,
     *,
@@ -56,7 +67,7 @@ def build_runtime(
     return Runtime(
         settings=settings,
         pool=open_pool(settings.database_url, pool_size),
-        embedder=embedder or build_embedder(settings.embed_model),
+        embedder=embedder or embedder_for(settings),
         previews=previews or build_preview_store(settings),
         transcriber=transcriber or build_transcriber(settings),
         ffmpeg=ffmpeg or Ffmpeg.find(settings.ffmpeg_path),

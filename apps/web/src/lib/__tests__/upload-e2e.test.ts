@@ -23,19 +23,16 @@ describe.runIf(env.success)("uploading sample files through the route's core", (
   it("stores and records each file", async () => {
     if (!env.success) return;
     const { E2E_DATABASE_URL, E2E_USER, E2E_LAB, E2E_FILES, E2E_EXPERIMENT } = env.data;
-    const { acceptUpload } = await import("../upload-accept");
+    const { sendUpload } = await import("./upload-through-core");
     const db = new Client({ connectionString: E2E_DATABASE_URL });
     await db.connect();
     try {
       for (const path of E2E_FILES) {
-        const bytes = readFileSync(path);
+        const bytes = new Uint8Array(readFileSync(path));
         const type = path.endsWith(".pdf") ? "application/pdf" : "image/jpeg";
-        const headers = new Headers({
-          "content-type": type,
-          "content-length": String(bytes.byteLength),
-          ...uploadHeaders({ name: basename(path), experiment: E2E_EXPERIMENT, uploadedOn: localDay(new Date()), modifiedAt: null }),
-        });
-        const accepted = await acceptUpload({ headers, body: new Blob([bytes]).stream() }, E2E_LAB, async (args) => {
+        const meta = uploadHeaders({ name: basename(path), experiment: E2E_EXPERIMENT, uploadedOn: localDay(new Date()), modifiedAt: null });
+        // Start, PUT to the local store's stand-in for R2, then complete, as the upload page does.
+        const accepted = await sendUpload(E2E_LAB, { bytes, meta, type }, async (args) => {
           await db.query("begin");
           await db.query("set local role authenticated");
           await db.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify({ sub: E2E_USER })]);

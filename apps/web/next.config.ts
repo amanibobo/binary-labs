@@ -1,4 +1,9 @@
 import type { NextConfig } from "next";
+import { assertProductionEnv } from "./src/env";
+
+// A production deploy with a missing or malformed variable fails at build, every problem
+// listed at once, before anything goes live. src/instrumentation.ts checks again at startup.
+assertProductionEnv();
 
 // `*.dev.tsx` pages (fixtures for screenshots) only exist under `next dev`,
 // so production builds never route to or bundle them.

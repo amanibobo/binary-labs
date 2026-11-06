@@ -162,6 +162,28 @@ export async function createMultipart(key: string, contentType: string, uploadId
 
 export type PartDestination = { kind: "presigned"; url: string } | { kind: "ours" };
 
+// Where the browser PUTs a whole file. The signature pins its size and type, so the store
+// takes nothing bigger than the server agreed to.
+export async function putDestination(key: string, file: { size: number; contentType: string }): Promise<PartDestination> {
+  const env = previewEnv();
+  switch (env.PREVIEW_STORE) {
+    case "r2": {
+      const command = new PutObjectCommand({ Bucket: env.R2_BUCKET, Key: key, ContentLength: file.size, ContentType: file.contentType });
+      const url = await getSignedUrl(r2(env), command, {
+        expiresIn: PART_PRESIGN_SECONDS,
+        signableHeaders: new Set(["content-length", "content-type"]),
+      });
+      return { kind: "presigned", url };
+    }
+    case "local":
+      return { kind: "ours" };
+    default: {
+      const _exhaustive: never = env;
+      return _exhaustive;
+    }
+  }
+}
+
 // Where the browser sends part n. The signature pins the part's size, so a part can't be
 // larger than the session allows.
 export async function partDestination(key: string, storeId: string, partNumber: number, size: number): Promise<PartDestination> {

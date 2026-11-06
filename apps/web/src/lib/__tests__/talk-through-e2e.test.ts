@@ -23,23 +23,19 @@ describe.runIf(env.success)("sending a recorded talk-through through the route's
   it("stores the audio and starts the talk-through", async () => {
     if (!env.success) return;
     const { E2E_DATABASE_URL, E2E_USER, E2E_LAB, E2E_AUDIO } = env.data;
-    const { acceptTalkThrough } = await import("../upload-accept");
+    const { sendTalkThrough } = await import("./upload-through-core");
     const db = new Client({ connectionString: E2E_DATABASE_URL });
     await db.connect();
     try {
-      const bytes = readFileSync(E2E_AUDIO);
-      const headers = new Headers({
-        "content-type": "audio/mp4",
-        "content-length": String(bytes.byteLength),
-        ...talkThroughHeaders({
-          name: basename(E2E_AUDIO),
-          uploadedOn: localDay(new Date()),
-          modifiedAt: null,
-          durationMs: null,
-          target: { kind: "new", pageKind: "protocol" },
-        }),
+      const bytes = new Uint8Array(readFileSync(E2E_AUDIO));
+      const meta = talkThroughHeaders({
+        name: basename(E2E_AUDIO),
+        uploadedOn: localDay(new Date()),
+        modifiedAt: null,
+        durationMs: null,
+        target: { kind: "new", pageKind: "protocol" },
       });
-      const accepted = await acceptTalkThrough({ headers, body: new Blob([bytes]).stream() }, E2E_LAB, async (args) => {
+      const accepted = await sendTalkThrough(E2E_LAB, { bytes, meta, type: "audio/mp4" }, async (args) => {
         await db.query("begin");
         await db.query("set local role authenticated");
         await db.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify({ sub: E2E_USER })]);

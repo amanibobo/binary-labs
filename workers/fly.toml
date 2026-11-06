@@ -1,0 +1,43 @@
+# The worker on Fly.io: one always-on machine, no public ports. Deploy from the repo root:
+#   fly deploy . --config workers/fly.toml --dockerfile workers/Dockerfile
+# Secrets (fly secrets set ...) are listed in workers/.env.production.example; docs/deploy.md
+# has every step.
+
+app = "binary-worker"
+# Supabase's project is in us-east-1; Ashburn is next door and the cheapest Fly region.
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  BINARY_ENV = "production"
+  EMBEDDER = "remote"
+  PREVIEW_STORE = "r2"
+  TRANSCRIBER = "elevenlabs"
+
+# Applies db/migrations before the new version starts; a rerun applies nothing.
+[deploy]
+  release_command = "bl migrate"
+  strategy = "immediate"
+
+# One long-lived process: Procrastinate's worker plus its 10 s periodic tasks. No [http_service]
+# or [[services]], so Fly gives it no public address and never stops it for being idle.
+[processes]
+  worker = "bl worker --concurrency 4"
+
+# If the process exits, start it again. `bl worker` already restarts its own runtime when the
+# database drops; this covers a crash of the process itself (out of memory included).
+[[restart]]
+  policy = "always"
+  retries = 10
+  processes = ["worker"]
+
+# Memory, measured (docs/decisions.md, "going online"): about 80 MB at rest, and a file in
+# flight costs about 1.07 times its size, since it's read whole. Four jobs at once on files at
+# the 500 MB cap come to about 2.2 GB, so 4 GB. shared-cpu-2x is enough day to day; a lab's
+# first scan runs faster on performance-2x (docs/deploy.md, "first scan").
+[[vm]]
+  size = "shared-cpu-2x"
+  memory = "4gb"
+  processes = ["worker"]

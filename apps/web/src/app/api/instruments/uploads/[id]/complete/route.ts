@@ -2,6 +2,9 @@ import type { NextRequest } from "next/server";
 import { asInstrument, badBody, CompleteRequest, INVALID_UPLOAD, jsonBody, StagedUploadId } from "@/lib/instrument-routes";
 import { completeUpload } from "@/lib/instrument-upload";
 
+// Reading back and hashing a 500 MB file from R2 takes longer than a default function call.
+export const maxDuration = 300;
+
 // Joins the parts, checks the file's size and sha256 here on the server, and records it on
 // the token's instrument.
 export async function POST(request: NextRequest, ctx: RouteContext<"/api/instruments/uploads/[id]/complete">) {

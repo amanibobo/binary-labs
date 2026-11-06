@@ -44,11 +44,12 @@ export async function proxy(request: NextRequest) {
   return response;
 }
 
-// /api/uploads and the local video part route are left out: with a proxy, Next buffers request
-// bodies in memory and cuts them off at 10 MB. Those routes read the session themselves. The
-// instrument uploader's routes are left out too: they take a device token, never a session.
+// The local store's upload and video part routes are left out: with a proxy, Next buffers
+// request bodies in memory and cuts them off at 10 MB. Those routes read the session
+// themselves. The instrument uploader's routes are left out too: they take a device token,
+// never a session.
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|api/uploads$|api/videos/uploads/[^/]+/parts/|api/instruments/|manifest.webmanifest$|.*\\.(?:svg|png|jpg|webp|ico)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|api/uploads/[^/]+$|api/videos/uploads/[^/]+/parts/|api/instruments/|manifest.webmanifest$|.*\\.(?:svg|png|jpg|webp|ico)$).*)",
   ],
 };

@@ -7,8 +7,16 @@ import { correctRequest } from "@/lib/labels";
 import type { LabelDraft } from "@/lib/label-edit";
 import { BrowseResponse, type FolderPath } from "@/lib/folders";
 import { SourceStateWire, type SourceState } from "@/lib/source-state";
-import { answerOf, resultOf, type SendResult, type UploadResult } from "@/lib/upload-queue";
-import { uploadHeaders, UploadRowsWire, type UploadMeta, type UploadRow } from "@/lib/uploads";
+import { answerOf, type SendResult, type UploadResult } from "@/lib/upload-queue";
+import {
+  uploadHeaders,
+  UploadReceipt,
+  UploadRowsWire,
+  UploadSession,
+  type UploadMeta,
+  type UploadPurpose,
+  type UploadRow,
+} from "@/lib/uploads";
 import type { ChartId, CorrectionId, FlagId, LayoutId, LocationId, ProtocolId, Sha256, TalkThroughId } from "@/lib/ids";
 import { LayoutsWire, LayoutWire, type SavedLayout, type SaveLayoutRequest } from "@/lib/layouts";
 import type { SaveChecksRequest } from "@/lib/checks";
@@ -136,45 +144,72 @@ export type LabApi = {
   saveChecks: (id: ProtocolId, req: SaveChecksRequest) => Promise<SaveOutcome>;
 };
 
-// XMLHttpRequest, not fetch: only it reports upload progress.
-function sendFile<R>(
-  file: Blob,
-  headers: Record<string, string>,
-  read: (status: number, body: unknown) => SendResult<R>,
-  onProgress: (sent: number) => void,
-  signal: AbortSignal,
-): Promise<SendResult<R>> {
-  return new Promise((resolve) => {
+// The sha256 the server checks the stored file against. Pages off https in dev have no
+// crypto.subtle; the server's own hash stands then.
+async function sha256Hex(file: Blob): Promise<string | null> {
+  if (typeof crypto === "undefined" || crypto.subtle === undefined) return null;
+  const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
+  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+// XMLHttpRequest, not fetch: only it reports upload progress. R2 answers a good PUT with 200.
+function putBytes(url: string, headers: Record<string, string>, bytes: Blob, onProgress: (sent: number) => void, signal: AbortSignal) {
+  return new Promise<{ status: number; etag: string | null } | "stopped">((resolve) => {
     const xhr = new XMLHttpRequest();
-    xhr.open("POST", "/api/uploads");
-    xhr.responseType = "json";
-    xhr.setRequestHeader("content-type", file.type || "application/octet-stream");
+    xhr.open("PUT", url);
     for (const [name, value] of Object.entries(headers)) xhr.setRequestHeader(name, value);
     xhr.upload.onprogress = (e) => onProgress(e.loaded);
-    xhr.onload = () => resolve(read(xhr.status, xhr.response));
-    xhr.onerror = () => resolve(read(0, null));
-    xhr.ontimeout = () => resolve(read(0, null));
-    xhr.onabort = () => resolve({ kind: "interrupted", message: "The upload was stopped." });
+    xhr.onload = () => resolve({ status: xhr.status, etag: xhr.getResponseHeader("etag") });
+    xhr.onerror = () => resolve({ status: 0, etag: null });
+    xhr.ontimeout = () => resolve({ status: 0, etag: null });
+    xhr.onabort = () => resolve("stopped");
     signal.addEventListener("abort", () => xhr.abort(), { once: true });
-    xhr.send(file);
+    xhr.send(bytes);
   });
 }
 
+const STOPPED = { kind: "interrupted", message: "The upload was stopped." } as const;
+
+// A file goes straight to the store: start says where, the bytes go there in one PUT, and
+// complete has the server check them against the size and sha256 sent here and record them.
+async function sendFile<R>(
+  file: Blob,
+  purpose: UploadPurpose,
+  meta: Record<string, string>,
+  receipt: z.ZodType<R>,
+  onProgress: (sent: number) => void,
+  signal: AbortSignal,
+): Promise<SendResult<R>> {
+  const sha256 = await sha256Hex(file);
+  const started = await sendForResult("/api/uploads", { purpose, size: file.size, type: file.type }, UploadSession);
+  if (started.kind !== "stored") return started;
+  if (signal.aborted) return STOPPED;
+  const session = started.receipt;
+  const put = await putBytes(session.url, session.headers, file, onProgress, signal);
+  if (put === "stopped") return STOPPED;
+  if (put.status !== 200) {
+    return retryable(put.status)
+      ? { kind: "interrupted", message: "The connection dropped." }
+      : { kind: "refused", message: `The store turned down the file (${put.status}).` };
+  }
+  return sendForResult(`/api/uploads/${session.uploadId}/complete`, { size: file.size, sha256 }, receipt, meta);
+}
+
 // A JSON request read the way the upload queue reads an upload's answer.
-async function sendForResult<R>(url: string, body: unknown, schema: z.ZodType<R>): Promise<SendResult<R>> {
+async function sendForResult<R>(url: string, body: unknown, schema: z.ZodType<R>, headers: Record<string, string> = {}): Promise<SendResult<R>> {
   try {
-    const { status, json } = await sendJson(url, "POST", body);
+    const { status, json } = await sendJson(url, "POST", body, headers);
     return answerOf(status, json, schema);
   } catch {
     return answerOf(0, null, schema);
   }
 }
 
+const retryable = (status: number) => status === 0 || status === 408 || status === 429 || status >= 500;
+
 function partAnswer(status: number, partNumber: number, etag: string | null): SendResult<UploadedPart> {
   if (status === 200 && etag !== null) return { kind: "stored", receipt: { partNumber, etag } };
-  if (status === 0 || status === 200 || status === 408 || status === 429 || status >= 500) {
-    return { kind: "interrupted", message: "The connection dropped." };
-  }
+  if (status === 200 || retryable(status)) return { kind: "interrupted", message: "The connection dropped." };
   return { kind: "refused", message: `The store turned down part of the video (${status}).` };
 }
 
@@ -192,18 +227,9 @@ async function sendPart(
     PartTarget,
   );
   if (target.kind !== "stored") return target;
-  if (signal.aborted) return { kind: "interrupted", message: "The upload was stopped." };
-  return new Promise((resolve) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open("PUT", target.receipt.url);
-    xhr.upload.onprogress = (e) => onProgress(e.loaded);
-    xhr.onload = () => resolve(partAnswer(xhr.status, part.partNumber, xhr.getResponseHeader("etag")));
-    xhr.onerror = () => resolve(partAnswer(0, part.partNumber, null));
-    xhr.ontimeout = () => resolve(partAnswer(0, part.partNumber, null));
-    xhr.onabort = () => resolve({ kind: "interrupted", message: "The upload was stopped." });
-    signal.addEventListener("abort", () => xhr.abort(), { once: true });
-    xhr.send(part.bytes);
-  });
+  if (signal.aborted) return STOPPED;
+  const put = await putBytes(target.receipt.url, {}, part.bytes, onProgress, signal);
+  return put === "stopped" ? STOPPED : partAnswer(put.status, part.partNumber, put.etag);
 }
 
 async function getJson(url: string, signal: AbortSignal): Promise<unknown> {
@@ -214,10 +240,15 @@ async function getJson(url: string, signal: AbortSignal): Promise<unknown> {
 
 const ErrorBody = z.object({ error: z.string() });
 
-async function sendJson(url: string, method: "POST" | "DELETE", body: unknown): Promise<{ status: number; json: unknown }> {
+async function sendJson(
+  url: string,
+  method: "POST" | "DELETE",
+  body: unknown,
+  headers: Record<string, string> = {},
+): Promise<{ status: number; json: unknown }> {
   const res = await fetch(url, {
     method,
-    headers: { "content-type": "application/json", accept: "application/json" },
+    headers: { ...headers, "content-type": "application/json", accept: "application/json" },
     body: JSON.stringify(body),
   });
   return { status: res.status, json: await res.json().catch(() => null) };
@@ -269,10 +300,10 @@ export const httpLabApi: LabApi = {
   archiveProtocol: async (id) => void (await postJson(`/api/protocols/${id}/archive`, {})),
   linkProtocolFile: async (id, sha) => void (await postJson(`/api/protocols/${id}/files`, { sha256: sha })),
   unlinkProtocolFile: async (id, sha) => void (await postJson(`/api/protocols/${id}/files`, { sha256: sha }, "DELETE")),
-  uploadFile: (file, meta, onProgress, signal) => sendFile(file, uploadHeaders(meta), resultOf, onProgress, signal),
+  uploadFile: (file, meta, onProgress, signal) => sendFile(file, "file", uploadHeaders(meta), UploadReceipt, onProgress, signal),
   myUploads: async (signal) => UploadRowsWire.parse(await getJson("/api/uploads", signal)),
   uploadTalkThrough: (file, meta, onProgress, signal) =>
-    sendFile(file, talkThroughHeaders(meta), (status, body) => answerOf(status, body, TalkThroughReceipt), onProgress, signal),
+    sendFile(file, "talk-through", talkThroughHeaders(meta), TalkThroughReceipt, onProgress, signal),
   talkThrough: async (id, signal) => TalkThroughWire.parse(await getJson(`/api/talk-throughs/${id}`, signal)),
   retryTalkThrough: async (id) => void (await postJson(`/api/talk-throughs/${id}/retry`, {})),
   applyTalkThrough: async (id, req) => {

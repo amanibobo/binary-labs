@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
-# Uploads a gel photo and a PDF through the upload route's core on local Postgres and a local
-# object store, runs the real worker until both are indexed and labeled, then shows the labels
-# and searches as the uploader. Supabase's HTTP layer is the only part not exercised.
+# Uploads a gel photo and a PDF through the upload routes' cores on local Postgres and a local
+# object store, the way the upload page does: start, PUT the bytes to the store (here the local
+# store's stand-in for R2's presigned PUT), then complete, which checks the size and sha256.
+# Then runs the real worker until both are indexed and labeled, and shows the labels and
+# searches as the uploader. Supabase's HTTP layer and R2 itself are the parts not exercised.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 export PATH="/opt/homebrew/opt/postgresql@17/bin:$PATH"
-DB=binary_labs_e2e_upload
+DB=${E2E_UPLOAD_DB:-binary_labs_e2e_upload}
 export DATABASE_URL="postgresql://localhost/$DB"
 export PREVIEW_STORE=local
 export PREVIEW_DIR=.data/e2e-store
@@ -47,7 +49,7 @@ E2E_DATABASE_URL="$DATABASE_URL" E2E_USER="$USER_ID" E2E_LAB="$LAB_ID" E2E_EXPER
   E2E_FILES="$FILES/gel batch 5.jpg,$FILES/elution notes.pdf" \
   pnpm exec vitest run --project unit src/lib/__tests__/upload-e2e.test.ts
 
-echo "== stored objects"
+echo "== stored objects (staging copies under uploads/ are gone once recorded)"
 (cd "$ROOT/workers/$PREVIEW_DIR" && find . -type f | sort)
 
 cd "$ROOT/workers"

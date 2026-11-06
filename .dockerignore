@@ -1,0 +1,7 @@
+# workers/Dockerfile builds from the repo root and needs only these.
+*
+!workers/pyproject.toml
+!workers/uv.lock
+!workers/src
+!db/migrations
+**/__pycache__

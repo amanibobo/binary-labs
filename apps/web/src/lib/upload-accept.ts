@@ -1,7 +1,19 @@
 import "server-only";
-import { putFile } from "./object-store";
-import { receiveUpload, type Received } from "./upload-receive";
-import { parseUploadHeaders, RecordUploadRows, refusedKind, UPLOAD_MAX_BYTES, uploadKey, type UploadReceipt } from "./uploads";
+import type { Sha256 } from "./ids";
+import { discardStaged, keepStaged, receiveStagedPut, startStagedPut, verifyStaged } from "./staged-upload";
+import {
+  parseUploadHeaders,
+  RecordUploadRows,
+  refusedKind,
+  storedType,
+  UPLOAD_MAX_BYTES,
+  type CompleteUploadRequest,
+  type StartUploadRequest,
+  UploadId,
+  type UploadPurpose,
+  type UploadReceipt,
+  type UploadSession,
+} from "./uploads";
 import {
   AUDIO_MAX_BYTES,
   parseTalkThroughHeaders,
@@ -12,6 +24,12 @@ import {
   type RecordTalkThroughArgs,
   type TalkThroughReceipt,
 } from "./talk-throughs";
+
+// The upload routes without their HTTP shell. A bench upload or a talk-through's recording
+// goes straight to the store in one PUT (lib/staged-upload.ts), so a host's request-size cap
+// (Vercel's 4.5 MB) never meets the file. Start checks the type and size and says where to
+// PUT; complete checks what arrived and only then lets `record` say what it is. The lab
+// comes from the session and every key is built from it, never from the request.
 
 // record_upload's arguments, by name, as supabase-js sends them.
 export type RecordUploadArgs = {
@@ -30,57 +48,84 @@ type RpcResult = { data: unknown; error: { code?: string; message: string } | nu
 export type RecordUpload = (args: RecordUploadArgs) => Promise<RpcResult>;
 export type RecordTalkThrough = (args: RecordTalkThroughArgs) => Promise<RpcResult>;
 
-type Refused = { status: 400 | 403 | 404 | 408 | 409 | 411 | 413 | 415; error: string };
+type Refused = { status: 400 | 403 | 404 | 408 | 409 | 411 | 413 | 415 | 422; error: string };
 export type Accepted = { status: 200 | 201; receipt: UploadReceipt } | Refused;
 export type AcceptedTalkThrough = { status: 200 | 201; receipt: TalkThroughReceipt } | Refused;
 
 type Request = { headers: Headers; body: ReadableStream<Uint8Array> | null };
-type Stored = Extract<Received, { kind: "received" }>;
 
 const TOO_LARGE = `Files can be up to ${UPLOAD_MAX_BYTES / 1024 / 1024} MB.`;
 
-// The upload route without its HTTP shell: check the type and size, stream the body to a temp
-// file while hashing it, put it in the store under the lab's prefix, then let `record` say
-// what it is. The lab comes from the session, never from the request.
-async function receiveAndStore<R>(
-  request: Request,
-  labId: string,
-  limits: { refused: (mime: string) => string | null; maxBytes: number; tooLarge: string },
-  record: (stored: Stored) => Promise<R | Refused>,
-): Promise<R | Refused> {
-  const contentType = request.headers.get("content-type")?.split(";")[0]?.trim() || "application/octet-stream";
+const LIMITS = {
+  file: { refused: refusedKind, maxBytes: UPLOAD_MAX_BYTES, tooLarge: TOO_LARGE },
+  "talk-through": { refused: refusedRecording, maxBytes: AUDIO_MAX_BYTES, tooLarge: TOO_LONG },
+} as const satisfies Record<UploadPurpose, { refused: (mime: string) => string | null; maxBytes: number; tooLarge: string }>;
+
+// The PUT's target when the store is a local folder; R2 hands out a presigned URL instead.
+export const localPutRoute = (uploadId: string) => `/api/uploads/${uploadId}`;
+
+export async function startUpload(labId: string, req: StartUploadRequest): Promise<{ status: 201; session: UploadSession } | Refused> {
+  const limits = LIMITS[req.purpose];
+  const contentType = storedType(req.type);
   const refused = limits.refused(contentType);
   if (refused !== null) return { status: 415, error: refused };
-  const declared = Number(request.headers.get("content-length") ?? Number.NaN);
-  if (!Number.isSafeInteger(declared) || declared < 0) return { status: 411, error: "The upload needs a Content-Length." };
+  if (req.size > limits.maxBytes) return { status: 413, error: limits.tooLarge };
+  if (req.size === 0) return { status: 400, error: "That file is empty." };
+  const put = await startStagedPut(labId, { size: req.size, contentType }, localPutRoute);
+  return { status: 201, session: { ...put, uploadId: UploadId.parse(put.uploadId) } };
+}
 
-  const received = await receiveUpload(request.body, { maxBytes: limits.maxBytes, declaredBytes: declared });
-  switch (received.kind) {
+// Dev and tests: the PUT itself, when the store is a local folder. Bounded by the larger cap;
+// complete holds each purpose to its own.
+export async function receiveUploadBody(labId: string, uploadId: UploadId, request: Request): Promise<{ stored: true } | Refused> {
+  return receiveStagedPut(labId, uploadId, request, Math.max(UPLOAD_MAX_BYTES, AUDIO_MAX_BYTES));
+}
+
+type Verified = { sha256: Sha256; size: number };
+
+// Checks the staged bytes, keeps them at <lab_id>/files/<sha256>, records them, then drops the
+// staged copy. A database error throws and leaves the staged copy, so complete can run again.
+async function verifyAndRecord<R>(
+  labId: string,
+  uploadId: UploadId,
+  claim: CompleteUploadRequest,
+  limits: { maxBytes: number; tooLarge: string },
+  record: (verified: Verified) => Promise<R | Refused>,
+): Promise<R | Refused> {
+  const verified = await verifyStaged(labId, uploadId, { size: claim.size, maxBytes: limits.maxBytes });
+  switch (verified.kind) {
     case "too_large":
       return { status: 413, error: limits.tooLarge };
-    case "truncated":
-      return { status: 408, error: "The upload was cut off. Try again." };
-    case "empty":
-      return { status: 400, error: "That file is empty." };
-    case "received":
+    case "short":
+      return { status: 409, error: "The file never finished arriving. Add it again." };
+    case "size_mismatch":
+      return { status: 422, error: "The file that arrived isn't the size it was said to be. Add it again." };
+    case "joined":
       break;
     default: {
-      const _exhaustive: never = received;
+      const _exhaustive: never = verified;
       return _exhaustive;
     }
   }
-  try {
-    await putFile(uploadKey(labId, received.sha256), received, contentType);
-    return await record(received);
-  } finally {
-    await received.cleanup();
+  if (claim.sha256 !== null && verified.sha256 !== claim.sha256) {
+    await discardStaged(labId, uploadId);
+    return { status: 422, error: "The file that arrived isn't the file that was sent. Add it again." };
   }
+  await keepStaged(labId, uploadId, verified.sha256);
+  const recorded = await record(verified);
+  await discardStaged(labId, uploadId);
+  return recorded;
 }
 
-export async function acceptUpload(request: Request, labId: string, record: RecordUpload): Promise<Accepted> {
+export async function completeUpload(
+  labId: string,
+  uploadId: UploadId,
+  request: { headers: Headers; claim: CompleteUploadRequest },
+  record: RecordUpload,
+): Promise<Accepted> {
   const meta = parseUploadHeaders(request.headers);
   if (meta === null) return { status: 400, error: "The upload is missing its name or date." };
-  return receiveAndStore(request, labId, { refused: refusedKind, maxBytes: UPLOAD_MAX_BYTES, tooLarge: TOO_LARGE }, async (stored) => {
+  return verifyAndRecord(labId, uploadId, request.claim, LIMITS.file, async (stored) => {
     const { data, error } = await record({
       p_lab_id: labId,
       p_sha256: stored.sha256,
@@ -98,13 +143,17 @@ export async function acceptUpload(request: Request, labId: string, record: Reco
   });
 }
 
-// A talk-through rides the same route: the same store and key, its own cap, and a record
-// call that also starts the talk-through.
-export async function acceptTalkThrough(request: Request, labId: string, record: RecordTalkThrough): Promise<AcceptedTalkThrough> {
+// A talk-through's recording is stored the same way, with its own cap, and its record call
+// also starts the talk-through.
+export async function completeTalkThrough(
+  labId: string,
+  uploadId: UploadId,
+  request: { headers: Headers; claim: CompleteUploadRequest },
+  record: RecordTalkThrough,
+): Promise<AcceptedTalkThrough> {
   const meta = parseTalkThroughHeaders(request.headers);
   if (meta === null) return { status: 400, error: "The recording is missing its name, date or page." };
-  const limits = { refused: refusedRecording, maxBytes: AUDIO_MAX_BYTES, tooLarge: TOO_LONG };
-  return receiveAndStore(request, labId, limits, async (stored) => {
+  return verifyAndRecord(labId, uploadId, request.claim, LIMITS["talk-through"], async (stored) => {
     const { data, error } = await record(recordTalkThroughArgs(labId, stored.sha256, stored.size, meta));
     if (error !== null) {
       switch (error.code) {
@@ -124,4 +173,3 @@ export async function acceptTalkThrough(request: Request, labId: string, record:
     return { status: recorded.duplicate ? 200 : 201, receipt: { ...recorded, sha256: stored.sha256 } };
   });
 }
-

@@ -4,6 +4,9 @@ import { readJson, routeAccess } from "@/lib/route-auth";
 import { completeVideoUpload } from "@/lib/video-upload";
 import { CompleteVideoRequest, VideoUploadId } from "@/lib/videos";
 
+// Reading back and hashing a 500 MB video from R2 takes longer than a default function call.
+export const maxDuration = 300;
+
 // Joins the parts, checks the video's size and hash here on the server, and records it.
 export async function POST(request: NextRequest, ctx: RouteContext<"/api/videos/uploads/[id]/complete">) {
   const access = await routeAccess({ admin: false });
