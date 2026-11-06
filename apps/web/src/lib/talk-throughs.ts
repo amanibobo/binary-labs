@@ -207,10 +207,16 @@ export type TalkThrough = {
   recordedBy: UserId | null;
   recordedAt: string;
   durationMs: number | null;
-  audio: { locationId: LocationId; name: string };
+  // What was said: a recording made for this, or a video already on the page.
+  media: TalkThroughMedia;
   status: TalkThroughStatus;
+  // The page as it is now, to read the draft against; null for a new page.
+  current: { version: number; body: string } | null;
+  dismissed: boolean;
   used: { protocolId: ProtocolId; version: number } | null;
 };
+
+export type TalkThroughMedia = { kind: "audio" | "video"; locationId: LocationId; name: string };
 
 // What the editor starts from: the drafted steps, or the transcript when asked for or when no
 // steps came. Null while there's nothing to start from, or once the steps are on a page.
@@ -219,7 +225,7 @@ export function editorStart(
   from: "steps" | "transcript",
 ): { title: string; body: string; from: "steps" | "transcript" } | null {
   const s = tt.status;
-  if (tt.used !== null || s.kind === "transcribing") return null;
+  if (tt.used !== null || tt.dismissed || s.kind === "transcribing") return null;
   // An existing page keeps its own title; the drafted one names a new page.
   if (from === "steps" && s.kind === "ready") return { title: tt.page?.title ?? s.title, body: s.body, from: "steps" };
   if (s.transcript === null || s.transcript.trim() === "") return null;
@@ -237,10 +243,13 @@ const Timestamp = z.string().refine((s) => !Number.isNaN(Date.parse(s)), "expect
 const TalkThroughRow = z.object({
   id: TalkThroughId,
   kind: ProtocolKind,
+  source: z.enum(["recording", "video"]),
   protocol_id: ProtocolId.nullable(),
   protocol_title: z.string().nullable(),
   base_version_id: ProtocolVersionId.nullable(),
   base_version: z.number().int().positive().nullable(),
+  current_version: z.number().int().positive().nullable(),
+  current_body: z.string().nullable(),
   recorded_by: UserId.nullable(),
   recorded_at: Timestamp,
   duration_ms: z.number().int().positive().nullable(),
@@ -254,6 +263,7 @@ const TalkThroughRow = z.object({
   draft_title: z.string().nullable(),
   draft_body: z.string().nullable(),
   draft_error: z.string().nullable(),
+  dismissed_at: Timestamp.nullable(),
   used_protocol_id: ProtocolId.nullable(),
   used_version: z.number().int().positive().nullable(),
 });
@@ -295,8 +305,10 @@ function fromRow(r: TalkThroughRow): TalkThrough {
     recordedBy: r.recorded_by,
     recordedAt: r.recorded_at,
     durationMs: r.duration_ms,
-    audio: { locationId: r.location_id, name: r.name },
+    media: { kind: r.source === "video" ? "video" : "audio", locationId: r.location_id, name: r.name },
     status: statusOf(r),
+    current: r.current_version !== null && r.current_body !== null ? { version: r.current_version, body: r.current_body } : null,
+    dismissed: r.dismissed_at !== null,
     used: r.used_protocol_id !== null && r.used_version !== null ? { protocolId: r.used_protocol_id, version: r.used_version } : null,
   };
 }
@@ -324,8 +336,10 @@ export const TalkThroughWire = z.object({
   recordedBy: UserId.nullable(),
   recordedAt: Timestamp,
   durationMs: z.number().int().positive().nullable(),
-  audio: z.object({ locationId: LocationId, name: z.string() }),
+  media: z.object({ kind: z.enum(["audio", "video"]), locationId: LocationId, name: z.string() }),
   status: StatusWire,
+  current: z.object({ version: z.number().int().positive(), body: z.string() }).nullable(),
+  dismissed: z.boolean(),
   used: z.object({ protocolId: ProtocolId, version: z.number().int().positive() }).nullable(),
 }) satisfies z.ZodType<TalkThrough>;
 
@@ -394,12 +408,39 @@ export function applyTalkThroughArgs(id: TalkThroughId, req: z.output<typeof App
 export function applyFailure(error: { code?: string; message: string }): ProtocolFailure {
   switch (error.code) {
     case "BL105":
-      return { kind: "error", status: 409, message: "These steps are already on a page." };
+      return { kind: "error", status: 409, message: "These steps are already on a page, or were dismissed." };
     case "BL106":
       return { kind: "error", status: 409, message: "The recording is still being transcribed." };
     default:
       return protocolFailure(error);
   }
+}
+
+// "Draft steps from this video" answers the talk-through to open: a new one, or the draft
+// already open for that video on that page.
+export const VideoSteps = z.object({ talkThroughId: TalkThroughId });
+export type VideoSteps = z.infer<typeof VideoSteps>;
+
+// start_video_steps' refusals as the browser should see them.
+export function videoStepsFailure(code: string | undefined): { status: number; message: string } | null {
+  switch (code) {
+    case "BL102":
+      return { status: 409, message: "This protocol is archived." };
+    case "BL103":
+      return { status: 404, message: "This protocol isn't in your lab." };
+    case "BL104":
+      return { status: 404, message: "That video isn't on this protocol any more." };
+    default:
+      return null;
+  }
+}
+
+// What a page-targeted draft's Accept saves: the drafted steps as the page's next version,
+// keeping the page's title, on top of the version it was drafted against.
+export function acceptRequest(tt: TalkThrough): ApplyTalkThroughRequest | null {
+  if (tt.page === null || tt.status.kind !== "ready" || tt.used !== null || tt.dismissed) return null;
+  const note = tt.media.kind === "video" ? `Steps from ${tt.media.name}` : "Steps from a talk-through";
+  return { kind: tt.kind, baseVersionId: tt.page.baseVersionId, title: tt.page.title, body: tt.status.body, note: note.slice(0, 300) };
 }
 
 export function talkThroughHref(id: TalkThroughId): string {

@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { ProtocolId, ProtocolVersionId, Sha256, TalkThroughId } from "../ids";
 import { elapsedMs, recorderReducer, type RecorderState, type Take } from "../recorder-state";
 import {
+  acceptRequest,
+  ApplyTalkThroughRequest,
   editorStart,
   formatClock,
   isTalkThroughUpload,
@@ -12,6 +14,7 @@ import {
   refusedRecording,
   statusOf,
   talkThroughHeaders,
+  TalkThroughRows,
   TalkThroughWire,
   type TalkThrough,
   type TalkThroughMeta,
@@ -19,6 +22,20 @@ import {
 
 const page = ProtocolId.parse("7a1c2c39-5a4e-4c55-9d7b-0c3c1a7a0001");
 const base = ProtocolVersionId.parse("7a1c2c39-5a4e-4c55-9d7b-0c3c1a7b0004");
+const tt = (status: TalkThrough["status"], used: TalkThrough["used"] = null, forPage = true, dismissed = false): TalkThrough =>
+  TalkThroughWire.parse({
+    id: TalkThroughId.parse("5b1c2c39-5a4e-4c55-9d7b-0c3c1a7a0001"),
+    kind: "protocol",
+    page: forPage ? { protocolId: page, title: "Lysis", baseVersionId: base, baseVersion: 4 } : null,
+    recordedBy: null,
+    recordedAt: "2026-11-04T14:03:22Z",
+    durationMs: null,
+    media: { kind: "audio", locationId: "7a1c2c39-5a4e-4c55-9d7b-000000000090", name: "a.weba" },
+    status,
+    current: forPage ? { version: 4, body: "1. Spin." } : null,
+    dismissed,
+    used,
+  });
 const meta = (target: TalkThroughMeta["target"]): TalkThroughMeta => ({
   name: "Talk-through 2026-11-04 14.03.22.weba",
   uploadedOn: "2026-11-04",
@@ -133,18 +150,6 @@ describe("a talk-through's status", () => {
   });
 
   it("starts the editor from the steps, or the transcript when asked or when no steps came", () => {
-    const tt = (status: ReturnType<typeof statusOf>, used: TalkThrough["used"] = null, forPage = true): TalkThrough =>
-      TalkThroughWire.parse({
-        id: TalkThroughId.parse("5b1c2c39-5a4e-4c55-9d7b-0c3c1a7a0001"),
-        kind: "protocol",
-        page: forPage ? { protocolId: page, title: "Lysis", baseVersionId: base, baseVersion: 4 } : null,
-        recordedBy: null,
-        recordedAt: "2026-11-04T14:03:22Z",
-        durationMs: null,
-        audio: { locationId: "7a1c2c39-5a4e-4c55-9d7b-000000000090", name: "a.weba" },
-        status,
-        used,
-      });
     const ready = statusOf({ ...row, draft: "ready", draft_title: "BM3 lysis", draft_body: "1. Thaw." });
     // A page keeps its title; the drafted title names a new page.
     expect(editorStart(tt(ready), "steps")).toEqual({ title: "Lysis", body: "1. Thaw.", from: "steps" });
@@ -153,5 +158,51 @@ describe("a talk-through's status", () => {
     expect(editorStart(tt(statusOf({ ...row, draft: "unavailable", draft_error: "x" })), "steps")?.from).toBe("transcript");
     expect(editorStart(tt({ kind: "transcribing" }), "steps")).toBeNull();
     expect(editorStart(tt(ready, { protocolId: page, version: 5 }), "steps")).toBeNull();
+    expect(editorStart(tt(ready, null, true, true), "steps")).toBeNull();
+  });
+
+  it("accepts a page's draft as its next version, keeping the page's title, and nothing else", () => {
+    const ready = statusOf({ ...row, draft: "ready", draft_title: "BM3 lysis", draft_body: "1. Thaw." });
+    expect(acceptRequest(tt(ready))).toEqual({ kind: "protocol", baseVersionId: base, title: "Lysis", body: "1. Thaw.", note: "Steps from a talk-through" });
+    const fromVideo = { ...tt(ready), media: { kind: "video" as const, locationId: tt(ready).media.locationId, name: "Lysis.mp4" } };
+    expect(acceptRequest(fromVideo)?.note).toBe("Steps from Lysis.mp4");
+    expect(acceptRequest(tt(ready, null, false))).toBeNull();
+    expect(acceptRequest(tt(ready, null, true, true))).toBeNull();
+    expect(acceptRequest(tt(ready, { protocolId: page, version: 5 }))).toBeNull();
+    expect(acceptRequest(tt({ kind: "transcribing" }))).toBeNull();
+    expect(ApplyTalkThroughRequest.safeParse(acceptRequest(tt(ready))).success).toBe(true);
+  });
+
+  it("reads a video's talk-through row, its transcript still on its way", () => {
+    const parsed = TalkThroughRows.parse([
+      {
+        id: "5b1c2c39-5a4e-4c55-9d7b-0c3c1a7a0003",
+        kind: "tutorial",
+        source: "video",
+        protocol_id: page,
+        protocol_title: "Lysis",
+        base_version_id: base,
+        base_version: 4,
+        current_version: 5,
+        current_body: "1. Spin longer.",
+        recorded_by: null,
+        recorded_at: "2026-11-05T10:12:00Z",
+        duration_ms: null,
+        location_id: "7a1c2c39-5a4e-4c55-9d7b-000000000091",
+        sha256: "d".repeat(64),
+        name: "Lysis.mp4",
+        index_state: "pending",
+        index_error: null,
+        transcript: null,
+        draft: "waiting",
+        draft_title: null,
+        draft_body: null,
+        draft_error: null,
+        dismissed_at: null,
+        used_protocol_id: null,
+        used_version: null,
+      },
+    ]);
+    expect(parsed).toMatchObject({ media: { kind: "video", name: "Lysis.mp4" }, status: { kind: "transcribing" }, current: { version: 5 }, dismissed: false });
   });
 });
