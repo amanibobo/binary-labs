@@ -184,7 +184,7 @@ function FitPicker({ spec, data, edit }: { spec: Extract<SummarySpec, { type: "c
   const a = useMemo(() => analyze(data.table, spec, data.tables), [data, spec]);
   const set = (patch: Partial<typeof spec>) => edit((s) => (s.type === "curve" ? { ...s, ...patch } : s));
   return (
-    <Section title="Fitted line" help={a.kind === "curve" && a.fit !== null ? `R² ${a.fit.r2.toFixed(4)}. Hover it under the chart for what it means.` : "A straight line through the means, with its equation and R²."}>
+    <Section title="Fitted line" help={a.kind === "curve" && a.fit !== null ? `R² ${a.fit.r2.toFixed(4)}. Tap or point at it under the chart for what it means.` : "A straight line through the means, with its equation and R²."}>
       <Choice<"line" | "origin" | "none">
         label="Fitted line"
         options={[

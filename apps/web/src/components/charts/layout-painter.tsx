@@ -74,7 +74,16 @@ export function LayoutPainter({
   const [picked, setPicked] = useState<string[]>([]);
   return (
     <Dialog open={open} onOpenChange={(o) => (o ? null : onClose())}>
-      <DialogContent title="Mark the wells" aria-describedby={undefined} className="sm:w-[min(1120px,calc(100vw-48px))]">
+      <DialogContent
+        title="Mark the wells"
+        aria-describedby={undefined}
+        className="sm:w-[min(1120px,calc(100vw-48px))]"
+        // The plate is what's marked first, so it starts focused and in view, not the name field.
+        onOpenAutoFocus={(e) => {
+          e.preventDefault();
+          if (e.currentTarget instanceof HTMLElement) e.currentTarget.querySelector<HTMLElement>('[role="gridcell"][tabindex="0"]')?.focus({ preventScroll: true });
+        }}
+      >
         {open ? (
           <PainterBody
             table={table}
@@ -364,7 +373,7 @@ function MarkForm({ layout, picked, onApply, onClear }: { layout: SampleLayout; 
             )}
           >
             <span className="block text-label-small text-content-primary">{ROLE_NAMES[r]}</span>
-            <span className="block text-paragraph-xsmall text-content-tertiary">{ROLE_HELP[r]}</span>
+            <span className="hidden text-paragraph-xsmall text-content-tertiary sm:block">{ROLE_HELP[r]}</span>
           </button>
         ))}
       </div>

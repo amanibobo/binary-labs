@@ -189,6 +189,7 @@ function repeatShots() {
   };
   const well = (page, name) => page.getByRole("gridcell", { name: new RegExp(`^${name},`) });
   const drag = async (page, from, to) => {
+    await well(page, from).scrollIntoViewIfNeeded();
     const a = await well(page, from).boundingBox();
     const b = await well(page, to).boundingBox();
     await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2);
