@@ -26,6 +26,8 @@ sh scripts/eval_labels.sh         # all of the above on a fresh local database, 
 
 Set `EMBED_MODEL=hash-1024` to run the worker with the deterministic fake embedder, which skips the 1.2 GB model download.
 
+With `EMBEDDER=remote` the worker loads no model and sends file chunks to the embedding service at `EMBED_URL` (`POST /embed/documents`, 32 at a time, with `EMBED_API_KEY`): `bl serve-embed` in dev, `modal_embed.py` on a Modal GPU in production. The production image (`Dockerfile`, `fly.toml`) leaves out the `local-embed` group, so it has no torch. `BINARY_ENV=production` makes `bl worker`, `bl migrate` and `bl serve-embed` stop at startup with a list of every missing or malformed variable. `docs/deploy.md` has the hosting steps.
+
 ## Tests
 
 ```
