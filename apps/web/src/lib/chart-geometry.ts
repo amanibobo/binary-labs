@@ -512,7 +512,8 @@ export function plotChart(
         path,
         bars: [],
         whiskers,
-        markers: spec.type === "scatter" || points.length <= MARKERS_UP_TO,
+        // Past six lines a dot on every point is noise; the dash tells the second six apart.
+        markers: spec.type === "scatter" || (points.length <= MARKERS_UP_TO && seriesColumns.length <= 6),
         label: roomForLabels && end !== undefined ? { x: Math.min(end.px, area.left + area.width) + 8, y: end.py } : null,
       });
     });

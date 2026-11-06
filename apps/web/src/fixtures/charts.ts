@@ -171,19 +171,31 @@ export const savedCharts: SavedChart[] = ChartRows.parse([
     updated_at: "2026-11-04T11:00:00Z",
   },
   {
-    // Ten wells across two rows of plate 7: the first six solid, the next four dashed.
+    // Ten wells of plate 7, a row each down column 1 and two from column 12: the first six
+    // solid, the next four the same hues dashed.
     id: chartId(7),
     sha256: PLATE,
     sheet: "Table 1",
-    title: "Plate 7, rows A and E",
+    title: "Plate 7, ten wells",
     spec: {
       version: 1,
       type: "line",
       x: { column: "A", ...axis("Time", "min") },
       y: { ...axis("A420", "AU"), scale: "linear" },
-      series: ["C", "E", "G", "I", "K", "M", "AY", "BA", "BC", "BE"].map((column, i) => ({
+      series: [
+        ["C", "A1"],
+        ["O", "B1"],
+        ["AA", "C1"],
+        ["AM", "D1"],
+        ["AY", "E1"],
+        ["BK", "F1"],
+        ["BW", "G1"],
+        ["CI", "H1"],
+        ["Z", "B12"],
+        ["CH", "G12"],
+      ].map(([column, name], i) => ({
         column,
-        name: `${i < 6 ? "A" : "E"}${(i % 6) * 2 + 1}`,
+        name,
         color: COLORS[i % 6],
         stroke: i < 6 ? "solid" : "dashed",
         error: null,

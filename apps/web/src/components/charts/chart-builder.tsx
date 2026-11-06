@@ -560,8 +560,15 @@ function XYSettings({ spec, table, onChange }: { spec: XYSpec; table: DataTable;
   const unplotted = numbers.filter((c) => c.id !== spec.x.column && !spec.series.some((s) => s.column === c.id));
   const editSeries = (column: ColumnId, f: (s: Series) => Series) =>
     onChange((s) => ({ ...s, series: s.series.map((q) => (q.column === column ? f(q) : q)) }));
-  // Columns a series could read along instead of the chart's x: the same kind as x.
-  const ownXChoices = axisColumns(table).filter((c) => c.kind === xColumn?.kind && c.id !== spec.x.column);
+  // Columns a series could read along instead of the chart's x: other dates on a time axis, or
+  // columns in x's own unit (an AKTA export's volume columns, each in ml). Offered only when a
+  // table has them, so most charts never see the choice.
+  const ownXChoices = axisColumns(table).filter(
+    (c) =>
+      c.id !== spec.x.column &&
+      c.kind === xColumn?.kind &&
+      (c.kind === "date" || (c.unit !== null && c.unit !== "" && c.unit === (xColumn.kind === "number" ? xColumn.unit : null))),
+  );
 
   return (
     <div className="mt-10 grid gap-10">
@@ -813,7 +820,7 @@ function ProtocolSetting({
 function Field({ label, children }: { label: string; children: (id: string) => ReactNode }) {
   const id = useId();
   return (
-    <div className="grid gap-1.5">
+    <div className="grid min-w-0 gap-1.5">
       <label htmlFor={id} className="text-label-small text-content-secondary">
         {label}
       </label>
@@ -1015,7 +1022,7 @@ function SeriesRow({
       </div>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <ColorPicker name={series.name} value={series.color} onChange={(color) => onChange((s) => ({ ...s, color }))} />
-        {spec.type === "line" ? (
+        {spec.type === "line" && (spec.series.length > 6 || series.stroke === "dashed") ? (
           <Segmented<Stroke>
             label={`Line for ${series.name}`}
             options={[

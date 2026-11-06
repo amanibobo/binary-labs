@@ -135,9 +135,12 @@ export function plotPlate(spec: HeatmapSpec, table: DataTable, size: { width: nu
   const barWidth = Math.min(plateWidth, 320);
   const barTop = top + plateHeight + 20;
   const map = (v: number) => left + ((v - domain[0]) / (domain[1] - domain[0])) * barWidth;
-  const ticks = linearTicks(domain[0], domain[1], Math.max(2, Math.floor(barWidth / 70)))
-    .filter((v) => v >= domain[0] && v <= domain[1])
-    .map((v) => ({ pos: map(v), label: formatValue(v) }));
+  // The scale's two ends carry their values, with round steps between where they don't crowd.
+  const ends = [domain[0], domain[1]].map((v) => ({ pos: map(v), label: formatValue(v) }));
+  const inner = linearTicks(domain[0], domain[1], Math.max(2, Math.floor(barWidth / 70)))
+    .map((v) => ({ pos: map(v), label: formatValue(v) }))
+    .filter((t) => ends.every((e) => Math.abs(e.pos - t.pos) > Math.max(textWidth(e.label, TICK_FONT), textWidth(t.label, TICK_FONT)) / 2 + 12));
+  const ticks = [ends[0], ...inner, ends[1]];
   const scale = hasData ? { left, top: barTop, width: barWidth, height: BAR_HEIGHT, ticks, title: scaleTitle, lo: domain[0], hi: domain[1] } : null;
 
   const usedHeight = barTop + below - 20;
