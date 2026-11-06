@@ -113,7 +113,7 @@ Check, and measure (this is the cold-start plan):
    ```
 4. Secrets: copy `workers/.env.production.example` to `workers/.env.production` (git ignores it), fill in every value, then from the repo root:
    ```
-   fly secrets import --config workers/fly.toml < workers/.env.production
+   grep -E '^[A-Z]' workers/.env.production | fly secrets import --stage --config workers/fly.toml
    rm workers/.env.production
    ```
    `BINARY_ENV`, `EMBEDDER`, `PREVIEW_STORE` and `TRANSCRIBER` are already in `fly.toml`.
