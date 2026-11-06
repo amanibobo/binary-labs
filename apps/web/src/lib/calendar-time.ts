@@ -143,21 +143,6 @@ export function viewerTimeZone(): string {
   return Intl.DateTimeFormat().resolvedOptions().timeZone;
 }
 
-// Moves a moment by whole days on the wall clock, so 9 am stays 9 am across a DST change.
-export function shiftDays(instant: Date, days: number, timeZone: string): Date {
-  const wall = wallClock(instant, timeZone);
-  const seconds = instant.getUTCSeconds() * 1000 + instant.getUTCMilliseconds();
-  return new Date(instantAt(addDays(wall.day, days), wall.minutes, timeZone).getTime() + seconds);
-}
-
-export function addMinutes(instant: Date, minutes: number): Date {
-  return new Date(instant.getTime() + minutes * 60_000);
-}
-
-export function snap(minutes: number, step = 15): number {
-  return Math.round(minutes / step) * step;
-}
-
 // Formatting, in the viewer's zone. "9 AM", "9:30 AM".
 const timeFormats = new Map<string, Intl.DateTimeFormat>();
 
@@ -168,12 +153,6 @@ export function formatTime(instant: Date, timeZone: string): string {
     timeFormats.set(timeZone, format);
   }
   return format.format(instant).replace(":00", "");
-}
-
-export function formatHour(minutes: number): string {
-  const h = Math.floor(minutes / 60) % 24;
-  const suffix = h < 12 ? "AM" : "PM";
-  return `${h % 12 === 0 ? 12 : h % 12} ${suffix}`;
 }
 
 const DAY_FORMATS = {
@@ -193,20 +172,6 @@ export function formatCalendarDay(day: CalendarDay, format: DayFormat): string {
 
 export function dayNumber(day: CalendarDay): number {
   return Number(day.slice(8, 10));
-}
-
-// The header over a week: "November 2026", or "Oct – Nov 2026" for a week across two months.
-export function formatWeekTitle(first: CalendarDay, last: CalendarDay): string {
-  if (sameMonth(first, last)) return formatCalendarDay(first, "month");
-  const [y1, y2] = [first.slice(0, 4), last.slice(0, 4)];
-  const [m1, m2] = [formatCalendarDay(first, "monthShort"), formatCalendarDay(last, "monthShort")];
-  return y1 === y2 ? `${m1} – ${m2} ${y2}` : `${m1} ${y1} – ${m2} ${y2}`;
-}
-
-// The zone's short name at a moment ("EST", "GMT+1"), for the week view's corner.
-export function zoneName(timeZone: string, at: Date): string {
-  const part = new Intl.DateTimeFormat("en-US", { timeZone, timeZoneName: "short" }).formatToParts(at).find((p) => p.type === "timeZoneName");
-  return part?.value ?? timeZone;
 }
 
 // "<input type=time>" values.

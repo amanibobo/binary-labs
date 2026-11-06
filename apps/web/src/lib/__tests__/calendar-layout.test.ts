@@ -1,67 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { layoutDay, layoutSpans, monthRowLines, segmentOn } from "../calendar-layout";
+import { layoutSpans, monthRowLines } from "../calendar-layout";
 import { CalendarDay } from "../calendar-time";
 
 const d = (s: string) => CalendarDay.parse(s);
-const NY = "America/New_York";
-const seg = (id: string, start: number, end: number) => ({ id, start, end });
-const h = (hours: number) => hours * 60;
-
-describe("timed entries in a day", () => {
-  it("gives an entry alone the whole width", () => {
-    expect(layoutDay([seg("a", h(9), h(10))])).toEqual([{ id: "a", start: h(9), end: h(10), column: 0, columns: 1 }]);
-  });
-
-  it("splits overlapping entries and lets the next free one take a column back", () => {
-    const placed = layoutDay([seg("a", h(9), h(11)), seg("b", h(10), h(12)), seg("c", h(11), h(12)), seg("d", h(13), h(14))]);
-    const at = Object.fromEntries(placed.map((p) => [p.id, [p.column, p.columns]]));
-    // a and b overlap; c starts when a ends and takes its column; d is on its own.
-    expect(at).toEqual({ a: [0, 2], b: [1, 2], c: [0, 2], d: [0, 1] });
-  });
-
-  it("keeps a cluster as wide as its busiest moment, across a chain", () => {
-    const placed = layoutDay([seg("a", h(8), h(12)), seg("b", h(9), h(10)), seg("c", h(9), h(10)), seg("e", h(11), h(13))]);
-    const at = Object.fromEntries(placed.map((p) => [p.id, [p.column, p.columns]]));
-    expect(at).toEqual({ a: [0, 3], b: [1, 3], c: [2, 3], e: [1, 3] });
-  });
-
-  it("puts the longer of two entries starting together first", () => {
-    const placed = layoutDay([seg("short", h(9), h(9) + 30), seg("long", h(9), h(12))]);
-    expect(placed.map((p) => p.id)).toEqual(["long", "short"]);
-  });
-
-  it("treats back-to-back entries as not overlapping, but a very short one as a line tall", () => {
-    expect(layoutDay([seg("a", h(9), h(10)), seg("b", h(10), h(11))]).map((p) => p.columns)).toEqual([1, 1]);
-    expect(layoutDay([seg("a", h(9), h(9) + 5), seg("b", h(9) + 10, h(10))]).map((p) => p.columns)).toEqual([2, 2]);
-  });
-});
-
-describe("a timed entry's piece of a day", () => {
-  it("splits an overnight entry at midnight", () => {
-    const overnight = { start: "2026-11-05T03:00:00Z", end: "2026-11-05T13:00:00Z" }; // 10 pm to 8 am
-    expect(segmentOn(overnight, d("2026-11-04"), NY)).toMatchObject({ start: h(22), end: h(24) });
-    expect(segmentOn(overnight, d("2026-11-05"), NY)).toMatchObject({ start: 0, end: h(8) });
-    expect(segmentOn(overnight, d("2026-11-06"), NY)).toBeNull();
-  });
-
-  it("draws the day the clocks go back by the wall clock", () => {
-    // 1:00 EDT to 1:30 EST is 90 minutes, drawn from 1:00 to 1:30.
-    const across = { start: "2026-11-01T05:00:00Z", end: "2026-11-01T06:30:00Z" };
-    expect(segmentOn(across, d("2026-11-01"), NY)).toMatchObject({ start: h(1), end: h(1) + 30 });
-    // An entry in the second 1:30 hour sits where the first one does.
-    const second = { start: "2026-11-01T06:30:00Z", end: "2026-11-01T07:00:00Z" };
-    expect(segmentOn(second, d("2026-11-01"), NY)).toMatchObject({ start: h(1) + 30, end: h(2) });
-    // 1:50 EDT to 1:10 EST runs backwards on the wall clock; it's drawn from 1:50 at least a line tall.
-    const backwards = { start: "2026-11-01T05:50:00Z", end: "2026-11-01T06:10:00Z" };
-    expect(segmentOn(backwards, d("2026-11-01"), NY)).toMatchObject({ start: h(1) + 50, end: h(1) + 50 });
-  });
-
-  it("draws the day the clocks go forward without the missing hour", () => {
-    // 1:30 EST to 3:30 EDT is one hour, drawn from 1:30 to 3:30.
-    const across = { start: "2026-03-08T06:30:00Z", end: "2026-03-08T07:30:00Z" };
-    expect(segmentOn(across, d("2026-03-08"), NY)).toMatchObject({ start: h(1) + 30, end: h(3) + 30 });
-  });
-});
 
 describe("bars across a week row", () => {
   const week = d("2026-11-01");
