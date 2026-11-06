@@ -171,11 +171,14 @@ export function ChevronSmallIcon(props: IconProps) {
   );
 }
 
-// A plain cloud for a connected file store; not any company's logo.
-export function CloudIcon(props: IconProps) {
+// Dropbox's own glyph (Simple Icons, CC0) in Dropbox blue, for the Dropbox connection.
+export function DropboxLogo(props: IconProps) {
   return (
     <Svg {...props}>
-      <path {...line} d="M7.5 18.5h9.25a3.75 3.75 0 0 0 .6-7.45A5.5 5.5 0 0 0 6.7 10.2 4.2 4.2 0 0 0 7.5 18.5z" />
+      <path
+        fill="#0061FF"
+        d="M6 1.807 0 5.629l6 3.822 6.001-3.822zm12 0-6 3.822 6 3.822 6-3.822zM0 13.274l6 3.822 6.001-3.822L6 9.452zm18-3.822-6 3.822 6 3.822 6-3.822zM6 18.371l6.001 3.822 6-3.822-6-3.822z"
+      />
     </Svg>
   );
 }

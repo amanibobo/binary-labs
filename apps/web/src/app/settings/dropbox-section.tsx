@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { CloudIcon } from "@/components/icons/drawn";
+import { DropboxLogo } from "@/components/icons/drawn";
 import { ScanBar, useSourceState } from "@/components/scan-status";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDock } from "@/components/ui/dialog";
@@ -22,7 +22,7 @@ const NOTICES = {
   failed: "We couldn't finish connecting Dropbox. Try again.",
 } as const satisfies Record<DropboxNotice, string>;
 
-const icon = <CloudIcon className="size-5" />;
+const icon = <DropboxLogo className="size-5" />;
 const path = "font-mono text-paragraph-small text-content-secondary [overflow-wrap:anywhere]";
 
 // A plain link: the OAuth start route answers with a redirect to Dropbox.
