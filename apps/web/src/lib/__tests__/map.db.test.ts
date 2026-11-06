@@ -168,8 +168,8 @@ describe("the lab map", () => {
     expect((await asUser(rosa, () => db.query("select count(*)::int as n from file_neighbors"))).rows[0]?.n).toBe(2);
   });
 
+  // Last: archiving can't be undone.
   it("leaves out an archived protocol and a label still waiting for a look", async () => {
-    await asUser(rosa, () => db.query("update labels set status = status where false"));
     await db.query("update labels set status = 'needs_look', clean_name = null where lab_id = $1 and sha256 = $2", [labA, sha(2)]);
     await db.query("update protocols set archived_at = now() where id = $1", [protocol]);
     try {
@@ -178,7 +178,6 @@ describe("the lab map", () => {
       expect(view.hubs.find((h) => h.name === "Screen plate 07")?.files).toBe(1);
       expect(view.links.some((l) => l.kind === "uses")).toBe(false);
     } finally {
-      await db.query("update protocols set archived_at = null where id = $1", [protocol]);
       await db.query("update labels set status = 'accepted', clean_name = 'Plate 7 read 2' where lab_id = $1 and sha256 = $2", [labA, sha(2)]);
     }
   });

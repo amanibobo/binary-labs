@@ -172,10 +172,10 @@ language sql stable security definer set search_path = public as $$
   union all
   select 'person:' || pe.id, 'person', pe.display_name from people pe where pe.lab_id = p_lab_id
   union all
-  select 'instrument:' || i.key, 'instrument', min(i.name)
+  select 'instrument:' || i.key, 'instrument', min(i.name collate "C")
   from (
     select lower(btrim(l.instrument)) as key,
-      mode() within group (order by btrim(l.instrument)) as name
+      mode() within group (order by btrim(l.instrument) collate "C") as name
     from labels l
     where l.lab_id = p_lab_id and l.status <> 'needs_look' and l.instrument is not null
     group by 1
