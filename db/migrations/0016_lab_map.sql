@@ -18,12 +18,18 @@ create table file_vectors (
   embedding vector(1024),
   embed_model text,
   chunks_changed_at timestamptz not null default clock_timestamp(),
+  -- The chunk change the vector was computed from, and the vector the neighbor lists were
+  -- last redone for: a vector that moved has listed_at behind computed_at until its lists
+  -- are redone, so a job that stops between the two picks the lists up again.
   computed_at timestamptz,
+  listed_at timestamptz,
   primary key (lab_id, sha256),
   check ((embedding is null) = (embed_model is null))
 );
 create index file_vectors_stale_idx on file_vectors (chunks_changed_at)
   where computed_at is null or computed_at < chunks_changed_at;
+create index file_vectors_unlisted_idx on file_vectors (lab_id)
+  where computed_at is not null and listed_at is distinct from computed_at;
 create index file_vectors_embedding_idx on file_vectors using hnsw (embedding vector_cosine_ops);
 create index file_vectors_sha_idx on file_vectors (sha256);
 

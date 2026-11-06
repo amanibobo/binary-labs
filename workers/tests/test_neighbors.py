@@ -98,7 +98,7 @@ def test_content_chunks_mark_a_vector_and_a_photo_waits_for_its_caption(rt, conn
 def test_similar_files_list_each_other_and_unrelated_files_list_nothing(rt, conn, lab):
     done = neighbors.refresh_lab(rt, lab.id)
 
-    assert done.vectors == 7 and done.changed == 6
+    assert done.vectors == 7 and done.moved == 6
     found = lists(conn, lab)
     assert set(found["nickel run 1.txt"]) == {"nickel run 2.txt", "nickel run 3.txt"}
     assert set(found["plate 7.txt"]) == {"plate 8.txt"}
@@ -129,7 +129,7 @@ def test_a_file_that_changes_leaves_old_lists_and_enters_new_ones(rt, conn, lab)
 
     done = neighbors.refresh_lab(rt, lab.id)
 
-    assert done.changed == 1 and done.lists >= 3
+    assert done.moved == 1 and done.lists >= 3
     found = lists(conn, lab)
     assert set(found["nickel run 1.txt"]) == {"nickel run 2.txt"}
     assert "nickel run 3.txt" in found["plate 7.txt"]
@@ -147,7 +147,7 @@ def test_a_rescan_with_the_same_text_redoes_no_list(rt, conn, lab):
 
     done = neighbors.refresh_lab(rt, lab.id)
 
-    assert done.vectors == 6 and done.changed == 0 and done.lists == 0
+    assert done.vectors == 6 and done.moved == 0 and done.lists == 0
 
 
 def test_a_file_whose_chunks_are_still_embedding_waits(rt, conn, lab):
@@ -242,6 +242,20 @@ def test_deleting_the_lab_takes_its_vectors_and_lists(rt, conn, lab):
         assert conn.execute(
             f"select count(*) from {table} where lab_id = %s", (lab.id,)
         ).fetchone() == (0,)
+
+
+def test_lists_a_stopped_job_left_undone_are_redone_next_time(rt, conn, lab):
+    neighbors.refresh_lab(rt, lab.id)
+    before = lists(conn, lab)
+    # As if the job stopped after the vectors and before the lists.
+    conn.execute("delete from file_neighbors where lab_id = %s", (lab.id,))
+    conn.execute("update file_vectors set listed_at = null where lab_id = %s", (lab.id,))
+    assert neighbors.stale_labs(conn) == [lab.id]
+
+    done = neighbors.refresh_lab(rt, lab.id)
+
+    assert done.vectors == 0 and lists(conn, lab) == before
+    assert neighbors.stale_labs(conn) == []
 
 
 def test_a_model_with_no_floor_is_refused():

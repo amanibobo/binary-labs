@@ -10,7 +10,9 @@ When a vector changes, three kinds of list can change: its own; every list that 
 may have moved away); and the lists it should now enter (it moved closer to them). The last
 are found from its own nearest candidates: a candidate whose list is short or whose farthest
 neighbor is less similar than this file gets its list redone. Each list is one nearest-vector
-query, so a changed file costs a handful of queries, not a pass over the lab.
+query, so a changed file costs a handful of queries, not a pass over the lab. When a large part
+of the lab moved at once (its first build, or a new embedding model), every list is redone
+once instead, which is cheaper than checking candidates for each.
 """
 
 from __future__ import annotations
@@ -18,7 +20,6 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass
-from enum import Enum
 from uuid import UUID
 
 import psycopg
@@ -35,10 +36,11 @@ K = 5
 CANDIDATES = 50
 
 # The floor depends on the model: cosine similarities from different models sit in different
-# ranges. Qwen's was read off the sample lab (decisions.md, "the lab map": unrelated lab files
-# sit around 0.35 to 0.55, the same procedure or sample above 0.7); the hash embedder's is for
-# tests, where only shared words make texts close.
-MIN_SIMILARITY = {QWEN: 0.7, HASH: 0.3}
+# ranges. Qwen's was read off the sample lab (scripts/measure_map.py calibrate): files of one
+# procedure or one instrument's exports sit at 0.85 to 0.99, everything else at 0.73 or under,
+# and 0.75 falls in the gap. The hash embedder's is for tests, where shared words make texts
+# close.
+MIN_SIMILARITY = {QWEN: 0.75, HASH: 0.3}
 
 # A file's chunks are written in a few steps (text, then embeddings); this lets them settle.
 SETTLE = "3 seconds"
@@ -57,8 +59,15 @@ limit %(limit)s
 
 STALE_LABS = f"""
 select distinct v.lab_id from file_vectors v
-where (v.computed_at is null or v.computed_at < v.chunks_changed_at)
-  and v.chunks_changed_at < clock_timestamp() - interval '{SETTLE}'
+where ((v.computed_at is null or v.computed_at < v.chunks_changed_at)
+    and v.chunks_changed_at < clock_timestamp() - interval '{SETTLE}')
+  or (v.computed_at is not null and v.listed_at is distinct from v.computed_at)
+"""
+
+# Vectors that moved and whose lists haven't been redone since.
+UNLISTED = """
+select v.sha256, v.computed_at from file_vectors v
+where v.lab_id = %s and v.computed_at is not null and v.listed_at is distinct from v.computed_at
 """
 
 # The mean of the content chunks, once every one of them carries this model's embedding. A
@@ -92,8 +101,9 @@ limit %(n)s
 
 @dataclass(frozen=True)
 class Refreshed:
+    # Vectors recomputed, how many had moved (their lists redone), and lists redone.
     vectors: int
-    changed: int
+    moved: int
     lists: int
     seconds: float
 
@@ -109,13 +119,14 @@ def floor_for(model: str) -> float:
 
 
 def refresh_lab(rt: Runtime, lab_id: UUID, *, budget_s: float = BUDGET_S) -> Refreshed:
-    """Redoes the lab's stale vectors and every list they touch, batch by batch, until none
-    are left or the budget runs out. Safe to re-run from any point: a vector is marked done
-    only with the change time it was computed from, and a list is replaced whole."""
+    """Redoes the lab's stale vectors, batch by batch until none are left or the budget runs
+    out, then every list the moved ones touch. Safe to re-run from any point: a vector is
+    marked done only with the change time it was computed from, its lists are marked done only
+    once they're redone, and a list is replaced whole."""
     start = time.monotonic()
     model = rt.embedder.model_name
     floor = floor_for(model)
-    vectors = changed = lists = 0
+    vectors = 0
     with rt.pool.connection() as conn, lab_lock(conn, lab_id, exclusive=False):
         conn.execute("set hnsw.iterative_scan = relaxed_order")
         conn.execute("set hnsw.ef_search = 100")
@@ -125,50 +136,43 @@ def refresh_lab(rt: Runtime, lab_id: UUID, *, budget_s: float = BUDGET_S) -> Ref
             todo = conn.execute(STALE, {"lab": lab_id, "limit": BATCH, "skip": waiting}).fetchall()
             if not todo:
                 break
-            moved = []
             for sha, seen in todo:
-                outcome = _refresh_vector(conn, lab_id, sha, seen, model)
-                if outcome is Vector.WAITING:
+                if _refresh_vector(conn, lab_id, sha, seen, model):
+                    vectors += 1
+                else:
                     waiting.append(sha)
-                elif outcome is Vector.MOVED:
-                    moved.append(sha)
-            vectors += len(todo) - sum(1 for sha, _ in todo if sha in waiting)
-            changed += len(moved)
-            with conn.transaction():
-                affected = _affected(conn, lab_id, moved, model, floor)
-                for sha in sorted(affected):
-                    _redo_list(conn, lab_id, sha, model, floor)
-            lists += len(affected)
+        moved = conn.execute(UNLISTED, (lab_id,)).fetchall()
+        lists = _redo_lists(conn, lab_id, [sha for sha, _ in moved], model, floor)
+        with conn.cursor() as cur:
+            cur.executemany(
+                "update file_vectors set listed_at = computed_at"
+                " where lab_id = %s and sha256 = %s and computed_at = %s",
+                [(lab_id, sha, at) for sha, at in moved],
+            )
     took = time.monotonic() - start
-    if vectors:
+    if vectors or moved:
         log.info(
-            "neighbors in lab %s: %d vectors, %d changed, %d lists in %.2fs",
+            "neighbors in lab %s: %d vectors, %d moved, %d lists in %.2fs",
             lab_id,
             vectors,
-            changed,
+            len(moved),
             lists,
             took,
         )
-    return Refreshed(vectors, changed, lists, took)
-
-
-class Vector(Enum):
-    MOVED = "moved"
-    SAME = "same"
-    # Some content chunk has no embedding from this model yet; the vector stays stale.
-    WAITING = "waiting"
+    return Refreshed(vectors, len(moved), lists, took)
 
 
 def _refresh_vector(
     conn: psycopg.Connection, lab_id: UUID, sha256: str, seen: object, model: str
-) -> Vector:
-    """Recomputes one file's vector."""
+) -> bool:
+    """Recomputes one file's vector; False while some content chunk has no embedding from
+    this model yet. A vector that didn't move keeps its lists as they are."""
     with conn.transaction():
         row = conn.execute(MEAN, {"lab": lab_id, "sha": sha256, "model": model}).fetchone()
         assert row is not None
         unembedded, vec = row
         if unembedded:
-            return Vector.WAITING
+            return False
         old = conn.execute(
             "select embedding is null, embed_model,"
             " case when embedding is not null then embedding <=> %(vec)s::vector end"
@@ -176,24 +180,54 @@ def _refresh_vector(
             {"vec": vec, "lab": lab_id, "sha": sha256},
         ).fetchone()
         if old is None:
-            return Vector.SAME
+            return True
+        was_empty, old_model, distance = old
+        if was_empty or vec is None:
+            moved = was_empty != (vec is None)
+        else:
+            moved = old_model != model or distance is None or distance > 1e-6
+        # Unmoved, its lists stand, unless an earlier move still waits for them to be redone.
         conn.execute(
             "update file_vectors set embedding = %(vec)s, embed_model = %(model)s,"
-            " computed_at = %(seen)s where lab_id = %(lab)s and sha256 = %(sha)s",
+            " computed_at = %(seen)s, listed_at = case"
+            " when %(moved)s or listed_at is distinct from computed_at then listed_at"
+            " else %(seen)s end"
+            " where lab_id = %(lab)s and sha256 = %(sha)s",
             {
                 "vec": vec,
                 "model": model if vec is not None else None,
                 "seen": seen,
+                "moved": moved,
                 "lab": lab_id,
                 "sha": sha256,
             },
         )
-    was_empty, old_model, distance = old
-    if was_empty or vec is None:
-        moved = was_empty != (vec is None)
+    return True
+
+
+def _redo_lists(
+    conn: psycopg.Connection, lab_id: UUID, moved: list[str], model: str, floor: float
+) -> int:
+    if not moved:
+        return 0
+    (total,) = conn.execute(
+        "select count(*) from file_vectors where lab_id = %s and embedding is not null", (lab_id,)
+    ).fetchone()  # type: ignore[misc]
+    if len(moved) * 4 >= total:
+        rows = conn.execute(
+            "select sha256 from file_vectors where lab_id = %s and embedding is not null"
+            " union select sha256 from file_neighbors where lab_id = %s",
+            (lab_id, lab_id),
+        )
+        affected = {r[0] for r in rows} | set(moved)
     else:
-        moved = old_model != model or distance is None or distance > 1e-6
-    return Vector.MOVED if moved else Vector.SAME
+        affected = _affected(conn, lab_id, moved, model, floor)
+    ordered = sorted(affected)
+    for at in range(0, len(ordered), BATCH):
+        with conn.transaction():
+            for sha in ordered[at : at + BATCH]:
+                _redo_list(conn, lab_id, sha, model, floor)
+    return len(ordered)
 
 
 def _vector(conn: psycopg.Connection, lab_id: UUID, sha256: str, model: str) -> object:
