@@ -4,7 +4,7 @@ import { KIND_LABELS } from "./format";
 import { ProtocolId, Sha256 } from "./ids";
 
 // The lab map (decisions.md, "the lab map"): what lab_map, lab_map_hub and lab_map_local in
-// db/migrations/0016_lab_map.sql return, parsed once here, and the graph the map draws from
+// db/migrations/0021_lab_map.sql return, parsed once here, and the graph the map draws from
 // them. Node ids are the database's: file:<sha256>, protocol:<uuid>, experiment:<uuid>,
 // person:<uuid> and instrument:<lowercased name>.
 

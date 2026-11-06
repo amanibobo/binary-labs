@@ -3,7 +3,7 @@ import type { LabId } from "./ids";
 import { HUB_FILE_LIMIT, HubFiles, HubView, LocalView, type Depth, type HubQuery, type LocalQuery } from "./map";
 import { unwrap, type Supabase } from "./supabase/server";
 
-// The lab map's three views, one SQL function each (db/migrations/0016_lab_map.sql). They run
+// The lab map's three views, one SQL function each (db/migrations/0021_lab_map.sql). They run
 // as the member, so RLS decides what any of them can see.
 
 export async function loadHubView(supabase: Supabase, labId: LabId): Promise<HubView> {
