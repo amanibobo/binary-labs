@@ -41,6 +41,9 @@ LAB_TABLES = (
     "data_tables",
     "charts",
     "instruments",
+    "check_requests",
+    "check_results",
+    "flags",
     "audit_log",
 )
 
