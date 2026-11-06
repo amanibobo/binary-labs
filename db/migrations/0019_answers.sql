@@ -276,6 +276,18 @@ begin
 end
 $$;
 
+-- A paid call that left nothing to save, such as a suggestion the model had no grounds for.
+-- Service role only.
+create function record_spend(p_lab_id uuid, p_user_id uuid, p_purpose text, p_call jsonb) returns numeric
+language plpgsql security definer set search_path = public as $$
+begin
+  if not is_member_of(p_lab_id, p_user_id) or p_purpose not in ('answer', 'suggestion') then
+    raise exception 'not a member of this lab' using errcode = '42501';
+  end if;
+  return record_model_call(p_lab_id, p_purpose, p_call);
+end
+$$;
+
 -- Saves one asked question and its checked answer, with the paid call when one was made
 -- (p_call null: a cached answer, or nothing to ask about). Service role only.
 create function record_answer(
@@ -566,6 +578,7 @@ revoke all on function
   is_member_of(uuid, uuid),
   ask_context(uuid, text, vector, int, int), ask_protocols(uuid, text, int), ai_budget(uuid),
   cached_model_output(uuid, text, text, text, int), record_model_call(uuid, text, jsonb),
+  record_spend(uuid, uuid, text, jsonb),
   record_answer(uuid, uuid, text, answer_outcome, jsonb, jsonb, int, int, text, boolean, int, jsonb),
   record_suggestion(uuid, uuid, suggestion_kind, uuid, text, jsonb, uuid, uuid, text, text, text, jsonb, text, jsonb),
   settle_suggestion(uuid, uuid, boolean, jsonb), approve_protocol_suggestion(uuid, text, text, text),
@@ -585,7 +598,7 @@ grant execute on function
 to authenticated;
 -- What the model said reaches the lab only through these, and only from our server.
 grant execute on function
-  cached_model_output(uuid, text, text, text, int),
+  cached_model_output(uuid, text, text, text, int), record_spend(uuid, uuid, text, jsonb),
   record_answer(uuid, uuid, text, answer_outcome, jsonb, jsonb, int, int, text, boolean, int, jsonb),
   record_suggestion(uuid, uuid, suggestion_kind, uuid, text, jsonb, uuid, uuid, text, text, text, jsonb, text, jsonb)
 to service_role;

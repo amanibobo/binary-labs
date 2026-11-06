@@ -52,3 +52,11 @@ export type ColumnId = z.infer<typeof ColumnId>;
 // instruments.id: one instrument PC whose uploader sends files to the lab.
 export const InstrumentId = z.uuid().brand<"InstrumentId">();
 export type InstrumentId = z.infer<typeof InstrumentId>;
+
+// questions.id: one question someone asked the lab, with its answer.
+export const QuestionId = z.uuid().brand<"QuestionId">();
+export type QuestionId = z.infer<typeof QuestionId>;
+
+// suggestions.id: one change the AI proposed, waiting for a member to approve or dismiss it.
+export const SuggestionId = z.uuid().brand<"SuggestionId">();
+export type SuggestionId = z.infer<typeof SuggestionId>;
