@@ -66,7 +66,8 @@ describe("the worker's tables", () => {
   });
 
   it("read a table parsed before dates existed, with no notes", () => {
-    const old = { version: 1, cellLimit: 1, tables: [{ ...standards, columns: standards.columns.map(({ note: _, ...c }) => c) }] };
+    const withoutNote = (c: Record<string, unknown>) => Object.fromEntries(Object.entries(c).filter(([k]) => k !== "note"));
+    const old = { version: 1, cellLimit: 1, tables: [{ ...standards, columns: standards.columns.map(withoutNote) }] };
     expect(DataTables.parse(old).tables[0].columns[0].note).toBeNull();
   });
 
