@@ -184,9 +184,11 @@ describe("what members and the model's output can write", () => {
 });
 
 async function currentProtocol(): Promise<ProtocolVersion> {
-  const row = z
-    .object({ version_id: ProtocolVersionId, version: z.number(), title: z.string(), body: z.string(), current_version_id: ProtocolVersionId })
-    .parse((await asRole(db, member(ben), () => rows(db, "protocol_version($1, null)", [protocolId])) as unknown[])[0]);
+  const [row] = z
+    .array(z.object({ version_id: ProtocolVersionId, version: z.number(), title: z.string(), body: z.string(), current_version_id: ProtocolVersionId }))
+    .length(1)
+    .parse(await asRole(db, member(ben), () => rows(db, "protocol_version($1, null)", [protocolId])));
+  if (row === undefined) throw new Error("no protocol");
   return {
     protocolId,
     kind: "protocol",

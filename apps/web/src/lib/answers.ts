@@ -298,6 +298,15 @@ export const RecentQuestionRows = z.array(
     ),
 );
 
+// What the Search page needs to ask: whether a model is set up, the lab's recent questions
+// and how many suggestions wait for someone.
+export type AskHome = {
+  available: boolean;
+  recent: RecentQuestion[];
+  openSuggestions: number;
+  viewerId: UserId | null;
+};
+
 // --- How the page shows things ---
 
 // A question reads like a question when it asks one; plain searches stay plain searches.

@@ -1,11 +1,12 @@
 import "server-only";
 import { z } from "zod";
 import { embedConfig } from "@/env";
-import { AnswerSource, Answer, RecentQuestionRows, SavedAnswer, Verdict, type RecentQuestion } from "./answers";
+import { AnswerSource, Answer, RecentQuestionRows, SavedAnswer, Verdict, type AskHome, type RecentQuestion } from "./answers";
 import { BudgetRows, CachedOutput, ContextRows, ProtocolContextRows, QUESTION_EMBED_TIMEOUT_MS, type AnswerWriter, type AskReads } from "./ask";
 import { readTables } from "./chart-store";
 import { FileLabelRows, type Label } from "./domain";
-import { QuestionId, Sha256, SuggestionId, type LabId, type ProtocolId } from "./ids";
+import { QuestionId, Sha256, SuggestionId, type LabId, type ProtocolId, type UserId } from "./ids";
+import { logError } from "./log";
 import { anthropicJsonModel, type JsonModel } from "./json-model";
 import { loadProtocolVersion } from "./lab-data";
 import { embedQuery, toVectorLiteral, type EmbedOutcome } from "./search";
@@ -208,4 +209,15 @@ export async function loadSuggestion(supabase: Supabase, labId: LabId, id: Sugge
     }),
   );
   return { ...common, kind: "labels", changes };
+}
+
+// The Search home's part. It never fails the page, since search works without it.
+export async function loadAskHome(supabase: Supabase, labId: LabId, viewerId: UserId): Promise<AskHome> {
+  try {
+    const [recent, open] = await Promise.all([loadRecentQuestions(supabase, labId, 4), loadOpenSuggestions(supabase, labId, null)]);
+    return { available: askAvailable(), recent, openSuggestions: open.length, viewerId };
+  } catch (error) {
+    logError("ask.home_failed", { labId, error });
+    return { available: askAvailable(), recent: [], openSuggestions: 0, viewerId };
+  }
 }
