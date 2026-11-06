@@ -204,16 +204,26 @@ const CLIPS = [
   },
   {
     id: "settings",
-    path: "/dev/fixtures/lab",
-    // Two rows of tiles with their labels, Members among them.
-    crop: (page) => column(page, page.getByRole("heading", { level: 1 }).first(), { above: 40, height: 580 }),
+    path: "/dev/fixtures/settings",
+    // The section list and the open section beside it, from the top of the page.
+    async crop(page) {
+      const nav = await box(page.getByRole("navigation", { name: "Settings" }));
+      const content = await box(page.locator("main header").first());
+      const right = content.x + content.width;
+      return { x: nav.x - 24, y: Math.max(0, nav.y - 32), width: right - nav.x + 48, height: 600 };
+    },
     async run(page) {
       await page.waitForTimeout(500);
-      // Tiles link to the real Settings routes, so the clip points at them rather than opening one.
-      await pointAt(page, page.getByRole("link", { name: /^Dropbox/ }).first());
-      await page.waitForTimeout(1100);
-      await pointAt(page, page.getByRole("link", { name: /^Members/ }).first());
-      await page.waitForTimeout(1500);
+      // The fixture's section links open the fixture's own pages, so the clip clicks through them.
+      const section = (name) => page.getByRole("navigation", { name: "Settings" }).getByRole("link", { name });
+      await clickAt(page, section("Dropbox"));
+      await page.getByRole("heading", { level: 1, name: "Dropbox" }).waitFor();
+      await page.waitForTimeout(1200);
+      await clickAt(page, section("Members"));
+      await page.getByRole("heading", { level: 1, name: "Members" }).waitFor();
+      await page.waitForTimeout(600);
+      await pointAt(page, page.getByLabel("Invite by email"));
+      await page.waitForTimeout(1300);
     },
   },
 ];
@@ -297,8 +307,13 @@ try {
   await browser.close();
 }
 
-if (only === undefined) {
-  const lines = Object.entries(sizes).map(([id, s]) => `  ${JSON.stringify(id)}: { width: ${s.width}, height: ${s.height} },`);
+// A filtered run re-records some clips; the sizes of the rest stay as the file has them.
+if (only !== undefined) {
+  const kept = readFileSync(sizesFile, "utf8").matchAll(/"([a-z-]+)": \{ width: (\d+), height: (\d+) \}/g);
+  for (const [, id, width, height] of kept) sizes[id] ??= { width: Number(width), height: Number(height) };
+}
+{
+  const lines = CLIPS.filter(({ id }) => sizes[id] !== undefined).map(({ id }) => `  ${JSON.stringify(id)}: { width: ${sizes[id].width}, height: ${sizes[id].height} },`);
   writeFileSync(
     sizesFile,
     `// Written by scripts/record-clips.mjs; rerun it rather than editing by hand.\nimport type { ClipId } from "@/lib/onboarding";\n\nexport const CLIP_SIZES = {\n${lines.join("\n")}\n} as const satisfies Record<ClipId, { width: number; height: number }>;\n`,
