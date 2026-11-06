@@ -366,12 +366,13 @@ def knockdown() -> bytes:
     rows = [["Control siRNA", "SOX2 siRNA"]]
     for a, b in zip([1.02, 0.96, 1.08, 0.94], [0.61, 0.55, 0.72, 0.58], strict=True):
         rows.append([f"{a:.2f}", f"{b:.2f}"])
-    return samples.csv_text([["Relative SOX2 expression (2^-ΔΔCt), normalized to GAPDH"], [], *rows])
+    note = ["Relative SOX2 expression (2^-ΔΔCt), normalized to GAPDH"]
+    return samples.csv_text([note, [], *rows])
 
 
 def four_groups() -> bytes:
     rng = random.Random(4)
-    rows = [["Treatment", "Well", "Cells (×10³)"]]
+    rows = [["Treatment", "Well", "Cells (\u00d710³)"]]
     for name, level in [("Vehicle", 52), ("Drug A", 38), ("Drug B", 49), ("Drug A + B", 21)]:
         for rep in range(4):
             rows.append([name, f"{rep + 1}", f"{level + rng.gauss(0, 3):.1f}"])
