@@ -113,8 +113,8 @@ export function RecentQuestions({ home, onOpen }: { home: AskHome; onOpen: (q: R
         Recent questions
       </h2>
       {/* Opened, the full list keeps the page's rhythm: same rows, no frame, its own scroll once it
-          passes 320px, so the files below stay in reach. */}
-      <ul id={listId} className={cn(all && "max-h-80 overflow-y-auto overscroll-contain")}>
+          passes 296px (a part row shows there's more), so the files below stay in reach. */}
+      <ul id={listId} className={cn(all && "max-h-[18.5rem] overflow-y-auto overscroll-contain")}>
         {shown.map((q) => (
           <li key={q.id}>
             <button

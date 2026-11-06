@@ -82,7 +82,8 @@ export function SummaryLine({
         <span className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 text-paragraph-small text-content-secondary sm:flex-nowrap">
           {summary.facts.length === 0 ? null : <span className="min-w-0 sm:truncate">{summary.facts.join(" · ")}</span>}
           {count === null ? null : (
-            <>
+            // The dot travels with the count, so a wrap never leaves it hanging.
+            <span className="inline-flex shrink-0 items-center gap-1.5">
               {summary.facts.length === 0 ? null : <span aria-hidden>·</span>}
               <button
                 type="button"
@@ -100,7 +101,7 @@ export function SummaryLine({
                   {tagsOpen ? ", hide" : ", show"} the tags of {title}
                 </span>
               </button>
-            </>
+            </span>
           )}
         </span>
       );
