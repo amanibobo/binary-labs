@@ -190,10 +190,11 @@ export function LabelsSection({ hit, className }: { hit: FileHit; className?: st
       </h3>
       <p className="mt-0.5 text-paragraph-xsmall text-content-tertiary">Click any value to change it. Enter saves, and you can undo.</p>
       {check ? (
-        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg bg-background-warning px-3 py-2">
-          <span className="text-paragraph-small text-content-warning">
-            Check this: Binary guessed these labels. Fixing one, or confirming them all, clears it.
-          </span>
+        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+          <p className="text-paragraph-small text-content-secondary">
+            <CheckMark className="mr-1.5 align-[1px]" />
+            Binary guessed these labels. Fixing one, or confirming them all, clears it.
+          </p>
           <button
             type="button"
             onClick={() => labels.accept(hit)}

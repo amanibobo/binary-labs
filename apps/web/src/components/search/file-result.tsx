@@ -47,7 +47,8 @@ export function FileResult({
   const title = label?.cleanName ?? primary.originalName;
   // The label's day when it has one (the day the work happened), else when the file was saved.
   const labelDay = label?.date ?? null;
-  const showSnippet = query !== "" && hit.snippet !== null && hit.fileKind !== "image";
+  // Opened, the preview shows the text with its matches, so the row doesn't repeat it.
+  const showSnippet = query !== "" && !expanded && hit.snippet !== null && hit.fileKind !== "image";
   const notes = [matchLine(hit.matchedBy), otherPlacesLine(others.length)].filter((part) => part !== null);
   const check = summary.kind === "labeled" && summary.check;
 
