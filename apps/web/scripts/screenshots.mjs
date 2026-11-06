@@ -117,8 +117,40 @@ function askShots() {
     await page.getByText(done).first().waitFor();
   };
   const s = (view) => `/dev/fixtures/suggestions?view=${view}`;
+  const yieldQ = "what was the yield of P450 batch 3?";
+  const summary = (page) => page.getByRole("button", { name: /^Searched once/ });
+  const openSteps = async (page) => {
+    await asked("Sources")(page);
+    await summary(page).click();
+  };
   return [
-    ...all({ name: "ask-answer", path: ask("answer", "what was the yield of P450 batch 3?"), steps: asked("Every sentence above") }),
+    // Mid-answer: the steps listed, the writing still going, one sentence in.
+    ...all({ name: "ask-streaming", path: ask("streaming", yieldQ), steps: asked("Batch 3 gave 4.2 mg") }),
+    // Finished: the steps folded into one line; then opened again.
+    ...all({ name: "ask-answer", path: ask("answer", yieldQ), steps: asked("Sources") }),
+    ...all({ name: "ask-steps-open", path: ask("answer", yieldQ), steps: openSteps }),
+    {
+      name: "ask-citation-linked",
+      path: ask("answer", yieldQ),
+      steps: async (page) => {
+        await openSteps(page);
+        await page.getByRole("link", { name: /^Source 1:/ }).hover();
+      },
+      width: 1440,
+      scheme: "dark",
+    },
+    ...all({ name: "ask-cached", path: ask("cached", yieldQ), steps: asked("Sources") }),
+    // A saved answer opened from Recent questions, with the steps saved beside it.
+    {
+      name: "ask-reopened",
+      path: ask("home"),
+      steps: async (page) => {
+        await page.getByRole("button", { name: /^What was the yield of P450 batch 3\?/ }).click();
+        await page.getByText("Sources").first().waitFor();
+      },
+      width: 1440,
+      scheme: "light",
+    },
     ...all({ name: "ask-no-answer", path: ask("no-answer", "which buffer did we use for the SEC run in October?"), steps: asked("Closest files") }),
     { name: "ask-limit", path: ask("limit", "which buffer did we use for the SEC run in October?"), steps: asked("Closest files"), width: 1440, scheme: "dark" },
     { name: "ask-unavailable", path: ask("unavailable", "what was the yield of P450 batch 3?"), width: 1440, scheme: "dark" },
