@@ -1,22 +1,21 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { routeAccess } from "@/lib/route-auth";
+import { badRequest } from "@/lib/protocol-routes";
+import { readJson, routeAccess } from "@/lib/route-auth";
 import { unwrap } from "@/lib/supabase/server";
-import { isTalkThroughUpload } from "@/lib/talk-throughs";
-import { acceptTalkThrough, acceptUpload } from "@/lib/upload-accept";
-import { MyUploadsRows } from "@/lib/uploads";
+import { startUpload } from "@/lib/upload-accept";
+import { MyUploadsRows, StartUploadRequest } from "@/lib/uploads";
 
-// The file is the raw body; proxy.ts skips this path so Next doesn't buffer it in memory.
-// A talk-through recording comes the same way, marked by its x-upload-purpose header.
+// Starts an upload: checks the type and size, then answers where to PUT the file (a presigned
+// R2 URL, or /api/uploads/<id> with the local store). The bytes never pass through here.
 export async function POST(request: NextRequest) {
   const access = await routeAccess({ admin: false });
   if (access.kind === "denied") return access.response;
-  const { supabase, lab } = access.member;
-  const accepted = isTalkThroughUpload(request.headers)
-    ? await acceptTalkThrough(request, lab.id, async (args) => await supabase.rpc("record_talk_through", args))
-    : await acceptUpload(request, lab.id, async (args) => await supabase.rpc("record_upload", args));
-  return "receipt" in accepted
-    ? NextResponse.json(accepted.receipt, { status: accepted.status })
-    : NextResponse.json({ error: accepted.error }, { status: accepted.status });
+  const body = StartUploadRequest.safeParse(await readJson(request));
+  if (!body.success) return badRequest(body.error);
+  const started = await startUpload(access.member.lab.id, body.data);
+  return "session" in started
+    ? NextResponse.json(started.session, { status: started.status, headers: { "cache-control": "no-store" } })
+    : NextResponse.json({ error: started.error }, { status: started.status });
 }
 
 export async function GET() {

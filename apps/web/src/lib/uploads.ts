@@ -5,8 +5,39 @@ import { LocationId, Sha256 } from "./ids";
 // Mirrors upload_max_bytes() in db/migrations/0008_uploads.sql; a db test checks they agree.
 export const UPLOAD_MAX_BYTES = 50 * 1024 * 1024;
 
-// The file goes up as the raw request body, so the rest rides in headers. A custom header
-// also means a cross-site page can't send this request without a CORS preflight.
+// A file goes straight to the store in one PUT (lib/staged-upload.ts): start asks where, the
+// browser PUTs the bytes there, and complete has the server check them and record the file.
+// What the file is rides in headers on the complete call; a custom header also means a
+// cross-site page can't send it without a CORS preflight.
+export const UploadId = z.uuid().brand<"UploadId">();
+export type UploadId = z.infer<typeof UploadId>;
+
+// A bench upload, or a talk-through's recording; each has its own cap and record call.
+export const UploadPurpose = z.enum(["file", "talk-through"]);
+export type UploadPurpose = z.infer<typeof UploadPurpose>;
+
+export const StartUploadRequest = z.object({
+  purpose: UploadPurpose,
+  size: z.number().int().nonnegative(),
+  type: z.string().max(200),
+});
+export type StartUploadRequest = z.infer<typeof StartUploadRequest>;
+
+// Where to PUT the file and the headers to send with it (R2 signs the type).
+export const UploadSession = z.object({ uploadId: UploadId, url: z.string().min(1), headers: z.record(z.string(), z.string()) });
+export type UploadSession = z.infer<typeof UploadSession>;
+
+// What the browser says it sent. Its sha256 is null where the page can't hash (no
+// crypto.subtle off https in dev); the server hashes the stored bytes either way.
+export const CompleteUploadRequest = z.object({ size: z.number().int().positive(), sha256: Sha256.nullable() });
+export type CompleteUploadRequest = z.infer<typeof CompleteUploadRequest>;
+
+// The type the store keeps, without parameters; anything odd is plain bytes.
+export function storedType(type: string): string {
+  const base = type.split(";")[0]?.trim().toLowerCase() ?? "";
+  return /^[a-z0-9][a-z0-9!#$&^_.+-]*\/[a-z0-9][a-z0-9!#$&^_.+-]*$/.test(base) ? base : "application/octet-stream";
+}
+
 export const UPLOAD_HEADERS = {
   name: "x-upload-name",
   experiment: "x-upload-experiment",
