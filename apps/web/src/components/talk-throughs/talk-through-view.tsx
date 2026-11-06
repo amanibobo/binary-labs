@@ -64,7 +64,7 @@ export function TalkThroughView({ initial, authors }: { initial: TalkThrough; au
         <p className="mt-2 text-paragraph-small text-content-tertiary">
           {video ? (
             <>
-              For {pageLabel}, from {tt.media.name} · Asked for <When iso={tt.recordedAt} /> by {authorName(authors, tt.recordedBy)}
+              For {pageLabel}, from {tt.media.name} · Started <When iso={tt.recordedAt} /> by {authorName(authors, tt.recordedBy)}
             </>
           ) : (
             <>
