@@ -183,15 +183,20 @@ language sql stable security invoker set search_path = public, extensions as $$
   )
   select h.sha256, h.score, h.file_kind, h.locations, h.label,
     coalesce((
-      select jsonb_agg(jsonb_build_object('ord', c.ord, 'text', c.text) order by c.ord)
+      -- Best chunk first: the one with the query's words, then the closest in meaning.
+      select jsonb_agg(jsonb_build_object('ord', c.ord, 'text', c.text) order by c.best)
       from (
-        select c.ord, c.text from chunks c, q
+        select c.ord, c.text, row_number() over (
+          order by
+            (q.tsq is not null and c.tsv @@ q.tsq) desc,
+            case when q.tsq is not null then ts_rank_cd(c.tsv, q.tsq, 1) end desc nulls last,
+            case when p_query_embedding is not null and c.embedding is not null
+              then c.embedding <=> p_query_embedding end nulls last,
+            c.ord
+        ) as best
+        from chunks c, q
         where c.lab_id = p_lab_id and c.sha256 = h.sha256 and c.ord > 0
-        order by
-          (q.tsq is not null and c.tsv @@ q.tsq) desc,
-          case when p_query_embedding is not null and c.embedding is not null
-            then c.embedding <=> p_query_embedding end nulls last,
-          c.ord
+        order by best
         limit least(p_chunks, 4)
       ) c
     ), '[]'::jsonb),
