@@ -67,7 +67,7 @@ export function pgAnswerWriter(db: Client): AnswerWriter {
     recordAnswer: (a) =>
       asRole(db, service, async () =>
         QuestionId.parse(
-          await scalar(db, "record_answer($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7, $8, $9, $10, $11, $12::jsonb)", [
+          await scalar(db, "record_answer($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7, $8, $9, $10, $11, $12::jsonb, $13::jsonb)", [
             a.p_lab_id,
             a.p_user_id,
             a.p_question,
@@ -80,6 +80,7 @@ export function pgAnswerWriter(db: Client): AnswerWriter {
             a.p_cached,
             a.p_latency_ms,
             json(a.p_call),
+            json(a.p_steps),
           ]),
         ),
       ),

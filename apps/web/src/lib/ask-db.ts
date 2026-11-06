@@ -1,7 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import { embedConfig } from "@/env";
-import { AnswerSource, Answer, RecentQuestionRows, SavedAnswer, Verdict, type AskHome, type RecentQuestion } from "./answers";
+import { AnswerSource, Answer, AskStep, RecentQuestionRows, SavedAnswer, Verdict, type AskHome, type RecentQuestion } from "./answers";
 import { BudgetRows, CachedOutput, ContextRows, ProtocolContextRows, QUESTION_EMBED_TIMEOUT_MS, type AnswerWriter, type AskReads } from "./ask";
 import { readTables } from "./chart-store";
 import { FileLabelRows, type Label } from "./domain";
@@ -85,18 +85,19 @@ const QuestionRow = z.object({
   outcome: z.enum(["answered", "not_found"]),
   answer: Answer,
   sources: z.array(AnswerSource),
+  steps: z.array(AskStep),
   asked_at: z.string(),
 });
 
 export async function loadSavedAnswer(supabase: Supabase, labId: LabId, id: QuestionId, userId: string): Promise<SavedAnswer | null> {
   const [rows, feedback] = await Promise.all([
-    supabase.from("questions").select("id, question, outcome, answer, sources, asked_at").eq("lab_id", labId).eq("id", id).limit(1),
+    supabase.from("questions").select("id, question, outcome, answer, sources, steps, asked_at").eq("lab_id", labId).eq("id", id).limit(1),
     supabase.from("answer_feedback").select("verdict").eq("question_id", id).eq("user_id", userId).limit(1),
   ]);
   const row = z.array(QuestionRow).parse(unwrap(rows))[0];
   if (row === undefined) return null;
   const verdict = z.array(z.object({ verdict: Verdict })).parse(unwrap(feedback))[0]?.verdict ?? null;
-  return { id: row.id, question: row.question, outcome: row.outcome, answer: row.answer, sources: row.sources, askedAt: row.asked_at, myVerdict: verdict };
+  return { id: row.id, question: row.question, outcome: row.outcome, answer: row.answer, sources: row.sources, steps: row.steps, askedAt: row.asked_at, myVerdict: verdict };
 }
 
 export async function loadRecentQuestions(supabase: Supabase, labId: LabId, limit = 6): Promise<RecentQuestion[]> {

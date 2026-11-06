@@ -242,7 +242,33 @@ export function safeJson(text: string): unknown {
 export const Budget = z.object({ capUsd: z.number(), spentUsd: z.number(), resetsAt: Timestamp });
 export type Budget = z.infer<typeof Budget>;
 
+// The work behind an answer, one step at a time, as it happens. Steps are numbered in the order
+// they started; a search is sent twice under one id, running (found null) and then finished.
+// Only work that ran is a step: nothing here is decoration.
+const StepId = z.number().int().nonnegative();
+const Count = z.number().int().nonnegative();
+
+export const AskStep = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("search"),
+    id: StepId,
+    query: z.string(),
+    // Null while it runs. byMeaning is false when the question's embedding didn't come back in
+    // time and the search matched words only.
+    found: z.object({ files: Count, protocols: Count, byMeaning: z.boolean() }).nullable(),
+  }),
+  // A file's best passages, picked by the search and given to the model.
+  z.object({ kind: z.literal("file"), id: StepId, source: SourceKey, name: z.string(), fileKind: FileKind }),
+  z.object({ kind: z.literal("protocol"), id: StepId, source: SourceKey, title: z.string(), version: z.number().int().positive() }),
+  // One table of a file's parsed spreadsheet: the rows and filled cells the model was shown.
+  z.object({ kind: z.literal("table"), id: StepId, source: SourceKey, sheet: z.string(), rows: Count, cells: Count }),
+  // The model writing, or a saved answer to the same question over the same sources.
+  z.object({ kind: z.literal("write"), id: StepId, cached: z.boolean() }),
+]);
+export type AskStep = z.infer<typeof AskStep>;
+
 export const AskEvent = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("step"), step: AskStep }),
   z.object({ type: z.literal("sources"), sources: z.array(AnswerSource) }),
   z.object({ type: z.literal("sentence"), sentence: AnswerSentence }),
   // The lab spent its month's allowance; the sources are still the closest files.
@@ -268,6 +294,8 @@ export const SavedAnswer = z.object({
   outcome: AnswerOutcome,
   answer: Answer,
   sources: z.array(AnswerSource),
+  // Answers saved before steps were recorded have none.
+  steps: z.array(AskStep),
   askedAt: Timestamp,
   myVerdict: Verdict.nullable(),
 });
@@ -327,8 +355,9 @@ export function sourceNumber(sources: readonly AnswerSource[], key: SourceKey): 
   return i < 0 ? null : i + 1;
 }
 
-// The sources a finished answer leans on, in the order they're listed.
+// The sources an answer leans on, in the order the answer first cites them, so a source keeps
+// its number while later sentences stream in.
 export function citedSources(sources: readonly AnswerSource[], answer: Answer): AnswerSource[] {
-  const cited = new Set(answer.sentences.flatMap((s) => s.citations.map((c) => c.source)));
-  return sources.filter((s) => cited.has(s.key));
+  const order = [...new Set(answer.sentences.flatMap((s) => s.citations.map((c) => c.source)))];
+  return order.flatMap((key) => sources.filter((s) => s.key === key));
 }
