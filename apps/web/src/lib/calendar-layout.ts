@@ -1,4 +1,5 @@
-import { addDays, daysBetween, MINUTES_PER_DAY, startOfDay, wallClock, type CalendarDay } from "./calendar-time";
+import { entryDays, type EntryWhen } from "./calendar";
+import { addDays, daysBetween, inRange, MINUTES_PER_DAY, startOfDay, wallClock, type CalendarDay } from "./calendar-time";
 
 // Where entries sit on the grids. Pure, so the arrangement is tested without a browser.
 
@@ -57,6 +58,27 @@ export function layoutDay(segments: readonly TimedSegment[]): PlacedSegment[] {
   }
   flush();
   return placed;
+}
+
+// One day's column, as the day and week views draw it: the all-day entries for the row on top,
+// and the timed pieces laid out to share the width.
+export function dayColumn<T extends { id: string; when: EntryWhen }>(
+  plans: readonly T[],
+  day: CalendarDay,
+  timeZone: string,
+): { allDay: T[]; timed: (PlacedSegment & { entry: T })[] } {
+  const byId = new Map(plans.map((p) => [p.id, p]));
+  const allDay = plans.filter((p) => p.when.kind === "allDay" && inRange(day, entryDays(p.when, timeZone)));
+  const segments = plans.flatMap((p) => {
+    if (p.when.kind !== "timed") return [];
+    const seg = segmentOn(p.when, day, timeZone);
+    return seg === null ? [] : [{ ...seg, id: p.id }];
+  });
+  const timed = layoutDay(segments).flatMap((seg) => {
+    const entry = byId.get(seg.id);
+    return entry === undefined ? [] : [{ ...seg, entry }];
+  });
+  return { allDay, timed };
 }
 
 // An entry as a bar across a week row (the month grid, the week's all-day row). `order` breaks

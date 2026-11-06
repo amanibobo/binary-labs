@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { layoutDay, layoutSpans, monthRowLines, segmentOn } from "../calendar-layout";
-import { CalendarDay } from "../calendar-time";
+import { dayColumn, layoutDay, layoutSpans, monthRowLines, segmentOn } from "../calendar-layout";
+import { CalendarDay, instantAt } from "../calendar-time";
 
 const d = (s: string) => CalendarDay.parse(s);
 const NY = "America/New_York";
@@ -120,5 +120,53 @@ describe("lines in a month row", () => {
     const out = monthRowLines(busy, [0, 2, 0, 0, 1, 0, 0], 4);
     expect(out.days[1]).toEqual({ start: 0, records: 2, more: 0 });
     expect(out.days[4]).toEqual({ start: 3, records: 1, more: 0 });
+  });
+});
+
+describe("one day's column, as the day view draws it", () => {
+  const at = (day: string, minutes: number) => instantAt(d(day), minutes, NY).toISOString();
+  const timed = (id: string, day: string, from: number, to: number) => ({ id, when: { kind: "timed" as const, start: at(day, from), end: at(day, to) } });
+  const allDay = (id: string, first: string, last: string) => ({ id, when: { kind: "allDay" as const, first: d(first), last: d(last) } });
+  const columns = (out: ReturnType<typeof dayColumn>) => Object.fromEntries(out.timed.map((p) => [p.id, [p.start, p.end, p.column, p.columns]]));
+
+  it("shares the width among overlapping entries and leaves the rest whole", () => {
+    const out = dayColumn(
+      [timed("reads", "2026-11-05", h(14), h(15)), timed("bradford", "2026-11-05", h(14) + 30, h(16)), timed("seminar", "2026-11-05", h(16), h(17))],
+      d("2026-11-05"),
+      NY,
+    );
+    expect(columns(out)).toEqual({ reads: [h(14), h(15), 0, 2], bradford: [h(14) + 30, h(16), 1, 2], seminar: [h(16), h(17), 0, 1] });
+    expect(out.timed.map((p) => p.entry.id)).toEqual(["reads", "bradford", "seminar"]);
+  });
+
+  it("puts all-day entries on top, a long one on each of its days, and leaves out other days'", () => {
+    const plans = [allDay("week", "2026-11-16", "2026-11-20"), allDay("service", "2026-11-12", "2026-11-12"), timed("meeting", "2026-11-16", h(10), h(11))];
+    const out = dayColumn(plans, d("2026-11-18"), NY);
+    expect(out.allDay.map((p) => p.id)).toEqual(["week"]);
+    expect(out.timed).toEqual([]);
+    expect(dayColumn(plans, d("2026-11-16"), NY).allDay.map((p) => p.id)).toEqual(["week"]);
+    expect(dayColumn(plans, d("2026-11-16"), NY).timed.map((p) => p.id)).toEqual(["meeting"]);
+  });
+
+  it("shows an overnight entry on both days, cut at midnight", () => {
+    const dialysis = { id: "dialysis", when: { kind: "timed" as const, start: at("2026-11-06", h(22)), end: at("2026-11-07", h(7)) } };
+    expect(columns(dayColumn([dialysis], d("2026-11-06"), NY))).toEqual({ dialysis: [h(22), h(24), 0, 1] });
+    expect(columns(dayColumn([dialysis], d("2026-11-07"), NY))).toEqual({ dialysis: [0, h(7), 0, 1] });
+  });
+
+  it("overlaps entries in the hour that happens twice when the clocks go back", () => {
+    // 1:30 EDT and 1:30 EST are an hour apart but drawn at the same place.
+    const first = { id: "first", when: { kind: "timed" as const, start: "2026-11-01T05:30:00.000Z", end: "2026-11-01T05:55:00.000Z" } };
+    const second = { id: "second", when: { kind: "timed" as const, start: "2026-11-01T06:30:00.000Z", end: "2026-11-01T07:00:00.000Z" } };
+    expect(columns(dayColumn([first, second], d("2026-11-01"), NY))).toEqual({
+      second: [h(1) + 30, h(2), 0, 2],
+      first: [h(1) + 30, h(1) + 55, 1, 2],
+    });
+  });
+
+  it("draws across the missing hour when the clocks go forward", () => {
+    // 1:30 EST to 3:30 EDT is one hour of real time.
+    const across = { id: "across", when: { kind: "timed" as const, start: "2026-03-08T06:30:00.000Z", end: "2026-03-08T07:30:00.000Z" } };
+    expect(columns(dayColumn([across], d("2026-03-08"), NY))).toEqual({ across: [h(1) + 30, h(3) + 30, 0, 1] });
   });
 });
