@@ -10,8 +10,8 @@ import { HubFiles, HubView, LocalView } from "../map";
 // for a file both labs hold.
 
 const db = new Client({ connectionString: process.env.TEST_DATABASE_URL ?? "postgresql://localhost/binary_labs_web_test" });
-const rosa = "00000000-0000-4000-8000-0000000000f1";
-const sam = "00000000-0000-4000-8000-0000000000f2";
+const rosa = "00000000-0000-4000-8000-000000000a71";
+const sam = "00000000-0000-4000-8000-000000000a72";
 const sha = (n: number) => `f${n.toString(16).padStart(63, "0")}`;
 // One gel both labs hold; each labels it its own way.
 const SHARED = sha(9);
