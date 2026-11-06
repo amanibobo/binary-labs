@@ -273,22 +273,23 @@ page:   GET /api/flags/marks?shas= ──▶ file_flag_marks ──▶ amber "Fl
 
 ## Asking the lab and suggestions
 
-Migration 0019. `questions` holds every question asked, its checked answer, the sources retrieval found (as the page shows them) and what it cost; `answer_feedback` one verdict per member per answer. `suggestions` holds what the AI proposed: a `protocol_edit` (title, body and note drafted on `base_version_id`, the fork point) or `labels` (one `suggestion_labels` row per file, setting only the fields that change). `state` is `open`, `approved` or `dismissed`. All four are lab tables; `suggestion_labels` is a blob reference. Members only read them.
+Migration 0019. `questions` holds every question asked, its checked answer, the sources retrieval found (as the page shows them) and what it cost; `answer_feedback` one verdict per member per answer. `suggestions` holds what the AI proposed: a `protocol_edit` (title, body and note drafted on `base_version_id`, the fork point) or `labels` (one `suggestion_labels` row per file, setting only the fields that change). `state` is `open`, `approved` or `dismissed`. All four are lab tables; `suggestion_labels` is a blob reference. Members only read them. Migration 0022 adds `questions.steps`: the steps the answer's work took, as the page showed them (`AskStep` in `lib/answers.ts`), so an answer opened again shows its own; `record_answer` takes them as `p_steps`.
 
 `model_calls` now keys a call by its file (`sha256`) or by `cache_key`, the sha256 of the prompt version, model, normalized question and the exact `<sources>` block the model read, so a cached answer is one for the same question over the same sources. The file key stays unique, so the worker is unchanged. `labs.ai_monthly_cap_usd` (default 25) caps `answer` plus `suggestion` spend per calendar month (UTC); `ai_budget(lab)` reports it to members.
 
 ```
 Search box ──Enter / "Ask the lab"──▶ POST /api/ask {question}  (no ANTHROPIC_API_KEY: 503, the page says asking isn't set up)
-  askLab (lib/ask.ts), reads as the member under RLS:
-    /embed (1 s) ──▶ ask_context: search_files' top 6 files, each with its best 2 chunks and its table key
-                 ──▶ ask_protocols: matching protocols with their current text
-                 ──▶ parsed tables from <lab>/tables/<sha>.json (3 tables, 40 rows, 600 cells a file)
-    emit sources ──▶ cached_model_output(cache_key)? emit cached sentences
+  askLab (lib/ask.ts), reads as the member under RLS; each step is emitted as it starts (StepLog):
+    step search (running) ──▶ /embed (1 s) ──▶ ask_context: search_files' top 6 files, each with its best 2 chunks and its table key
+                                          ──▶ ask_protocols: matching protocols with their current text
+    step search (found: files, protocols, byMeaning) ──▶ step file per file, step protocol per protocol
+    parsed tables from <lab>/tables/<sha>.json (3 tables, 40 rows, 600 cells a file) ──▶ step table per table, as each is read
+    emit sources ──▶ cached_model_output(cache_key)? step write (cached) ──▶ emit cached sentences
                  ──▶ ai_budget over cap? emit limit (sources stay as the closest files)
-                 ──▶ claude-sonnet-5-5, low effort, structured output {sentences: [{text, citations: [{source, cell}]}]}
+                 ──▶ step write ──▶ claude-sonnet-5-5, low effort, structured output {sentences: [{text, citations: [{source, cell}]}]}
                      each sentence checked as its JSON object closes (SentenceStream) ──▶ emit sentence
-    whole reply checked again ──▶ record_answer (service role) ──▶ questions + model_calls + question.ask ──▶ emit done
-  NDJSON, one AskEvent a line; lib/ask-state.ts is the page's reducer.
+    whole reply checked again ──▶ record_answer (service role, with the steps) ──▶ questions + model_calls + question.ask ──▶ emit done
+  NDJSON, one AskEvent a line; lib/ask-state.ts is the page's reducer and builds the activity list.
 
 "Suggest an edit" / "Suggest label fixes" ──▶ POST /api/suggestions
   suggestProtocolEdit / suggestLabels (lib/suggest.ts) ──▶ model ──▶ checked ──▶ record_suggestion (service role): open rows only
@@ -301,5 +302,6 @@ Search box ──Enter / "Ask the lab"──▶ POST /api/ask {question}  (no AN
 - **Checking citations** (`checkSentence`, `checkAnswer` in `lib/answers.ts`): a citation must name a source key the model was shown (`F1`… files, `P1`… protocols); a cell must be one of the cells it was shown (`Table!C4`), or the file citation stands without it. A sentence left with no citation is dropped; an answer left with no sentence is "not found", and the page lists the closest files.
 - **Where citations go**: a file opens where Search would open it (`openTarget`, or the in-app row for a local folder), a cell opens the file's table in the chart builder, a protocol opens at the cited version (`citationHref`).
 - **Who writes**: the model's output reaches the database only through `record_answer`, `record_suggestion` and `record_spend`, granted to the service role alone and called through `serviceAnswerWriter` (`lib/ask-db.ts`), which can't name anything else. They check the asker is a member of a live lab and insert `questions`, `suggestions`, `suggestion_labels`, `model_calls` and audit rows. Approving is invoker: the version or the corrections are the member's own, through the same triggers as any save, and `settle_suggestion` (definer) marks the suggestion approved only when it finds them, made by the caller in this transaction. A save since the fork fails approval with `BL101` and the suggestion stays open. `BL601` is a suggestion already decided, `BL602` a file not in it, `BL603` a file that isn't a labeled file in the lab.
+- **The answer box** (`components/ask/answer-panel.tsx`, `ask-activity.tsx`): a raised card above the results with a close button, the activity list, the answer and its sources, and feedback and suggestions in its footer. The activity list is the `step` events in order; files, protocols and tables read one after another share a line as chips. Rows appear at most `STEP_STAGGER_MS` (45 ms) apart and the sentences wait for the list to catch up; with reduced motion everything shows at once. When the answer is done the list folds to `activitySummary` and opens again on click. Citation numbers follow the order the answer first cites a source; a citation, its chips and its source row light together (`CitationLinkProvider`). Nothing in the box invents a step: a step is drawn only from an event or from `questions.steps`.
 - **Audit**: `question.ask`, `suggestion.create`, `suggestion.approve`, `suggestion.dismiss`, plus the `protocol.save` the approval makes.
-- Tests: `apps/web/src/lib/__tests__/answers.test.ts` (citation checks, streaming, cache key, cap, diff), `ask.db.test.ts` (RLS, ledger, cache, cap, grants, approve, edit then approve, stale, dismiss, labels), with `pg-ask.ts` standing in for Supabase and `fake-model.ts` for the model. `scripts/eval-ask.sh` is the measured run. Fixtures: `/dev/fixtures/ask?view=answer|no-answer|limit|unavailable|home&q=…` and `/dev/fixtures/suggestions?view=protocol|labels|approved|stale|list`.
+- Tests: `apps/web/src/lib/__tests__/answers.test.ts` (citation checks, streaming, the steps sent and saved, cache key, cap, diff), `ask-state.test.ts` (the reducer and the activity list), `ask.db.test.ts` (RLS, ledger, cache, cap, grants, saved steps, approve, edit then approve, stale, dismiss, labels), with `pg-ask.ts` standing in for Supabase and `fake-model.ts` for the model. `scripts/eval-ask.sh` is the measured run. Fixtures: `/dev/fixtures/ask?view=answer|streaming|cached|no-answer|limit|unavailable|home&q=…` (paced like a real question; `streaming` holds after the first sentence) and `/dev/fixtures/suggestions?view=protocol|labels|approved|stale|list`.
