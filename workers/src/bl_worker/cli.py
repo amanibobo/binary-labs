@@ -155,6 +155,97 @@ def cmd_sample_lab(args: argparse.Namespace) -> None:
     print(lab_id)
 
 
+def cmd_demo_lab(args: argparse.Namespace) -> None:
+    import asyncio
+    import time
+
+    from procrastinate import PsycopgConnector
+
+    from bl_worker import demo_lab
+    from bl_worker.db import connect
+    from bl_worker.embed import HashEmbedder
+    from bl_worker.jobs import app
+    from bl_worker.runtime import build_runtime
+
+    settings = load_settings()
+    with connect(settings.database_url) as conn:
+        try:
+            admin = demo_lab.find_admin(conn, email=args.admin_email, user_id=args.admin_user)
+        except demo_lab.DemoError as e:
+            raise SystemExit(str(e)) from e
+    if args.delete:
+        # Deleting never embeds anything, so the model isn't loaded.
+        rt = build_runtime(settings, embedder=HashEmbedder(), pool_size=2)
+        try:
+            gone = demo_lab.delete(rt, admin)
+        finally:
+            rt.close()
+        print("deleted " + (", ".join(map(str, gone)) if gone else "nothing: no demo lab"))
+        return
+    log = logging.getLogger("bl_worker.demo_lab")
+    rt = build_runtime(settings, pool_size=args.concurrency + 3)
+
+    def left(lab: UUID, files_only: bool) -> dict[str, int]:
+        with rt.pool.connection() as c:
+            return demo_lab.unsettled(c, lab, files_only=files_only)
+
+    async def work(lab: UUID, files_only: bool, deadline: float) -> dict[str, int]:
+        # The real worker, periodic tasks and all, stopped once this lab is done; jobs it
+        # started finish first. Other labs' jobs run as they would on any worker.
+        async with app.open_async():
+            task = asyncio.create_task(
+                app.run_worker_async(
+                    concurrency=args.concurrency,
+                    additional_context={"runtime": rt},
+                    delete_jobs="successful",
+                    install_signal_handlers=False,
+                )
+            )
+            try:
+                while True:
+                    remaining = await asyncio.to_thread(left, lab, files_only)
+                    if not remaining or time.monotonic() > deadline or task.done():
+                        return remaining
+                    await asyncio.sleep(2)
+            finally:
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
+
+    def settle(lab: UUID, files_only: bool) -> None:
+        deadline = time.monotonic() + args.timeout
+        what = "its files" if files_only else "everything"
+        log.info("waiting for the worker to finish %s in lab %s", what, lab)
+        if args.no_worker:
+            while (remaining := left(lab, files_only)) and time.monotonic() < deadline:
+                time.sleep(2)
+        else:
+            with app.replace_connector(PsycopgConnector(conninfo=settings.database_url)):
+                remaining = asyncio.run(work(lab, files_only, deadline))
+        if remaining:
+            raise SystemExit(f"lab {lab} not settled after {args.timeout}s: {remaining}; run again")
+
+    started = time.monotonic()
+    try:
+        if args.replace:
+            gone = demo_lab.delete(rt, admin)
+            if gone:
+                print("deleted " + ", ".join(map(str, gone)))
+        lab = demo_lab.build(rt, admin, settle)
+        with rt.pool.connection() as conn:
+            print(demo_lab.summary(conn, lab).text())
+            first = conn.execute(
+                "select l.name from members m join labs l on l.id = m.lab_id"
+                " where m.user_id = %s and l.deletion_requested_at is null"
+                " order by m.created_at limit 1",
+                (admin,),
+            ).fetchone()
+        print(f"took {time.monotonic() - started:.0f}s")
+        if first is not None and first[0] != demo_lab.LAB_NAME:
+            print(f"note: the app opens a user's first lab, which for this user is {first[0]!r}")
+    finally:
+        rt.close()
+
+
 def cmd_eval_labels(args: argparse.Namespace) -> None:
     from bl_worker.db import connect
     from bl_worker.labels.evaluate import load_expected, score
@@ -198,6 +289,19 @@ def main(argv: list[str] | None = None) -> None:
     p = sub.add_parser("sample-lab", help="dev: a lab over a sample folder, with its lists")
     p.add_argument("folder")
     p.set_defaults(func=cmd_sample_lab)
+
+    p = sub.add_parser(
+        "demo-lab", help="a fake, fully populated lab for an existing user (or --delete it)"
+    )
+    who = p.add_mutually_exclusive_group(required=True)
+    who.add_argument("--admin-email")
+    who.add_argument("--admin-user", type=UUID)
+    p.add_argument("--delete", action="store_true", help="delete this user's demo lab")
+    p.add_argument("--replace", action="store_true", help="delete it first, then build afresh")
+    p.add_argument("--no-worker", action="store_true", help="wait for a worker running elsewhere")
+    p.add_argument("--concurrency", type=int, default=4)
+    p.add_argument("--timeout", type=int, default=1800, help="seconds to wait for each settle")
+    p.set_defaults(func=cmd_demo_lab)
 
     p = sub.add_parser("eval-labels", help="score stored labels against evals/labels_expected.json")
     p.add_argument("db", help="database URL")
