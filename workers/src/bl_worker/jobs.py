@@ -19,6 +19,7 @@ from bl_worker import (
     videos,
 )
 from bl_worker.labels import job as labels
+from bl_worker.labels import notes, sweep
 from bl_worker.labels.learning import learn_pending
 from bl_worker.runtime import Runtime
 
@@ -134,11 +135,26 @@ async def tend_labels(context: JobContext, timestamp: int) -> None:
         learn_pending(rt)
         with rt.pool.connection() as conn:
             todo = labels.unlabeled(conn, models=rt.models is not None)
-        return sum(defer_label(lab_id, sha) for lab_id, sha in todo)
+            # The gentle re-label sweep: a few labels from an older prompt each tick.
+            stale = sweep.stale_labels(conn) if rt.models is not None else []
+        deferred = sum(defer_label(lab_id, sha) for lab_id, sha in [*todo, *stale])
+        return deferred + sum(defer_note(lab, note) for lab, note in notes.tend_notes(rt))
 
     deferred = await asyncio.to_thread(tend)
     if deferred:
         log.info("deferred %d label jobs", deferred)
+
+
+def defer_note(lab_id: UUID, note_id: UUID) -> bool:
+    return _defer_locked(
+        "label_note", f"note:{note_id}", lab_id=str(lab_id), note_id=str(note_id)
+    )
+
+
+@app.task(name="label_note", pass_context=True, retry=RetryStrategy(max_attempts=3, wait=10))
+def label_note(context: JobContext, lab_id: str, note_id: str) -> None:
+    draft = notes.label_note(_runtime(context), UUID(note_id))
+    log.info("note %s: %s", note_id, draft.status if draft else "skipped")
 
 
 # lab_id rides along so a lab's deletion clears its queued jobs (deletion.LAB_JOBS).

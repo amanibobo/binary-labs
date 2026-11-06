@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from bl_worker.labels.domain import Draft, FileInfo, LabelStatus, Proposal, Strength
+from dataclasses import replace
+
+from bl_worker.domain import FileKind
+from bl_worker.labels.domain import Draft, FileInfo, LabelStatus, NoteKind, Proposal, Strength
 from bl_worker.labels.tier1 import Tier1, is_unknown_format
 
 SUGGESTED_AT = 0.85
@@ -45,7 +48,51 @@ def tier3_reason(f: FileInfo, t1: Tier1, t2: Proposal | None) -> str | None:
     return None
 
 
-def decide(t1: Tier1, proposal: Proposal | None) -> Draft:
+def rules_note_kind(f: FileInfo) -> NoteKind | None:
+    """What kind of file rules alone can tell, for a label no model wrote."""
+    if f.file_kind == FileKind.IMAGE:
+        return NoteKind.IMAGE
+    if f.file_kind == FileKind.SPREADSHEET:
+        return NoteKind.DATA
+    if "protocol" in f.path.lower():
+        return NoteKind.PROTOCOL
+    return None
+
+
+def decide(
+    t1: Tier1,
+    proposal: Proposal | None,
+    *,
+    file: FileInfo | None = None,
+    prompt_version: int | None = None,
+) -> Draft:
+    """The label to write. `prompt_version` is the label prompt the model calls used, or None
+    when no model ran."""
+    extras: dict[str, object] = {"prompt_version": prompt_version}
+    if proposal is not None:
+        extras |= {
+            "note_kind": proposal.note_kind,
+            "outcome": proposal.outcome,
+            "summary": proposal.summary,
+            "conditions": proposal.conditions,
+            "alternatives": proposal.alternatives,
+            "unclear": proposal.unclear,
+            "follow_up": proposal.follow_up,
+        }
+    elif file is not None:
+        extras["note_kind"] = rules_note_kind(file)
+    draft = _decide(t1, proposal)
+    # Something Binary couldn't read always asks for a look, even under a taught rule.
+    if proposal is not None and proposal.unclear and draft.status == LabelStatus.SUGGESTED:
+        draft = replace(draft, status=LabelStatus.CHECK)
+    if draft.status != LabelStatus.CHECK:
+        extras["alternatives"] = ()
+    if draft.status == LabelStatus.NEEDS_LOOK:
+        extras = {"prompt_version": prompt_version}
+    return replace(draft, **extras)  # type: ignore[arg-type]
+
+
+def _decide(t1: Tier1, proposal: Proposal | None) -> Draft:
     if proposal is None:
         name, confidence = t1.clean_name(), t1.confidence()
         experiment = t1.experiment.value if t1.experiment else None

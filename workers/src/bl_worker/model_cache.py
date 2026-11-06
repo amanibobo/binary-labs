@@ -18,19 +18,21 @@ def cached_call(
     conn: psycopg.Connection,
     models: Models | None,
     lab_id: UUID,
-    sha256: str,
+    sha256: str | None,
     purpose: str,
     request: ModelRequest,
     version: int,
     *,
     call_models: bool = True,
+    cache_key: str | None = None,
 ) -> str | None:
-    """The model's JSON text for this blob in this lab, from the cache or from one new call."""
-    key = (lab_id, sha256, purpose, request.model, version)
+    """The model's JSON text for this blob in this lab, from the cache or from one new call.
+    A call that reads several files (a note's pages) is keyed by `cache_key` instead."""
+    assert (sha256 is None) != (cache_key is None)
     row = conn.execute(
-        "select output from model_calls where lab_id = %s and sha256 = %s and purpose = %s"
-        " and model = %s and prompt_version = %s",
-        key,
+        "select output from model_calls where lab_id = %s and purpose = %s and model = %s"
+        " and prompt_version = %s and (sha256 = %s or cache_key = %s)",
+        (lab_id, purpose, request.model, version, sha256, cache_key),
     ).fetchone()
     if row is not None:
         return row[0].get("text")
@@ -39,11 +41,16 @@ def cached_call(
     reply = models.call(request)
     cost = reply.usage.cost_usd(request.model)
     conn.execute(
-        "insert into model_calls (lab_id, sha256, purpose, model, prompt_version, output,"
-        " input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, cost_usd)"
-        " values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) on conflict do nothing",
+        "insert into model_calls (lab_id, sha256, cache_key, purpose, model, prompt_version,"
+        " output, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, cost_usd)"
+        " values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) on conflict do nothing",
         (
-            *key,
+            lab_id,
+            sha256,
+            cache_key,
+            purpose,
+            request.model,
+            version,
             Jsonb({"text": reply.text, "stop_reason": reply.stop_reason}),
             reply.usage.input_tokens,
             reply.usage.output_tokens,
@@ -60,7 +67,7 @@ def cached_call(
         " lab %s running total $%s",
         request.model,
         purpose,
-        sha256[:12],
+        (sha256 or cache_key or "")[:12],
         reply.usage.input_tokens,
         reply.usage.cache_read_tokens,
         reply.usage.cache_write_tokens,

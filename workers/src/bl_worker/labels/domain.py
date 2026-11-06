@@ -23,6 +23,77 @@ class LabelStatus(StrEnum):
 HUMAN_STATUSES = frozenset({LabelStatus.ACCEPTED, LabelStatus.CORRECTED})
 
 
+class Outcome(StrEnum):
+    """Mirrors label_outcome in db/migrations/0025_smart_labels.sql."""
+
+    WORKED = "worked"
+    FAILED = "failed"
+    REPEAT = "repeat"
+    FINAL = "final"
+    UNCLEAR = "unclear"
+
+
+class NoteKind(StrEnum):
+    """Mirrors note_kind: it decides which facts a label pulls out."""
+
+    EXPERIMENT_NOTES = "experiment_notes"
+    MEETING_NOTES = "meeting_notes"
+    READING_SUMMARY = "reading_summary"
+    LECTURE = "lecture"
+    PROTOCOL = "protocol"
+    DATA = "data"
+    IMAGE = "image"
+    OTHER = "other"
+
+
+class ConditionKind(StrEnum):
+    CONDITION = "condition"
+    SAMPLE = "sample"
+    MATERIAL = "material"
+    ATTENDEE = "attendee"
+    DECISION = "decision"
+
+
+# What a value reads as when the file doesn't show it clearly. Never a guess.
+UNCLEAR = "[unclear]"
+
+
+@dataclass(frozen=True)
+class Condition:
+    """One key fact behind a label: drug A 0.1–100 µM, 37 °C, plate 3, triplicate."""
+
+    kind: ConditionKind
+    what: str
+    value: str | None
+    unit: str | None
+
+    def json(self) -> dict[str, str | None]:
+        return {"kind": self.kind.value, "what": self.what, "value": self.value, "unit": self.unit}
+
+
+@dataclass(frozen=True)
+class Choice:
+    label: str
+    # An experiment id or a YYYY-MM-DD day.
+    value: str
+
+
+@dataclass(frozen=True)
+class FollowUp:
+    """One short question for a voice note whose experiment or date it couldn't place."""
+
+    field: str  # "experiment" or "date"
+    question: str
+    choices: tuple[Choice, ...]
+
+    def json(self) -> dict[str, object]:
+        return {
+            "field": self.field,
+            "question": self.question,
+            "choices": [{"label": c.label, "value": c.value} for c in self.choices],
+        }
+
+
 class RuleKind(StrEnum):
     FOLDER_EXPERIMENT = "folder_experiment"
     FOLDER_PERSON = "folder_person"
@@ -75,6 +146,8 @@ class LabContext:
     people: tuple[Person, ...] = ()
     rules: tuple[LabRule, ...] = ()
     examples: tuple[Example, ...] = ()
+    # The tags the lab already uses, most used first, so new labels reuse its words.
+    tags: tuple[str, ...] = ()
 
     def experiment(self, id: UUID | None) -> Experiment | None:
         return next((e for e in self.experiments if e.id == id), None)
@@ -128,6 +201,8 @@ class FileInfo:
     upload: Upload | None = None
     # The name the lab gave the instrument whose uploader sent this file.
     instrument: str | None = None
+    # Recent titles from the same experiment or folder, so wording stays consistent.
+    neighbors: tuple[str, ...] = ()
 
     @property
     def path(self) -> str:
@@ -158,6 +233,13 @@ class Proposal:
     confidence: float
     reason: str
     model: str
+    note_kind: NoteKind | None = None
+    outcome: Outcome | None = None
+    summary: str | None = None
+    conditions: tuple[Condition, ...] = ()
+    alternatives: tuple[str, ...] = ()
+    unclear: tuple[str, ...] = ()
+    follow_up: FollowUp | None = None
 
 
 @dataclass(frozen=True)
@@ -174,6 +256,15 @@ class Draft:
     confidence: float
     source: str
     reason: str | None
+    note_kind: NoteKind | None = None
+    outcome: Outcome | None = None
+    summary: str | None = None
+    conditions: tuple[Condition, ...] = ()
+    alternatives: tuple[str, ...] = ()
+    unclear: tuple[str, ...] = ()
+    follow_up: FollowUp | None = None
+    # The label prompt version behind the model fields; None for rules alone.
+    prompt_version: int | None = None
 
 
 SEPARATORS = re.compile(r"[\W_]+")

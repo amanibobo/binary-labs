@@ -5,21 +5,27 @@ version), so re-running converges without paying twice."""
 from __future__ import annotations
 
 import logging
+from dataclasses import replace
 from typing import Any
 from uuid import UUID
 
 import psycopg
 from psycopg.rows import dict_row
+from psycopg.types.json import Jsonb
 
 from bl_worker import process
 from bl_worker.domain import ExtractionKind, FileKind
 from bl_worker.labels.decide import decide, tier3_reason
 from bl_worker.labels.domain import (
     HUMAN_STATUSES,
+    Choice,
+    Condition,
+    ConditionKind,
     Draft,
     Example,
     Experiment,
     FileInfo,
+    FollowUp,
     LabContext,
     LabelStatus,
     LabRule,
@@ -27,10 +33,12 @@ from bl_worker.labels.domain import (
     Proposal,
     RuleKind,
     Upload,
+    folder_of,
 )
 from bl_worker.labels.prompt import (
     CAPTION_INSTRUCTIONS,
     CAPTION_PROMPT_VERSION,
+    LAB_TAGS,
     LABEL_INSTRUCTIONS,
     LABEL_PROMPT_VERSION,
     CaptionOutput,
@@ -41,8 +49,10 @@ from bl_worker.labels.prompt import (
     lab_context_text,
     parse_caption,
     parse_label,
+    source_text,
 )
 from bl_worker.labels.tier1 import Tier1, tier1
+from bl_worker.labels.titles import differing_detail, with_detail
 from bl_worker.model_cache import cached_call
 from bl_worker.models import TIER2_MODEL, TIER3_MODEL, Image, ModelRequest
 from bl_worker.previews import preview_key
@@ -145,7 +155,46 @@ def load_context(conn: psycopg.Connection, lab_id: UUID) -> LabContext:
         Example(path or "", _shown(ctx, before), _shown(ctx, after))
         for before, after, path in reversed(rows)
     )
-    return LabContext(experiments, people, rules, examples)
+    tags = tuple(
+        t
+        for (t,) in conn.execute(
+            "select t from labels l, unnest(l.tags) t where l.lab_id = %s"
+            " and l.status <> 'needs_look' group by t order by count(*) desc, t limit %s",
+            (lab_id, LAB_TAGS),
+        )
+    )
+    return LabContext(experiments, people, rules, examples, tags)
+
+
+NEIGHBORS = 5
+
+
+def recent_titles(
+    conn: psycopg.Connection, f: FileInfo, experiment_id: UUID | None
+) -> tuple[str, ...]:
+    """A few recent titles from the same experiment, else from the same folder, so a new
+    label is worded like its neighbors."""
+    folder = folder_of(f.path)
+    rows = conn.execute(
+        """
+        select l.clean_name from labels l
+        where l.lab_id = %(lab)s and l.sha256 <> %(sha)s and l.clean_name is not null
+          and l.status <> 'needs_look'
+          and (case when %(exp)s::uuid is not null then l.experiment_id = %(exp)s
+            else exists (select 1 from file_locations fl where fl.lab_id = l.lab_id
+              and fl.sha256 = l.sha256 and fl.deleted_at is null
+              and lower(fl.path) like %(folder)s || '/%%') end)
+        order by l.updated_at desc limit %(n)s
+        """,
+        {
+            "lab": f.lab_id,
+            "sha": f.sha256,
+            "exp": experiment_id,
+            "folder": folder.rstrip("/"),
+            "n": NEIGHBORS,
+        },
+    ).fetchall()
+    return tuple(dict.fromkeys(r[0] for r in rows))
 
 
 def _shown(ctx: LabContext, state: dict[str, Any]) -> dict[str, Any]:
@@ -158,6 +207,8 @@ def _shown(ctx: LabContext, state: dict[str, Any]) -> dict[str, Any]:
         "person": person.name if person else None,
         "instrument": state.get("instrument"),
         "tags": state.get("tags", []),
+        "outcome": state.get("outcome"),
+        "summary": state.get("summary"),
     }
 
 
@@ -231,57 +282,214 @@ def _ask(
     if text is None:
         return None
     try:
-        return parse_label(text, ctx, model)
+        return parse_label(text, ctx, model, source=source_text(f), kind=f.file_kind)
     except InvalidOutput as e:
         log.warning("%s label for %s unusable: %s", model, f.sha256[:12], e)
         return None
 
 
+def propose(
+    conn: psycopg.Connection,
+    rt: Runtime,
+    f: FileInfo,
+    ctx: LabContext,
+    t1: Tier1,
+    *,
+    call_models: bool,
+) -> tuple[Proposal | None, bool]:
+    """Tier 2, then Tier 3 when Tier 2 isn't sure. Also says whether a model answered
+    (fresh or cached) at the current prompt version."""
+    proposal = _ask(conn, rt, f, ctx, t1, TIER2_MODEL, None, call_models)
+    if rt.models is not None or not call_models:
+        why = tier3_reason(f, t1, proposal)
+        if why is not None:
+            log.info("tier 3 for %s: %s", f.sha256[:12], why)
+            proposal = _ask(conn, rt, f, ctx, t1, TIER3_MODEL, proposal, call_models) or proposal
+    asked = conn.execute(
+        "select 1 from model_calls where lab_id = %s and sha256 = %s and purpose = 'label'"
+        " and prompt_version = %s limit 1",
+        (f.lab_id, f.sha256, LABEL_PROMPT_VERSION),
+    ).fetchone()
+    return proposal, asked is not None
+
+
+def note_cover(conn: psycopg.Connection, lab_id: UUID, sha256: str) -> UUID | None:
+    """The note whose first page this file is, if any: that page carries the note's label."""
+    row = conn.execute(
+        "select np.note_id from note_pages np where np.lab_id = %s and np.sha256 = %s"
+        " and np.live and np.position = (select min(p.position) from note_pages p"
+        " where p.note_id = np.note_id and p.live)",
+        (lab_id, sha256),
+    ).fetchone()
+    return row[0] if row else None
+
+
 def label_blob(rt: Runtime, lab_id: UUID, sha256: str, *, call_models: bool = True) -> Draft | None:
-    """Labels one blob for one lab. Never touches a label a person accepted or corrected.
-    With call_models=False only cached model answers are used (re-suggesting)."""
+    """Labels one blob for one lab. Never touches a value a person accepted or corrected; a
+    label from before the current prompt gets only the fields it didn't have. The first page of
+    a note is labeled as the whole note. With call_models=False only cached model answers are
+    used (re-suggesting)."""
+    with rt.pool.connection() as conn:
+        note = note_cover(conn, lab_id, sha256)
+    if note is not None:
+        from bl_worker.labels.notes import label_note
+
+        return label_note(rt, note, call_models=call_models)
     with rt.pool.connection() as conn:
         f = load_file(conn, lab_id, sha256)
         if f is None:
             return None
         current = conn.execute(
-            "select status from labels where lab_id = %s and sha256 = %s", (lab_id, sha256)
+            "select status, prompt_version from labels where lab_id = %s and sha256 = %s",
+            (lab_id, sha256),
         ).fetchone()
-        if current is not None and LabelStatus(current[0]) in HUMAN_STATUSES:
+        human = current is not None and LabelStatus(current[0]) in HUMAN_STATUSES
+        if human and (current[1] or 0) >= LABEL_PROMPT_VERSION:
             return None
         ctx = load_context(conn, lab_id)
         if call_models:
             f = ensure_caption(conn, rt, f)
         t1 = tier1(f, ctx)
-        proposal = _ask(conn, rt, f, ctx, t1, TIER2_MODEL, None, call_models)
-        if rt.models is not None or not call_models:
-            why = tier3_reason(f, t1, proposal)
-            if why is not None:
-                log.info("tier 3 for %s: %s", sha256[:12], why)
-                proposal = (
-                    _ask(conn, rt, f, ctx, t1, TIER3_MODEL, proposal, call_models) or proposal
-                )
-        draft = decide(t1, proposal)
+        experiment = t1.experiment.value.id if t1.experiment else None
+        if experiment is None and f.upload is not None:
+            experiment = f.upload.experiment_id
+        f = replace(f, neighbors=recent_titles(conn, f, experiment))
+        proposal, asked = propose(conn, rt, f, ctx, t1, call_models=call_models)
+        draft = decide(t1, proposal, file=f, prompt_version=LABEL_PROMPT_VERSION if asked else None)
+        if human:
+            if asked:
+                fill_new_fields(conn, lab_id, sha256, draft)
+            return None
+        draft = with_follow_up_choices(conn, f, ctx, draft)
+        draft = distinct_title(conn, f, draft)
         write_label(conn, lab_id, sha256, draft)
         return draft
 
 
-UPSERT_LABEL = """
-insert into labels as l (lab_id, sha256, status, clean_name, date, experiment_id, person_id,
-  instrument, tags, confidence, source, reason, updated_at)
+def with_follow_up_choices(
+    conn: psycopg.Connection, f: FileInfo, ctx: LabContext, d: Draft
+) -> Draft:
+    """A voice note's question offers at least two choices: the model's, then the lab's
+    recent experiments or the recent days with files. No question once the field is known."""
+    q = d.follow_up
+    if q is None:
+        return d
+    if (q.field == "experiment" and d.experiment_id is not None) or (
+        q.field == "date" and d.date is not None
+    ):
+        return replace(d, follow_up=None)
+    choices = list(q.choices)
+    if len(choices) < 2 and q.field == "experiment":
+        for (exp_id,) in conn.execute(
+            "select l.experiment_id from labels l where l.lab_id = %s and l.experiment_id"
+            " is not null group by 1 order by max(l.updated_at) desc limit 4",
+            (f.lab_id,),
+        ):
+            exp = ctx.experiment(exp_id)
+            if exp is not None:
+                choices.append(Choice(exp.name, str(exp.id)))
+    elif len(choices) < 2:
+        for (day,) in conn.execute(
+            "select distinct l.date from labels l where l.lab_id = %s and l.date"
+            " between %s::date - 14 and %s::date order by l.date desc limit 4",
+            (f.lab_id, f.modified_at.date(), f.modified_at.date()),
+        ):
+            choices.append(Choice(day.strftime("%a, %b %-d"), day.isoformat()))
+    unique = tuple({c.value: c for c in choices}.values())[:4]
+    if not unique:
+        return replace(d, follow_up=None)
+    return replace(d, follow_up=FollowUp(q.field, q.question, unique))
+
+
+def distinct_title(conn: psycopg.Connection, f: FileInfo, d: Draft) -> Draft:
+    """When another file in the lab already has this title, both get the one detail that
+    tells them apart; a title a person gave stays as it is."""
+    if d.clean_name is None:
+        return d
+    rows = conn.execute(
+        """
+        select l.sha256, l.status, l.conditions,
+          (select fl.path from file_locations fl where fl.lab_id = l.lab_id
+            and fl.sha256 = l.sha256 and fl.deleted_at is null order by fl.modified_at desc limit 1)
+        from labels l
+        where l.lab_id = %s and l.sha256 <> %s and lower(l.clean_name) = lower(%s)
+          and exists (select 1 from file_locations fl where fl.lab_id = l.lab_id
+            and fl.sha256 = l.sha256 and fl.deleted_at is null)
+        """,
+        (f.lab_id, f.sha256, d.clean_name),
+    ).fetchall()
+    name = d.clean_name
+    for other_sha, status, other_conditions, other_path in rows:
+        if other_path is None:
+            continue
+        theirs = tuple(
+            Condition(ConditionKind(c["kind"]), c["what"], c["value"], c["unit"])
+            for c in other_conditions
+        )
+        details = differing_detail(f.path, other_path, d.conditions, theirs)
+        if details is None:
+            continue
+        mine, other = details
+        if mine:
+            name = with_detail(name, mine)
+        if other and LabelStatus(status) not in HUMAN_STATUSES:
+            conn.execute(
+                "update labels set clean_name = %s, updated_at = now()"
+                " where lab_id = %s and sha256 = %s and status not in ('accepted', 'corrected')",
+                (with_detail(d.clean_name, other), f.lab_id, other_sha),
+            )
+        break
+    return replace(d, clean_name=name)
+
+
+FILL_NEW_FIELDS = """
+update labels set note_kind = %(note_kind)s, outcome = %(outcome)s, summary = %(summary)s,
+  conditions = %(conditions)s, prompt_version = %(prompt_version)s, updated_at = now()
+where lab_id = %(lab_id)s and sha256 = %(sha256)s and status in ('accepted', 'corrected')
+  and coalesce(prompt_version, 0) < %(prompt_version)s
+"""
+
+
+def fill_new_fields(conn: psycopg.Connection, lab_id: UUID, sha256: str, d: Draft) -> None:
+    """A label a person confirmed before outcomes and summaries existed gets them, and nothing
+    else of it changes."""
+    conn.execute(
+        FILL_NEW_FIELDS,
+        {
+            "lab_id": lab_id,
+            "sha256": sha256,
+            "note_kind": d.note_kind,
+            "outcome": d.outcome,
+            "summary": d.summary,
+            "conditions": Jsonb([c.json() for c in d.conditions]),
+            "prompt_version": d.prompt_version,
+        },
+    )
+
+
+LABEL_COLUMNS = (
+    "status, clean_name, date, experiment_id, person_id, instrument, tags, confidence, source,"
+    " reason, note_kind, outcome, summary, conditions, alternatives, unclear, follow_up,"
+    " prompt_version"
+)
+
+UPSERT_LABEL = f"""
+insert into labels as l (lab_id, sha256, {LABEL_COLUMNS}, updated_at)
 values (%(lab_id)s, %(sha256)s, %(status)s, %(clean_name)s, %(date)s, %(experiment_id)s,
-  %(person_id)s, %(instrument)s, %(tags)s, %(confidence)s, %(source)s, %(reason)s, now())
+  %(person_id)s, %(instrument)s, %(tags)s, %(confidence)s, %(source)s, %(reason)s,
+  %(note_kind)s, %(outcome)s, %(summary)s, %(conditions)s, %(alternatives)s, %(unclear)s,
+  %(follow_up)s, %(prompt_version)s, now())
 on conflict (lab_id, sha256) do update set
   status = excluded.status, clean_name = excluded.clean_name, date = excluded.date,
   experiment_id = excluded.experiment_id, person_id = excluded.person_id,
   instrument = excluded.instrument, tags = excluded.tags, confidence = excluded.confidence,
-  source = excluded.source, reason = excluded.reason, updated_at = now()
+  source = excluded.source, reason = excluded.reason, note_kind = excluded.note_kind,
+  outcome = excluded.outcome, summary = excluded.summary, conditions = excluded.conditions,
+  alternatives = excluded.alternatives, unclear = excluded.unclear,
+  follow_up = excluded.follow_up, prompt_version = excluded.prompt_version, updated_at = now()
 where l.status not in ('accepted', 'corrected')
-  and (l.status, l.clean_name, l.date, l.experiment_id, l.person_id, l.instrument, l.tags,
-    l.confidence, l.source)
-    is distinct from (excluded.status, excluded.clean_name, excluded.date,
-    excluded.experiment_id, excluded.person_id, excluded.instrument, excluded.tags,
-    excluded.confidence, excluded.source)
+  and ({", ".join("l." + c.strip() for c in LABEL_COLUMNS.split(","))})
+    is distinct from ({", ".join("excluded." + c.strip() for c in LABEL_COLUMNS.split(","))})
 """
 
 
@@ -301,6 +509,14 @@ def write_label(conn: psycopg.Connection, lab_id: UUID, sha256: str, d: Draft) -
             "confidence": d.confidence,
             "source": d.source,
             "reason": d.reason,
+            "note_kind": d.note_kind,
+            "outcome": d.outcome,
+            "summary": d.summary,
+            "conditions": Jsonb([c.json() for c in d.conditions]),
+            "alternatives": list(d.alternatives),
+            "unclear": list(d.unclear),
+            "follow_up": Jsonb(d.follow_up.json()) if d.follow_up else None,
+            "prompt_version": d.prompt_version,
         },
     )
 
