@@ -5,12 +5,13 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import { ChartSvg, EXPORT_INK } from "@/components/charts/chart-svg";
+import { ChartSvg, EXPORT_INK, PlateSvg } from "@/components/charts/chart-svg";
 import { ChartRows, ChartSpec, checkSpec, startingSpec } from "../charts";
 import { plotChart } from "../chart-geometry";
+import { plotPlate } from "../plate-geometry";
 import { LabId } from "../ids";
 
-// Driven by scripts/e2e-charts.sh, which runs the real worker over three instrument exports
+// Driven by scripts/e2e-charts.sh, which runs the real worker over five instrument exports
 // first. Skipped in the normal unit run.
 const env = z
   .object({ E2E_DATABASE_URL: z.string(), E2E_USER: z.string().min(1), E2E_LAB: z.string().min(1), E2E_OUT: z.string().min(1) })
@@ -50,7 +51,13 @@ describe.runIf(env.success)("a chart from a processed file, through the routes' 
             [lab],
           ),
         );
-      expect(files.map((f) => f.name).sort()).toEqual(["Bradford_2026-10-30.xlsx", "SEC_trace_141026.csv", "plate7_A420.csv"]);
+      expect(files.map((f) => f.name).sort()).toEqual([
+        "Bioreactor_run12.csv",
+        "Bradford_2026-10-30.xlsx",
+        "ELISA_plate3.csv",
+        "SEC_trace_141026.csv",
+        "plate7_A420.csv",
+      ]);
 
       for (const file of files) {
         const doc = await readTables(lab, file.storage_key);
@@ -75,9 +82,18 @@ describe.runIf(env.success)("a chart from a processed file, through the routes' 
         );
         expect(saved?.createdBy).toBe(E2E_USER);
 
-        const plot = plotChart(spec, table, { width: 960, height: 560 }, { title: file.name });
-        const svg = renderToStaticMarkup(createElement(ChartSvg, { plot, ink: EXPORT_INK, clipId: "plot", label: file.name }));
-        expect(svg).toMatch(/^<svg xmlns="http:\/\/www.w3.org\/2000\/svg" width="960" height="560"/);
+        // The ELISA list starts as a plate heatmap; the rest as x/y charts.
+        expect(spec.type === "heatmap").toBe(file.name.startsWith("ELISA"));
+        const svg =
+          spec.type === "heatmap"
+            ? renderToStaticMarkup(
+                createElement(PlateSvg, { plot: plotPlate(spec, table, { width: 960, height: 560 }, { title: file.name }), ink: EXPORT_INK, gradientId: "scale", label: file.name }),
+              )
+            : renderToStaticMarkup(
+                createElement(ChartSvg, { plot: plotChart(spec, table, { width: 960, height: 560 }, { title: file.name }), ink: EXPORT_INK, clipId: "plot", label: file.name }),
+              );
+        expect(svg).toMatch(/^<svg xmlns="http:\/\/www.w3.org\/2000\/svg" width="960" height="\d+"/);
+        if (file.name.startsWith("Bioreactor")) expect(svg).toContain(">Nov 12<");
         expect(svg).not.toContain("var(--");
         const out = join(E2E_OUT, `${file.name}.svg`);
         writeFileSync(out, `<?xml version="1.0" encoding="UTF-8"?>\n${svg}`);
