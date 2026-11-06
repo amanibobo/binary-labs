@@ -323,9 +323,9 @@ The operator asked for "a mind map like Obsidian that connects the notes, files,
 
 Measured on a generated pilot-sized lab (20,000 files, 50 experiments, 15 people, 30 protocols, 4 instruments; `scripts/measure_map.py scale`, local Postgres on an M4 Mac):
 
-- **Neighbor cache.** NEIGHBORS_NUMBERS
-- **Load.** MAP_QUERY_NUMBERS
+- **Neighbor cache.** Building every vector and list from nothing took 231 s on a quiet machine and 359 s on a busy one (12 to 18 ms a file), once per lab; a lab being indexed builds them as files arrive. After that, one changed file redid 4 lists in 24 to 280 ms, ten redid 32 in 0.2 to 0.7 s, a hundred redid 522 in 2.2 to 3.2 s. 80,000 rows, exactly 5 a file on the generated lab. On the real sample lab with the hash embedder (`scripts/e2e-map.sh`) the cache settled 22 s after the worker started, its refreshes taking 0.07 and 0.12 s.
+- **Load** (median of five calls as a member, JSON as sent, then gzipped; the range is a quiet machine to a busy one): the hubs 0.29 to 0.74 s, 70 KB (6.7 KB gzipped); one hub's 400 files 0.22 to 0.53 s, 200 KB (10 KB), with similar in meaning 1.3 s, 216 KB (11 KB); a file's map 0.04 to 0.19 s, 1 KB, two steps out 0.32 s, 22 KB, two steps with similar 0.73 s, 80 KB (4 KB); the biggest experiment's map 0.18 s one step, 0.54 s two. The page itself opens with the hubs only, so no view ever sends 20,000 files.
 - **Frames** (`apps/web/scripts/map-perf.mjs`, headless Chromium at 2x on the generated lab in the browser): the hubs, one hub open (401 files) and two open with similar in meaning on (648 files) settle and pan at 60 frames a second (p50 and p95 16.7 ms). Every hub open at once (13,850 files) settles at p50 16.7 ms, p95 33 ms, and pans at 60, because a map that big settles in 100 ticks instead of 300 and holds its layout still while it's panned or zoomed. A tick of the 20,000-node layout takes about 25 ms.
-- **Bundle.** BUNDLE_NUMBERS
+- **Bundle.** The map page's own chunk (graph, layout, canvas and controls) is 32 KB minified and 12 KB gzipped in `next build`; no library was added.
 
 Not built: tags as nodes; similar-in-meaning edges in the hubs-only view (they're drawn between files that are showing); a saved camera or open hubs per person; a map in the opened row itself rather than a link to one. The neighbor floor is calibrated on 43 files; a real lab may want it moved. Open: on Supabase the vectors and lists of a 20,000-file lab take about 330 MB (most of it the HNSW index and 4 KB vectors), on top of the chunks' own; `halfvec` would halve it.
