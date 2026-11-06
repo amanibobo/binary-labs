@@ -98,6 +98,31 @@ function readLayout(table: DataTable): PlateLayout | null {
   return { kind: "read", size: sizeFor(wells.map((w) => w.well)), wells, time };
 }
 
+// A plate grid of words rather than readings: an instrument's layout block (BLK, STD1, SPL1,
+// "Drug A"), which the parser keeps as a table from version 3.
+export type LabelGrid = { size: PlateSize; rows: TextColumn; columns: { column: TextColumn; index: number }[] };
+
+export function labelGrid(table: DataTable): LabelGrid | null {
+  const letters = table.columns[0];
+  if (letters?.kind !== "text") return null;
+  const values = letters.values.filter((v): v is string => v !== null).map((v) => v.trim().toUpperCase());
+  if (values.length < 2 || !values.every((v, i) => v === ROW_LETTERS[i])) return null;
+  const columns = table.columns.slice(1).flatMap((c) => {
+    const n = Number(c.name);
+    return c.kind === "text" && Number.isInteger(n) && n >= 1 && n <= 24 ? [{ column: c, index: n - 1 }] : [];
+  });
+  if (columns.length < 2 || !columns.some((c) => c.column.values.some((v) => v !== null))) return null;
+  return { size: values.length > 8 || columns.some((c) => c.index >= 12) ? 384 : 96, rows: letters, columns };
+}
+
+// Every well of a plate, in reading order: A1, A2, … then B1.
+export function allWells(size: PlateSize): Well[] {
+  const { rows, columns } = PLATE_SHAPE[size];
+  const out: Well[] = [];
+  for (let row = 0; row < rows; row++) for (let column = 0; column < columns; column++) out.push({ row, column });
+  return out;
+}
+
 // The plate in a table, or null when it isn't one.
 export function plateLayout(table: DataTable): PlateLayout | null {
   return gridLayout(table) ?? wellsLayout(table) ?? readLayout(table);
@@ -142,13 +167,19 @@ export function plateCells(table: DataTable, layout: PlateLayout, source: PlateS
   }
 }
 
-// The source a new plate chart starts from: the grid, the first value column, or the last read.
+// A plate list's reading: its first number column that isn't the layout's concentration,
+// dilution or a repeat's number ("Well, Sample, Conc, Dilution, A595" reads A595).
+export function readingColumn(layout: Extract<PlateLayout, { kind: "wells" }>): NumberColumn {
+  return layout.values.find((c) => !/\b(conc|concentration|dose|amount|dil|dilution|rep|replicate)\b/i.test(c.name)) ?? layout.values[0];
+}
+
+// The source a new plate chart starts from: the grid, the reading column, or the last read.
 export function startingSource(layout: PlateLayout, table: DataTable): PlateSource {
   switch (layout.kind) {
     case "grid":
       return { kind: "grid", rows: layout.rows.id };
     case "wells":
-      return { kind: "wells", well: layout.well.id, value: layout.values[0].id };
+      return { kind: "wells", well: layout.well.id, value: readingColumn(layout).id };
     case "read":
       return { kind: "read", row: Math.max(0, table.rows - 1) };
     default: {

@@ -13,8 +13,10 @@ import {
   type DataTable,
   type NumberColumn,
 } from "./data-tables";
-import { ChartId, ColumnId, ProtocolId, Sha256, UserId, type LocationId } from "./ids";
+import { formatValue } from "./numbers";
+import { ChartId, ColumnId, LayoutId, ProtocolId, ProtocolVersionId, Sha256, UserId, type LocationId } from "./ids";
 import { PLATE_SHAPE, plateLayout, PlateSize, PlateSource, startingSource, type PlateLayout } from "./plates";
+import { Source } from "./replicates";
 
 // decisions.md, "data sheet to chart". A chart names a file by content, one of its tables, and
 // this spec; db/migrations/0020_charts_and_video_steps.sql checks the same structure in
@@ -43,10 +45,13 @@ export const STROKES = ["solid", "dashed"] as const;
 export const Stroke = z.enum(STROKES);
 export type Stroke = z.infer<typeof Stroke>;
 
-export const CHART_TYPES = ["line", "scatter", "bar", "heatmap"] as const;
+// Charts of columns as the sheet has them (line, scatter, bar), a plate heatmap, and charts that
+// summarize repeats (decisions.md, "charts round 1"): groups as bars or boxes with every repeat,
+// a scatter of means with a fitted line (a standard curve), a line with a shaded spread, a
+// dose-response curve and a histogram.
+export const CHART_TYPES = ["line", "scatter", "bar", "heatmap", "groups", "curve", "band", "dose", "histogram"] as const;
 export const ChartType = z.enum(CHART_TYPES);
 export type ChartType = z.infer<typeof ChartType>;
-export const CHART_TYPE_NAMES = { line: "Line", scatter: "Scatter", bar: "Bar", heatmap: "Plate" } satisfies Record<ChartType, string>;
 
 export const XY_TYPES = ["line", "scatter", "bar"] as const;
 export const XYType = z.enum(XY_TYPES);
@@ -81,10 +86,13 @@ export const Series = z.object({
 });
 export type Series = z.infer<typeof Series>;
 
+const Scale = z.enum(["linear", "log"]);
+
 const XYShape = z.object({
   version: z.literal(1),
   type: XYType,
-  x: z.object({ column: ColumnId, title: AxisText, unit: Unit, min: Bound, max: Bound }),
+  // Old specs have no x scale and keep a linear one.
+  x: z.object({ column: ColumnId, title: AxisText, unit: Unit, scale: Scale.default("linear"), min: Bound, max: Bound }),
   y: z.object({ title: AxisText, unit: Unit, scale: z.enum(["linear", "log"]), min: Bound, max: Bound }),
   series: z.array(Series).min(1, "Pick a column to plot.").max(SERIES_MAX, `A chart takes up to ${SERIES_MAX} series.`),
   legend: LegendPosition,
@@ -100,7 +108,94 @@ const HeatmapShape = z.object({
 });
 export type HeatmapSpec = z.infer<typeof HeatmapShape>;
 
-export const ChartSpec = z.union([XYShape, HeatmapShape]).superRefine((spec, ctx) => {
+// How much repeats vary, as error bars or a band: the standard deviation, the standard error of
+// the mean, or the 95% confidence interval of the mean (t-based).
+export const SPREADS = ["sd", "sem", "ci"] as const;
+export const Spread = z.enum(SPREADS);
+export type Spread = z.infer<typeof Spread>;
+
+const SummaryAxis = z.object({ title: AxisText, unit: Unit, scale: Scale, min: Bound, max: Bound });
+export type SummaryAxis = z.infer<typeof SummaryAxis>;
+
+// The test a groups chart names; never chosen silently (the builder starts on the one that
+// fits and says why). "control" is each group against the control, Welch t-tests with Holm's
+// correction.
+export const TESTS = ["none", "welch", "anova", "control"] as const;
+export const TestChoice = z.enum(TESTS);
+export type TestChoice = z.infer<typeof TestChoice>;
+
+const Repeats = { source: Source, spread: Spread, points: z.boolean(), blank: z.boolean() };
+
+const GroupsShape = z.object({
+  version: z.literal(1),
+  type: z.literal("groups"),
+  mark: z.enum(["bar", "box"]),
+  ...Repeats,
+  test: TestChoice,
+  // The group the others are compared with, by its label.
+  control: z.string().max(80).nullable(),
+  // Stars over the groups, only ever with the test named under the chart.
+  marks: z.boolean(),
+  x: z.object({ title: AxisText }),
+  y: SummaryAxis,
+});
+export type GroupsSpec = z.infer<typeof GroupsShape>;
+
+// Unknown samples read off a standard curve: the layout's samples, or another sheet of the file.
+export const Unknowns = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("layout") }),
+  z.object({ kind: z.literal("table"), table: z.string().min(1).max(200), label: ColumnId, value: ColumnId, dilution: ColumnId.nullable() }),
+]);
+export type Unknowns = z.infer<typeof Unknowns>;
+
+const CurveShape = z.object({
+  version: z.literal(1),
+  type: z.literal("curve"),
+  ...Repeats,
+  fit: z.enum(["none", "line", "origin"]),
+  unknowns: Unknowns.nullable(),
+  x: SummaryAxis,
+  y: SummaryAxis,
+});
+export type CurveSpec = z.infer<typeof CurveShape>;
+
+const BandShape = z.object({
+  version: z.literal(1),
+  type: z.literal("band"),
+  ...Repeats,
+  // A shaded band of the spread, or error bars at each point.
+  band: z.boolean(),
+  x: SummaryAxis,
+  y: SummaryAxis,
+  legend: LegendPosition,
+});
+export type BandSpec = z.infer<typeof BandShape>;
+
+const DoseShape = z.object({
+  version: z.literal(1),
+  type: z.literal("dose"),
+  ...Repeats,
+  // The curve is fitted to every repeat, or to the means.
+  fit: z.enum(["points", "means"]),
+  x: SummaryAxis,
+  y: SummaryAxis,
+});
+export type DoseSpec = z.infer<typeof DoseShape>;
+
+const HistogramShape = z.object({
+  version: z.literal(1),
+  type: z.literal("histogram"),
+  column: ColumnId,
+  // The bins' width; null picks one from the data.
+  bin: z.number().finite().positive().nullable(),
+  x: z.object({ title: AxisText, unit: Unit, min: Bound, max: Bound }),
+  y: z.object({ title: AxisText }),
+});
+export type HistogramSpec = z.infer<typeof HistogramShape>;
+
+export type SummarySpec = GroupsSpec | CurveSpec | BandSpec | DoseSpec;
+
+export const ChartSpec = z.union([XYShape, HeatmapShape, GroupsShape, CurveShape, BandShape, DoseShape, HistogramShape]).superRefine((spec, ctx) => {
   const problem = specProblem(spec);
   if (problem !== null) ctx.addIssue({ code: "custom", message: problem });
 });
@@ -110,22 +205,64 @@ export function isHeatmap(spec: ChartSpec): spec is HeatmapSpec {
   return spec.type === "heatmap";
 }
 
+export function isXY(spec: ChartSpec): spec is XYSpec {
+  return spec.type === "line" || spec.type === "scatter" || spec.type === "bar";
+}
+
+export function isSummary(spec: ChartSpec): spec is SummarySpec {
+  return spec.type === "groups" || spec.type === "curve" || spec.type === "band" || spec.type === "dose";
+}
+
+function rangeProblem(axes: readonly { min: number | null; max: number | null; scale?: "linear" | "log" }[]): string | null {
+  for (const axis of axes) {
+    if (axis.min !== null && axis.max !== null && axis.min >= axis.max) return "Each range has to start below where it ends.";
+    if (axis.scale === "log" && axis.min !== null && axis.min <= 0) return "A log scale starts above zero.";
+  }
+  return null;
+}
+
 const sameStyle = (a: Series, b: Series) => a.color === b.color && a.stroke === b.stroke;
 
 // What the spec alone rules out; checkSpec below also needs the table.
 export function specProblem(spec: ChartSpec): string | null {
-  if (spec.type === "heatmap") {
-    const { min, max } = spec.value;
-    if (min !== null && max !== null && min >= max) return "The color scale has to start below where it ends.";
-    return null;
+  switch (spec.type) {
+    case "heatmap": {
+      const { min, max } = spec.value;
+      if (min !== null && max !== null && min >= max) return "The color scale has to start below where it ends.";
+      return null;
+    }
+    case "groups":
+      if (spec.y.scale === "log" && spec.mark === "bar") return "Bars start at zero, so they can't use a log scale.";
+      return rangeProblem([spec.y]);
+    case "curve":
+    case "band":
+      return rangeProblem([spec.x, spec.y]);
+    case "dose":
+      if (spec.x.scale !== "log") return "A dose-response curve runs along a log scale of the dose.";
+      return rangeProblem([spec.x, spec.y]);
+    case "histogram":
+      return rangeProblem([spec.x]);
+    case "line":
+    case "scatter":
+    case "bar":
+      return xyProblem(spec);
+    default: {
+      const _exhaustive: never = spec;
+      return _exhaustive;
+    }
   }
+}
+
+function xyProblem(spec: XYSpec): string | null {
   if (spec.series.length > MAX_SERIES[spec.type]) {
     return spec.type === "scatter"
       ? "A scatter chart takes up to three series."
       : `A ${spec.type} chart takes up to ${MAX_SERIES[spec.type]} series.`;
   }
   if (spec.type === "bar" && spec.y.scale === "log") return "Bars start at zero, so they can't use a log scale.";
+  if (spec.type === "bar" && spec.x.scale === "log") return "Bars sit side by side, so they have no log scale along the bottom.";
   if (spec.y.scale === "log" && spec.y.min !== null && spec.y.min <= 0) return "A log scale starts above zero.";
+  if (spec.x.scale === "log" && spec.x.min !== null && spec.x.min <= 0) return "A log scale starts above zero.";
   for (const axis of [spec.x, spec.y]) {
     if (axis.min !== null && axis.max !== null && axis.min >= axis.max) return "Each range has to start below where it ends.";
   }
@@ -146,8 +283,80 @@ export function specProblem(spec: ChartSpec): string | null {
 const HOLDS = { number: "numbers", date: "dates", text: "text" } satisfies Record<DataColumn["kind"], string>;
 
 // The first thing wrong with a spec for this table, in words, or null when it can be drawn.
-export function checkSpec(spec: ChartSpec, table: DataTable): string | null {
-  return spec.type === "heatmap" ? checkHeatmap(spec, table) : checkXY(spec, table);
+// `tables` is the whole file, for a standard curve that reads its unknowns from another sheet.
+export function checkSpec(spec: ChartSpec, table: DataTable, tables: readonly DataTable[] = [table]): string | null {
+  switch (spec.type) {
+    case "heatmap":
+      return checkHeatmap(spec, table);
+    case "line":
+    case "scatter":
+    case "bar":
+      return checkXY(spec, table);
+    case "histogram": {
+      const c = findColumn(table, spec.column);
+      if (c === undefined) return missing(spec.column, table);
+      if (c.kind !== "number") return `${columnLabel(c)} holds ${HOLDS[c.kind]}, so it can't be counted into bins.`;
+      if (c.values.filter((v) => v !== null).length < 2) return `${columnLabel(c)} has fewer than 2 numbers.`;
+      return null;
+    }
+    case "groups":
+    case "curve":
+    case "band":
+    case "dose":
+      return checkSource(spec.source, table) ?? (spec.type === "curve" ? checkUnknowns(spec, tables) : null);
+    default: {
+      const _exhaustive: never = spec;
+      return _exhaustive;
+    }
+  }
+}
+
+function checkSource(source: Source, table: DataTable): string | null {
+  const number = (id: ColumnId): string | null => {
+    const c = findColumn(table, id);
+    if (c === undefined) return missing(id, table);
+    return c.kind === "number" ? null : `${columnLabel(c)} holds ${HOLDS[c.kind]}, so it can't be a measurement.`;
+  };
+  switch (source.kind) {
+    case "columns":
+      for (const id of source.columns) {
+        const problem = number(id);
+        if (problem !== null) return problem;
+      }
+      return null;
+    case "rows": {
+      if (findColumn(table, source.key) === undefined) return missing(source.key, table);
+      for (const id of source.series.flatMap((s) => s.values)) {
+        const problem = number(id);
+        if (problem !== null) return problem;
+      }
+      return null;
+    }
+    case "long":
+      if (findColumn(table, source.key) === undefined) return missing(source.key, table);
+      return number(source.value);
+    case "plate": {
+      const plate: HeatmapSpec = { version: 1, type: "heatmap", plate: { size: source.layout.size, source: source.plate }, value: { title: "", unit: "", min: null, max: null } };
+      return checkHeatmap(plate, table);
+    }
+    default: {
+      const _exhaustive: never = source;
+      return _exhaustive;
+    }
+  }
+}
+
+function checkUnknowns(spec: CurveSpec, tables: readonly DataTable[]): string | null {
+  const u = spec.unknowns;
+  if (u === null) return null;
+  if (u.kind === "layout") return spec.source.kind === "plate" ? null : "Only a plate's layout has samples to read.";
+  const other = tables.find((t) => t.name === u.table);
+  if (other === undefined) return `There's no sheet called ${u.table} in this file.`;
+  if (findColumn(other, u.label) === undefined) return missing(u.label, other);
+  const value = findColumn(other, u.value);
+  if (value === undefined) return missing(u.value, other);
+  if (value.kind !== "number") return `${columnLabel(value)} doesn't hold numbers.`;
+  return null;
 }
 
 function missing(id: ColumnId, table: DataTable): string {
@@ -180,6 +389,14 @@ function checkXY(spec: XYSpec, table: DataTable): string | null {
   if (spec.type === "bar") {
     const bars = x.values.filter((v) => v !== null).length;
     if (bars > MAX_BARS) return `A bar chart takes up to ${MAX_BARS} bars, and this table has ${bars} rows. Try a line chart.`;
+  }
+  if (spec.x.scale === "log") {
+    if (x.kind !== "number") return "Only numbers can go on a log scale.";
+    const row = x.values.findIndex((v) => v !== null && v <= 0);
+    const v = row < 0 ? null : x.values[row];
+    if (v !== null && v !== undefined) {
+      return `${columnLabel(x)} has ${formatValue(v)} in row ${row + 1}, and a log scale has no place for zero or less. Leave the log scale off, or chart only the rows above zero.`;
+    }
   }
   if (spec.y.scale === "log") {
     const positive = spec.series.some((s) => {
@@ -253,7 +470,7 @@ export function startingXY(table: DataTable): XYSpec | null {
   return {
     version: 1,
     type,
-    x: { column: x.id, title: x.name, unit: x.unit ?? "", min: null, max: null },
+    x: { column: x.id, title: x.name, unit: x.unit ?? "", scale: "linear", min: null, max: null },
     y: { title: y.name, unit: y.unit ?? "", scale: "linear", min: null, max: null },
     series: [{ column: y.id, name: y.name, color: SERIES_COLORS[0], stroke: "solid", error: spreadFor(table, y)?.id ?? null, x: null }],
     legend: "top",
@@ -273,19 +490,43 @@ export function startingHeatmap(table: DataTable, layout: PlateLayout | null = p
 // The spec as another type. Switching between a plate and an x/y chart goes back to what the
 // other one was (`other`), or to how that kind of chart of this table starts. Series keep their
 // colors; leaving a line chart makes dashed series solid, recoloring any that then look alike.
-export function withType(spec: ChartSpec, type: ChartType, table: DataTable, other: ChartSpec | null): ChartSpec {
+export function withType(spec: ChartSpec, type: XYType | "heatmap", table: DataTable, other: ChartSpec | null): ChartSpec {
   if (type === "heatmap") {
     if (spec.type === "heatmap") return spec;
     return (other?.type === "heatmap" ? other : startingHeatmap(table)) ?? spec;
   }
-  const base = spec.type === "heatmap" ? (other !== null && other.type !== "heatmap" ? other : startingXY(table)) : spec;
+  const base = isXY(spec) ? spec : other !== null && isXY(other) ? other : startingXY(table);
   if (base === null) return spec;
   const series: Series[] = [];
   for (const s of base.series) {
     const moved = { ...s, x: type === "bar" ? null : s.x, stroke: type === "line" ? s.stroke : ("solid" as const) };
     series.push(series.some((q) => sameStyle(q, moved)) ? { ...moved, ...nextStyle(series, type) } : moved);
   }
-  return { ...base, type, y: type === "bar" ? { ...base.y, scale: "linear" } : base.y, series };
+  return {
+    ...base,
+    type,
+    x: type === "bar" ? { ...base.x, scale: "linear" } : base.x,
+    y: type === "bar" ? { ...base.y, scale: "linear" } : base.y,
+    series,
+  };
+}
+
+// The columns a summary chart reads.
+function sourceColumns(source: Source): ColumnId[] {
+  switch (source.kind) {
+    case "columns":
+      return source.columns;
+    case "rows":
+      return [source.key, ...source.series.flatMap((s) => s.values)];
+    case "long":
+      return [source.key, source.value];
+    case "plate":
+      return source.plate.kind === "wells" ? [source.plate.well, source.plate.value] : source.plate.kind === "grid" ? [source.plate.rows] : [];
+    default: {
+      const _exhaustive: never = source;
+      return _exhaustive;
+    }
+  }
 }
 
 // The columns a saved chart names that its table no longer has, or no longer holds the right
@@ -305,6 +546,14 @@ export function brokenColumns(spec: ChartSpec, table: DataTable): { id: ColumnId
       want(s.well, "the wells", (c) => c.kind === "text");
       want(s.value, spec.value.title || "the values", (c) => c.kind === "number");
     }
+    return out;
+  }
+  if (spec.type === "histogram") {
+    want(spec.column, spec.x.title || "the values", (c) => c.kind === "number");
+    return out;
+  }
+  if (isSummary(spec)) {
+    for (const id of sourceColumns(spec.source)) want(id, findColumn(table, id)?.name ?? `column ${id}`, () => checkSource(spec.source, table) === null);
     return out;
   }
   const isAxis = (c: DataColumn) => spec.type === "bar" || c.kind !== "text";
@@ -332,6 +581,7 @@ export function chartTrouble(chart: { sheet: string; spec: ChartSpec }, tables: 
 // columns that went are cleared, and a lost x is the table's first. Null when nothing is left.
 export function repairSpec(spec: ChartSpec, table: DataTable): ChartSpec | null {
   if (spec.type === "heatmap") return checkSpec(spec, table) === null ? spec : startingHeatmap(table);
+  if (!isXY(spec)) return checkSpec(spec, table) === null ? spec : null;
   const ok = (id: ColumnId | null, kinds: readonly DataColumn["kind"][]) => {
     if (id === null) return false;
     const c = findColumn(table, id);
@@ -420,12 +670,14 @@ export type SavedChart = {
   title: string;
   spec: ChartSpec;
   protocolId: ProtocolId | null;
+  // The protocol's version when the chart was last saved on it (set by the database).
+  protocolVersionId: ProtocolVersionId | null;
   createdBy: UserId | null;
   createdAt: string;
   updatedAt: string;
 };
 
-export const CHART_COLUMNS = "id, sha256, sheet, title, spec, protocol_id, created_by, created_at, updated_at";
+export const CHART_COLUMNS = "id, sha256, sheet, title, spec, protocol_id, protocol_version_id, created_by, created_at, updated_at";
 
 export const ChartRow = z
   .object({
@@ -435,6 +687,7 @@ export const ChartRow = z
     title: z.string(),
     spec: ChartSpec,
     protocol_id: ProtocolId.nullable(),
+    protocol_version_id: ProtocolVersionId.nullable(),
     created_by: UserId.nullable(),
     created_at: z.string(),
     updated_at: z.string(),
@@ -447,6 +700,7 @@ export const ChartRow = z
       title: r.title,
       spec: r.spec,
       protocolId: r.protocol_id,
+      protocolVersionId: r.protocol_version_id,
       createdBy: r.created_by,
       createdAt: r.created_at,
       updatedAt: r.updated_at,
@@ -461,6 +715,7 @@ export const ChartWire = z.object({
   title: z.string(),
   spec: ChartSpec,
   protocolId: ProtocolId.nullable(),
+  protocolVersionId: ProtocolVersionId.nullable(),
   createdBy: UserId.nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),

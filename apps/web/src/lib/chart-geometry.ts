@@ -1,5 +1,8 @@
 import { MAX_SERIES, type SeriesColor, type Stroke, type XYSpec } from "./charts";
 import { findColumn, formatDate, type DataColumn, type DataTable } from "./data-tables";
+import { formatValue } from "./numbers";
+
+export { formatValue };
 
 // Where every mark of a line, scatter or bar chart goes, from its spec, its table and a size.
 // Pure, so the live chart, the exported SVG and the tests all draw from the same numbers. Text
@@ -69,12 +72,6 @@ export function textWidth(text: string, size: number): number {
 
 const sig = new Intl.NumberFormat("en-US", { maximumSignificantDigits: 5 });
 const compact = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 });
-
-// A value as the tooltip and table show it.
-export function formatValue(v: number): string {
-  if (v !== 0 && Math.abs(v) < 1e-4) return v.toExponential(2);
-  return sig.format(v);
-}
 
 function tickFormat(step: number, span: number): (v: number) => string {
   if (span >= 10_000) return (v) => compact.format(v);

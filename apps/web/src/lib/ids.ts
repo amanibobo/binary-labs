@@ -45,6 +45,10 @@ export type CorrectionId = z.infer<typeof CorrectionId>;
 export const ChartId = z.uuid().brand<"ChartId">();
 export type ChartId = z.infer<typeof ChartId>;
 
+// sample_layouts.id: a plate's layout saved to use again, usually on a protocol.
+export const LayoutId = z.uuid().brand<"LayoutId">();
+export type LayoutId = z.infer<typeof LayoutId>;
+
 // A table column by its spreadsheet letter (A, B, … AA), which stays put however it's named.
 export const ColumnId = z.string().regex(/^[A-Z]{1,3}$/, "expected a column letter").brand<"ColumnId">();
 export type ColumnId = z.infer<typeof ColumnId>;
