@@ -48,7 +48,31 @@ const shots = [
   ...videoShots(),
   ...chartShots(),
   ...onboardingShots(),
+  ...calendarShots(),
 ];
+
+// The calendar, in New York the week the clocks went back: the month, the week, a day's record
+// opened, an entry in the side peek with someone else's booking of the same plate reader, and
+// the phone's agenda. A phone shows the agenda for the month and week views alike.
+function calendarShots() {
+  const c = (query) => `/dev/fixtures/calendar?${query}`;
+  const both = (shot) => ["dark", "light"].map((scheme) => ({ ...shot, scheme, tz: "America/New_York", full: false }));
+  const peek = async (page) => {
+    await page.getByRole("dialog").getByText("is also booked").waitFor();
+  };
+  const day = async (page) => {
+    await page.getByRole("dialog").getByText("Batch 4 SDS-PAGE gel").first().waitFor();
+  };
+  return [
+    ...both({ name: "calendar-month", path: c("view=month"), width: 1440 }),
+    ...both({ name: "calendar-week", path: c("view=week"), width: 1440 }),
+    ...both({ name: "calendar-day", path: c("view=month&day=2026-11-03"), steps: day, width: 1440 }),
+    ...both({ name: "calendar-peek", path: c("view=week&entry=8c1c2c39-5a4e-4c55-9d7b-0c3c1a7c0007"), steps: peek, width: 1440 }),
+    ...both({ name: "calendar-agenda", path: c("view=month"), width: 390 }),
+    ...both({ name: "calendar-day", path: c("view=month&day=2026-11-03"), steps: day, width: 390 }),
+    ...both({ name: "calendar-peek", path: c("view=month&entry=8c1c2c39-5a4e-4c55-9d7b-0c3c1a7c0007"), steps: peek, width: 390 }),
+  ];
+}
 
 // Charts: the builder as it opens on the plate read, a saved curve with error bars, the
 // readout on hover, the worker still reading a table, a data sheet's opened row in search
@@ -384,6 +408,8 @@ try {
       viewport: { width: shot.width, height: shot.width < 500 ? 844 : 900 },
       colorScheme: shot.scheme,
       reducedMotion: "reduce",
+      // A shot can pin the browser's time zone, for pages that show the viewer's own clock.
+      ...(shot.tz ? { timezoneId: shot.tz } : {}),
       deviceScaleFactor: shot.width < 500 ? 2 : 1,
       permissions: ["microphone"],
       // A touch screen, so the page offers the phone's camera.
