@@ -6,26 +6,34 @@ import { toast } from "sonner";
 import { cn } from "@/lib/cn";
 import {
   CHART_TYPE_NAMES,
-  CHART_TYPES,
   chartHref,
+  chartTrouble,
   checkSpec,
   LEGEND_POSITIONS,
   MAX_SERIES,
-  nextColor,
+  nextStyle,
   PALETTE,
+  repairSpec,
   SERIES_COLORS,
   specProblem,
   startingSpec,
   titleFromName,
+  withType,
+  XY_TYPES,
   type ChartSpec,
   type ChartType,
+  type HeatmapSpec,
   type LegendPosition,
   type SavedChart,
   type Series,
   type SeriesColor,
+  type Stroke,
+  type XYSpec,
 } from "@/lib/charts";
-import { columnLabel, findColumn, mainTable, type DataColumn, type DataTable, type DataTables } from "@/lib/data-tables";
+import { formatValue } from "@/lib/chart-geometry";
+import { axisColumns, columnLabel, findColumn, formatDate, mainTable, type DataColumn, type DataTable, type DataTables } from "@/lib/data-tables";
 import type { ColumnId, LocationId, ProtocolId, Sha256 } from "@/lib/ids";
+import { plateLayout, type PlateLayout } from "@/lib/plates";
 import { protocolHref } from "@/lib/protocols";
 import { DeleteIcon } from "../icons/base-web";
 import { useLabApi } from "../lab-api";
@@ -109,15 +117,12 @@ export function ChartBuilder({ file, mode, protocols }: { file: ChartFile; mode:
       </Shell>
     );
   }
-  const first = mode.kind === "edit" ? (state.tables.tables.find((t) => t.name === mode.chart.sheet) ?? null) : mainTable(state.tables);
+  const saved = mode.kind === "edit" ? (state.tables.tables.find((t) => t.name === mode.chart.sheet) ?? null) : null;
+  const first = saved ?? mainTable(state.tables);
   if (first === null) {
     return (
       <Shell crumbs={crumbs}>
-        <Message>
-          {mode.kind === "edit"
-            ? `This chart was made from ${mode.chart.sheet}, which isn't in the file any more.`
-            : "There's no table of numbers in this file to chart."}
-        </Message>
+        <Message>There&apos;s no table of numbers in this file to chart.</Message>
       </Shell>
     );
   }
@@ -156,7 +161,7 @@ function isAutoTitle(title: string, table: DataTable): boolean {
   return title.trim() === "" || table.columns.some((c) => c.name === title.trim());
 }
 
-function withAxisFrom(spec: ChartSpec, table: DataTable): ChartSpec {
+function withAxisFrom(spec: XYSpec, table: DataTable): XYSpec {
   const only = spec.series.length === 1 ? findColumn(table, spec.series[0].column) : undefined;
   const x = findColumn(table, spec.x.column);
   return {
@@ -165,6 +170,9 @@ function withAxisFrom(spec: ChartSpec, table: DataTable): ChartSpec {
     y: only !== undefined && isAutoTitle(spec.y.title, table) ? { ...spec.y, title: only.name, unit: only.unit ?? "" } : spec.y,
   };
 }
+
+const seriesLimit = (type: XYSpec["type"]) =>
+  type === "scatter" ? "A scatter chart takes up to three series." : `A ${type} chart takes up to ${MAX_SERIES[type]} series.`;
 
 function Builder({
   file,
@@ -188,6 +196,8 @@ function Builder({
       ? { sheet: mode.chart.sheet, title: mode.chart.title, spec: mode.chart.spec, protocolId: mode.chart.protocolId }
       : { sheet: first.name, title: titleFromName(file.name), spec: startingSpec(first), protocolId: mode.protocolId },
   );
+  // The x/y chart while a plate is shown, and the other way round, so switching back keeps it.
+  const other = useRef<ChartSpec | null>(null);
   const [saving, setSaving] = useState(false);
   const table = doc.tables.find((t) => t.name === draft.sheet) ?? first;
   const spec = draft.spec;
@@ -195,6 +205,8 @@ function Builder({
   const dirty =
     saved === null ||
     JSON.stringify({ sheet: saved.sheet, title: saved.title, spec: saved.spec, protocolId: saved.protocolId }) !== JSON.stringify(draft);
+  // A saved chart whose file was read again and no longer fits says why, until it's fixed.
+  const broken = saved !== null && !dirty ? chartTrouble(saved, doc.tables) : null;
 
   useEffect(() => {
     if (!dirty) return;
@@ -204,27 +216,50 @@ function Builder({
   }, [dirty]);
 
   const editSpec = (f: (s: ChartSpec) => ChartSpec) => setDraft((d) => (d.spec === null ? d : { ...d, spec: f(d.spec) }));
+  const editXY = (f: (s: XYSpec) => XYSpec) => editSpec((s) => (s.type === "heatmap" ? s : f(s)));
+  const editPlate = (f: (s: HeatmapSpec) => HeatmapSpec) => editSpec((s) => (s.type === "heatmap" ? f(s) : s));
 
   function chooseTable(name: string) {
     const next = doc.tables.find((t) => t.name === name);
     if (next === undefined) return;
+    other.current = null;
     setDraft((d) => ({ ...d, sheet: name, spec: startingSpec(next) }));
   }
 
+  function chooseType(type: ChartType) {
+    if (spec === null) return;
+    const keep = (spec.type === "heatmap") !== (type === "heatmap") ? spec : other.current;
+    const next = withType(spec, type, table, other.current);
+    other.current = keep;
+    setDraft((d) => ({ ...d, spec: next }));
+  }
+
+  function fix() {
+    const mended = spec === null ? null : repairSpec(spec, table);
+    setDraft((d) => ({ ...d, sheet: table.name, spec: mended ?? startingSpec(table) }));
+  }
+
   function togglePlot(column: DataColumn) {
-    if (spec === null || column.kind !== "number" || column.id === spec.x.column) return;
-    const plotted = spec.series.some((s) => s.column === column.id);
-    if (!plotted && spec.series.length >= MAX_SERIES[spec.type]) {
-      toast(spec.type === "scatter" ? "A scatter chart takes up to three series." : "A chart takes up to six series.");
+    if (spec === null || column.kind !== "number") return;
+    if (spec.type === "heatmap") {
+      if (spec.plate.source.kind !== "wells") return;
+      const source = { ...spec.plate.source, value: column.id };
+      editPlate((s) => ({ ...s, plate: { ...s.plate, source }, value: { ...s.value, title: column.name, unit: column.unit ?? "" } }));
       return;
     }
-    editSpec((s) =>
+    if (column.id === spec.x.column) return;
+    const plotted = spec.series.some((s) => s.column === column.id);
+    if (!plotted && spec.series.length >= MAX_SERIES[spec.type]) {
+      toast(seriesLimit(spec.type));
+      return;
+    }
+    editXY((s) =>
       withAxisFrom(
         {
           ...s,
           series: plotted
             ? s.series.filter((q) => q.column !== column.id)
-            : [...s.series, { column: column.id, name: column.name, color: nextColor(s.series), error: null }],
+            : [...s.series, { column: column.id, name: column.name, ...nextStyle(s.series, s.type), error: null, x: null }],
         },
         table,
       ),
@@ -266,28 +301,24 @@ function Builder({
 
   async function exportAs(kind: "svg" | "png") {
     if (spec === null || problem !== null) return;
-    const markup = chartMarkup(spec, table, draft.title.trim() || "Chart");
+    const figure = chartMarkup(spec, table, draft.title.trim() || "Chart");
     try {
-      if (kind === "svg") downloadSvg(markup, draft.title);
-      else await downloadPng(markup, draft.title);
+      if (kind === "svg") downloadSvg(figure, draft.title);
+      else await downloadPng(figure, draft.title);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "We couldn't make that file.");
     }
   }
 
+  const layout = useMemo(() => plateLayout(table), [table]);
+  const types: ChartType[] = layout === null ? [...XY_TYPES] : [...XY_TYPES, "heatmap"];
   const titleId = useId();
   return (
     <>
       <ChartCrumbs file={file} title={saved?.title ?? "New chart"} />
       <div className="mx-auto grid w-full max-w-6xl gap-x-10 gap-y-10 px-4 pt-8 pb-24 sm:px-8 lg:grid-cols-[288px_minmax(0,1fr)]">
         <aside aria-label="Data" className="order-2 min-w-0 lg:sticky lg:top-6 lg:order-1 lg:max-h-[calc(100dvh-3rem)] lg:self-start lg:overflow-y-auto lg:pr-2">
-          <DataPanel
-            doc={doc}
-            table={table}
-            spec={spec}
-            onChooseTable={chooseTable}
-            onTogglePlot={togglePlot}
-          />
+          <DataPanel doc={doc} table={table} spec={spec} onChooseTable={chooseTable} onTogglePlot={togglePlot} />
         </aside>
         <div className="order-1 min-w-0 lg:order-2">
           <label htmlFor={titleId} className="sr-only">
@@ -301,16 +332,19 @@ function Builder({
             placeholder="Chart title"
             className="-mx-2 w-[calc(100%+16px)] rounded-control bg-transparent px-2 py-1 text-heading-small text-content-primary placeholder:text-content-tertiary hover:bg-background-secondary focus:bg-background-secondary focus-visible:outline-none sm:text-heading-medium"
           />
+          {broken === null ? null : (
+            <div role="alert" className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-3 rounded-control border border-border-opaque bg-background-secondary px-4 py-3">
+              <p className="min-w-0 flex-1 text-paragraph-small text-content-secondary">{broken}</p>
+              <Button size="compact" variant="secondary" onClick={fix}>
+                Fix the chart
+              </Button>
+            </div>
+          )}
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
             {spec === null ? (
               <span />
             ) : (
-              <Segmented
-                label="Chart type"
-                options={CHART_TYPES.map((t) => ({ value: t, label: CHART_TYPE_NAMES[t] }))}
-                value={spec.type}
-                onChange={(type: ChartType) => editSpec((s) => ({ ...s, type, y: type === "bar" ? { ...s.y, scale: "linear" } : s.y }))}
-              />
+              <Segmented label="Chart type" options={types.map((t) => ({ value: t, label: CHART_TYPE_NAMES[t] }))} value={spec.type} onChange={chooseType} />
             )}
             <div className="flex flex-wrap items-center gap-2">
               <Button variant="tertiary" size="compact" disabled={problem !== null} onClick={() => void exportAs("svg")}>
@@ -333,15 +367,13 @@ function Builder({
               <ChartFigure spec={spec} table={table} label={draft.title || "Chart"} />
             )}
           </div>
+          {spec === null ? null : spec.type === "heatmap" ? (
+            <PlateSettings spec={spec} table={table} layout={layout} onChange={editPlate} />
+          ) : (
+            <XYSettings spec={spec} table={table} onChange={editXY} />
+          )}
           {spec === null ? null : (
-            <Settings
-              spec={spec}
-              table={table}
-              onChange={editSpec}
-              protocols={protocols}
-              protocolId={draft.protocolId}
-              onProtocol={(protocolId) => setDraft((d) => ({ ...d, protocolId }))}
-            />
+            <ProtocolSetting protocols={protocols} protocolId={draft.protocolId} onProtocol={(protocolId) => setDraft((d) => ({ ...d, protocolId }))} />
           )}
           {saved === null ? null : <DeleteChart chart={saved} file={file} />}
         </div>
@@ -370,6 +402,7 @@ function DataPanel({
   const needle = find.trim().toLowerCase();
   const columns = needle === "" ? table.columns : table.columns.filter((c) => `${c.id} ${columnLabel(c)}`.toLowerCase().includes(needle));
   const notes = allNotes ? table.notes : table.notes.slice(0, 3);
+  const plate = spec?.type === "heatmap";
   return (
     <div>
       {doc.tables.length > 1 ? (
@@ -402,7 +435,8 @@ function DataPanel({
       )}
       <h2 className="text-label-medium text-content-primary">Columns</h2>
       <p className="mt-1 text-paragraph-xsmall text-content-tertiary">
-        {table.rows.toLocaleString("en-US")} rows. Tick a column to plot it.
+        {table.rows.toLocaleString("en-US")} rows.{" "}
+        {plate ? (spec.plate.source.kind === "wells" ? "Tick a column to color the wells by it." : "") : "Tick a column to plot it."}
       </p>
       {table.columns.length > 12 ? (
         <div className="mt-3">
@@ -422,15 +456,35 @@ function DataPanel({
   );
 }
 
+const KIND_WORD = { number: "Numbers", date: "Dates", text: "Text" } satisfies Record<DataColumn["kind"], string>;
+
+function columnRole(column: DataColumn, spec: ChartSpec | null): { checked: boolean; plottable: boolean; role: string | null; color: SeriesColor | null; stroke: Stroke } {
+  if (spec === null) return { checked: false, plottable: false, role: null, color: null, stroke: "solid" };
+  if (spec.type === "heatmap") {
+    const source = spec.plate.source;
+    const isValue = source.kind === "wells" && source.value === column.id;
+    const role = source.kind === "wells" && source.well === column.id ? "Wells" : source.kind === "grid" && source.rows === column.id ? "Plate rows" : isValue ? "Colors the wells" : null;
+    return { checked: isValue, plottable: source.kind === "wells" && column.kind === "number", role, color: null, stroke: "solid" };
+  }
+  const series = spec.series.find((s) => s.column === column.id);
+  const isX = spec.x.column === column.id;
+  const ownX = spec.series.find((s) => s.x === column.id);
+  return {
+    checked: series !== undefined,
+    plottable: column.kind === "number" && !isX,
+    role: isX ? "Along x" : ownX !== undefined ? `Along x for ${ownX.name}` : null,
+    color: series?.color ?? null,
+    stroke: series?.stroke ?? "solid",
+  };
+}
+
 function ColumnRow({ column, spec, onToggle }: { column: DataColumn; spec: ChartSpec | null; onToggle: () => void }) {
   const id = useId();
-  const series = spec?.series.find((s) => s.column === column.id);
-  const isX = spec?.x.column === column.id;
-  const plottable = column.kind === "number" && !isX;
+  const { checked, plottable, role, color, stroke } = columnRole(column, spec);
   const blanks = column.values.filter((v) => v === null).length - column.invalid;
   const meta = [
-    isX ? "Along x" : column.kind === "number" ? "Numbers" : "Text",
-    column.invalid > 0 ? `${column.invalid} not numbers` : null,
+    role ?? KIND_WORD[column.kind],
+    column.invalid > 0 ? `${column.invalid} not ${column.kind === "date" ? "dates" : "numbers"}` : null,
     blanks > 0 ? `${blanks} blank` : null,
   ].filter((m): m is string => m !== null);
   return (
@@ -445,7 +499,7 @@ function ColumnRow({ column, spec, onToggle }: { column: DataColumn; spec: Chart
         <input
           id={id}
           type="checkbox"
-          checked={series !== undefined}
+          checked={checked}
           disabled={!plottable}
           onChange={onToggle}
           className="mt-0.5 size-4 shrink-0 accent-[var(--content-primary)] disabled:opacity-40"
@@ -454,9 +508,12 @@ function ColumnRow({ column, spec, onToggle }: { column: DataColumn; spec: Chart
         <span className="min-w-0 flex-1">
           <span className="block truncate text-label-small text-content-primary">{columnLabel(column)}</span>
           <span className="block text-paragraph-xsmall text-content-tertiary">{meta.join(" · ")}</span>
+          {column.note === null ? null : <span className="mt-0.5 block text-paragraph-xsmall text-content-tertiary">{column.note}</span>}
         </span>
-        {series === undefined ? null : (
-          <span aria-hidden className="mt-2 h-0.5 w-4 shrink-0 rounded-full" style={{ background: `var(--chart-${series.color})` }} />
+        {color === null ? null : (
+          <svg aria-hidden width={16} height={4} className="mt-2 shrink-0">
+            <line x1={0} x2={16} y1={2} y2={2} stroke={`var(--chart-${color})`} strokeWidth={2} strokeDasharray={stroke === "dashed" ? "4 2" : undefined} />
+          </svg>
         )}
       </label>
     </li>
@@ -495,27 +552,16 @@ function Segmented<T extends string>({
   );
 }
 
-function Settings({
-  spec,
-  table,
-  onChange,
-  protocols,
-  protocolId,
-  onProtocol,
-}: {
-  spec: ChartSpec;
-  table: DataTable;
-  onChange: (f: (s: ChartSpec) => ChartSpec) => void;
-  protocols: readonly ProtocolChoice[];
-  protocolId: ProtocolId | null;
-  onProtocol: (id: ProtocolId | null) => void;
-}) {
+function XYSettings({ spec, table, onChange }: { spec: XYSpec; table: DataTable; onChange: (f: (s: XYSpec) => XYSpec) => void }) {
   const numbers = table.columns.filter((c) => c.kind === "number");
-  const xChoices = spec.type === "bar" ? table.columns : numbers;
+  const xChoices = spec.type === "bar" ? table.columns : axisColumns(table);
+  const xColumn = findColumn(table, spec.x.column);
+  const isTime = xColumn?.kind === "date" && spec.type !== "bar";
   const unplotted = numbers.filter((c) => c.id !== spec.x.column && !spec.series.some((s) => s.column === c.id));
   const editSeries = (column: ColumnId, f: (s: Series) => Series) =>
     onChange((s) => ({ ...s, series: s.series.map((q) => (q.column === column ? f(q) : q)) }));
-  const protocolSelect = useId();
+  // Columns a series could read along instead of the chart's x: the same kind as x.
+  const ownXChoices = axisColumns(table).filter((c) => c.kind === xColumn?.kind && c.id !== spec.x.column);
 
   return (
     <div className="mt-10 grid gap-10">
@@ -527,10 +573,11 @@ function Settings({
           {spec.series.map((s) => (
             <SeriesRow
               key={s.column}
+              spec={spec}
               series={s}
               table={table}
               numbers={numbers}
-              taken={[spec.x.column, ...spec.series.map((q) => q.column)]}
+              ownXChoices={spec.type === "bar" ? [] : ownXChoices}
               onChange={(f) => editSeries(s.column, f)}
               onRemove={spec.series.length > 1 ? () => onChange((q) => withAxisFrom({ ...q, series: q.series.filter((x) => x.column !== s.column) }, table)) : null}
             />
@@ -541,10 +588,13 @@ function Settings({
             choices={unplotted}
             onAdd={(c) =>
               onChange((q) =>
-                withAxisFrom({ ...q, series: [...q.series, { column: c.id, name: c.name, color: nextColor(q.series), error: null }] }, table),
+                withAxisFrom({ ...q, series: [...q.series, { column: c.id, name: c.name, ...nextStyle(q.series, q.type), error: null, x: null }] }, table),
               )
             }
           />
+        ) : null}
+        {spec.series.length > 6 ? (
+          <p className="mt-3 text-paragraph-xsmall text-content-tertiary">Past six lines the colors come round again, dashed.</p>
         ) : null}
         {spec.series.length >= 2 ? (
           <div className="mt-6 flex flex-wrap items-center gap-3">
@@ -574,7 +624,17 @@ function Settings({
                     const column = table.columns.find((c) => c.id === e.target.value);
                     if (column === undefined) return;
                     onChange((q) =>
-                      withAxisFrom({ ...q, x: { ...q.x, column: column.id, min: null, max: null }, series: q.series.filter((x) => x.column !== column.id) }, table),
+                      withAxisFrom(
+                        {
+                          ...q,
+                          x: { ...q.x, column: column.id, min: null, max: null },
+                          // A series' own x has to be the same kind as the chart's.
+                          series: q.series
+                            .filter((x) => x.column !== column.id)
+                            .map((x) => ({ ...x, x: x.x === column.id || findColumn(table, x.x ?? column.id)?.kind !== column.kind ? null : x.x })),
+                        },
+                        table,
+                      ),
                     );
                   }}
                   className={inputVariants({ size: "compact" })}
@@ -587,8 +647,10 @@ function Settings({
                 </select>
               )}
             </Field>
-            <TitleAndUnit axis={spec.x} onChange={(x) => onChange((q) => ({ ...q, x: { ...q.x, ...x } }))} />
-            {spec.type === "bar" ? null : <Range axis={spec.x} onChange={(x) => onChange((q) => ({ ...q, x: { ...q.x, ...x } }))} />}
+            <TitleAndUnit axis={spec.x} noUnit={isTime} onChange={(x) => onChange((q) => ({ ...q, x: { ...q.x, ...x } }))} />
+            {spec.type === "bar" ? null : (
+              <Range axis={spec.x} time={isTime ? (xColumn?.kind === "date" ? xColumn.time : false) : null} onChange={(x) => onChange((q) => ({ ...q, x: { ...q.x, ...x } }))} />
+            )}
           </div>
         </section>
         <section aria-labelledby="y-heading">
@@ -611,39 +673,140 @@ function Settings({
                 />
               </div>
             )}
-            <Range axis={spec.y} onChange={(y) => onChange((q) => ({ ...q, y: { ...q.y, ...y } }))} />
+            <Range axis={spec.y} time={null} onChange={(y) => onChange((q) => ({ ...q, y: { ...q.y, ...y } }))} />
           </div>
         </section>
       </div>
+    </div>
+  );
+}
 
-      <section aria-labelledby="protocol-heading">
-        <h2 id="protocol-heading" className="text-heading-xsmall">
-          Protocol
+// A kinetic read's time points, labeled by its time column when it has one.
+function readOptions(layout: PlateLayout, table: DataTable): { row: number; label: string }[] {
+  const time = layout.kind === "read" ? layout.time : null;
+  return Array.from({ length: table.rows }, (_, row) => {
+    const v = time?.values[row];
+    const at =
+      time === null || v === null || v === undefined ? "" : time.kind === "date" ? ` · ${formatDate(v, time.time)}` : ` · ${formatValue(v)}${time.unit ? ` ${time.unit}` : ""}`;
+    return { row, label: `Read ${row + 1}${at}` };
+  });
+}
+
+function PlateSettings({
+  spec,
+  table,
+  layout,
+  onChange,
+}: {
+  spec: HeatmapSpec;
+  table: DataTable;
+  layout: PlateLayout | null;
+  onChange: (f: (s: HeatmapSpec) => HeatmapSpec) => void;
+}) {
+  const source = spec.plate.source;
+  return (
+    <div className="mt-10 grid gap-10 md:grid-cols-2">
+      <section aria-labelledby="plate-heading">
+        <h2 id="plate-heading" className="text-heading-xsmall">
+          Plate
         </h2>
-        <p className="mt-1 text-paragraph-small text-content-tertiary">Show this chart on a protocol&apos;s page.</p>
-        <label htmlFor={protocolSelect} className="sr-only">
-          Protocol
-        </label>
-        <select
-          id={protocolSelect}
-          value={protocolId ?? ""}
-          onChange={(e) => onProtocol(protocols.find((p) => p.id === e.target.value)?.id ?? null)}
-          className={cn(inputVariants({ size: "compact" }), "mt-3 max-w-md")}
-        >
-          <option value="">None</option>
-          {protocols.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.title}
-            </option>
-          ))}
-        </select>
-        {protocolId === null ? null : (
-          <a href={protocolHref(protocolId)} className="mt-2 block text-paragraph-small text-content-accent underline-offset-2 hover:underline">
-            Open the protocol
-          </a>
-        )}
+        <p className="mt-1 text-paragraph-small text-content-tertiary">
+          {spec.plate.size} wells, {source.kind === "grid" ? "laid out as a grid" : source.kind === "wells" ? "one row per well" : "a column per well"}.
+        </p>
+        <div className="mt-4 grid gap-4">
+          {source.kind === "wells" && layout?.kind === "wells" ? (
+            <Field label="Color by">
+              {(id) => (
+                <select
+                  id={id}
+                  value={source.value}
+                  onChange={(e) => {
+                    const column = layout.values.find((c) => c.id === e.target.value);
+                    if (column === undefined) return;
+                    onChange((s) => ({ ...s, plate: { ...s.plate, source: { ...source, value: column.id } }, value: { ...s.value, title: column.name, unit: column.unit ?? "", min: null, max: null } }));
+                  }}
+                  className={inputVariants({ size: "compact" })}
+                >
+                  {layout.values.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.id} · {columnLabel(c)}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </Field>
+          ) : null}
+          {source.kind === "read" && layout !== null ? (
+            <Field label="Time point">
+              {(id) => (
+                <select
+                  id={id}
+                  value={source.row}
+                  onChange={(e) => onChange((s) => ({ ...s, plate: { ...s.plate, source: { kind: "read", row: Number(e.target.value) } } }))}
+                  className={inputVariants({ size: "compact" })}
+                >
+                  {readOptions(layout, table).map((o) => (
+                    <option key={o.row} value={o.row}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </Field>
+          ) : null}
+        </div>
+      </section>
+      <section aria-labelledby="scale-heading">
+        <h2 id="scale-heading" className="text-heading-xsmall">
+          Color scale
+        </h2>
+        <div className="mt-4 grid gap-4">
+          <TitleAndUnit axis={spec.value} onChange={(value) => onChange((s) => ({ ...s, value: { ...s.value, ...value } }))} />
+          <Range axis={spec.value} time={null} onChange={(value) => onChange((s) => ({ ...s, value: { ...s.value, ...value } }))} />
+        </div>
       </section>
     </div>
+  );
+}
+
+function ProtocolSetting({
+  protocols,
+  protocolId,
+  onProtocol,
+}: {
+  protocols: readonly ProtocolChoice[];
+  protocolId: ProtocolId | null;
+  onProtocol: (id: ProtocolId | null) => void;
+}) {
+  const protocolSelect = useId();
+  return (
+    <section aria-labelledby="protocol-heading" className="mt-10">
+      <h2 id="protocol-heading" className="text-heading-xsmall">
+        Protocol
+      </h2>
+      <p className="mt-1 text-paragraph-small text-content-tertiary">Show this chart on a protocol&apos;s page.</p>
+      <label htmlFor={protocolSelect} className="sr-only">
+        Protocol
+      </label>
+      <select
+        id={protocolSelect}
+        value={protocolId ?? ""}
+        onChange={(e) => onProtocol(protocols.find((p) => p.id === e.target.value)?.id ?? null)}
+        className={cn(inputVariants({ size: "compact" }), "mt-3 max-w-md")}
+      >
+        <option value="">None</option>
+        {protocols.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.title}
+          </option>
+        ))}
+      </select>
+      {protocolId === null ? null : (
+        <a href={protocolHref(protocolId)} className="mt-2 block text-paragraph-small text-content-accent underline-offset-2 hover:underline">
+          Open the protocol
+        </a>
+      )}
+    </section>
   );
 }
 
@@ -659,12 +822,24 @@ function Field({ label, children }: { label: string; children: (id: string) => R
   );
 }
 
-function TitleAndUnit({ axis, onChange }: { axis: { title: string; unit: string }; onChange: (v: { title?: string; unit?: string }) => void }) {
+function TitleAndUnit({
+  axis,
+  noUnit = false,
+  onChange,
+}: {
+  axis: { title: string; unit: string };
+  noUnit?: boolean;
+  onChange: (v: { title?: string; unit?: string }) => void;
+}) {
+  const title = (
+    <Field label="Title">
+      {(id) => <Input id={id} size="compact" maxLength={80} value={axis.title} onChange={(e) => onChange({ title: e.target.value })} />}
+    </Field>
+  );
+  if (noUnit) return title;
   return (
     <div className="grid grid-cols-[minmax(0,1fr)_7rem] gap-3">
-      <Field label="Title">
-        {(id) => <Input id={id} size="compact" maxLength={80} value={axis.title} onChange={(e) => onChange({ title: e.target.value })} />}
-      </Field>
+      {title}
       <Field label="Unit">
         {(id) => <Input id={id} size="compact" maxLength={24} value={axis.unit} placeholder="none" onChange={(e) => onChange({ unit: e.target.value })} />}
       </Field>
@@ -672,21 +847,33 @@ function TitleAndUnit({ axis, onChange }: { axis: { title: string; unit: string 
   );
 }
 
-// Optional bounds; blank is "fit the data".
-function Range({ axis, onChange }: { axis: { min: number | null; max: number | null }; onChange: (v: { min?: number | null; max?: number | null }) => void }) {
+// Optional bounds; blank is "fit the data". A time axis takes dates (with times when the
+// column has them), read as the wall-clock time the file wrote.
+function Range({
+  axis,
+  time,
+  onChange,
+}: {
+  axis: { min: number | null; max: number | null };
+  time: boolean | null;
+  onChange: (v: { min?: number | null; max?: number | null }) => void;
+}) {
+  const Bound = time === null ? BoundInput : DateBoundInput;
   return (
     <div className="grid grid-cols-2 gap-3">
       <Field label="From">
-        {(id) => <BoundInput id={id} value={axis.min} onChange={(min) => onChange({ min })} />}
+        {(id) => <Bound id={id} value={axis.min} withTime={time ?? false} onChange={(min) => onChange({ min })} />}
       </Field>
       <Field label="To">
-        {(id) => <BoundInput id={id} value={axis.max} onChange={(max) => onChange({ max })} />}
+        {(id) => <Bound id={id} value={axis.max} withTime={time ?? false} onChange={(max) => onChange({ max })} />}
       </Field>
     </div>
   );
 }
 
-function BoundInput({ id, value, onChange }: { id: string; value: number | null; onChange: (v: number | null) => void }) {
+type BoundProps = { id: string; value: number | null; withTime: boolean; onChange: (v: number | null) => void };
+
+function BoundInput({ id, value, onChange }: BoundProps) {
   const [text, setText] = useState(value === null ? "" : String(value));
   // A bound cleared from outside (a new column, a new scale) clears the box too.
   const [shown, setShown] = useState(value);
@@ -712,22 +899,43 @@ function BoundInput({ id, value, onChange }: { id: string; value: number | null;
   );
 }
 
+function DateBoundInput({ id, value, withTime, onChange }: BoundProps) {
+  const toText = (ms: number | null) => (ms === null ? "" : new Date(ms).toISOString().slice(0, withTime ? 16 : 10));
+  return (
+    <Input
+      id={id}
+      size="compact"
+      type={withTime ? "datetime-local" : "date"}
+      value={toText(value)}
+      onChange={(e) => {
+        const t = e.target.value;
+        const ms = t === "" ? null : Date.parse(withTime ? `${t}:00Z` : `${t}T00:00:00Z`);
+        onChange(ms === null || Number.isNaN(ms) ? null : ms);
+      }}
+    />
+  );
+}
+
 function SeriesRow({
+  spec,
   series,
   table,
   numbers,
-  taken,
+  ownXChoices,
   onChange,
   onRemove,
 }: {
+  spec: XYSpec;
   series: Series;
   table: DataTable;
   numbers: readonly DataColumn[];
-  taken: readonly ColumnId[];
+  ownXChoices: readonly DataColumn[];
   onChange: (f: (s: Series) => Series) => void;
   onRemove: (() => void) | null;
 }) {
   const column = findColumn(table, series.column);
+  const taken = [spec.x.column, ...spec.series.map((q) => q.column)];
+  const xColumn = findColumn(table, spec.x.column);
   return (
     <li className="grid gap-3">
       <div className="flex items-end gap-3">
@@ -741,7 +949,7 @@ function SeriesRow({
           </Button>
         )}
       </div>
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className={cn("grid gap-3", ownXChoices.length > 0 ? "sm:grid-cols-3" : "sm:grid-cols-2")}>
         <Field label="Column">
           {(id) => (
             <select
@@ -764,6 +972,27 @@ function SeriesRow({
             </select>
           )}
         </Field>
+        {ownXChoices.length === 0 ? null : (
+          <Field label="Along x">
+            {(id) => (
+              <select
+                id={id}
+                value={series.x ?? ""}
+                onChange={(e) => onChange((s) => ({ ...s, x: ownXChoices.find((c) => c.id === e.target.value)?.id ?? null }))}
+                className={inputVariants({ size: "compact" })}
+              >
+                <option value="">{xColumn === undefined ? "The chart's x" : `${xColumn.id} · ${columnLabel(xColumn)}`}</option>
+                {ownXChoices
+                  .filter((c) => c.id !== series.column && !spec.series.some((q) => q.column === c.id))
+                  .map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.id} · {columnLabel(c)}
+                    </option>
+                  ))}
+              </select>
+            )}
+          </Field>
+        )}
         <Field label="Error bars">
           {(id) => (
             <select
@@ -784,7 +1013,20 @@ function SeriesRow({
           )}
         </Field>
       </div>
-      <ColorPicker name={series.name} value={series.color} onChange={(color) => onChange((s) => ({ ...s, color }))} />
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <ColorPicker name={series.name} value={series.color} onChange={(color) => onChange((s) => ({ ...s, color }))} />
+        {spec.type === "line" ? (
+          <Segmented<Stroke>
+            label={`Line for ${series.name}`}
+            options={[
+              { value: "solid", label: "Solid" },
+              { value: "dashed", label: "Dashed" },
+            ]}
+            value={series.stroke}
+            onChange={(stroke) => onChange((s) => ({ ...s, stroke }))}
+          />
+        ) : null}
+      </div>
     </li>
   );
 }

@@ -2,7 +2,7 @@
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useId } from "react";
-import { chartHref, type SavedChart } from "@/lib/charts";
+import { chartHref, chartTrouble, type SavedChart } from "@/lib/charts";
 import type { LocationId } from "@/lib/ids";
 import { useLabApi } from "../lab-api";
 import { Skeleton } from "../ui/skeleton";
@@ -33,7 +33,9 @@ function LinkedChart({ item }: { item: ProtocolChart }) {
   const api = useLabApi();
   const { chart, file } = item;
   const query = useQuery({ queryKey: tableKey(chart.sha256), queryFn: ({ signal }) => api.dataTable(chart.sha256, signal) });
-  const table = query.data?.state === "ready" ? query.data.tables.tables.find((t) => t.name === chart.sheet) : undefined;
+  const tables = query.data?.state === "ready" ? query.data.tables.tables : null;
+  const table = tables?.find((t) => t.name === chart.sheet);
+  const trouble = tables === null ? null : chartTrouble(chart, tables);
   return (
     <li className="min-w-0">
       <Link href={chartHref(chart.id)} className="text-label-large text-content-primary underline-offset-2 hover:underline">
@@ -48,8 +50,15 @@ function LinkedChart({ item }: { item: ProtocolChart }) {
         </p>
       )}
       <div className="mt-4">
-        {table !== undefined ? (
+        {table !== undefined && trouble === null ? (
           <ChartFigure spec={chart.spec} table={table} label={chart.title} />
+        ) : trouble !== null ? (
+          <p className="text-paragraph-small text-content-tertiary">
+            {trouble}{" "}
+            <Link href={chartHref(chart.id)} className="text-content-accent underline-offset-2 hover:underline">
+              Fix the chart
+            </Link>
+          </p>
         ) : query.data === undefined || query.data.state === "waiting" || query.data.state === "missing" ? (
           <Skeleton className="h-72 w-full rounded-card" />
         ) : (
