@@ -16,11 +16,12 @@ import {
   repairSpec,
   SERIES_COLORS,
   startingHeatmap,
-  startingSpec,
+
   withType,
   type Series,
   type XYSpec,
 } from "../charts";
+import { startingChart } from "../chart-guide";
 import { DataTables, formatDate, mainTable, rowsNote, type DataTable } from "../data-tables";
 import { ColumnId } from "../ids";
 
@@ -168,15 +169,15 @@ describe("a plate spec", () => {
   const kinetic = table(plate, "Table 1");
 
   it("starts a grid and a list of wells as a plate, and a kinetic read as its curves", () => {
-    expect(startingSpec(grid)).toEqual({
+    expect(startingChart(grid)).toEqual({
       version: 1,
       type: "heatmap",
       plate: { size: 96, source: { kind: "grid", rows: "A" } },
       value: { title: "Plate", unit: "", min: null, max: null },
     });
-    expect(startingSpec(list)).toMatchObject({ type: "heatmap", plate: { size: 96, source: { kind: "wells", well: "A", value: "C" } }, value: { title: "OD450" } });
-    expect(startingSpec(kinetic)?.type).toBe("line");
-    expect(withType(xy(startingSpec(kinetic)), "heatmap", kinetic, null)).toMatchObject({ plate: { size: 96, source: { kind: "read", row: 30 } } });
+    expect(startingChart(list)).toMatchObject({ type: "heatmap", plate: { size: 96, source: { kind: "wells", well: "A", value: "C" } }, value: { title: "OD450" } });
+    expect(startingChart(kinetic)?.type).toBe("line");
+    expect(withType(xy(startingChart(kinetic)), "heatmap", kinetic, null)).toMatchObject({ plate: { size: 96, source: { kind: "read", row: 30 } } });
   });
 
   it("is checked against the table's plate", () => {
@@ -191,7 +192,7 @@ describe("a plate spec", () => {
   });
 
   it("switches to and from a plate, going back to the chart it came from", () => {
-    const line = xy(startingSpec(kinetic));
+    const line = xy(startingChart(kinetic));
     const heat = withType(line, "heatmap", kinetic, null);
     expect(withType(heat, "line", kinetic, line)).toEqual(line);
   });
@@ -243,26 +244,26 @@ describe("a saved chart whose table was read again", () => {
 });
 
 describe("a new chart", () => {
-  it("starts on the plate read's time and first well, skipping the flat temperature", () => {
-    const spec = xy(startingSpec(table(plate, "Table 1")));
+  it("starts on the plate read's time and its first three wells, skipping the flat temperature", () => {
+    const spec = xy(startingChart(table(plate, "Table 1")));
     expect(spec.type).toBe("line");
     expect(spec.x).toMatchObject({ column: "A", title: "Time", unit: "min" });
-    expect(spec.series).toEqual([{ column: "C", name: "A1", color: "blue", stroke: "solid", error: null, x: null }]);
+    expect(spec.series.map((s) => s.column)).toEqual(["C", "D", "E"]);
   });
 
   it("starts the AKTA trace as volume against absorbance", () => {
-    expect(startingSpec(akta)).toMatchObject({ type: "line", x: { column: "A", unit: "ml" }, y: { title: "UV 1_280", unit: "mAU" } });
+    expect(startingChart(akta)).toMatchObject({ type: "line", x: { column: "A", unit: "ml" }, y: { title: "UV 1_280", unit: "mAU" } });
   });
 
   it("starts a dated log with time along x", () => {
-    expect(startingSpec(table(bioreactor, "Table 1"))).toMatchObject({ type: "line", x: { column: "A", title: "Timestamp" }, series: [{ column: "C" }] });
+    expect(startingChart(table(bioreactor, "Table 1"))).toMatchObject({ type: "line", x: { column: "A", title: "Timestamp" }, series: [{ column: "C" }] });
   });
 
   it("starts names and numbers as bars, and a sheet of text as nothing", () => {
-    expect(startingSpec(table(bradford, "Samples"))?.type).toBe("scatter");
+    expect(startingChart(table(bradford, "Samples"))).toMatchObject({ type: "bar", x: { column: "A" }, series: [{ column: "C" }] });
     const namesOnly: DataTable = { ...standards, columns: [table(bradford, "Samples").columns[0], standards.columns[1]] };
-    expect(startingSpec(namesOnly)).toMatchObject({ type: "bar", x: { column: "A" } });
-    expect(startingSpec({ ...standards, columns: [table(bradford, "Samples").columns[0]] })).toBeNull();
+    expect(startingChart(namesOnly)).toMatchObject({ type: "bar", x: { column: "A" } });
+    expect(startingChart({ ...standards, columns: [table(bradford, "Samples").columns[0]] })).toBeNull();
   });
 
   it("gives each new series the first style not in use, never repainting the others", () => {

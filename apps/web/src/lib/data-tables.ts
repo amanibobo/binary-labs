@@ -138,11 +138,62 @@ export function rowsNote(table: DataTable): string | null {
   return table.rowsInFile === null ? `First ${kept} rows.` : `First ${kept} rows of ${count.format(table.rowsInFile)}.`;
 }
 
-// The table a chart opens on: the one with the most cells, which is the data and not a preamble.
+// The table a chart opens on: the first one with at least a quarter of the biggest one's cells.
+// A workbook opens on its first sheet, as Excel does, but a few lines a blank row split off
+// above the data are passed over.
 export function mainTable(doc: DataTables): DataTable | null {
-  let best: DataTable | null = null;
-  for (const t of doc.tables) {
-    if (best === null || t.rows * t.columns.length > best.rows * best.columns.length) best = t;
-  }
-  return best;
+  const cells = (t: DataTable) => t.rows * t.columns.length;
+  const most = Math.max(0, ...doc.tables.map(cells));
+  return doc.tables.find((t) => cells(t) * 4 >= most) ?? null;
+}
+
+// What a column's name says it holds, for a chart's first choices (lib/chart-guide.ts). Words
+// are matched whole, so "SD" is found in "A595 SD" but not in "SDS".
+const word = (words: string) => new RegExp(`(^|[^\\p{L}])(${words})(?=$|[^\\p{L}])`, "iu");
+const SPREAD = word("sd|s\\.d\\.|sem|s\\.e\\.m\\.|se|stdev|std\\.? ?dev|st\\.? ?dev|standard deviation|standard error|std\\.? ?err(?:or)?|error|ci|±");
+const MEAN = word("mean|average|avg");
+const REPEAT = /(^|[^\p{L}])(rep|replicate|repeat|trial)\.?\s*\d+/iu;
+const BOOKKEEPING = /^(#|no\.?|id|index|row|order)$|dilution|factor/i;
+
+// A column of spreads (SD, SEM, a confidence interval): error bars, not a reading.
+export function isSpreadColumn(column: DataColumn): boolean {
+  return column.kind === "number" && SPREAD.test(column.name);
+}
+
+export function isMeanColumn(column: DataColumn): boolean {
+  return column.kind === "number" && MEAN.test(column.name);
+}
+
+// A column that numbers or scales the rows rather than measuring them: a dilution, an index.
+export function isBookkeepingColumn(column: DataColumn): boolean {
+  return BOOKKEEPING.test(column.name.trim());
+}
+
+// How many repeats a table records side by side ("Rep 1", "Rep 2", "Rep 3"); 0 when it doesn't.
+export function repeatCount(table: DataTable): number {
+  const n = table.columns.filter((c) => c.kind === "number" && REPEAT.test(c.name)).length;
+  return n >= 2 ? n : 0;
+}
+
+// A name with the words that make it a mean or a spread taken out, so "A280 mean" and
+// "A280 SD" are seen as one measurement.
+function stem(name: string): string {
+  return name
+    .replace(new RegExp(SPREAD.source, "giu"), " ")
+    .replace(new RegExp(MEAN.source, "giu"), " ")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim()
+    .toLowerCase();
+}
+
+// The column of spreads that goes with a measured column: the one named like it, or the
+// table's only one when the measured column is a mean. Units agree when both have one.
+export function spreadFor(table: DataTable, measured: DataColumn): NumberColumn | null {
+  if (measured.kind !== "number" || isSpreadColumn(measured)) return null;
+  const spreads = numberColumns(table).filter(
+    (c) => c.id !== measured.id && isSpreadColumn(c) && (c.unit === null || measured.unit === null || c.unit === measured.unit),
+  );
+  const named = spreads.find((c) => stem(c.name) === stem(measured.name));
+  if (named !== undefined) return named;
+  return spreads.length === 1 && isMeanColumn(measured) ? spreads[0] : null;
 }

@@ -16,7 +16,7 @@ import {
   repairSpec,
   SERIES_COLORS,
   specProblem,
-  startingSpec,
+
   titleFromName,
   withType,
   XY_TYPES,
@@ -31,6 +31,7 @@ import {
   type XYSpec,
 } from "@/lib/charts";
 import { formatValue } from "@/lib/chart-geometry";
+import { startingChart } from "@/lib/chart-guide";
 import { axisColumns, columnLabel, findColumn, formatDate, mainTable, type DataColumn, type DataTable, type DataTables } from "@/lib/data-tables";
 import type { ColumnId, LocationId, ProtocolId, Sha256 } from "@/lib/ids";
 import { plateLayout, type PlateLayout } from "@/lib/plates";
@@ -194,7 +195,7 @@ function Builder({
   const [draft, setDraft] = useState<Draft>(() =>
     mode.kind === "edit"
       ? { sheet: mode.chart.sheet, title: mode.chart.title, spec: mode.chart.spec, protocolId: mode.chart.protocolId }
-      : { sheet: first.name, title: titleFromName(file.name), spec: startingSpec(first), protocolId: mode.protocolId },
+      : { sheet: first.name, title: titleFromName(file.name), spec: startingChart(first), protocolId: mode.protocolId },
   );
   // The x/y chart while a plate is shown, and the other way round, so switching back keeps it.
   const other = useRef<ChartSpec | null>(null);
@@ -223,7 +224,7 @@ function Builder({
     const next = doc.tables.find((t) => t.name === name);
     if (next === undefined) return;
     other.current = null;
-    setDraft((d) => ({ ...d, sheet: name, spec: startingSpec(next) }));
+    setDraft((d) => ({ ...d, sheet: name, spec: startingChart(next) }));
   }
 
   function chooseType(type: ChartType) {
@@ -236,7 +237,7 @@ function Builder({
 
   function fix() {
     const mended = spec === null ? null : repairSpec(spec, table);
-    setDraft((d) => ({ ...d, sheet: table.name, spec: mended ?? startingSpec(table) }));
+    setDraft((d) => ({ ...d, sheet: table.name, spec: mended ?? startingChart(table) }));
   }
 
   function togglePlot(column: DataColumn) {

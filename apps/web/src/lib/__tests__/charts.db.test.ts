@@ -4,7 +4,8 @@ import { dirname, join } from "node:path";
 import { Client } from "pg";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import { ChartRows, checkSpec, startingSpec, type SavedChart } from "../charts";
+import { ChartRows, checkSpec, type SavedChart } from "../charts";
+import { startingChart } from "../chart-guide";
 import { CreateLabResult } from "../domain";
 import { LabId, Sha256 } from "../ids";
 
@@ -82,7 +83,7 @@ describe("a chart of a stored table", () => {
   it("saves, saves again on top of what it read, and refuses a save over someone else's", async () => {
     const table = (await readTables(labA, key)).tables[0];
     if (table === undefined) throw new Error("no table");
-    const spec = startingSpec(table);
+    const spec = startingChart(table);
     if (spec === null) throw new Error("nothing to plot");
     expect(checkSpec(spec, table)).toBeNull();
 
