@@ -469,3 +469,43 @@ The question costs one click on every new chart; it's what makes the first pictu
 Cold read: two fresh agents played a first-year student with only the screenshots and the tasks. The first tripped on "Add a column" (read as a plate column on a plate), error bars it took for missing, A2 and A3 with no visible way off on a desktop, the SD card offered as a measurement with its note cut off, the word heatmap appearing nowhere, the PNG's contents, ⌘Z on a phone, and "A260 has its own column along the bottom". Those became "Add another measurement" and "Sheet column E", the hidden-bars note, a remove button always shown and "Tap it again to take it off", "Spread of repeats, best as error bars", "Plate heatmap", "PNG of the chart and its title", "Undo takes back any step" and "A260 is drawn against its own bottom column, UV 2_260 (ml), as the instrument recorded it". The second found the protocol link a surprise, "Name this axis" read as a real label, "rows" meaning sheet rows and plate rows, and "Show the numbers" not looking like a button; those were changed as above.
 
 Not built, from the cold reads: a fitted line with its equation and R² for a standard curve (both students looked for it, and it's the next thing a standard curve needs), blank subtraction, labels saying which wells are standards, blanks and samples on a plate, and the sentence on the exported picture.
+
+## 2026-11-05 — a quieter search page (supersedes the row parts of "naming and copy rules" and "a calmer search screen", and the latest four questions in "asking the lab")
+
+The operator, looking at the demo lab: "there's too much going on on this main screen… those tags are too much clutter… keep all the features but make it less cluttered and cleaner." Every row carried a line of chips (Check this, experiment, person, instrument) and an opened row added the date, five tags and Add tag on a wrapping second line, a raw dump of the Gen5 header and a stack of actions. No migration; the API is unchanged except that the Search home loads up to 50 recent questions instead of 4.
+
+- **A closed row is quiet.** A 48 px (phone) or 56 px preview, the name, then one line of the label in plain words (experiment and person, the instrument when one is missing; `rowSummary`), then where it lives · date and, for a query, the matching text. Check this is a small amber marker by the name and the flag mark sits beside it; amber is still only those two. No date chip (the date is on the meta line), no chips at all. The tags hide behind their count ("5 tags"), which shows them in place. Nothing on a closed row edits, so a click anywhere on it opens it; renaming from the closed row, which the tour taught, is gone, since a student clicking a name to open a file got an edit field instead.
+- **Labels live in the opened row,** in one "Labels" section: Name, Date, Experiment, Person and Instrument as lines to click and type over (a pencil on hover; experiments and people offered from the lab's lists as you type), then the tags with Add tag. One line says how: "Click any value to change it. Enter saves, and you can undo." When the label is a guess, the Check this marker leads a plain line, "Binary guessed these labels. Fixing one, or confirming them all, clears it.", with "All look right". A file in Needs a look gets a name field and a link to Needs a look.
+- **The opened row** is the preview beside Open (the one primary button) and a short list in one style: Make a chart (data sheets), Map around this file, Make a protocol from this file. Under them Labels, and only when there are any, Checks, Also in and Charts. A data sheet's preview is its table as read for charts, 5 rows by 5 columns with the size of the sheet ("31 rows · 98 columns"), Show more (30 by 24) and the instrument's header behind "Notes from the instrument"; until the table is read, or for any other text, the preview is the snippet cut at eight lines with Show more. Images are capped at 288 px tall.
+- **The Search home** keeps the box, the examples, onboarding's getting-started card and the answer box as they were. Recent questions shows the last three, "You · Nov 5, 2026" and a quiet "No answer" under each; "Show all 12" under them opens the rest in place, the same rows with no frame, scrolling on their own past 320 px, with "Show less" and a screen-reader line saying all are shown. Recent files and results use the quiet rows. Results pages get the same rows; the answer box stays above them.
+- **Keys.** Up and Down move between rows, Down from the search box enters the list and Up from the first row returns, Home and End go to the ends, Enter opens and Escape closes an opened row. A quiet "↑ ↓ to move, Enter opens, Esc closes" sits by the list's heading on a desktop with a mouse.
+- **Everywhere the rows are.** The calendar's day uses the same row. Needs a look now leads with the same preview square. Browse and a protocol's Files keep their closed rows and share the new opened one, without Labels (neither page edits labels).
+- **Onboarding.** The tour's fix step and "Fix a label" in help now say to open a file and change the value under Labels; the Check this hint points at the marker and says to open the file. The "fix" clip was recorded again.
+
+Counted headless in the fixture app (the main column only, dark, the demo lab's plate 7 read with its five tags and Check this), before and after:
+
+| Page | Controls | Chips | Boxes and fills | Height |
+| --- | --- | --- | --- | --- |
+| Search home, 1440 | 28 → 14 | 13 → 2 | 19 → 8 | 1204 → 1107 px |
+| Search home, 390 | 28 → 14 | 13 → 2 | 19 → 8 | 1380 → 1180 px |
+| Results, 1440 and 390 | 19 → 9 | 21 → 12 | 27 → 18 | 1248 → 1190 px (1336 → 1186 at 390) |
+| Plate 7 opened, 1440 | 42 → 34 | 20 → 10 | 28 → 18 | 1600 → 1693 px |
+
+Controls are links, buttons and fields on screen; chips are small filled labels (Check this, Flagged and, on results, the highlighted words); boxes are anything with a border or a fill. The opened row has more text than before (the table's 25 cells replace one block of header text). Clicks, desktop:
+
+| Task | Before | After |
+| --- | --- | --- |
+| Fix a label (experiment, person, instrument) | 1 (its chip) | 2 (open, the value) |
+| Rename | 1 (the name) | 2 (open, Name) |
+| Confirm a Check this label | 2 | 2 (open, All look right) |
+| Add a tag | 2 | 2 |
+| See all tags | 1 (open the row) | 1 ("5 tags") |
+| Open the file | 1 (hover icon); 2 on a phone | the same |
+| Make a chart | 2 | 2 |
+| A recent question past the fourth | not shown | 2 |
+
+Fixing a label costs one more click than it did. That's the price of a closed row that never turns into an edit field under a student's click; Labels shows every field at once instead of one chip at a time.
+
+Cold reads: two fresh agents, a first-year student and a senior postdoc, had only the screenshots and four tasks (find the plate 7 kinetic read and see all its tags, fix a wrong experiment, make a chart, find files that need a look). Both did all four in the expected clicks. The first round found the values under Labels didn't look editable and nothing said Enter saves, "We're not sure about this label. Looks right" read as approving the wrong experiment, the tag count looked like plain gray text, and no keyboard path was shown. Those became the how-to line, the amber Check this line and "All look right", a dotted underline on the count, and the keys hint. In the second round both found every task; the amber box around the Check this line read as loud, so it became the marker and a plain line, and an opened row stopped repeating its snippet above the preview. A third round added the recent questions (find the A420/A280 question asked a while ago): both opened "Show all 12" at once, but neither saw that question, the tenth, because a still screenshot can't scroll the list, and both asked for a way to search old questions. What every round left: Check this, Flagged and Needs a look still read as three kinds of trouble to a newcomer, the postdoc wanted keys to edit a field, and "Make a chart" reads as quiet next to Open.
+
+Not built: searching old questions, a filter for Check this labels (the search function has no label filter), keys for editing a field or making a chart from a row, and editing many files' labels at once.
