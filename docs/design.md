@@ -202,3 +202,27 @@ worker: scan of an instrument source lists nothing ──▶ process_location re
 - `proxy.ts` skips `/api/instruments/`, so those routes never see a session and the part PUT isn't buffered. Each route authorizes the token before reading the body (`lib/instrument-routes.ts`); the cores are in `lib/instrument-upload.ts` and the database client in `lib/instrument-db.ts`, which tests swap for plain Postgres (`lib/__tests__/pg-instrument-db.ts`).
 - `/api/files/<location>` opens an instrument file from our store by its `source_rev`.
 - Tests: `workers/tests/test_instruments.py` (SQL and worker), `apps/web/src/lib/__tests__/instruments.db.test.ts` (the real route handlers), `instruments/uploader/tests` (the uploader against a mock server). `scripts/e2e-instrument.sh` runs the real uploader binary against the real route handlers over HTTP, kills it mid-send and restarts it, then runs the worker. Fixtures: `/dev/fixtures/settings/instruments[?code=shown|paired][&role=member]`.
+
+## Checks and flags
+
+Migration 0018. A protocol version's `expected_values` holds its checks (`CheckSpec` in `lib/checks.ts`, `check_spec_ok` in SQL, `bl_worker/checks.py` evaluates them). `check_requests`, `check_results` and `flags` are lab tables the worker writes; members read all three under RLS and update only `flags.review` and `flags.review_note`, through `review_flag`. `save_checks` (`security definer`, membership checked) saves a version with new checks; `protocol_versions_carry_checks` keeps them on every other save.
+
+```
+triggers: data_tables ready, labels (experiment, date, needs_look), protocols (current version,
+          archived), experiments.protocol_id, protocol_files ──▶ check_requests.requested_at
+worker: tend_checks (10 s), or process_location / label_blob at once ──▶ run_checks (locked per file)
+        read <lab>/tables/<sha256>.json ──▶ checks.evaluate per check of each tied protocol
+        ──▶ one transaction: check_results replaced, flags kept / cleared / raised, checked_at = request
+page:   GET /api/flags/marks?shas= ──▶ file_flag_marks ──▶ amber "Flagged" on rows (FlagMarksProvider batches)
+        GET /api/flags?sha256= ──▶ file_checks + lab_flags + check_requests ──▶ the opened row's Checks
+        /flags ──▶ lab_flags (open) · /flags/<id> ──▶ lab_flags + the table from /api/tables/<sha>
+        POST /api/flags/<id> {review, note} ──▶ review_flag ──▶ flag.review in audit_log
+        /protocols/<id>/checks ──▶ POST /api/protocols/<id>/checks {baseVersionId, checks, note}
+          ──▶ save_checks ──▶ new version (409 stale on BL101) ──▶ its files are checked again
+```
+
+- A flag's source is columns: `source_sheet`, `source_columns` (letters), `source_rows` (an `int4multirange` of 0-based rows of the parsed table), and for a control check the same four for `control_*`. `lab_flags` hands rows to the browser as `[first, last]` pairs and the file as its newest live location (`flag_file_json`).
+- `flags_open_idx` keeps one open flag per file and check; `evidence` (sha256 of the rule, value and cells) decides whether a run keeps it.
+- `flag_queue_count` is the sidebar's number (open, unanswered); `file_flag_marks` leaves out flags answered "wrong"; `check_usefulness` is admins only.
+- Errors: `BL107` no such flag, `BL108` checks on a tutorial, plus the protocol codes.
+- Tests: `workers/tests/test_checks.py` (every kind and couldn't-check case on the fixtures), `test_checks_db.py` (runs, recheck triggers, the source constraint, RLS, audit, deletion), `apps/web/src/lib/__tests__/checks.test.ts`, `flags.test.ts`, `flags.db.test.ts`. `scripts/e2e-checks.sh` runs the real worker over arriving files. Fixtures: `workers/scripts/make_table_fixtures.py` writes the check files; pages at `/dev/fixtures/flags?view=list|empty|flag|control|answered|wrong|checks|checks-wrong|checks-empty|protocol`, and a flagged file on `/dev/fixtures/search?state=empty`.
