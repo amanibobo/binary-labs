@@ -94,7 +94,7 @@ export function recommend(table: DataTable): Recommendation | null {
   const layout = plateLayout(table);
   if (layout !== null && layout.kind !== "read") return { type: "heatmap", reason: `This sheet is laid out like a ${layout.size}-well plate.` };
   if (layout?.kind === "read") {
-    return { type: "line", reason: `Each well was read ${table.rows} times, so lines show how the wells change.` };
+    return { type: "line", reason: `Each well was read ${table.rows} times, so lines show how the wells change. It starts with the wells that ended lowest, in the middle and highest.` };
   }
   const start = startingXY(table);
   const x = start === null ? undefined : findColumn(table, start.x.column);
@@ -138,8 +138,23 @@ function isFlat(column: NumberColumn): boolean {
   return hi - lo <= 0.01 * Math.max(Math.abs(lo), Math.abs(hi));
 }
 
-// How many wells a kinetic read's line chart starts with.
-const FIRST_WELLS = 3;
+function lastValue(column: NumberColumn): number {
+  for (let r = column.values.length - 1; r >= 0; r--) {
+    const v = column.values[r];
+    if (v !== null) return v;
+  }
+  return 0;
+}
+
+// The wells a kinetic read's line chart starts with: the ones that ended lowest, in the middle
+// and highest, in plate order, so the first picture shows the plate's range rather than three
+// neighbors that are likely repeats of each other.
+export function spreadWells(wells: readonly NumberColumn[]): NumberColumn[] {
+  if (wells.length <= 3) return [...wells];
+  const byEnd = [...wells].sort((a, b) => lastValue(a) - lastValue(b));
+  const picked = new Set([byEnd[0], byEnd[Math.floor((byEnd.length - 1) / 2)], byEnd[byEnd.length - 1]]);
+  return wells.filter((w) => picked.has(w));
+}
 
 // How a chart of this kind starts from a table, ready to look at: the columns a student would
 // most likely pick, already picked. Null when the table can't make that kind of chart.
@@ -149,7 +164,8 @@ export function startFor(table: DataTable, type: ChartType): ChartSpec | null {
   if (layout?.kind === "read" && type !== "bar") {
     const x = layout.time ?? axisColumns(table)[0];
     const wells = layout.wells.map((w) => w.column).filter((c) => !isFlat(c));
-    if (x !== undefined && wells.length > 0) return xySpec(table, type, x, wells.slice(0, type === "scatter" ? 1 : FIRST_WELLS));
+    const picked = spreadWells(wells);
+    if (x !== undefined && picked.length > 0) return xySpec(table, type, x, type === "scatter" ? picked.slice(-1) : picked);
   }
   const base = startingXY(table);
   const baseX = base === null ? undefined : findColumn(table, base.x.column);

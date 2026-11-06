@@ -48,7 +48,7 @@ describe("editing on the chart", () => {
     const swapped = restyle(three, ColumnId.parse("C"), { color: "orange", stroke: "solid" });
     expect(swapped.series.map((s) => s.color)).toEqual(["orange", "blue", "aqua"]);
     expect(specProblem(swapped)).toBeNull();
-    const dashed = restyle(three, ColumnId.parse("D"), { color: "orange", stroke: "dashed" });
+    const dashed = restyle(three, three.series[1].column, { color: "orange", stroke: "dashed" });
     expect(dashed.series[1]).toMatchObject({ color: "orange", stroke: "dashed" });
   });
 });

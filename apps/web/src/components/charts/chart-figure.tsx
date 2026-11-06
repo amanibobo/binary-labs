@@ -260,13 +260,13 @@ function useWidth(): [React.RefObject<HTMLDivElement | null>, number | null] {
 function Caption({ notes, hint, showTable, onToggle }: { notes: string[]; hint?: ReactNode; showTable: boolean; onToggle: () => void }) {
   return (
     <figcaption className="mt-3 flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-      <div className="min-w-0 text-paragraph-xsmall text-content-tertiary">
+      <div className="min-w-0 flex-1 basis-72 text-paragraph-xsmall text-content-tertiary">
         {hint === undefined ? null : <div className="mb-1 flex items-center gap-1.5 pt-2.5">{hint}</div>}
         {notes.map((n) => (
           <p key={n}>{n}</p>
         ))}
       </div>
-      <Button variant="tertiary" size="compact" className="-mr-3 text-content-secondary" aria-expanded={showTable} onClick={onToggle}>
+      <Button variant="tertiary" size="compact" className="-mx-3 shrink-0 text-content-secondary sm:ml-0" aria-expanded={showTable} onClick={onToggle}>
         {showTable ? "Hide the numbers" : "Show the numbers"}
       </Button>
     </figcaption>

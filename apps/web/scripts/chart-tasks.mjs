@@ -23,7 +23,7 @@ const tasks = [
     path: c("new"),
     async run(t) {
       await t.click(t.page.getByRole("button", { name: "How something changes" }), "picks the suggested kind of chart");
-      await t.sees("A1, A2 and A3 as Time goes from 0 to 30 min, 31 points each.");
+      await t.sees("A1, D9 and H2 as Time goes from 0 to 30 min, 31 points each.");
       await t.click(t.page.getByRole("button", { name: "Save", exact: true }), "saves");
       await t.sees("Chart saved");
     },
@@ -33,7 +33,7 @@ const tasks = [
     path: c("new"),
     async run(t) {
       await t.click(t.page.getByRole("button", { name: "How something changes" }), "picks the suggested kind of chart");
-      for (const well of ["A2", "A3", "D1", "H1"]) await t.click(t.page.getByRole("button", { name: `Well ${well}`, exact: true }), `taps ${well}`);
+      for (const well of ["D9", "H2", "D1", "H1"]) await t.click(t.page.getByRole("button", { name: `Well ${well}`, exact: true }), `taps ${well}`);
       await t.sees("A1, D1 and H1 as Time goes from 0 to 30 min, 31 points each.");
       await t.click(t.page.getByRole("button", { name: "Save", exact: true }), "saves");
       await t.sees("Chart saved");

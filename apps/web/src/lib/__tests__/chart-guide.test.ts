@@ -56,7 +56,7 @@ describe("the suggested chart", () => {
   });
 
   it("is a line for time, dates and long traces", () => {
-    expect(recommend(kinetic)).toEqual({ type: "line", reason: "Each well was read 31 times, so lines show how the wells change." });
+    expect(recommend(kinetic)).toEqual({ type: "line", reason: "Each well was read 31 times, so lines show how the wells change. It starts with the wells that ended lowest, in the middle and highest." });
     expect(recommend(bioreactor)).toEqual({ type: "line", reason: "Timestamp holds dates, so a line shows how things change over time." });
     expect(recommend(sec)).toEqual({ type: "line", reason: "There are 961 readings along UV 1_280, so a line follows them." });
   });
@@ -91,13 +91,13 @@ describe("a chart's first columns", () => {
     });
   });
 
-  it("draw three wells of a kinetic read over time, skipping the flat temperature", () => {
+  it("draw a kinetic read's lowest, middle and highest wells over time, skipping the flat temperature", () => {
     const spec = xy(startingChart(kinetic));
     expect(spec.x).toMatchObject({ column: "A", title: "Time", unit: "min" });
     expect(spec.series.map((s) => [s.name, s.color])).toEqual([
       ["A1", "blue"],
-      ["A2", "orange"],
-      ["A3", "aqua"],
+      ["D9", "orange"],
+      ["H2", "aqua"],
     ]);
     expect(spec.y).toMatchObject({ title: "", unit: "" });
   });
@@ -148,7 +148,7 @@ describe("the sentence under a chart", () => {
   });
 
   it("lists the lines of a kinetic read and their points", () => {
-    expect(describeChart(xy(startingChart(kinetic)), kinetic)).toBe("A1, A2 and A3 as Time goes from 0 to 30 min, 31 points each.");
+    expect(describeChart(xy(startingChart(kinetic)), kinetic)).toBe("A1, D9 and H2 as Time goes from 0 to 30 min, 31 points each.");
   });
 
   it("names dates, bars and cut ranges", () => {

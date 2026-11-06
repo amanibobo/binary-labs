@@ -140,7 +140,7 @@ function chartShots() {
       path: c("bradford"),
       steps: async (page) => {
         await answer("How two measurements relate")(page);
-        await page.getByRole("button", { name: "Add a column" }).click();
+        await page.getByRole("button", { name: "Add another measurement" }).click();
         await page.getByRole("dialog").waitFor();
       },
       full: false,

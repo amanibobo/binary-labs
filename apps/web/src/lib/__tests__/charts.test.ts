@@ -244,11 +244,11 @@ describe("a saved chart whose table was read again", () => {
 });
 
 describe("a new chart", () => {
-  it("starts on the plate read's time and its first three wells, skipping the flat temperature", () => {
+  it("starts on the plate read's time and its lowest, middle and highest wells, skipping the flat temperature", () => {
     const spec = xy(startingChart(table(plate, "Table 1")));
     expect(spec.type).toBe("line");
     expect(spec.x).toMatchObject({ column: "A", title: "Time", unit: "min" });
-    expect(spec.series.map((s) => s.column)).toEqual(["C", "D", "E"]);
+    expect(spec.series.map((s) => s.column)).toEqual(["C", "AU", "CJ"]);
   });
 
   it("starts the AKTA trace as volume against absorbance", () => {
