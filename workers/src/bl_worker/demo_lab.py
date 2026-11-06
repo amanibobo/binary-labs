@@ -436,10 +436,138 @@ def build(rt: Runtime, admin: UUID, settle: Settle) -> UUID:
     settle(lab, True)
     with rt.pool.connection() as conn:
         missing = finish(conn, lab, admin)
+        with conn.transaction(), as_user(conn, admin):
+            plan_calendar(conn, lab)
     if missing:
         log.warning("not indexed, so not linked or charted: %s", ", ".join(missing))
     settle(lab, False)
     return lab
+
+
+# (title, day offset from today, start hour or None for all day, hours or days long,
+#  experiment, protocol, uses the plate reader, people, notes)
+PLANS: list[tuple[str, int, int | None, int, str | None, str | None, bool, list[str], str]] = [
+    ("Lab meeting", -10, 10, 1, None, None, False, [], "Batch 3 yields; SEC traces."),
+    ("Lab meeting", -3, 10, 1, None, None, False, [], ""),
+    ("Lab meeting", 4, 10, 1, None, None, False, [], "Rotation student introductions."),
+    ("Lab meeting", 11, 10, 1, None, None, False, [], ""),
+    ("Lab meeting", 18, 10, 1, None, None, False, [], ""),
+    (
+        "Nickel column, batch 4",
+        -8,
+        9,
+        3,
+        "P450 BM3",
+        "P450 BM3 purification",
+        False,
+        ["Priya Nair"],
+        "Pool red fractions; dialyse overnight.",
+    ),
+    (
+        "Nickel column, batch 5",
+        1,
+        9,
+        3,
+        "P450 BM3",
+        "P450 BM3 purification",
+        False,
+        ["Priya Nair", "Ade Okafor"],
+        "",
+    ),
+    (
+        "Bradford standards",
+        0,
+        14,
+        2,
+        "P450 BM3",
+        "Bradford assay",
+        True,
+        ["Priya Nair"],
+        "Fresh BSA dilutions, 0 to 2 mg/mL. Read at 595 nm after 10 min.",
+    ),
+    (
+        "Plate reads, plates 7 to 9",
+        0,
+        15,
+        1,
+        "Thermal shift screen plate 07",
+        None,
+        True,
+        ["Jordan Morales"],
+        "",
+    ),
+    ("DSF screen, lysozyme", 6, 13, 3, "Lysozyme DSF", None, True, ["Chen Du"], ""),
+    (
+        "SDS-PAGE of batch 5 fractions",
+        2,
+        11,
+        2,
+        "P450 BM3",
+        "SDS-PAGE for BM3 fractions",
+        False,
+        ["Ade Okafor"],
+        "",
+    ),
+    ("Dialysis overnight", 1, 18, 15, "P450 BM3", "P450 BM3 purification", False, [], ""),
+    (
+        "Purification week",
+        11,
+        None,
+        5,
+        "P450 BM3",
+        "P450 BM3 purification",
+        False,
+        ["Priya Nair", "Ade Okafor"],
+        "Batches 6 to 8.",
+    ),
+    ("Rotation student starts", 4, None, 1, "Rotation projects", None, False, ["Grace Ho"], ""),
+    ("Plate reader service visit", 7, None, 1, None, None, True, [], "Lamp replacement."),
+    ("Thanksgiving, lab closed", 21, None, 2, None, None, False, [], ""),
+]
+
+
+def plan_calendar(conn: psycopg.Connection, lab: UUID) -> None:
+    """The lab's planned entries around today, as the admin; once per lab."""
+    from datetime import timedelta
+    from zoneinfo import ZoneInfo
+
+    if _one(conn, "select count(*) from calendar_entries where lab_id = %s", (lab,)):
+        return
+    zone = ZoneInfo("America/New_York")
+    today = datetime.now(zone).date()
+
+    def ids(sql: str) -> dict[str, UUID]:
+        return dict(conn.execute(sql, (lab,)).fetchall())
+
+    experiments = ids("select name, id from experiments where lab_id = %s")
+    people = ids("select display_name, id from people where lab_id = %s")
+    protocols = ids(
+        "select v.title, p.id from protocols p"
+        " join protocol_versions v on v.id = p.current_version_id where p.lab_id = %s"
+    )
+    reader = _one(conn, "select id from instruments where lab_id = %s limit 1", (lab,))
+    for title, offset, hour, length, exp, protocol, on_reader, who, notes in PLANS:
+        day = today + timedelta(days=offset)
+        if hour is None:
+            span = (day, day + timedelta(days=length - 1), None, None)
+        else:
+            start = datetime(day.year, day.month, day.day, hour, tzinfo=zone)
+            span = (None, None, start, start + timedelta(hours=length))
+        conn.execute(
+            "insert into calendar_entries (lab_id, title, notes, starts_on, ends_on, starts_at,"
+            " ends_at, experiment_id, protocol_id, instrument_id, person_ids)"
+            " values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+            (
+                lab,
+                title,
+                notes or None,
+                *span,
+                experiments.get(exp or ""),
+                protocols.get(protocol or ""),
+                reader if on_reader else None,
+                [people[p] for p in who if p in people],
+            ),
+        )
 
 
 def delete(rt: Runtime, admin: UUID) -> list[UUID]:
