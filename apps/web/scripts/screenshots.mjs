@@ -14,14 +14,12 @@ const expandGel = (page) => page.getByRole("button", { name: "Details for Batch 
 
 const shots = [
   { name: "browse-root", path: "/dev/fixtures/browse", width: 1440, scheme: "dark" },
-  { name: "browse-subfolder", path: "/dev/fixtures/browse?path=P450%2Fbatch3", steps: (page) => page.getByRole("button", { name: "Batch 3 yields.xlsx" }).click(), width: 1440, scheme: "dark" },
   { name: "browse-root", path: "/dev/fixtures/browse", width: 1440, scheme: "light" },
   { name: "nav-menu", path: "/dev/fixtures/browse?path=P450", steps: (page) => page.getByRole("button", { name: "Menu" }).click(), full: false, width: 390, scheme: "dark" },
-  { name: "search-results", path: results, steps: expandGel, width: 1440, scheme: "dark" },
   {
     name: "search-check",
     path: results,
-    steps: (page) => page.getByRole("button", { name: "Check this label" }).click(),
+    steps: (page) => page.getByRole("button", { name: "Details for Batch 3 gel densitometry" }).click(),
     width: 1440,
     scheme: "dark",
   },
@@ -29,17 +27,19 @@ const shots = [
     name: "search-editor",
     path: results,
     steps: async (page) => {
-      await page.getByRole("button", { name: /^Batch 3 gel densitometry.*rename$/ }).click();
+      await page.getByRole("button", { name: "Details for Batch 3 gel densitometry" }).click();
+      await page.getByRole("button", { name: /^Batch 3 gel densitometry\W*edit name$/ }).click();
+      await page.keyboard.press("ControlOrMeta+a");
       await page.keyboard.type("Batch 3 densitometry, lanes 1 to 8");
     },
     width: 1440,
     scheme: "dark",
   },
-  { name: "needs-a-look", path: "/dev/fixtures/needs-a-look", width: 1440, scheme: "dark" },
   { name: "sign-in", path: "/sign-in", width: 1440, scheme: "dark" },
   { name: "new-lab", path: "/dev/fixtures/new-lab", width: 1440, scheme: "dark" },
   { name: "lab-folder", path: "/dev/fixtures/folder", width: 1440, scheme: "dark" },
   { name: "search-palette", path: "/dev/fixtures/search?state=empty", palette: "p450", width: 1440, scheme: "dark" },
+  ...quietSearchShots(),
   ...protocolShots(),
   ...settingsShots(),
   ...deletionShots(),
@@ -53,6 +53,24 @@ const shots = [
   ...flagShots(),
   ...askShots(),
 ];
+
+// The Search home and its rows, quiet until opened: the home with recent questions, results,
+// a row's tags shown in place, an opened data sheet (its table and Labels)
+// and an opened image, then Needs a look and Browse, in both schemes at desktop and phone width.
+function quietSearchShots() {
+  const all = (shot) => ["dark", "light"].flatMap((scheme) => [1440, 390].map((width) => ({ ...shot, width, scheme })));
+  const home = "/dev/fixtures/ask?view=home";
+  const details = (name) => (page) => page.getByRole("button", { name: `Details for ${name}` }).dispatchEvent("click");
+  return [
+    ...all({ name: "search-home", path: home }),
+    ...all({ name: "search-results", path: results }),
+    ...all({ name: "search-tags", path: home, steps: (page) => page.getByRole("button", { name: /^5 tags/ }).click() }),
+    ...all({ name: "search-open-sheet", path: home, steps: details("Plate 7 absorbance at 420 nm") }),
+    ...all({ name: "search-open-image", path: results, steps: expandGel }),
+    ...all({ name: "needs-a-look", path: "/dev/fixtures/needs-a-look" }),
+    ...all({ name: "browse-subfolder", path: "/dev/fixtures/browse?path=P450%2Fbatch3", steps: (page) => page.getByRole("button", { name: "Batch 3 yields.xlsx" }).click() }),
+  ];
+}
 
 // The calendar, in New York the week the clocks went back: the month, the week, a day's record
 // opened, an entry in the side peek with someone else's booking of the same plate reader, and

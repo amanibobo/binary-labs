@@ -100,12 +100,15 @@ const CLIPS = [
     path: "/dev/fixtures/search?state=results&q=p450%20gels",
     async crop(page) {
       await settled(page);
-      const name = page.getByRole("button", { name: /^Batch 3 gel densitometry.*rename$/ });
-      await name.evaluate((el) => el.scrollIntoView({ block: "center" }));
-      return column(page, name, { above: 160, height: 400 });
+      const row = page.getByRole("button", { name: "Details for Batch 3 gel densitometry" });
+      await row.evaluate((el) => el.scrollIntoView({ block: "start" }));
+      return column(page, row, { above: 24, height: 520 });
     },
     async run(page) {
-      await clickAt(page, page.getByRole("button", { name: /^Batch 3 gel densitometry.*rename$/ }));
+      // Open the row, then fix the name under Labels.
+      await clickAt(page, page.getByRole("button", { name: "Details for Batch 3 gel densitometry" }));
+      await page.waitForTimeout(900);
+      await clickAt(page, page.getByRole("button", { name: /^Batch 3 gel densitometry\W*edit name$/ }));
       await page.keyboard.press("ControlOrMeta+a");
       await page.keyboard.type("Batch 3 densitometry, lanes 1 to 8", { delay: 55 });
       await page.waitForTimeout(300);
