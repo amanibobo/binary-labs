@@ -77,7 +77,7 @@ function chartShots() {
     ...all({ name: "chart-lines", path: c("lines") }),
     { name: "chart-broken", path: c("broken"), width: 1440, scheme: "dark" },
     { name: "chart-dates-new", path: c("dates"), width: 1440, scheme: "light" },
-    { name: "chart-hover", path: c("growth"), steps: hover, full: false, width: 1440, scheme: "light" },
+    { name: "chart-dates-hover", path: c("growth"), steps: hover, full: false, width: 1440, scheme: "light" },
     {
       name: "chart-plate-hover",
       path: c("plate"),
@@ -323,6 +323,10 @@ function talkThroughShots() {
     { name: "talk-no-draft", path: t("no-draft"), width: 1440, scheme: "dark" },
     ...["dark", "light"].map((scheme) => ({ name: "talk-edit", path: t("edit"), width: 1440, scheme })),
     { name: "talk-edit-new", path: t("edit-new"), width: 390, scheme: "dark" },
+    // Steps drafted from a video on the page (decisions.md, "steps from a video").
+    ...all({ name: "talk-video-ready", path: t("video-ready") }),
+    ...all({ name: "talk-video-waiting", path: t("video-waiting") }),
+    { name: "talk-video-dismissed", path: t("video-dismissed"), width: 1440, scheme: "light" },
   ];
 }
 
