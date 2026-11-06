@@ -11,8 +11,9 @@ read from the Modal secret `binary-embed`. docs/deploy.md has the steps; from wo
 The URL is https://<workspace>--binary-embed.modal.run; EMBED_URL is that plus /embed.
 
 Choices (docs/decisions.md, "going online: hosts and how they fit"):
-- L4: fp32 runs ~4x a T4 (30 against 8 TFLOPS), and the model stays in fp32 so vectors match
-  the ones dev machines wrote.
+- L4: the model loads in bfloat16 (its own default, the same as on a dev Mac, so vectors
+  match the ones already stored), and an L4 runs bf16 natively where a T4 can't. $0.80 an
+  hour against a T4's $0.59, billed by the second only while a container is up.
 - The weights are baked into the image, so a cold start loads 1.2 GB from local disk instead
   of downloading it.
 - One container takes many requests at once; QwenEmbedder's lock gives the GPU one batch at
