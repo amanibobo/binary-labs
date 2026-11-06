@@ -59,6 +59,7 @@ function Screen({ view }: { view: z.infer<typeof View> }) {
         <ProtocolView
           page={bradfordAssay}
           files={[fixtureHit(BRADFORD)]}
+          plans={{ entries: [], more: false }}
           authors={authors}
           isAdmin
           talkThroughs={[]}

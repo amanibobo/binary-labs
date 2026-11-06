@@ -116,7 +116,6 @@ export type LabApi = {
   // The lab map: one hub's files, and the map around one node.
   mapHub: (q: HubQuery, signal: AbortSignal) => Promise<HubFiles>;
   mapLocal: (q: LocalQuery, signal: AbortSignal) => Promise<LocalView>;
-  },
   // A file's checks and open flags; open flags per file for rows on screen.
   fileChecks: (sha: Sha256, signal: AbortSignal) => Promise<FileChecks>;
   flagMarks: (shas: readonly Sha256[], signal: AbortSignal) => Promise<Record<string, number>>;

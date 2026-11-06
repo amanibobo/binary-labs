@@ -8,7 +8,16 @@ import psycopg
 from procrastinate import App, JobContext, PsycopgConnector, RetryStrategy
 from procrastinate.exceptions import AlreadyEnqueued
 
-from bl_worker import check_runs, data_tables, deletion, neighbors, process, scan, talk_throughs, videos
+from bl_worker import (
+    check_runs,
+    data_tables,
+    deletion,
+    neighbors,
+    process,
+    scan,
+    talk_throughs,
+    videos,
+)
 from bl_worker.labels import job as labels
 from bl_worker.labels.learning import learn_pending
 from bl_worker.runtime import Runtime
