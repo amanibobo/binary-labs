@@ -11,8 +11,8 @@ import { LabId } from "../ids";
 // way PostgREST serializes rows and parsed with the web app's own schemas.
 
 const db = new Client({ connectionString: process.env.TEST_DATABASE_URL ?? "postgresql://localhost/binary_labs_web_test" });
-const ana = "00000000-0000-4000-8000-0000000000e1";
-const ben = "00000000-0000-4000-8000-0000000000e2";
+const ana = "00000000-0000-4000-8000-0000000000ca";
+const ben = "00000000-0000-4000-8000-0000000000cb";
 const NY = "America/New_York";
 const day = (s: string) => CalendarDay.parse(s);
 let labA: LabId;
