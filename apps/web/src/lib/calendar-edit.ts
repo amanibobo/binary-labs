@@ -1,11 +1,13 @@
 import { entryDays, type CalendarEntry, type EntryWhen } from "./calendar";
 import {
   addDays,
+  addMinutes,
   daysBetween,
   formatCalendarDay,
   formatTime,
   inRange,
   instantAt,
+  shiftDays,
   startOfDay,
   wallClock,
   type CalendarDay,
@@ -52,6 +54,25 @@ export function moveEnd(when: EntryWhen, to: { day: CalendarDay; minutes: number
 export function heldWindow(when: EntryWhen, timeZone: string): { from: string; to: string } {
   if (when.kind === "timed") return { from: when.start, to: when.end };
   return { from: startOfDay(when.first, timeZone).toISOString(), to: startOfDay(addDays(when.last, 1), timeZone).toISOString() };
+}
+
+// A drag or an arrow key: whole days move on the wall clock, so 9 am stays 9 am across a DST
+// change; minutes are real time.
+export function shiftWhen(when: EntryWhen, by: { days: number; minutes: number }, timeZone: string): EntryWhen {
+  if (when.kind === "allDay") return { kind: "allDay", first: addDays(when.first, by.days), last: addDays(when.last, by.days) };
+  const length = Date.parse(when.end) - Date.parse(when.start);
+  const start = addMinutes(shiftDays(new Date(when.start), by.days, timeZone), by.minutes);
+  return { kind: "timed", start: start.toISOString(), end: new Date(start.getTime() + length).toISOString() };
+}
+
+// Moves only the end, keeping at least a day or a quarter hour.
+export function stretchWhen(when: EntryWhen, by: { days: number; minutes: number }, timeZone: string): EntryWhen {
+  if (when.kind === "allDay") {
+    const last = addDays(when.last, by.days);
+    return { kind: "allDay", first: when.first, last: daysBetween(when.first, last) < 0 ? when.first : last };
+  }
+  const end = addMinutes(shiftDays(new Date(when.end), by.days, timeZone), by.minutes).getTime();
+  return { kind: "timed", start: when.start, end: new Date(Math.max(end, Date.parse(when.start) + MIN_TIMED_MS)).toISOString() };
 }
 
 export function plansOn(day: CalendarDay, plans: readonly CalendarEntry[], timeZone: string): CalendarEntry[] {

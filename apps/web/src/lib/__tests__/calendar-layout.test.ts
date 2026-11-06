@@ -95,22 +95,30 @@ describe("lines in a month row", () => {
   it("fits plans and the record when there's room", () => {
     const out = monthRowLines([lane("a", 0, 2, 0)], [2, 1, 0, 0, 0, 0, 0], 4);
     expect(out.lanes).toBe(1);
-    expect(out.days.slice(0, 2)).toEqual([
-      { records: 2, more: 0 },
-      { records: 1, more: 0 },
+    expect(out.days.slice(0, 3)).toEqual([
+      { start: 1, records: 2, more: 0 },
+      { start: 1, records: 1, more: 0 },
+      { start: 0, records: 0, more: 0 },
     ]);
   });
 
   it("ends a full day in a count of what's hidden", () => {
     const out = monthRowLines([lane("a", 0, 1, 0), lane("b", 0, 1, 1)], [5, 0, 0, 0, 0, 0, 0], 4);
     expect(out.lanes).toBe(2);
-    expect(out.days[0]).toEqual({ records: 1, more: 4 });
+    expect(out.days[0]).toEqual({ start: 2, records: 1, more: 4 });
   });
 
   it("gives back a lane when lanes alone fill the day and something is hidden", () => {
     const lanes = [0, 1, 2, 3, 4].map((l) => lane(`p${l}`, 3, 1, l));
     const out = monthRowLines(lanes, [0, 0, 0, 1, 0, 0, 0], 4);
     expect(out.lanes).toBe(3);
-    expect(out.days[3]).toEqual({ records: 0, more: 3 });
+    expect(out.days[3]).toEqual({ start: 3, records: 0, more: 3 });
+  });
+
+  it("starts each day's record under its own plans, not the busiest day's", () => {
+    const busy = [0, 1, 2].map((l) => lane(`t${l}`, 4, 1, l));
+    const out = monthRowLines(busy, [0, 2, 0, 0, 1, 0, 0], 4);
+    expect(out.days[1]).toEqual({ start: 0, records: 2, more: 0 });
+    expect(out.days[4]).toEqual({ start: 3, records: 1, more: 0 });
   });
 });

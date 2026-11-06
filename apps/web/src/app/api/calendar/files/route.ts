@@ -11,7 +11,11 @@ const FilesParams = CalendarFilters.extend({
   tz: TimeZone,
   kind: RecordKind,
   group: z.uuid().optional(),
-  offset: z.string().regex(/^\d{1,6}$/).transform(Number).default(0),
+  offset: z
+    .string()
+    .regex(/^\d{1,6}$/)
+    .transform(Number)
+    .default(0),
 });
 
 // GET ?day=&tz=&kind=&group=&offset=: more of one group's files on a day.

@@ -31,7 +31,11 @@ export function MonthView({
     <div role="grid" aria-label={formatCalendarDay(anchor, "month")} className="border-t border-l border-border-opaque select-none">
       <div role="row" className="grid grid-cols-7">
         {weekOf(anchor).map((day) => (
-          <div key={day} role="columnheader" className="border-r border-b border-border-opaque px-2 py-1.5 text-paragraph-xsmall text-content-tertiary">
+          <div
+            key={day}
+            role="columnheader"
+            className="border-r border-b border-border-opaque px-2 py-1.5 text-paragraph-xsmall text-content-tertiary"
+          >
             {formatCalendarDay(day, "weekdayShort")}
           </div>
         ))}
@@ -60,11 +64,19 @@ function MonthRow({
   const rowStart = week[0] ?? anchor;
   const byId = new Map<string, CalendarEntry>(plans.map((p) => [p.id, p]));
   const placed = layoutSpans(
-    plans.map((p) => ({ id: p.id, ...entryDays(p.when, timeZone), order: p.when.kind === "allDay" ? 0 : 1 + wallClock(new Date(p.when.start), timeZone).minutes })),
+    plans.map((p) => ({
+      id: p.id,
+      ...entryDays(p.when, timeZone),
+      order: p.when.kind === "allDay" ? 0 : 1 + wallClock(new Date(p.when.start), timeZone).minutes,
+    })),
     rowStart,
   );
   const recordByDay = week.map((day) => record.filter((g) => g.day === day));
-  const lines = monthRowLines(placed, recordByDay.map((r) => r.length), MAX_LINES);
+  const lines = monthRowLines(
+    placed,
+    recordByDay.map((r) => r.length),
+    MAX_LINES,
+  );
   const pendingColumn = pending?.when.kind === "allDay" ? week.indexOf(pending.when.first) : -1;
 
   return (
@@ -85,14 +97,14 @@ function MonthRow({
         {recordByDay.flatMap((groups, column) => {
           const day = week[column];
           if (day === undefined) return [];
-          const fit = lines.days[column] ?? { records: 0, more: 0 };
+          const fit = lines.days[column] ?? { start: 0, records: 0, more: 0 };
           const shown = groups.slice(0, fit.records).map((g, i) => (
             <button
-              key={`${g.kind}:${g.groupId ?? ""}`}
+              key={`${day}:${g.kind}:${g.groupId ?? ""}`}
               type="button"
               onClick={() => actions.openDay(day)}
               className="pointer-events-auto mx-1 flex min-w-0 items-center gap-1.5 rounded-md px-1.5 text-left text-paragraph-xsmall text-content-secondary hover:bg-background-secondary"
-              style={{ gridColumn: column + 1, gridRow: lines.lanes + i + 1 }}
+              style={{ gridColumn: column + 1, gridRow: fit.start + i + 1 }}
             >
               <KindDot kind={g.kind} />
               <span className="truncate">{recordLine(g)}</span>
@@ -102,18 +114,21 @@ function MonthRow({
           return [
             ...shown,
             <button
-              key="more"
+              key={`${day}:more`}
               type="button"
               onClick={() => actions.openDay(day)}
               className="pointer-events-auto mx-1 rounded-md px-1.5 text-left text-paragraph-xsmall text-content-tertiary hover:bg-background-secondary hover:text-content-primary"
-              style={{ gridColumn: column + 1, gridRow: lines.lanes + fit.records + 1 }}
+              style={{ gridColumn: column + 1, gridRow: fit.start + fit.records + 1 }}
             >
               {fit.more} more
             </button>,
           ];
         })}
         {pending !== null && pendingColumn >= 0 ? (
-          <div className="pointer-events-auto z-10 mx-1" style={{ gridColumn: pendingColumn + 1, gridRow: Math.min(lines.lanes, MAX_LINES - 1) + 1 }}>
+          <div
+            className="pointer-events-auto z-10 mx-1"
+            style={{ gridColumn: pendingColumn + 1, gridRow: Math.min(lines.days[pendingColumn]?.start ?? 0, MAX_LINES - 1) + 1 }}
+          >
             <InlineTitle className="h-[20px] text-paragraph-xsmall" />
           </div>
         ) : null}
@@ -123,11 +138,18 @@ function MonthRow({
 }
 
 function DayCell({ day, inMonth }: { day: CalendarDay; inMonth: boolean }) {
-  const { today, actions } = useCalendar();
+  const { today, actions, shownDay } = useCalendar();
   const isToday = day === today;
   const label = formatCalendarDay(day, "long");
   return (
-    <div role="gridcell" data-day={day} className={cn("relative border-r border-b border-border-opaque", !inMonth && "bg-background-sidebar/40")}>
+    <div
+      role="gridcell"
+      data-day={day}
+      className={cn(
+        "relative border-r border-b border-border-opaque",
+        shownDay === day ? "bg-background-secondary" : !inMonth && "bg-background-sidebar/40",
+      )}
+    >
       {/* Empty space starts a new entry on the day, as in Notion. */}
       <button
         type="button"

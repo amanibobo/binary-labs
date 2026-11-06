@@ -96,9 +96,7 @@ afterAll(async () => {
 
 describe("the calendar's reads parse as the web app reads them", () => {
   it("counts a week's record per day and names each line", async () => {
-    const raw = await asUser(ana, () =>
-      rows("select * from calendar_record($1, '2026-11-01', '2026-11-07', $2)", [labA, NY]),
-    );
+    const raw = await asUser(ana, () => rows("select * from calendar_record($1, '2026-11-01', '2026-11-07', $2)", [labA, NY]));
     const record = RecordRows.parse(raw);
     const files = record.find((g) => g.kind === "file");
     expect(files).toMatchObject({ day: "2026-11-03", items: 3, groupName: "P450 BM3" });
@@ -109,9 +107,7 @@ describe("the calendar's reads parse as the web app reads them", () => {
     const shas = await asUser(ana, async () =>
       z
         .array(z.object({ sha256: z.string() }))
-        .parse(
-          await rows("select sha256 from calendar_files($1, '2026-11-03', '2026-11-03', $2) order by name limit 2", [labA, NY]),
-        )
+        .parse(await rows("select sha256 from calendar_files($1, '2026-11-03', '2026-11-03', $2) order by name limit 2", [labA, NY]))
         .map((r) => r.sha256),
     );
     const hits = FolderFilesRows.parse(await asUser(ana, () => rows("select * from file_hits($1, $2)", [labA, shas])));
@@ -131,9 +127,7 @@ describe("the calendar's reads parse as the web app reads them", () => {
     const end = instantAt(day("2026-11-05"), 15 * 60, NY).toISOString();
     await insert(ana, labA, draft("Retreat", { kind: "allDay", first: day("2026-11-06"), last: day("2026-11-08") }));
     const timed = await insert(ana, labA, draft("Plate reads", { kind: "timed", start, end }));
-    const plans = EntryJsonRows.parse(
-      await asUser(ana, () => jsonRows("calendar_plans($1, '2026-11-01', '2026-11-07', $2)", [labA, NY])),
-    );
+    const plans = EntryJsonRows.parse(await asUser(ana, () => jsonRows("calendar_plans($1, '2026-11-01', '2026-11-07', $2)", [labA, NY])));
     expect(plans.map((p) => [p.title, p.when])).toEqual([
       ["Plate reads", { kind: "timed", start: expect.any(String), end: expect.any(String) }],
       ["Retreat", { kind: "allDay", first: "2026-11-06", last: "2026-11-08" }],

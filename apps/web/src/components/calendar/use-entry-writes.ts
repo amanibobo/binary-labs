@@ -16,7 +16,9 @@ export function useEntryWrites(): EntryWrites {
   const latest = useRef(new Map<string, CalendarEntry>());
 
   const patch = (fn: (plans: CalendarEntry[]) => CalendarEntry[]) =>
-    queryClient.setQueriesData<RangeResponse>({ queryKey: ["calendar", "range"] }, (old) => (old === undefined ? old : { ...old, plans: fn(old.plans) }));
+    queryClient.setQueriesData<RangeResponse>({ queryKey: ["calendar", "range"] }, (old) =>
+      old === undefined ? old : { ...old, plans: fn(old.plans) },
+    );
   const put = (entry: CalendarEntry) => {
     latest.current.set(entry.id, entry);
     patch((plans) => (plans.some((p) => p.id === entry.id) ? plans.map((p) => (p.id === entry.id ? entry : p)) : [...plans, entry]));
@@ -24,7 +26,7 @@ export function useEntryWrites(): EntryWrites {
   const settle = () => {
     void queryClient.invalidateQueries({ queryKey: ["calendar"] });
   };
-  const queued = <T,>(id: string, run: () => Promise<T>): Promise<T> => {
+  const queued = <T>(id: string, run: () => Promise<T>): Promise<T> => {
     const next = (queues.current.get(id) ?? Promise.resolve()).catch(() => undefined).then(run);
     queues.current.set(id, next);
     return next;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { recordLine, type RecordGroup } from "../calendar";
-import { heldWindow, moveEnd, moveStart, toggleAllDay, whenLine } from "../calendar-edit";
+import { heldWindow, moveEnd, moveStart, shiftWhen, stretchWhen, toggleAllDay, whenLine } from "../calendar-edit";
 import { CalendarDay, wallClock } from "../calendar-time";
 
 const d = (s: string) => CalendarDay.parse(s);
@@ -44,6 +44,30 @@ describe("editing when an entry happens", () => {
     expect(whenLine({ kind: "allDay", first: d("2026-11-06"), last: d("2026-11-08") }, NY)).toBe("Nov 6 – Nov 8");
     expect(whenLine({ kind: "timed", start: "2026-11-05T19:00:00Z", end: "2026-11-05T20:30:00Z" }, NY)).toBe("2 – 3:30 PM");
     expect(whenLine({ kind: "timed", start: "2026-11-06T03:00:00Z", end: "2026-11-06T12:00:00Z" }, NY)).toBe("Nov 5, 10 PM – Nov 6, 7 AM");
+  });
+});
+
+describe("moving with a drag or the arrow keys", () => {
+  const nine = { kind: "timed" as const, start: "2026-10-30T13:00:00.000Z", end: "2026-10-30T14:00:00.000Z" }; // Fri 9 am EDT
+  it("keeps 9 am at 9 am when it moves across the clocks going back", () => {
+    expect(shiftWhen(nine, { days: 3, minutes: 0 }, NY)).toEqual({
+      kind: "timed",
+      start: "2026-11-02T14:00:00.000Z",
+      end: "2026-11-02T15:00:00.000Z",
+    });
+    expect(shiftWhen(nine, { days: 0, minutes: 15 }, NY)).toEqual({
+      kind: "timed",
+      start: "2026-10-30T13:15:00.000Z",
+      end: "2026-10-30T14:15:00.000Z",
+    });
+  });
+
+  it("stretches the end but never past the start", () => {
+    expect(stretchWhen(nine, { days: 0, minutes: -60 }, NY)).toEqual({ ...nine, end: "2026-10-30T13:15:00.000Z" });
+    const days = { kind: "allDay" as const, first: d("2026-11-06"), last: d("2026-11-06") };
+    expect(stretchWhen(days, { days: 2, minutes: 0 }, NY)).toEqual({ ...days, last: "2026-11-08" });
+    expect(stretchWhen(days, { days: -1, minutes: 0 }, NY)).toEqual(days);
+    expect(shiftWhen(days, { days: -6, minutes: 0 }, NY)).toEqual({ kind: "allDay", first: "2026-10-31", last: "2026-10-31" });
   });
 });
 

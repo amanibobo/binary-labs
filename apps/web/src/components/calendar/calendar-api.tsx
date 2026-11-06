@@ -80,11 +80,7 @@ export const httpCalendarApi: CalendarApi = {
     z
       .object({ entries: z.array(EntryWire) })
       .parse(
-        await getJson(
-          "/api/calendar/overlaps",
-          { instrument: instrumentId, from, to, tz: timeZone, ...(except === null ? {} : { except }) },
-          signal,
-        ),
+        await getJson("/api/calendar/overlaps", { instrument: instrumentId, from, to, tz: timeZone, ...(except === null ? {} : { except }) }, signal),
       ).entries,
   createEntry: async (draft) => {
     const { status, json } = await send("/api/calendar/entries", "POST", draft);

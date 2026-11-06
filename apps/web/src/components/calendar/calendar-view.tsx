@@ -41,19 +41,23 @@ import { HOUR_PX, WeekView } from "./week-view";
 const noSubscribe = () => () => {};
 
 // The server can't know the viewer's zone, so the calendar draws once the browser can say.
-// Fixture pages pin the zone and today so screenshots hold still.
+// Fixture pages pin the zone and the clock so screenshots hold still.
 export function CalendarView({
   start,
   lists,
   timeZone: pinnedZone,
-  today: pinnedToday,
+  now: pinnedNow,
 }: {
   start: CalendarStart;
   lists: CalendarLists;
   timeZone?: string;
-  today?: CalendarDay;
+  now?: string;
 }) {
-  const zone = useSyncExternalStore(noSubscribe, () => pinnedZone ?? viewerTimeZone(), () => null);
+  const zone = useSyncExternalStore(
+    noSubscribe,
+    () => pinnedZone ?? viewerTimeZone(),
+    () => null,
+  );
   if (zone === null) {
     return (
       <div className="px-4 pt-8 sm:px-8">
@@ -62,7 +66,8 @@ export function CalendarView({
       </div>
     );
   }
-  return <CalendarBody start={start} lists={lists} timeZone={zone} today={pinnedToday ?? todayIn(zone)} />;
+  const now = pinnedNow === undefined ? null : new Date(pinnedNow);
+  return <CalendarBody start={start} lists={lists} timeZone={zone} pinnedNow={now} today={todayIn(zone, now ?? new Date())} />;
 }
 
 function rangeOf(mode: CalendarMode, anchor: CalendarDay): DayRange {
@@ -73,7 +78,19 @@ function rangeOf(mode: CalendarMode, anchor: CalendarDay): DayRange {
 
 type Drag = { id: CalendarEntryId; when: EntryWhen };
 
-function CalendarBody({ start, lists, timeZone, today }: { start: CalendarStart; lists: CalendarLists; timeZone: string; today: CalendarDay }) {
+function CalendarBody({
+  start,
+  lists,
+  timeZone,
+  today,
+  pinnedNow,
+}: {
+  start: CalendarStart;
+  lists: CalendarLists;
+  timeZone: string;
+  today: CalendarDay;
+  pinnedNow: Date | null;
+}) {
   const api = useCalendarApi();
   const writes = useEntryWrites();
   const [mode, setMode] = useState<CalendarMode>(start.mode);
@@ -199,7 +216,11 @@ function CalendarBody({ start, lists, timeZone, today }: { start: CalendarStart;
     const onKey = (e: globalThis.KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey || e.defaultPrevented) return;
       const target = e.target;
-      if (target instanceof HTMLElement && (target.closest("input, textarea, select, [role=dialog], [role=menu]") !== null || target.isContentEditable)) return;
+      if (
+        target instanceof HTMLElement &&
+        (target.closest("input, textarea, select, [role=dialog], [role=menu]") !== null || target.isContentEditable)
+      )
+        return;
       const key = e.key.toLowerCase();
       if (key === "t") setAnchor(today);
       else if (key === "m") setMode("month");
@@ -226,6 +247,8 @@ function CalendarBody({ start, lists, timeZone, today }: { start: CalendarStart;
         actions,
         selected: open.kind === "entry" ? open.id : null,
         dragging: drag?.id ?? null,
+        shownDay: open.kind === "day" ? open.day : null,
+        pinnedNow,
       }}
     >
       <div className={cn("flex flex-col", mode === "week" && "md:h-dvh")}>
@@ -233,7 +256,11 @@ function CalendarBody({ start, lists, timeZone, today }: { start: CalendarStart;
           <h1 className="mr-auto min-w-0 text-heading-small sm:text-heading-medium" aria-live="polite">
             {title}
           </h1>
-          <div role="group" aria-label="View" className="hidden rounded-control bg-background-secondary p-0.5 ring-1 ring-border-opaque ring-inset md:flex">
+          <div
+            role="group"
+            aria-label="View"
+            className="hidden rounded-control bg-background-secondary p-0.5 ring-1 ring-border-opaque ring-inset md:flex"
+          >
             {(["month", "week"] as const).map((m) => (
               <button
                 key={m}
@@ -263,9 +290,9 @@ function CalendarBody({ start, lists, timeZone, today }: { start: CalendarStart;
               <span className="sr-only">{mode === "month" ? "Next month" : "Next week"}</span>
             </Button>
           </div>
-          <Button size="compact" onClick={() => setOpen({ kind: "new", when: newWhen })}>
+          <Button size="compact" className="max-sm:w-11 max-sm:px-0" onClick={() => setOpen({ kind: "new", when: newWhen })}>
             <PlusIcon className="size-5" />
-            New entry
+            <span className="max-sm:sr-only">New entry</span>
           </Button>
         </header>
         <Filters lists={lists} value={filters} onChange={setFilters} />
@@ -311,7 +338,14 @@ function CalendarBody({ start, lists, timeZone, today }: { start: CalendarStart;
         />
       ) : null}
       {open.kind === "entry" && openEntry !== null ? (
-        <EntryPeek key={open.id} entry={openEntry} newWhen={openEntry.when} writes={writes} onClose={() => setOpen({ kind: "none" })} onCreated={() => undefined} />
+        <EntryPeek
+          key={open.id}
+          entry={openEntry}
+          newWhen={openEntry.when}
+          writes={writes}
+          onClose={() => setOpen({ kind: "none" })}
+          onCreated={() => undefined}
+        />
       ) : null}
       {open.kind === "new" ? (
         <EntryPeek
@@ -344,14 +378,23 @@ function slotAt(x: number, y: number): { day: CalendarDay; minutes: number | nul
 
 function Filters({ lists, value, onChange }: { lists: CalendarLists; value: CalendarFilters; onChange: (next: CalendarFilters) => void }) {
   return (
-    <div role="group" aria-label="Filters" className="-ml-2.5 flex flex-wrap items-center gap-x-1 px-4 pb-4 sm:px-8">
+    <div
+      role="group"
+      aria-label="Filters"
+      className="flex items-center gap-x-1 overflow-x-auto px-1.5 pb-3 whitespace-nowrap [scrollbar-width:none] sm:flex-wrap sm:px-5.5 sm:pb-4"
+    >
       <FilterMenu
         any="Any experiment"
         value={value.experiment}
         options={lists.experiments.map((e) => ({ id: e.id, name: e.name }))}
         onChange={(experiment) => onChange({ ...value, experiment })}
       />
-      <FilterMenu any="Anyone" value={value.person} options={lists.people.map((p) => ({ id: p.id, name: p.name }))} onChange={(person) => onChange({ ...value, person })} />
+      <FilterMenu
+        any="Anyone"
+        value={value.person}
+        options={lists.people.map((p) => ({ id: p.id, name: p.name }))}
+        onChange={(person) => onChange({ ...value, person })}
+      />
       <FilterMenu
         any="Any instrument"
         value={value.instrument}

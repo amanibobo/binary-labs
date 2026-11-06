@@ -29,9 +29,7 @@ export function segmentOn(when: { start: string; end: string }, day: CalendarDay
 // Entries that overlap share the width: each cluster of overlapping entries gets as many
 // columns as it needs at its busiest, and an entry takes the first column free at its start.
 export function layoutDay(segments: readonly TimedSegment[]): PlacedSegment[] {
-  const sorted = [...segments].sort(
-    (a, b) => a.start - b.start || b.end - b.start - (a.end - a.start) || a.id.localeCompare(b.id),
-  );
+  const sorted = [...segments].sort((a, b) => a.start - b.start || b.end - b.start - (a.end - a.start) || a.id.localeCompare(b.id));
   const placed: PlacedSegment[] = [];
   let cluster: { segment: TimedSegment; column: number }[] = [];
   let columnEnds: number[] = [];
@@ -107,25 +105,29 @@ export function layoutSpans(spans: readonly Span[], rowStart: CalendarDay, days 
 // A month row holds a fixed number of lines per day. Plans take lanes across the row so a bar
 // stays straight; the record's lines fill what's left under them; a day with more than fits
 // ends in "N more", which opens the day.
-export type MonthRowLines = { lanes: number; days: { records: number; more: number }[] };
+// Each day's record starts under that day's own lowest plan, so one busy day doesn't push the
+// rest of the week's record out of sight.
+export type MonthRowLines = { lanes: number; days: { start: number; records: number; more: number }[] };
 
 export function monthRowLines(placed: readonly PlacedSpan[], recordsPerDay: readonly number[], maxLines: number): MonthRowLines {
   const plansPerDay = recordsPerDay.map((_, day) => placed.filter((p) => p.column <= day && day < p.column + p.length).map((p) => p.lane));
   const usedLanes = placed.reduce((n, p) => Math.max(n, p.lane + 1), 0);
   const fit = (lanes: number) =>
     recordsPerDay.map((records, day) => {
-      const hiddenPlans = (plansPerDay[day] ?? []).filter((lane) => lane >= lanes).length;
-      const room = maxLines - lanes;
-      if (hiddenPlans === 0 && records <= room) return { records, more: 0 };
+      const here = plansPerDay[day] ?? [];
+      const hiddenPlans = here.filter((lane) => lane >= lanes).length;
+      const start = here.filter((lane) => lane < lanes).reduce((n, lane) => Math.max(n, lane + 1), 0);
+      const room = maxLines - start;
+      if (hiddenPlans === 0 && records <= room) return { start, records, more: 0, crowded: false };
       const shown = Math.max(0, Math.min(records, room - 1));
-      return { records: shown, more: hiddenPlans + records - shown };
+      return { start, records: shown, more: hiddenPlans + records - shown, crowded: room < 1 };
     });
   let lanes = Math.min(usedLanes, maxLines);
   let days = fit(lanes);
-  // A day that overflows needs a line for "N more"; when every line is a lane, give one back.
-  if (lanes === maxLines && days.some((d) => d.more > 0)) {
+  // A day that overflows needs a line for "N more"; when its lanes fill every line, give one back.
+  if (days.some((d) => d.crowded)) {
     lanes -= 1;
     days = fit(lanes);
   }
-  return { lanes, days };
+  return { lanes, days: days.map(({ start, records, more }) => ({ start, records, more })) };
 }

@@ -41,6 +41,10 @@ export type CalendarContext = {
   selected: CalendarEntryId | null;
   // An entry mid-drag, drawn where it would land.
   dragging: CalendarEntryId | null;
+  // The day open in the side peek, shaded on the grid.
+  shownDay: CalendarDay | null;
+  // A pinned clock for the fixture pages; null follows the real one.
+  pinnedNow: Date | null;
 };
 
 const Context = createContext<CalendarContext | null>(null);

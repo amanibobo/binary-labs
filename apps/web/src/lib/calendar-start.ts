@@ -6,10 +6,7 @@ export type CalendarMode = "month" | "week";
 
 // What's open beside the grid: a day, an entry, or a new entry waiting for its title.
 export type CalendarOpen =
-  | { kind: "none" }
-  | { kind: "day"; day: CalendarDay }
-  | { kind: "entry"; id: CalendarEntryId }
-  | { kind: "new"; when: EntryWhen };
+  { kind: "none" } | { kind: "day"; day: CalendarDay } | { kind: "entry"; id: CalendarEntryId } | { kind: "new"; when: EntryWhen };
 
 export type CalendarStart = { mode: CalendarMode; date: CalendarDay | null; open: CalendarOpen };
 

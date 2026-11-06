@@ -31,7 +31,11 @@ import { unwrap, type Supabase } from "./supabase/server";
 // The calendar routes' core. Everything goes through the member's session, so RLS decides what
 // a lab sees; the database works out the record and checks every link.
 
-export const TimeZone = z.string().min(1).max(64).regex(/^[A-Za-z0-9_+\-/]+$/, "expected a time zone name");
+export const TimeZone = z
+  .string()
+  .min(1)
+  .max(64)
+  .regex(/^[A-Za-z0-9_+\-/]+$/, "expected a time zone name");
 
 function rangeArgs(labId: LabId, range: DayRange, timeZone: string, filters: CalendarFilters) {
   return { p_lab_id: labId, p_from: range.first, p_to: range.last, p_tz: timeZone, ...filterArgs(filters) };
@@ -62,7 +66,12 @@ export async function loadDayFiles(
     .eq("kind", at.kind);
   const grouped = at.groupId === null ? base.is("group_id", null) : base.eq("group_id", at.groupId);
   const rows = DayFileRows.parse(
-    unwrap(await grouped.order("name", { ascending: true }).order("sha256").range(page.offset, page.offset + page.limit - 1)),
+    unwrap(
+      await grouped
+        .order("name", { ascending: true })
+        .order("sha256")
+        .range(page.offset, page.offset + page.limit - 1),
+    ),
   );
   if (rows.length === 0) return [];
   const shas = rows.map((r) => r.sha256);
@@ -104,11 +113,7 @@ export async function loadEntry(supabase: Supabase, id: CalendarEntryId): Promis
 // A protocol's coming plans, for "On the calendar" on its page; `more` when there are others.
 export const UPCOMING_LIMIT = 5;
 
-export async function loadUpcoming(
-  supabase: Supabase,
-  labId: LabId,
-  protocolId: ProtocolId,
-): Promise<{ entries: CalendarEntry[]; more: boolean }> {
+export async function loadUpcoming(supabase: Supabase, labId: LabId, protocolId: ProtocolId): Promise<{ entries: CalendarEntry[]; more: boolean }> {
   const rows = EntryJsonRows.parse(
     unwrap(await supabase.rpc("calendar_upcoming", { p_lab_id: labId, p_protocol_id: protocolId, p_limit: UPCOMING_LIMIT })),
   );
@@ -174,11 +179,7 @@ export async function saveEntry(
 const NO_STORE = { "cache-control": "private, no-store" };
 
 // A database refusal as the browser should see it.
-export function entryError(
-  error: DbError,
-  ctx: { event: string; labId: LabId },
-  fallback = "We couldn't save that entry. Try again.",
-): NextResponse {
+export function entryError(error: DbError, ctx: { event: string; labId: LabId }, fallback = "We couldn't save that entry. Try again."): NextResponse {
   const known: Record<string, [number, string]> = {
     "42501": [403, "You're not a member of this lab."],
     BL401: [404, "That isn't in this lab any more. Pick another, or none."],

@@ -119,7 +119,7 @@ export function EntryPeek({
         <p className="mt-1 text-paragraph-small text-content-tertiary">Give it a title to save it.</p>
       ) : null}
 
-      <dl className="mt-6 grid grid-cols-[104px_minmax(0,1fr)] items-start gap-x-3 gap-y-1 sm:grid-cols-[120px_minmax(0,1fr)]">
+      <dl className="mt-6 grid grid-cols-1 items-start gap-x-3 gap-y-1 sm:grid-cols-[112px_minmax(0,1fr)]">
         <Property label="When">
           <WhenFields when={draft.when} onChange={(when) => change({ when })} />
         </Property>
@@ -136,7 +136,10 @@ export function EntryPeek({
           <Picker
             value={draft.protocolId}
             none="None"
-            options={withCurrent(lists.protocols.map((p) => ({ id: p.id, name: p.title })), entry?.protocol ? { id: entry.protocol.id, name: entry.protocol.title } : null)}
+            options={withCurrent(
+              lists.protocols.map((p) => ({ id: p.id, name: p.title })),
+              entry?.protocol ? { id: entry.protocol.id, name: entry.protocol.title } : null,
+            )}
             onChange={(protocolId) => change({ protocolId })}
             label="Protocol"
           />
@@ -192,7 +195,7 @@ function withCurrent<T extends string>(options: { id: T; name: string }[], curre
 function Property({ label, children }: { label: string; children: ReactNode }) {
   return (
     <>
-      <dt className="flex min-h-9 items-center text-paragraph-small text-content-tertiary">{label}</dt>
+      <dt className="flex items-center pt-2 text-paragraph-small text-content-tertiary sm:min-h-9 sm:pt-0">{label}</dt>
       <dd className="min-w-0">{children}</dd>
     </>
   );
@@ -223,10 +226,7 @@ function Picker<T extends string>({
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
         <DropdownMenu.Content align="start" sideOffset={4} className={cn(menuSurface, "max-h-80 overflow-y-auto")}>
-          <DropdownMenu.RadioGroup
-            value={value ?? ""}
-            onValueChange={(next) => onChange(options.find((o) => o.id === next)?.id ?? null)}
-          >
+          <DropdownMenu.RadioGroup value={value ?? ""} onValueChange={(next) => onChange(options.find((o) => o.id === next)?.id ?? null)}>
             {[{ id: "", name: none }, ...options].map((o) => (
               <DropdownMenu.RadioItem key={o.id} value={o.id} className={menuItem}>
                 <span className={cn("flex-1 truncate", o.id === "" && "text-content-tertiary")}>{o.name}</span>
@@ -283,64 +283,44 @@ function WhenFields({ when, onChange }: { when: EntryWhen; onChange: (next: Entr
   const allDay = when.kind === "allDay";
   const start = when.kind === "allDay" ? { day: when.first, minutes: null } : wallClock(new Date(when.start), timeZone);
   const end = when.kind === "allDay" ? { day: when.last, minutes: null } : wallClock(new Date(when.end), timeZone);
-  const day = (value: string) => {
-    const parsed = CalendarDay.safeParse(value);
-    return parsed.success ? parsed.data : null;
-  };
-  return (
-    <div className="flex flex-col gap-2 py-1">
-      <div className="flex flex-wrap items-center gap-2">
+  const row = (edge: "start" | "end") => {
+    const at = edge === "start" ? start : end;
+    const move = edge === "start" ? moveStart : moveEnd;
+    const word = edge === "start" ? "Starts" : "Ends";
+    return (
+      <div className="flex items-center gap-2">
+        <span className="w-11 shrink-0 text-paragraph-small text-content-tertiary">{word}</span>
         <input
           type="date"
-          aria-label={allDay ? "First day" : "Start date"}
+          aria-label={`${word} on`}
           className={dateField}
-          value={start.day}
+          value={at.day}
           onChange={(e) => {
-            const d = day(e.target.value);
-            if (d !== null) onChange(moveStart(when, { day: d, minutes: start.minutes }, timeZone));
+            const d = CalendarDay.safeParse(e.target.value);
+            if (d.success) onChange(move(when, { day: d.data, minutes: at.minutes }, timeZone));
           }}
         />
-        {start.minutes === null ? null : (
+        {at.minutes === null ? null : (
           <input
             type="time"
             step={900}
-            aria-label="Start time"
+            aria-label={`${word} at`}
             className={dateField}
-            value={timeInputValue(start.minutes)}
+            value={timeInputValue(at.minutes)}
             onChange={(e) => {
               const m = minutesFromInput(e.target.value);
-              if (m !== null) onChange(moveStart(when, { day: start.day, minutes: m }, timeZone));
-            }}
-          />
-        )}
-        <span aria-hidden className="text-content-tertiary">
-          –
-        </span>
-        <input
-          type="date"
-          aria-label={allDay ? "Last day" : "End date"}
-          className={dateField}
-          value={end.day}
-          onChange={(e) => {
-            const d = day(e.target.value);
-            if (d !== null) onChange(moveEnd(when, { day: d, minutes: end.minutes }, timeZone));
-          }}
-        />
-        {end.minutes === null ? null : (
-          <input
-            type="time"
-            step={900}
-            aria-label="End time"
-            className={dateField}
-            value={timeInputValue(end.minutes)}
-            onChange={(e) => {
-              const m = minutesFromInput(e.target.value);
-              if (m !== null) onChange(moveEnd(when, { day: end.day, minutes: m }, timeZone));
+              if (m !== null) onChange(move(when, { day: at.day, minutes: m }, timeZone));
             }}
           />
         )}
       </div>
-      <label htmlFor={`${id}-all-day`} className="flex w-fit cursor-pointer items-center gap-2 text-paragraph-small text-content-secondary">
+    );
+  };
+  return (
+    <div className="flex flex-col gap-2 py-1">
+      {row("start")}
+      {row("end")}
+      <label htmlFor={`${id}-all-day`} className="flex w-fit cursor-pointer items-center gap-2 pt-1 text-paragraph-small text-content-secondary">
         <button
           id={`${id}-all-day`}
           type="button"
@@ -348,13 +328,13 @@ function WhenFields({ when, onChange }: { when: EntryWhen; onChange: (next: Entr
           aria-checked={allDay}
           onClick={() => onChange(toggleAllDay(when, timeZone))}
           className={cn(
-            "relative h-5 w-8 rounded-full transition-colors duration-150",
+            "relative h-5 w-8 shrink-0 rounded-full transition-colors duration-150",
             allDay ? "bg-button-primary-fill" : "bg-background-tertiary ring-1 ring-border-raised ring-inset",
           )}
         >
           <span
             className={cn(
-              "absolute top-0.5 size-4 rounded-full bg-background-raised shadow-raised transition-transform duration-150",
+              "absolute top-0.5 left-0 size-4 rounded-full bg-background-raised shadow-raised transition-transform duration-150",
               allDay ? "translate-x-3.5" : "translate-x-0.5",
             )}
           />
@@ -366,7 +346,15 @@ function WhenFields({ when, onChange }: { when: EntryWhen; onChange: (next: Entr
 }
 
 // A quiet line when someone else has booked the instrument then. It never stops a save.
-function OverlapNotice({ instrument, when, except }: { instrument: { id: InstrumentId; name: string }; when: EntryWhen; except: CalendarEntry | null }) {
+function OverlapNotice({
+  instrument,
+  when,
+  except,
+}: {
+  instrument: { id: InstrumentId; name: string };
+  when: EntryWhen;
+  except: CalendarEntry | null;
+}) {
   const api = useCalendarApi();
   const { timeZone } = useCalendar();
   const window = heldWindow(when, timeZone);

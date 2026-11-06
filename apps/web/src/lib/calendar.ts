@@ -14,9 +14,7 @@ export type CalendarEntryId = z.infer<typeof CalendarEntryId>;
 const Timestamp = z.string().refine((s) => !Number.isNaN(Date.parse(s)), "expected a timestamp");
 
 // PostgREST sends bigint as a JSON number, but a numeric string is also a valid encoding.
-const Count = z
-  .union([z.number(), z.string().regex(/^\d+$/).transform(Number)])
-  .pipe(z.number().int().nonnegative());
+const Count = z.union([z.number(), z.string().regex(/^\d+$/).transform(Number)]).pipe(z.number().int().nonnegative());
 
 // What the record holds, in the order a day lists them and the series palette's order, so each
 // kind keeps one color (--chart-<color> in globals.css, validated as the charts' palette).
@@ -63,9 +61,7 @@ export const RecordRows = z.array(
       items: Count,
       title: z.string().nullable(),
     })
-    .transform(
-      (r): RecordGroup => ({ day: r.day, kind: r.kind, groupId: r.group_id, groupName: r.group_name, items: r.items, title: r.title }),
-    ),
+    .transform((r): RecordGroup => ({ day: r.day, kind: r.kind, groupId: r.group_id, groupName: r.group_name, items: r.items, title: r.title })),
 );
 
 const RecordGroupWire = z.object({
