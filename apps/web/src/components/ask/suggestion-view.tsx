@@ -50,7 +50,7 @@ export function SuggestionView({ suggestion, authors, viewerId }: { suggestion: 
         {suggestion.sources.length > 0 ? (
           <section className="mt-10">
             <h2 className="text-label-small text-content-tertiary">{suggestion.kind === "protocol_edit" ? "From these files" : "Files"}</h2>
-            <SourceList sources={suggestion.sources} sentences={[]} numbered={null} />
+            <SourceList sources={suggestion.sources} sentences={[]} numbers={null} />
           </section>
         ) : null}
       </div>

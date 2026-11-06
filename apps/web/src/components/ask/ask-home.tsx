@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useId, useReducer, useRef } from "react";
+import { useCallback, useId, useReducer, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { AskHome, RecentQuestion, Verdict } from "@/lib/answers";
 import { askReducer, type AskState } from "@/lib/ask-state";
@@ -23,6 +23,8 @@ function setAskParam(id: QuestionId | null) {
 export function useAsk() {
   const api = useAskApi();
   const [state, dispatch] = useReducer(askReducer, { kind: "idle" } satisfies AskState);
+  // Counts questions asked and answers opened, so each one gets a fresh answer box.
+  const [round, setRound] = useState(0);
   const current = useRef<AbortController | null>(null);
 
   const ask = useCallback(
@@ -31,6 +33,7 @@ export function useAsk() {
       const controller = new AbortController();
       current.current = controller;
       dispatch({ type: "ask", question });
+      setRound((r) => r + 1);
       setAskParam(null);
       api
         .ask(
@@ -62,6 +65,7 @@ export function useAsk() {
         .then((saved) => {
           if (controller.signal.aborted) return;
           dispatch({ type: "opened", saved });
+          setRound((r) => r + 1);
           setAskParam(saved.id);
         })
         .catch(() => {
@@ -85,7 +89,7 @@ export function useAsk() {
     [api],
   );
 
-  return { state, ask, open, close, verdict };
+  return { state, round, ask, open, close, verdict };
 }
 
 function asker(q: RecentQuestion, viewerId: UserId | null): string {

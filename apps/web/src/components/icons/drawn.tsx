@@ -116,6 +116,26 @@ export function ProtocolIcon(props: IconProps) {
   );
 }
 
+// A grid with a header row: a table read from a spreadsheet.
+export function TableIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <rect {...line} x="4" y="5" width="16" height="14" rx="2" />
+      <path {...line} d="M4 10h16M4 14.5h16M10 10v9" />
+    </Svg>
+  );
+}
+
+// Lines of text with the last one still being written.
+export function WritingIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path {...line} d="M5 7h14M5 11.5h14M5 16h7" />
+      <path {...line} d="m15.5 18.5 3.8-3.8a1.1 1.1 0 0 0-1.6-1.6l-3.8 3.8-.4 2z" />
+    </Svg>
+  );
+}
+
 // Three dots joined by thin lines: the lab map.
 export function MapIcon(props: IconProps) {
   return (
