@@ -69,9 +69,26 @@ export function talkThrough(status: FixtureStatus, { forPage = true }: { forPage
     recordedBy: priya,
     recordedAt: "2026-11-04T14:03:22Z",
     durationMs: 3 * 60_000 + 12_000,
-    audio: { locationId: "7a1c2c39-5a4e-4c55-9d7b-000000000090", name: "Talk-through 2026-11-04 14.03.22.weba" },
+    media: { kind: "audio", locationId: "7a1c2c39-5a4e-4c55-9d7b-000000000090", name: "Talk-through 2026-11-04 14.03.22.weba" },
     status: STATUSES[status],
+    current: forPage ? { version: purification.version, body: purification.body } : null,
+    dismissed: false,
     used: null,
+  });
+}
+
+export const VIDEO_TRANSCRIPT = `So this is the lysis for the BM3 batches. I've got the pellet thawing on ice here, that's about twenty minutes. Lysis buffer is made fresh, two hundred mL, sitting at four degrees. Now I resuspend in forty mL, pipetting, not vortexing, until there are no clumps. Then onto the sonicator, ten seconds on, twenty off, five minutes total at forty percent, and you can see I keep it in the ice. Then it goes in the centrifuge at thirty thousand g for forty five minutes at four degrees.`;
+
+// A draft from the page's lysis video, at each point it can be at.
+export function videoTalkThrough(status: "transcribing" | "ready", { dismissed = false }: { dismissed?: boolean } = {}): TalkThrough {
+  return TalkThroughWire.parse({
+    ...talkThrough("ready"),
+    id: ttId(3),
+    durationMs: null,
+    recordedAt: "2026-11-05T10:12:00Z",
+    media: { kind: "video", locationId: "7a1c2c39-5a4e-4c55-9d7b-0c3c1a7f0001", name: "BM3 lysis.mp4" },
+    status: status === "transcribing" ? { kind: "transcribing" } : { ...STATUSES.ready, transcript: VIDEO_TRANSCRIPT },
+    dismissed,
   });
 }
 
@@ -115,7 +132,7 @@ export async function fixtureUploadTalkThrough(
   }
   const receipt = TalkThroughReceipt.parse({
     talkThroughId: ttId(1),
-    locationId: talkThrough("ready").audio.locationId,
+    locationId: talkThrough("ready").media.locationId,
     sha256: "c".repeat(64),
     duplicate: false,
   });
