@@ -2,9 +2,11 @@
 
 import { useActionState, useId, useTransition } from "react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { dataRow, dataSurface } from "@/components/ui/data-table";
 import { cn } from "@/lib/cn";
+import { localMapHref, MapNodeId } from "@/lib/map";
 import { Input, Label } from "@/components/ui/field";
 import { addListEntry, removeListEntry, type LabListKind, type ListAddState } from "./actions";
 
@@ -43,6 +45,12 @@ export function LabListSection({ kind, entries, isAdmin }: { kind: LabListKind; 
                   <span className="block truncate text-paragraph-small text-content-tertiary">{entry.aliases.join(", ")}</span>
                 )}
               </span>
+              <Link
+                href={localMapHref(MapNodeId.parse(`${kind === "experiments" ? "experiment" : "person"}:${entry.id}`))}
+                className={buttonVariants({ variant: "tertiary", size: "compact" })}
+              >
+                Map<span className="sr-only"> around {entry.name}</span>
+              </Link>
               {isAdmin ? <RemoveButton kind={kind} entry={entry} /> : null}
             </li>
           ))}

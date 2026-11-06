@@ -223,3 +223,23 @@ calendar_entry(id), calendar_upcoming(lab, protocol, limit), calendar_overlaps(l
 - `lib/calendar-time.ts` does day arithmetic on UTC midnights and zone math with `Intl` (`wallClock`, `instantAt`); `lib/calendar-layout.ts` places bars in a week row, lines in a month cell and overlapping blocks in a day; `lib/calendar-edit.ts` holds the editor's date rules. All three are pure and unit-tested, DST included.
 - The page is `components/calendar/`: `calendar-view.tsx` (state, header, drag and keys), `month-view.tsx`, `week-view.tsx`, `agenda.tsx` (phones), `entry-peek.tsx` and `day-peek.tsx` in `side-peek.tsx`, and `CalendarApi` (`calendar-api.tsx`), its own context beside `LabApi`. The URL carries `view`, `date`, and `day` or `entry`.
 - Fixtures: `/dev/fixtures/calendar?view=month|week[&day=…|&entry=…]`, November 2026 in New York with the clock pinned; `scripts/screenshots.mjs calendar` captures it with `timezoneId`.
+
+## Lab map
+
+Migration 0021. `file_vectors` (one row per lab and sha256 with content chunks: the mean embedding, `computed_at` and `listed_at`) and `file_neighbors` (each file's 5 nearest above the model's floor) are the worker's; members read neither table's vectors, can read but not write neighbor rows, and both are lab tables (`file_vectors` is also a blob reference) for deletion. A trigger on `chunks` (ord > 0) moves `file_vectors.chunks_changed_at`.
+
+```
+worker: chunks written or re-embedded ──trigger──▶ file_vectors stale
+        tend_neighbors (10 s) ──▶ refresh_neighbors(lab), locked per lab
+          vectors: mean of content chunks, once all carry this model's embedding (computed_at)
+          lists: moved files, the lists holding them, the lists they now enter (HNSW, 50 nearest)
+                 or every list when a quarter of the lab moved (listed_at)
+page:   /map                 ──▶ lab_map(lab)                hubs, uses, shared (4 per hub)
+        click a hub          ──▶ GET /api/map/hub?id=&similar=&with=  ──▶ lab_map_hub (400 newest)
+        /map?around=&depth=  ──▶ lab_map_local(lab, node, depth, similar)
+                                 (and GET /api/map/local when depth or similar changes)
+```
+
+- Node ids are `file:<sha256>`, `protocol:<uuid>`, `experiment:<uuid>`, `person:<uuid>`, `instrument:<lowercased name>`; edges carry their kind (`label`, `attached`, `chart`, `talk-through`, `uses`, `shared`, `similar`). The three views are `security definer`, check `map_require_member` first and read only that lab's rows through helpers (`map_files`, `map_links`, `map_hubs`, `map_hub_files`, `map_nodes`, `map_edges`, `map_step`) that members can't call.
+- `lib/map.ts` parses the views at the boundary and builds the drawn graph (`globalGraph`, `localGraph`: hidden kinds removed, files left with no link dropped, a "more" node per hub with files left out); `lib/map-layout.ts` is the force layout in typed arrays; `components/map/map-canvas.tsx` draws it on a canvas (pan, zoom, pinch, drag, hover and keyboard focus, names by zoom) with colors from `--map-*` in globals.css, reread when the theme changes; `map-view.tsx` has the search, the type filters (the legend), Similar in meaning, the depth control, the list view and the strip under the map.
+- Tests: `workers/tests/test_neighbors.py` (the cache), `apps/web/src/lib/__tests__/map.test.ts` and `map-layout.test.ts` (graph building, layout limits), `map.db.test.ts` (the views as members of two labs). `scripts/e2e-map.sh` scans the sample lab with the real worker and reads the views as a member. Measurements: `workers/scripts/measure_map.py` (calibrate, scale) and `apps/web/scripts/map-perf.mjs` (frame times). Fixtures: `/dev/fixtures/map?view=default|expanded|similar|local|local2|protocol[&size=pilot][&open=all]`, a generated lab (`src/fixtures/map.ts`).

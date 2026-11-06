@@ -47,6 +47,7 @@ const shots = [
   ...talkThroughShots(),
   ...videoShots(),
   ...chartShots(),
+  ...mapShots(),
   ...onboardingShots(),
   ...calendarShots(),
 ];
@@ -85,6 +86,31 @@ function calendarShots() {
 // Charts: the builder as it opens on the plate read, a saved curve with error bars, the
 // readout on hover, the worker still reading a table, a data sheet's opened row in search
 // and a protocol showing its charts.
+// The lab map: the hubs, a hub opened, similar in meaning on, and the map around one file, in
+// both schemes at desktop and phone width; plus two steps out and a protocol's map. The map
+// settles before it's drawn (reduced motion), so each shot holds still.
+function mapShots() {
+  const m = (view) => `/dev/fixtures/map?view=${view}`;
+  const all = (shot) => ["dark", "light"].flatMap((scheme) => [1440, 390].map((width) => ({ ...shot, width, scheme, full: false, touch: width < 500 })));
+  const settle = (page) => page.waitForTimeout(1200);
+  return [
+    ...all({ name: "map-default", path: m("default"), steps: settle }),
+    ...all({ name: "map-expanded", path: m("expanded"), steps: settle }),
+    ...all({ name: "map-similar", path: m("similar"), steps: settle }),
+    ...all({ name: "map-local", path: m("local"), steps: settle }),
+    { name: "map-local-2", path: m("local2"), steps: settle, width: 1440, scheme: "dark", full: false },
+    { name: "map-protocol", path: m("protocol"), steps: settle, width: 1440, scheme: "light", full: false },
+    {
+      name: "map-list",
+      path: m("expanded"),
+      steps: (page) => page.getByRole("button", { name: "Show as a list" }).click(),
+      width: 1440,
+      scheme: "dark",
+      full: false,
+    },
+  ];
+}
+
 function chartShots() {
   const c = (view) => `/dev/fixtures/charts?view=${view}`;
   const all = (shot) => ["dark", "light"].flatMap((scheme) => [1440, 390].map((width) => ({ ...shot, width, scheme })));

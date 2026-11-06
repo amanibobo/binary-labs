@@ -8,7 +8,7 @@ import psycopg
 from procrastinate import App, JobContext, PsycopgConnector, RetryStrategy
 from procrastinate.exceptions import AlreadyEnqueued
 
-from bl_worker import data_tables, deletion, process, scan, talk_throughs, videos
+from bl_worker import data_tables, deletion, neighbors, process, scan, talk_throughs, videos
 from bl_worker.labels import job as labels
 from bl_worker.labels.learning import learn_pending
 from bl_worker.runtime import Runtime
@@ -220,6 +220,33 @@ async def tend_tables(context: JobContext, timestamp: int) -> None:
     deferred = await asyncio.to_thread(tend)
     if deferred:
         log.info("deferred %d tables", deferred)
+
+
+# One job per lab at a time: two would redo the same lists side by side.
+def defer_neighbors(lab_id: UUID) -> bool:
+    return _defer_locked("refresh_neighbors", f"neighbors:{lab_id}", lab_id=str(lab_id))
+
+
+@app.task(name="refresh_neighbors", pass_context=True, retry=RetryStrategy(max_attempts=3, wait=10))
+def refresh_neighbors(context: JobContext, lab_id: str) -> None:
+    neighbors.refresh_lab(_runtime(context), UUID(lab_id))
+
+
+@app.periodic(cron="* * * * * */10")
+@app.task(name="tend_neighbors", pass_context=True, queueing_lock="tend_neighbors")
+async def tend_neighbors(context: JobContext, timestamp: int) -> None:
+    """Queues a neighbor refresh for every lab with a file whose chunks changed, for the lab
+    map's "Similar in meaning"."""
+    rt = _runtime(context)
+
+    def tend() -> int:
+        with rt.pool.connection() as conn:
+            labs = neighbors.stale_labs(conn)
+        return sum(defer_neighbors(lab_id) for lab_id in labs)
+
+    deferred = await asyncio.to_thread(tend)
+    if deferred:
+        log.info("deferred %d neighbor refreshes", deferred)
 
 
 @app.task(name="delete_lab", pass_context=True, retry=RetryStrategy(max_attempts=3, wait=30))
