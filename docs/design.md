@@ -267,3 +267,36 @@ page:   GET /api/flags/marks?shas= ──▶ file_flag_marks ──▶ amber "Fl
 - `flag_queue_count` is the sidebar's number (open, unanswered); `file_flag_marks` leaves out flags answered "wrong"; `check_usefulness` is admins only.
 - Errors: `BL107` no such flag, `BL108` checks on a tutorial, plus the protocol codes.
 - Tests: `workers/tests/test_checks.py` (every kind and couldn't-check case on the fixtures), `test_checks_db.py` (runs, recheck triggers, the source constraint, RLS, audit, deletion), `apps/web/src/lib/__tests__/checks.test.ts`, `flags.test.ts`, `flags.db.test.ts`. `scripts/e2e-checks.sh` runs the real worker over arriving files. Fixtures: `workers/scripts/make_table_fixtures.py` writes the check files; pages at `/dev/fixtures/flags?view=list|empty|flag|control|answered|wrong|checks|checks-wrong|checks-empty|protocol`, and a flagged file on `/dev/fixtures/search?state=empty`.
+
+## Asking the lab and suggestions
+
+Migration 0019. `questions` holds every question asked, its checked answer, the sources retrieval found (as the page shows them) and what it cost; `answer_feedback` one verdict per member per answer. `suggestions` holds what the AI proposed: a `protocol_edit` (title, body and note drafted on `base_version_id`, the fork point) or `labels` (one `suggestion_labels` row per file, setting only the fields that change). `state` is `open`, `approved` or `dismissed`. All four are lab tables; `suggestion_labels` is a blob reference. Members only read them.
+
+`model_calls` now keys a call by its file (`sha256`) or by `cache_key`, the sha256 of the prompt version, model, normalized question and the exact `<sources>` block the model read, so a cached answer is one for the same question over the same sources. The file key stays unique, so the worker is unchanged. `labs.ai_monthly_cap_usd` (default 25) caps `answer` plus `suggestion` spend per calendar month (UTC); `ai_budget(lab)` reports it to members.
+
+```
+Search box ──Enter / "Ask the lab"──▶ POST /api/ask {question}  (no ANTHROPIC_API_KEY: 503, the page says asking isn't set up)
+  askLab (lib/ask.ts), reads as the member under RLS:
+    /embed (1 s) ──▶ ask_context: search_files' top 6 files, each with its best 2 chunks and its table key
+                 ──▶ ask_protocols: matching protocols with their current text
+                 ──▶ parsed tables from <lab>/tables/<sha>.json (3 tables, 40 rows, 600 cells a file)
+    emit sources ──▶ cached_model_output(cache_key)? emit cached sentences
+                 ──▶ ai_budget over cap? emit limit (sources stay as the closest files)
+                 ──▶ claude-sonnet-5-5, low effort, structured output {sentences: [{text, citations: [{source, cell}]}]}
+                     each sentence checked as its JSON object closes (SentenceStream) ──▶ emit sentence
+    whole reply checked again ──▶ record_answer (service role) ──▶ questions + model_calls + question.ask ──▶ emit done
+  NDJSON, one AskEvent a line; lib/ask-state.ts is the page's reducer.
+
+"Suggest an edit" / "Suggest label fixes" ──▶ POST /api/suggestions
+  suggestProtocolEdit / suggestLabels (lib/suggest.ts) ──▶ model ──▶ checked ──▶ record_suggestion (service role): open rows only
+/suggestions/<id> ──▶ Approve ──▶ approve_protocol_suggestion ──▶ save_protocol as the member ──▶ settle_suggestion
+                  ──▶ Edit first ──▶ the same call with the member's title, body and note
+                  ──▶ Approve (labels, chosen files) ──▶ approve_label_suggestion ──▶ correct_label per file ──▶ settle_suggestion
+                  ──▶ Dismiss ──▶ dismiss_suggestion
+```
+
+- **Checking citations** (`checkSentence`, `checkAnswer` in `lib/answers.ts`): a citation must name a source key the model was shown (`F1`… files, `P1`… protocols); a cell must be one of the cells it was shown (`Table!C4`), or the file citation stands without it. A sentence left with no citation is dropped; an answer left with no sentence is "not found", and the page lists the closest files.
+- **Where citations go**: a file opens where Search would open it (`openTarget`, or the in-app row for a local folder), a cell opens the file's table in the chart builder, a protocol opens at the cited version (`citationHref`).
+- **Who writes**: the model's output reaches the database only through `record_answer`, `record_suggestion` and `record_spend`, granted to the service role alone and called through `serviceAnswerWriter` (`lib/ask-db.ts`), which can't name anything else. They check the asker is a member of a live lab and insert `questions`, `suggestions`, `suggestion_labels`, `model_calls` and audit rows. Approving is invoker: the version or the corrections are the member's own, through the same triggers as any save, and `settle_suggestion` (definer) marks the suggestion approved only when it finds them, made by the caller in this transaction. A save since the fork fails approval with `BL101` and the suggestion stays open. `BL601` is a suggestion already decided, `BL602` a file not in it, `BL603` a file that isn't a labeled file in the lab.
+- **Audit**: `question.ask`, `suggestion.create`, `suggestion.approve`, `suggestion.dismiss`, plus the `protocol.save` the approval makes.
+- Tests: `apps/web/src/lib/__tests__/answers.test.ts` (citation checks, streaming, cache key, cap, diff), `ask.db.test.ts` (RLS, ledger, cache, cap, grants, approve, edit then approve, stale, dismiss, labels), with `pg-ask.ts` standing in for Supabase and `fake-model.ts` for the model. `scripts/eval-ask.sh` is the measured run. Fixtures: `/dev/fixtures/ask?view=answer|no-answer|limit|unavailable|home&q=…` and `/dev/fixtures/suggestions?view=protocol|labels|approved|stale|list`.

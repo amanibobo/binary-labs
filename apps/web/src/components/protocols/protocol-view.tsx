@@ -31,6 +31,7 @@ import { Markdown } from "./markdown";
 import { FlagMark } from "../flags/flag-marks";
 import { ProtocolChecks, type ProtocolChecksData } from "../flags/protocol-checks";
 import { When } from "@/components/ui/when";
+import { SuggestEditButton, WaitingEdits, type ProtocolSuggestions } from "../ask/protocol-suggest";
 
 export function ProtocolView({
   page,
@@ -42,6 +43,7 @@ export function ProtocolView({
   charts,
   plans,
   checks,
+  suggestions,
 }: {
   page: ProtocolVersion;
   files: FileHit[];
@@ -56,6 +58,8 @@ export function ProtocolView({
   plans: { entries: readonly CalendarEntry[]; more: boolean };
   // The version's checks and the flags raised against them; tutorials have none.
   checks: ProtocolChecksData;
+  // AI edits waiting for approval, and whether one can be asked for.
+  suggestions?: ProtocolSuggestions;
 }) {
   const current = isCurrent(page);
   const editable = current && !page.archived;
@@ -100,7 +104,9 @@ export function ProtocolView({
             <MapIcon className="size-5" />
             Map
           </Link>
+          {editable && suggestions !== undefined ? <SuggestEditButton protocolId={page.protocolId} suggestions={suggestions} /> : null}
         </div>
+        {current && suggestions !== undefined ? <WaitingEdits suggestions={suggestions} /> : null}
 
         {editable ? <OpenTalkThroughs items={talkThroughs} authors={authors} heading="Talk-throughs to check" className="mt-8" /> : null}
 

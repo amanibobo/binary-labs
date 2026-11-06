@@ -10,6 +10,7 @@ import { loadOpenFlags, loadUsefulness, loadVersionChecks } from "@/lib/flag-sto
 import { ProtocolId } from "@/lib/ids";
 import { loadAuthorNames, loadLinkedFiles, loadOpenTalkThroughs, loadProtocolVersion, loadProtocolVideos } from "@/lib/lab-data";
 import { loadShell } from "@/lib/shell-data";
+import { askAvailable, loadOpenSuggestions } from "@/lib/ask-db";
 import { requireMember } from "@/lib/viewer";
 
 export const metadata: Metadata = { title: "Protocol" };
@@ -23,7 +24,7 @@ export default async function ProtocolPage({ params, searchParams }: PageProps<"
   const viewer = await requireMember();
   if (viewer.kind === "config_missing") return <ConfigMissing missing={viewer.missing} />;
   const { supabase, lab } = viewer;
-  const [shell, page, files, authors, talkThroughs, videos, charts, plans, flags, usefulness] = await Promise.all([
+  const [shell, page, files, authors, talkThroughs, videos, charts, plans, flags, usefulness, waiting] = await Promise.all([
     loadShell(viewer),
     loadProtocolVersion(supabase, id.data, version ?? null),
     loadLinkedFiles(supabase, lab.id, id.data),
@@ -34,6 +35,7 @@ export default async function ProtocolPage({ params, searchParams }: PageProps<"
     loadUpcoming(supabase, lab.id, id.data),
     loadOpenFlags(supabase, lab.id, { protocolId: id.data }),
     loadUsefulness(supabase, lab.id, lab.role === "admin"),
+    loadOpenSuggestions(supabase, lab.id, id.data).catch(() => []),
   ]);
   if (page === null) notFound();
   const checks = await loadVersionChecks(supabase, page.id);
@@ -49,6 +51,7 @@ export default async function ProtocolPage({ params, searchParams }: PageProps<"
         charts={charts}
         plans={plans}
         checks={{ checks, flags, usefulness }}
+        suggestions={{ available: askAvailable(), open: waiting }}
       />
     </AppShell>
   );

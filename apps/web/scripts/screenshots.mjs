@@ -51,6 +51,7 @@ const shots = [
   ...onboardingShots(),
   ...calendarShots(),
   ...flagShots(),
+  ...askShots(),
 ];
 
 // The calendar, in New York the week the clocks went back: the month, the week, a day's record
@@ -102,6 +103,38 @@ function flagShots() {
     { name: "flags-empty", path: f("empty"), width: 1440, scheme: "dark" },
     { name: "check-editor-empty", path: f("checks-empty"), width: 1440, scheme: "dark" },
     ...all({ name: "protocol-checks", path: f("protocol") }),
+  ];
+}
+
+// Asking the lab: an answer with its sources, the no-answer case with the closest files, the
+// month's cap and no model key, the recent questions, then suggestions waiting for approval
+// (a protocol edit as a diff, edited before approving, label fixes, decided and stale ones).
+function askShots() {
+  const ask = (view, q) => `/dev/fixtures/ask?view=${view}${q ? `&q=${encodeURIComponent(q)}` : ""}`;
+  const all = (shot) => ["dark", "light"].flatMap((scheme) => [1440, 390].map((width) => ({ ...shot, width, scheme })));
+  const asked = (done) => async (page) => {
+    await page.getByRole("button", { name: /^Ask the lab/ }).click();
+    await page.getByText(done).first().waitFor();
+  };
+  const s = (view) => `/dev/fixtures/suggestions?view=${view}`;
+  return [
+    ...all({ name: "ask-answer", path: ask("answer", "what was the yield of P450 batch 3?"), steps: asked("Every sentence above") }),
+    ...all({ name: "ask-no-answer", path: ask("no-answer", "which buffer did we use for the SEC run in October?"), steps: asked("Closest files") }),
+    { name: "ask-limit", path: ask("limit", "which buffer did we use for the SEC run in October?"), steps: asked("Closest files"), width: 1440, scheme: "dark" },
+    { name: "ask-unavailable", path: ask("unavailable", "what was the yield of P450 batch 3?"), width: 1440, scheme: "dark" },
+    ...all({ name: "ask-recent", path: ask("home") }),
+    ...all({ name: "suggestion-protocol", path: s("protocol") }),
+    ...all({ name: "suggestion-labels", path: s("labels") }),
+    {
+      name: "suggestion-edit-first",
+      path: s("protocol"),
+      steps: (page) => page.getByRole("button", { name: "Edit first" }).click(),
+      width: 1440,
+      scheme: "dark",
+    },
+    { name: "suggestion-approved", path: s("approved"), width: 1440, scheme: "dark" },
+    { name: "suggestion-stale", path: s("stale"), width: 1440, scheme: "light" },
+    { name: "suggestions-list", path: s("list"), width: 1440, scheme: "dark" },
   ];
 }
 

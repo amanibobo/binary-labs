@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { DROPBOX_FOLDER_HREF, settingsHref } from "@/app/settings/sections";
 import type { FileHit, SearchFilters } from "@/lib/domain";
 import { exampleQueries } from "@/lib/example-queries";
@@ -11,6 +11,10 @@ import type { Sha256 } from "@/lib/ids";
 import type { LabLists } from "@/lib/label-edit";
 import { hasIndex, type SourceState } from "@/lib/source-state";
 import { cn } from "@/lib/cn";
+import { looksLikeQuestion } from "@/lib/answers";
+import { QuestionId } from "@/lib/ids";
+import { AnswerPanel, AskRow } from "../ask/answer-panel";
+import { RecentQuestions, useAsk, type AskHome } from "../ask/ask-home";
 import { GettingStartedCard } from "../onboarding/getting-started";
 import { useOnboarding } from "../onboarding/onboarding-context";
 import { LabelsProvider, LabListsProvider, useLabelPolling } from "../labels/labels-context";
@@ -28,11 +32,14 @@ export function SearchHome({
   source,
   isAdmin,
   lists,
+  ask,
 }: {
   recent: FileHit[];
   source: SourceState;
   isAdmin: boolean;
   lists: LabLists;
+  // Asking the lab; left out, the page is search alone.
+  ask?: AskHome;
 }) {
   const params = useSearchParams();
   const urlQuery = params.get("q") ?? "";
@@ -44,6 +51,17 @@ export function SearchHome({
   const inputId = useId();
   const input = useRef<HTMLInputElement>(null);
   const { markDone } = useOnboarding();
+  const asking = useAsk();
+  const { open: openAnswer } = asking;
+
+  // ?ask=<question> reopens a saved answer, as a reload or a shared link does.
+  const urlAsk = params.get("ask");
+  useEffect(() => {
+    const id = QuestionId.safeParse(urlAsk);
+    if (id.success) openAnswer(id.data);
+    // Only the address the page opened with; later changes come from this page itself.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // The palette navigates here with ?q=…&open=…; follow it (set during render, per React's guidance).
   const [seenUrl, setSeenUrl] = useState({ q: urlQuery, open: urlOpen });
@@ -55,6 +73,7 @@ export function SearchHome({
 
   function updateQuery(next: string) {
     setQuery(next);
+    if (asking.state.kind !== "idle" && next.trim() !== asking.state.question.trim()) asking.close();
     if (next.trim() !== "") markDone("searchedAt");
     const url = new URL(window.location.href);
     if (next.trim() === "") url.searchParams.delete("q");
@@ -68,6 +87,11 @@ export function SearchHome({
   const toggle = (sha: Sha256) => setExpanded((current) => (current === sha ? null : sha));
   const indexed = hasIndex(source);
   const headingId = `${inputId}-results`;
+  const askedThis = asking.state.kind !== "idle" && asking.state.question.trim() === query.trim();
+  const offerAsk = ask !== undefined && searching && looksLikeQuestion(query) && !askedThis;
+  const startAsk = () => {
+    if (ask?.available === true && looksLikeQuestion(query)) asking.ask(query.trim());
+  };
   const filtersId = `${inputId}-filters`;
 
   return (
@@ -87,6 +111,12 @@ export function SearchHome({
             placeholder="Find a file, a gel, a protocol…"
             autoFocus
             data-tour="search-box"
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && offerAsk) {
+                e.preventDefault();
+                startAsk();
+              }
+            }}
             end={indexed ? <FiltersToggle open={filtersOpen} onToggle={() => setFiltersOpen((o) => !o)} controls={filtersId} /> : undefined}
           />
           {indexed ? <Filters id={filtersId} open={filtersOpen} value={filters} onChange={setFilters} /> : null}
@@ -99,9 +129,28 @@ export function SearchHome({
               }}
             />
           ) : null}
+          {offerAsk ? <AskRow question={query} available={ask.available} onAsk={startAsk} className="mt-2" /> : null}
           {searching ? null : <GettingStartedCard className="mt-8 sm:mt-10" />}
 
           <section aria-labelledby={headingId} className="-mx-3 mt-8 sm:mt-10">
+            {asking.state.kind !== "idle" && askedThis ? (
+              <AnswerPanel
+                state={asking.state}
+                onRetry={() => asking.ask(query.trim())}
+                onVerdict={(verdict) => {
+                  if (asking.state.kind === "answered") asking.verdict(asking.state.questionId, verdict);
+                }}
+              />
+            ) : null}
+            {!searching && ask !== undefined ? (
+              <RecentQuestions
+                home={ask}
+                onOpen={(q) => {
+                  updateQuery(q.question);
+                  asking.open(q.id);
+                }}
+              />
+            ) : null}
             {searching ? (
               <SearchResults search={search} query={search.settledQuery} expanded={expanded} onToggle={toggle} headingId={headingId} filtered={hasFilters(filters)} />
             ) : (

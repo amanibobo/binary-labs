@@ -60,3 +60,11 @@ export type CheckId = z.infer<typeof CheckId>;
 // flags.id: one failed check of one file.
 export const FlagId = z.uuid().brand<"FlagId">();
 export type FlagId = z.infer<typeof FlagId>;
+
+// questions.id: one question someone asked the lab, with its answer.
+export const QuestionId = z.uuid().brand<"QuestionId">();
+export type QuestionId = z.infer<typeof QuestionId>;
+
+// suggestions.id: one change the AI proposed, waiting for a member to approve or dismiss it.
+export const SuggestionId = z.uuid().brand<"SuggestionId">();
+export type SuggestionId = z.infer<typeof SuggestionId>;
