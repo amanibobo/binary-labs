@@ -9,6 +9,9 @@ uv run python scripts/make_table_fixtures.py
   curve names over a units row, each curve with its own volume column and its own length.
 - Bradford_2026-10-30.xlsx: a Bradford assay workbook: a standard curve under a merged title
   and a merged two-row header, the samples, and the raw plate as a grid.
+- Bioreactor_run12.csv: three days of a bioreactor's log every 15 minutes, its time stamps
+  written day first (10/11/2026 to 13/11/2026), so the 13th settles the order.
+- ELISA_plate3.csv: a 96-well ELISA read as one row per well (Well, Sample, OD450).
 """
 
 from __future__ import annotations
@@ -163,10 +166,44 @@ def bradford() -> bytes:
     return samples._stable_zip(out.getvalue())
 
 
+def bioreactor() -> bytes:
+    rng = random.Random(12)
+    lines = ["Timestamp,Temperature (°C),pH,DO (%),OD600"]
+    for i in range(3 * 24 * 4 + 1):
+        minutes = 9 * 60 + 15 * i
+        day, rest = 10 + minutes // (24 * 60), minutes % (24 * 60)
+        hours = i / 4
+        od = 0.05 + 11.5 / (1 + math.exp(-(hours - 30) / 6)) + rng.gauss(0, 0.04)
+        do = max(4.0, 98 - 85 / (1 + math.exp(-(hours - 26) / 5)) + rng.gauss(0, 0.8))
+        ph = 7.0 - 0.25 / (1 + math.exp(-(hours - 32) / 7)) + rng.gauss(0, 0.01)
+        temp = 37.0 + rng.gauss(0, 0.05)
+        stamp = f"{day:02d}/11/2026 {rest // 60:02d}:{rest % 60:02d}"
+        lines.append(f"{stamp},{temp:.2f},{ph:.2f},{do:.1f},{od:.3f}")
+    return ("\r\n".join(lines) + "\r\n").encode("utf-8")
+
+
+def elisa() -> bytes:
+    rng = random.Random(3)
+    lines = ["Well,Sample,OD450"]
+    for r, row in enumerate(ROWS):
+        for c in range(1, 13):
+            if c <= 2:
+                # A two-fold standard series down the first two columns.
+                sample, od = f"Std {r + 1}", 2.9 / (2**r) + 0.06
+            elif row == "H" and c >= 11:
+                sample, od = "Blank", 0.05
+            else:
+                sample, od = f"S{(c - 3) * 8 + r + 1}", 0.15 + 2.2 * rng.random() ** 2
+            lines.append(f"{row}{c},{sample},{od + rng.gauss(0, 0.01):.3f}")
+    return ("\r\n".join(lines) + "\r\n").encode("utf-8")
+
+
 FILES = {
     "plate7_A420.csv": plate_reader,
     "SEC_trace_141026.csv": akta,
     "Bradford_2026-10-30.xlsx": bradford,
+    "Bioreactor_run12.csv": bioreactor,
+    "ELISA_plate3.csv": elisa,
 }
 
 
