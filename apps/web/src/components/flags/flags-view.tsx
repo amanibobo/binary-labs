@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { useId } from "react";
-import { rangeText, valueText } from "@/lib/checks";
+import { rangeText } from "@/lib/checks";
 import { cn } from "@/lib/cn";
 import { fileName, flagHref, queueOrder, REVIEW_NAMES, type Flag } from "@/lib/flags";
 import { FlagIcon } from "../icons/drawn";
+import { Value } from "./file-flags";
 import { dataRow, dataSurface } from "../ui/data-table";
 import { When } from "../ui/when";
 
@@ -73,10 +74,10 @@ function FlagRow({ flag }: { flag: Flag }) {
       <span className="min-w-0 flex-1">
         <span className="flex flex-wrap items-baseline gap-x-2">
           <span className="text-label-medium text-content-primary">{flag.checkName}</span>
-          <span className="truncate font-mono text-paragraph-xsmall text-content-tertiary">{fileName(flag.source)}</span>
+          <span className={cn("truncate text-paragraph-xsmall text-content-tertiary", (flag.source.file?.cleanName ?? null) === null && "font-mono")}>{fileName(flag.source)}</span>
         </span>
         <span className="mt-1 block text-paragraph-small text-content-secondary">
-          <span className={cn("font-mono", !answered && "text-content-warning")}>{valueText(flag.observed, flag.unit)}</span>, expected{" "}
+          <Value v={flag.observed} unit={flag.unit} className={cn(!answered && "text-content-warning")} />, expected{" "}
           {rangeText(flag.expected, flag.unit)}
         </span>
         <span className="mt-0.5 block text-paragraph-xsmall text-content-tertiary">

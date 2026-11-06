@@ -48,7 +48,7 @@ export function ProtocolChecks({ protocolId, data, editable }: { protocolId: Pro
                 <div className="px-4 py-4 sm:px-5">
                   <p className="text-label-medium text-content-primary">{check.name}</p>
                   <p className="mt-0.5 text-paragraph-small text-content-secondary">
-                    {measureText(check)}: <span className="font-mono">{rangeText(check.range, check.unit)}</span>
+                    {measureText(check)}: {rangeText(check.range, check.unit)}
                   </p>
                   {data.usefulness === null ? null : (
                     <p className="mt-1 text-paragraph-xsmall text-content-tertiary">

@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { rangeText, valueText } from "@/lib/checks";
+import { formatNumber, rangeText } from "@/lib/checks";
 import { cn } from "@/lib/cn";
 import type { FileChecks, FileCheck, Flag } from "@/lib/flags";
 import { fileName, flagHref, REVIEW_NAMES } from "@/lib/flags";
@@ -10,6 +10,16 @@ import type { Sha256 } from "@/lib/ids";
 import { protocolHref } from "@/lib/protocols";
 import { FlagIcon } from "../icons/drawn";
 import { useLabApi } from "../lab-api";
+
+// A read value: the number in mono, as values are across the app, and its unit beside it.
+export function Value({ v, unit, className }: { v: number; unit: string | null; className?: string }) {
+  return (
+    <span className={className}>
+      <span className="font-mono">{formatNumber(v)}</span>
+      {unit === null ? null : ` ${unit}`}
+    </span>
+  );
+}
 
 export const fileChecksKey = (sha: Sha256) => ["file-checks", sha] as const;
 
@@ -72,7 +82,7 @@ export function FlagLine({ flag, on = "file", className }: { flag: Flag; on?: "f
       <span className="min-w-0">
         <span className="block text-label-small">{flag.checkName}</span>
         <span className="block text-paragraph-small">
-          <span className="font-mono">{valueText(flag.observed, flag.unit)}</span>, expected {rangeText(flag.expected, flag.unit)}
+          <Value v={flag.observed} unit={flag.unit} />, expected {rangeText(flag.expected, flag.unit)}
         </span>
         <span className="block text-paragraph-xsmall [overflow-wrap:anywhere]">
           {on === "file" ? `From ${flag.protocolTitle} v${flag.protocolVersion}` : fileName(flag.source)}
@@ -93,14 +103,15 @@ function CheckLine({ check }: { check: FileCheck }) {
     case "passed":
       return (
         <p className="text-paragraph-small text-content-secondary">
-          {check.checkName}: <span className="font-mono">{valueText(check.outcome.observed, check.unit)}</span>, within{" "}
+          {check.checkName}: <Value v={check.outcome.observed} unit={check.unit} />, within{" "}
           {rangeText(check.expected, check.unit)} · {source}
         </p>
       );
     case "couldnt":
       return (
         <p className="text-paragraph-small text-content-secondary">
-          {check.checkName}: couldn&apos;t check. {check.outcome.reason} · {source}
+          {check.checkName}: couldn&apos;t check · {source}
+          <span className="block text-paragraph-xsmall text-content-tertiary">{check.outcome.reason}</span>
         </p>
       );
     case "flagged":

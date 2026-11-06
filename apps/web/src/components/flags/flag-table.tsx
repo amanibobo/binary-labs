@@ -38,7 +38,20 @@ function cellText(column: DataColumn, index: number): string {
   return typeof v === "number" ? formatNumber(v) : v;
 }
 
-export function FlagTable({ table, columns, rows, caption }: { table: DataTable; columns: readonly ColumnId[]; rows: Spans; caption: string }) {
+// `quiet` leaves the amber off: the readings a control vouches for weren't what failed.
+export function FlagTable({
+  table,
+  columns,
+  rows,
+  caption,
+  quiet = false,
+}: {
+  table: DataTable;
+  columns: readonly ColumnId[];
+  rows: Spans;
+  caption: string;
+  quiet?: boolean;
+}) {
   const used = columns.flatMap((id) => table.columns.filter((c) => c.id === id));
   const label = table.columns.find((c) => c.kind === "text" && !columns.includes(c.id));
   const shown = label === undefined ? used : [label, ...used];
@@ -68,8 +81,8 @@ export function FlagTable({ table, columns, rows, caption }: { table: DataTable;
                 </td>
               </tr>
             ) : (
-              <tr key={r.index} className={cn("border-t border-border-opaque", r.used && "bg-background-warning/60")}>
-                <td className={cn("px-3 py-1.5 font-mono text-paragraph-xsmall tabular-nums", r.used ? "text-content-warning" : "text-content-tertiary")}>
+              <tr key={r.index} className={cn("border-t border-border-opaque", r.used && !quiet && "bg-background-warning/60")}>
+                <td className={cn("px-3 py-1.5 font-mono text-paragraph-xsmall tabular-nums", r.used && !quiet ? "text-content-warning" : "text-content-tertiary")}>
                   {r.index + 1}
                   {r.used ? <span className="sr-only">, read</span> : null}
                 </td>

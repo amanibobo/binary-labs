@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useId, useState, type ReactNode } from "react";
 import { toast } from "sonner";
-import { rangeText, valueText } from "@/lib/checks";
+import { rangeText } from "@/lib/checks";
 import type { ChartSpec } from "@/lib/charts";
 import { newChartHref } from "@/lib/charts";
 import { cn } from "@/lib/cn";
@@ -20,6 +20,7 @@ import { Button, buttonVariants } from "../ui/button";
 import { Label, Textarea } from "../ui/field";
 import { When } from "../ui/when";
 import { useFlagCount } from "./flag-count";
+import { Value } from "./file-flags";
 import { FlagTable } from "./flag-table";
 import { checksHref } from "./protocol-checks";
 
@@ -56,7 +57,7 @@ export function FlagView({ flag, authors, initialReview }: { flag: Flag; authors
           <Fact term={KIND_READ[flag.kind]} warn>
             <span className="inline-flex items-center gap-2">
               <FlagIcon className="size-5 shrink-0" />
-              <span className="font-mono">{valueText(flag.observed, flag.unit)}</span>
+              <Value v={flag.observed} unit={flag.unit} />
             </span>
           </Fact>
           <Fact term="Expected">
@@ -71,13 +72,17 @@ export function FlagView({ flag, authors, initialReview }: { flag: Flag; authors
 
         <ReviewSection flag={flag} authors={authors} initialReview={initialReview} />
 
-        <Source title="Where it was read" cells={flag.source} kind={flag.kind} />
-        {flag.control === null ? null : (
-          <Source
-            title={flag.control.sha256 === flag.source.sha256 ? "The controls" : "The day's controls, from another file"}
-            cells={flag.control}
-            kind="control"
-          />
+        {flag.control === null ? (
+          <Source title="Where it was read" cells={flag.source} kind={flag.kind} />
+        ) : (
+          <>
+            <Source
+              title={flag.control.sha256 === flag.source.sha256 ? "The controls" : "The day's controls, from another file"}
+              cells={flag.control}
+              kind="control"
+            />
+            <Source title="The readings they vouch for" cells={flag.source} kind="control" quiet />
+          </>
         )}
       </div>
     </>
@@ -98,7 +103,7 @@ function sourceLine(cells: Cells): string {
   return `${cells.sheet}, ${columns}, ${rowsText(cells.rows)}`;
 }
 
-function Source({ title, cells, kind }: { title: string; cells: Cells; kind: Flag["kind"] }) {
+function Source({ title, cells, kind, quiet = false }: { title: string; cells: Cells; kind: Flag["kind"]; quiet?: boolean }) {
   const api = useLabApi();
   const headingId = useId();
   const table = useQuery({
@@ -140,7 +145,7 @@ function Source({ title, cells, kind }: { title: string; cells: Cells; kind: Fla
               <SourceChart cells={cells} table={found} kind={kind} />
             </div>
           ) : null}
-          <FlagTable table={found} columns={cells.columns} rows={cells.rows} caption={`${sourceLine(cells)}, the rows read marked`} />
+          <FlagTable table={found} columns={cells.columns} rows={cells.rows} quiet={quiet} caption={`${sourceLine(cells)}, the rows read marked`} />
         </div>
       )}
     </section>

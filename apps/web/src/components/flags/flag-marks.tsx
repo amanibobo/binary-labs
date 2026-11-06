@@ -48,13 +48,8 @@ export function FlagMarksProvider({ children }: { children: ReactNode }) {
     [flush],
   );
 
-  useEffect(
-    () => () => {
-      if (timer.current !== null) clearTimeout(timer.current);
-    },
-    [],
-  );
-
+  // No cleanup that cancels the timer: under Strict Mode's remount the asked files wouldn't be
+  // asked again, and a late answer after unmounting is dropped by React anyway.
   return <MarksContext value={{ counts, want }}>{children}</MarksContext>;
 }
 
