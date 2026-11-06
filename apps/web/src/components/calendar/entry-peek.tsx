@@ -1,0 +1,393 @@
+"use client";
+
+import { useQuery } from "@tanstack/react-query";
+import { DropdownMenu } from "radix-ui";
+import { useId, useState, type ReactNode } from "react";
+import { draftOf, entryDays, type CalendarEntry, type EntryDraft, type EntryWhen } from "@/lib/calendar";
+import type { InstrumentId } from "@/lib/ids";
+import { heldWindow, moveEnd, moveStart, toggleAllDay, whenLine } from "@/lib/calendar-edit";
+import { CalendarDay, formatCalendarDay, minutesFromInput, timeInputValue, wallClock } from "@/lib/calendar-time";
+import { cn } from "@/lib/cn";
+import { authorName } from "@/lib/protocols";
+import { CheckIcon, ChevronDownIcon } from "../icons/base-web";
+import { InfoIcon } from "../icons/drawn";
+import { Button } from "../ui/button";
+import { inputVariants } from "../ui/field";
+import { menuItem, menuSurface } from "../ui/menu";
+import { When } from "../ui/when";
+import { useCalendarApi } from "./calendar-api";
+import { useCalendar } from "./calendar-context";
+import { SidePeek } from "./side-peek";
+
+export type EntryWrites = {
+  // Each resolves to the entry as it now stands, or null when the write didn't happen.
+  create: (draft: EntryDraft) => Promise<CalendarEntry | null>;
+  save: (entry: CalendarEntry, draft: EntryDraft) => Promise<CalendarEntry | null>;
+  remove: (entry: CalendarEntry) => Promise<void>;
+};
+
+const blankDraft = (when: EntryWhen): EntryDraft => ({
+  title: "",
+  notes: null,
+  when,
+  experimentId: null,
+  protocolId: null,
+  instrumentId: null,
+  personIds: [],
+});
+
+// The side peek for one entry, or a new one. Every change saves as it's made, as in Notion: a
+// pick at once, the title and notes when you leave them. A new entry is saved once it has a title.
+export function EntryPeek({
+  entry,
+  newWhen,
+  writes,
+  onClose,
+  onCreated,
+}: {
+  entry: CalendarEntry | null;
+  newWhen: EntryWhen;
+  writes: EntryWrites;
+  onClose: () => void;
+  onCreated: (entry: CalendarEntry) => void;
+}) {
+  const { timeZone, lists } = useCalendar();
+  const titleId = useId();
+  // The entry this draft was loaded from; a different one (someone else's save) reloads it.
+  const [loaded, setLoaded] = useState(entry?.updatedAt ?? null);
+  const [draft, setDraft] = useState<EntryDraft>(() => (entry === null ? blankDraft(newWhen) : draftOf(entry)));
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  if (entry !== null && entry.updatedAt !== loaded) {
+    setLoaded(entry.updatedAt);
+    setDraft((current) => ({ ...draftOf(entry), title: document.activeElement?.id === titleId ? current.title : entry.title }));
+  }
+
+  async function commit(next: EntryDraft) {
+    setDraft(next);
+    if (next.title.trim() === "") return;
+    if (entry === null) {
+      const created = await writes.create(next);
+      if (created !== null) onCreated(created);
+      return;
+    }
+    const saved = await writes.save(entry, next);
+    if (saved !== null) setLoaded(saved.updatedAt);
+  }
+
+  const change = (patch: Partial<EntryDraft>) => void commit({ ...draft, ...patch });
+  const instrument = lists.instruments.find((i) => i.id === draft.instrumentId) ?? null;
+
+  return (
+    <SidePeek
+      labelledBy={titleId}
+      onClose={onClose}
+      tools={
+        entry === null ? null : confirmDelete ? (
+          <>
+            <span className="text-paragraph-small text-content-secondary max-sm:sr-only">Delete for everyone?</span>
+            <Button variant="tertiary" size="compact" onClick={() => setConfirmDelete(false)}>
+              Keep
+            </Button>
+            <Button variant="negative" size="compact" onClick={() => void writes.remove(entry)}>
+              Delete
+            </Button>
+          </>
+        ) : (
+          <Button variant="tertiary" size="compact" className="text-content-secondary" onClick={() => setConfirmDelete(true)}>
+            Delete
+          </Button>
+        )
+      }
+    >
+      <input
+        id={titleId}
+        autoFocus={entry === null}
+        aria-label="Title"
+        placeholder="Untitled"
+        value={draft.title}
+        maxLength={200}
+        onChange={(e) => setDraft({ ...draft, title: e.target.value })}
+        onBlur={() => {
+          if (draft.title.trim() !== (entry?.title ?? "")) void commit(draft);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") e.currentTarget.blur();
+        }}
+        className="w-full bg-transparent text-heading-medium text-content-primary outline-none placeholder:text-content-tertiary"
+      />
+      {entry === null && draft.title.trim() === "" ? (
+        <p className="mt-1 text-paragraph-small text-content-tertiary">Give it a title to save it.</p>
+      ) : null}
+
+      <dl className="mt-6 grid grid-cols-[104px_minmax(0,1fr)] items-start gap-x-3 gap-y-1 sm:grid-cols-[120px_minmax(0,1fr)]">
+        <Property label="When">
+          <WhenFields when={draft.when} onChange={(when) => change({ when })} />
+        </Property>
+        <Property label="Experiment">
+          <Picker
+            value={draft.experimentId}
+            none="None"
+            options={lists.experiments.map((e) => ({ id: e.id, name: e.name }))}
+            onChange={(experimentId) => change({ experimentId })}
+            label="Experiment"
+          />
+        </Property>
+        <Property label="Protocol">
+          <Picker
+            value={draft.protocolId}
+            none="None"
+            options={withCurrent(lists.protocols.map((p) => ({ id: p.id, name: p.title })), entry?.protocol ? { id: entry.protocol.id, name: entry.protocol.title } : null)}
+            onChange={(protocolId) => change({ protocolId })}
+            label="Protocol"
+          />
+        </Property>
+        <Property label="Instrument">
+          <Picker
+            value={draft.instrumentId}
+            none="None"
+            options={withCurrent(
+              lists.instruments.filter((i) => i.live).map((i) => ({ id: i.id, name: i.name })),
+              entry?.instrument ? { id: entry.instrument.id, name: entry.instrument.name } : null,
+            )}
+            onChange={(instrumentId) => change({ instrumentId })}
+            label="Instrument"
+          />
+          {instrument === null ? null : <OverlapNotice instrument={instrument} when={draft.when} except={entry} />}
+        </Property>
+        <Property label="People">
+          <PeoplePicker value={draft.personIds} onChange={(personIds) => change({ personIds })} />
+        </Property>
+      </dl>
+
+      <label className="mt-6 block">
+        <span className="sr-only">Notes</span>
+        <textarea
+          placeholder="Add notes"
+          value={draft.notes ?? ""}
+          rows={5}
+          maxLength={10_000}
+          onChange={(e) => setDraft({ ...draft, notes: e.target.value })}
+          onBlur={() => {
+            if ((draft.notes ?? "").trim() !== (entry?.notes ?? "")) void commit({ ...draft, notes: draft.notes?.trim() || null });
+          }}
+          className="w-full resize-y rounded-control border border-transparent bg-transparent px-0 py-2 text-paragraph-medium text-content-primary outline-none placeholder:text-content-tertiary focus:border-border-opaque focus:px-3"
+        />
+      </label>
+
+      {entry === null ? null : (
+        <p className="mt-8 border-t border-border-opaque pt-4 text-paragraph-xsmall text-content-tertiary">
+          Added by {authorName(lists.authors, entry.createdBy)} on <When iso={entry.createdAt} />
+          <span className="sr-only">. {whenLine(entry.when, timeZone)}</span>
+        </p>
+      )}
+    </SidePeek>
+  );
+}
+
+// An archived protocol or a removed instrument an entry already names stays pickable on it.
+function withCurrent<T extends string>(options: { id: T; name: string }[], current: { id: T; name: string } | null) {
+  return current === null || options.some((o) => o.id === current.id) ? options : [...options, current];
+}
+
+function Property({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <>
+      <dt className="flex min-h-9 items-center text-paragraph-small text-content-tertiary">{label}</dt>
+      <dd className="min-w-0">{children}</dd>
+    </>
+  );
+}
+
+const fieldTrigger =
+  "-ml-2 flex min-h-11 max-w-full items-center gap-1 rounded-control px-2 text-left text-paragraph-medium transition-colors duration-150 hover:bg-background-secondary sm:min-h-9";
+
+function Picker<T extends string>({
+  value,
+  none,
+  options,
+  onChange,
+  label,
+}: {
+  value: T | null;
+  none: string;
+  options: { id: T; name: string }[];
+  onChange: (next: T | null) => void;
+  label: string;
+}) {
+  const current = options.find((o) => o.id === value) ?? null;
+  return (
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger aria-label={`${label}: ${current?.name ?? none}`} className={fieldTrigger}>
+        <span className={cn("truncate", current === null && "text-content-tertiary")}>{current?.name ?? none}</span>
+        <ChevronDownIcon className="size-4 shrink-0 text-content-tertiary" />
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content align="start" sideOffset={4} className={cn(menuSurface, "max-h-80 overflow-y-auto")}>
+          <DropdownMenu.RadioGroup
+            value={value ?? ""}
+            onValueChange={(next) => onChange(options.find((o) => o.id === next)?.id ?? null)}
+          >
+            {[{ id: "", name: none }, ...options].map((o) => (
+              <DropdownMenu.RadioItem key={o.id} value={o.id} className={menuItem}>
+                <span className={cn("flex-1 truncate", o.id === "" && "text-content-tertiary")}>{o.name}</span>
+                <DropdownMenu.ItemIndicator>
+                  <CheckIcon className="size-5" />
+                </DropdownMenu.ItemIndicator>
+              </DropdownMenu.RadioItem>
+            ))}
+          </DropdownMenu.RadioGroup>
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
+  );
+}
+
+function PeoplePicker({ value, onChange }: { value: EntryDraft["personIds"]; onChange: (next: EntryDraft["personIds"]) => void }) {
+  const { lists } = useCalendar();
+  const chosen = value.flatMap((id) => lists.people.filter((p) => p.id === id));
+  return (
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger aria-label={`People: ${chosen.map((p) => p.name).join(", ") || "none"}`} className={fieldTrigger}>
+        <span className={cn("truncate", chosen.length === 0 && "text-content-tertiary")}>
+          {chosen.length === 0 ? "Add people" : chosen.map((p) => p.name).join(", ")}
+        </span>
+        <ChevronDownIcon className="size-4 shrink-0 text-content-tertiary" />
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content align="start" sideOffset={4} className={cn(menuSurface, "max-h-80 overflow-y-auto")}>
+          {lists.people.map((p) => (
+            <DropdownMenu.CheckboxItem
+              key={p.id}
+              checked={value.includes(p.id)}
+              onSelect={(e) => e.preventDefault()}
+              onCheckedChange={(on) => onChange(on ? [...value, p.id] : value.filter((id) => id !== p.id))}
+              className={menuItem}
+            >
+              <span className="flex-1 truncate">{p.name}</span>
+              <DropdownMenu.ItemIndicator>
+                <CheckIcon className="size-5" />
+              </DropdownMenu.ItemIndicator>
+            </DropdownMenu.CheckboxItem>
+          ))}
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
+  );
+}
+
+const dateField = cn(inputVariants({ size: "compact" }), "w-auto min-w-0 px-2 tabular-nums [color-scheme:inherit]");
+
+function WhenFields({ when, onChange }: { when: EntryWhen; onChange: (next: EntryWhen) => void }) {
+  const { timeZone } = useCalendar();
+  const id = useId();
+  const allDay = when.kind === "allDay";
+  const start = when.kind === "allDay" ? { day: when.first, minutes: null } : wallClock(new Date(when.start), timeZone);
+  const end = when.kind === "allDay" ? { day: when.last, minutes: null } : wallClock(new Date(when.end), timeZone);
+  const day = (value: string) => {
+    const parsed = CalendarDay.safeParse(value);
+    return parsed.success ? parsed.data : null;
+  };
+  return (
+    <div className="flex flex-col gap-2 py-1">
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          type="date"
+          aria-label={allDay ? "First day" : "Start date"}
+          className={dateField}
+          value={start.day}
+          onChange={(e) => {
+            const d = day(e.target.value);
+            if (d !== null) onChange(moveStart(when, { day: d, minutes: start.minutes }, timeZone));
+          }}
+        />
+        {start.minutes === null ? null : (
+          <input
+            type="time"
+            step={900}
+            aria-label="Start time"
+            className={dateField}
+            value={timeInputValue(start.minutes)}
+            onChange={(e) => {
+              const m = minutesFromInput(e.target.value);
+              if (m !== null) onChange(moveStart(when, { day: start.day, minutes: m }, timeZone));
+            }}
+          />
+        )}
+        <span aria-hidden className="text-content-tertiary">
+          –
+        </span>
+        <input
+          type="date"
+          aria-label={allDay ? "Last day" : "End date"}
+          className={dateField}
+          value={end.day}
+          onChange={(e) => {
+            const d = day(e.target.value);
+            if (d !== null) onChange(moveEnd(when, { day: d, minutes: end.minutes }, timeZone));
+          }}
+        />
+        {end.minutes === null ? null : (
+          <input
+            type="time"
+            step={900}
+            aria-label="End time"
+            className={dateField}
+            value={timeInputValue(end.minutes)}
+            onChange={(e) => {
+              const m = minutesFromInput(e.target.value);
+              if (m !== null) onChange(moveEnd(when, { day: end.day, minutes: m }, timeZone));
+            }}
+          />
+        )}
+      </div>
+      <label htmlFor={`${id}-all-day`} className="flex w-fit cursor-pointer items-center gap-2 text-paragraph-small text-content-secondary">
+        <button
+          id={`${id}-all-day`}
+          type="button"
+          role="switch"
+          aria-checked={allDay}
+          onClick={() => onChange(toggleAllDay(when, timeZone))}
+          className={cn(
+            "relative h-5 w-8 rounded-full transition-colors duration-150",
+            allDay ? "bg-button-primary-fill" : "bg-background-tertiary ring-1 ring-border-raised ring-inset",
+          )}
+        >
+          <span
+            className={cn(
+              "absolute top-0.5 size-4 rounded-full bg-background-raised shadow-raised transition-transform duration-150",
+              allDay ? "translate-x-3.5" : "translate-x-0.5",
+            )}
+          />
+        </button>
+        All day
+      </label>
+    </div>
+  );
+}
+
+// A quiet line when someone else has booked the instrument then. It never stops a save.
+function OverlapNotice({ instrument, when, except }: { instrument: { id: InstrumentId; name: string }; when: EntryWhen; except: CalendarEntry | null }) {
+  const api = useCalendarApi();
+  const { timeZone } = useCalendar();
+  const window = heldWindow(when, timeZone);
+  const overlaps = useQuery({
+    queryKey: ["calendar", "overlaps", instrument.id, window.from, window.to, except?.id ?? null],
+    queryFn: ({ signal }) => api.overlaps({ instrumentId: instrument.id, ...window, timeZone, except: except?.id ?? null }, signal),
+  });
+  const first = overlaps.data?.[0];
+  if (first === undefined) return null;
+  const others = (overlaps.data?.length ?? 1) - 1;
+  const { first: firstDay, last: lastDay } = entryDays(first.when, timeZone);
+  const at =
+    firstDay !== lastDay
+      ? whenLine(first.when, timeZone)
+      : `${formatCalendarDay(firstDay, "medium")}, ${first.when.kind === "allDay" ? "all day" : whenLine(first.when, timeZone)}`;
+  return (
+    <p role="status" className="mt-1 mb-2 flex gap-2 rounded-control bg-background-secondary px-3 py-2 text-paragraph-small text-content-secondary">
+      <InfoIcon className="mt-0.5 size-4 shrink-0 text-content-tertiary" />
+      <span>
+        {instrument.name} is also booked {at}, for “{first.title}”{others > 0 ? `, and ${others} more` : ""}.
+      </span>
+    </p>
+  );
+}
