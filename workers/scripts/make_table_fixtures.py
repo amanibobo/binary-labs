@@ -8,7 +8,20 @@ uv run python scripts/make_table_fixtures.py
 - SEC_trace_141026.csv: an AKTA UNICORN export of a size-exclusion run, UTF-16 with tabs,
   curve names over a units row, each curve with its own volume column and its own length.
 - Bradford_2026-10-30.xlsx: a Bradford assay workbook: a standard curve under a merged title
-  and a merged two-row header, the samples, and the raw plate as a grid.
+  and a merged two-row header, the samples, and the raw plate as a grid. Its curve bends over
+  0 to 2000 µg/mL, so a straight-line fit gets R² 0.94.
+
+For checks (decisions.md, "checking results: expected values and flags"):
+
+- Bradford_2026-11-03.xlsx: the same workbook with a straight curve over 0 to 1000 µg/mL
+  (R² 0.999), which passes R² ≥ 0.98.
+- Bradford_2026-11-04.xlsx: the same, with the 750 µg/mL standard pipetted short, so the fit
+  fails R² ≥ 0.98 (0.88).
+- plate8_A595_endpoint.csv: a Gen5 endpoint read listed by well, whose three blanks read
+  0.20 to 0.23, out of a "blank at most 0.10" range.
+- plate9_A595_endpoint.csv: the same read on another day, blanks at 0.04 to 0.06.
+- spectrum_BM3_2026-11-03.csv: a UV scan from 240 to 340 nm with its maximum at 280 nm.
+- nanodrop_2026-11-03.csv: a NanoDrop protein export with each sample's 260/280 ratio.
 """
 
 from __future__ import annotations
@@ -16,6 +29,7 @@ from __future__ import annotations
 import io
 import math
 import random
+from collections.abc import Callable
 from pathlib import Path
 
 import openpyxl
@@ -116,8 +130,25 @@ def akta() -> bytes:
 STANDARDS = [0, 125, 250, 500, 750, 1000, 1500, 2000]
 
 
-def bradford() -> bytes:
-    rng = random.Random(30)
+def saturating(conc: float) -> float:
+    return 0.43 + 0.95 * (1 - math.exp(-conc / 1100))
+
+
+def straight(conc: float) -> float:
+    return 0.43 + 0.00061 * conc
+
+
+def short_750(conc: float) -> float:
+    return straight(conc) - (0.2 if conc == 750 else 0)
+
+
+def bradford(
+    seed: int = 30,
+    standards: list[int] = STANDARDS,
+    curve: Callable[[float], float] = saturating,
+    spread: float = 0.012,
+) -> bytes:
+    rng = random.Random(seed)
     wb = openpyxl.Workbook()
     wb.properties.created = wb.properties.modified = samples.FIXED_DATE.replace(tzinfo=None)
     ws = wb.active
@@ -132,9 +163,9 @@ def bradford() -> bytes:
     ws.merge_cells("B4:D4")
     ws.merge_cells("E4:E5")
     ws.merge_cells("F4:F5")
-    for conc in STANDARDS:
-        mean = 0.43 + 0.95 * (1 - math.exp(-conc / 1100))
-        reps = [round(mean + rng.gauss(0, 0.012), 3) for _ in range(3)]
+    for conc in standards:
+        mean = curve(conc)
+        reps = [round(mean + rng.gauss(0, spread), 3) for _ in range(3)]
         m = sum(reps) / 3
         sd = math.sqrt(sum((r - m) ** 2 for r in reps) / 2)
         ws.append([conc, *reps, round(m, 4), round(sd, 4)])
@@ -163,10 +194,63 @@ def bradford() -> bytes:
     return samples._stable_zip(out.getvalue())
 
 
-FILES = {
+LINEAR_STANDARDS = [0, 125, 250, 500, 750, 1000]
+
+
+def endpoint(blank: float, day: str, seed: int) -> bytes:
+    """A Gen5 endpoint read of one plate column by column, listed by well with its sample."""
+    rng = random.Random(seed)
+    preamble = [
+        ["Software Version", "3.11.19"],
+        ["Plate Number", "Plate 1"],
+        ["Date", day],
+        ["Reader Type:", "Synergy H1"],
+        ["Read", "Absorbance Endpoint"],
+        ["", "Wavelengths:  595"],
+        [],
+        ["Well", "Sample", "A595"],
+    ]
+    body = []
+    for i, well in enumerate(["A1", "B1", "C1"]):
+        body.append([well, f"Blank {i + 1}", f"{blank + rng.gauss(0, 0.012):.3f}"])
+    names = ["Lysate", "Flow-through", "Wash", "Elution 1", "Elution 2", "Elution 3"]
+    for i, name in enumerate(names):
+        for rep in range(2):
+            well = f"{ROWS[(i * 2 + rep + 3) % 8]}{(i * 2 + rep + 3) // 8 + 1}"
+            a595 = 0.35 + 0.1 * i + rng.gauss(0, 0.01)
+            body.append([well, f"{name} rep {rep + 1}", f"{a595:.3f}"])
+    lines = [",".join(row) for row in preamble + body]
+    return ("\r\n".join(lines) + "\r\n").encode("utf-8")
+
+
+def spectrum() -> bytes:
+    rng = random.Random(280)
+    rows = [["Wavelength (nm)", "Absorbance (AU)"]]
+    for nm in range(240, 341):
+        a = 0.06 + gauss(nm, 280, 9, 0.82) + gauss(nm, 250, 6, 0.1) + rng.gauss(0, 0.002)
+        rows.append([str(nm), f"{a:.4f}"])
+    return samples.csv_text(rows)
+
+
+def nanodrop() -> bytes:
+    rows = [["Sample ID", "Conc. (mg/mL)", "A280", "A260", "260/280"]]
+    reads = [("BM3 pool", 1.842, 0.57), ("BM3 elution 2", 0.913, 0.61), ("Buffer", 0.004, 0.0)]
+    for name, a280, ratio in reads:
+        # A 1 Abs = 1 mg/mL protein, as the NanoDrop's default.
+        rows.append([name, f"{a280:.3f}", f"{a280:.3f}", f"{a280 * ratio:.3f}", f"{ratio:.2f}"])
+    return samples.csv_text(rows)
+
+
+FILES: dict[str, Callable[[], bytes]] = {
     "plate7_A420.csv": plate_reader,
     "SEC_trace_141026.csv": akta,
     "Bradford_2026-10-30.xlsx": bradford,
+    "Bradford_2026-11-03.xlsx": lambda: bradford(1103, LINEAR_STANDARDS, straight, 0.006),
+    "Bradford_2026-11-04.xlsx": lambda: bradford(1104, LINEAR_STANDARDS, short_750, 0.006),
+    "plate8_A595_endpoint.csv": lambda: endpoint(0.195, "11/4/2026", 8),
+    "plate9_A595_endpoint.csv": lambda: endpoint(0.045, "11/3/2026", 9),
+    "spectrum_BM3_2026-11-03.csv": spectrum,
+    "nanodrop_2026-11-03.csv": nanodrop,
 }
 
 

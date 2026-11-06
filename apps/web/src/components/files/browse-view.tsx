@@ -19,6 +19,7 @@ import { FolderArt } from "./folder-art";
 import { KindIcon } from "./kind-icon";
 import { PreviewPanel } from "./preview-panel";
 import { When } from "@/components/ui/when";
+import { FlagMark } from "../flags/flag-marks";
 
 export function BrowseView({
   labName,
@@ -172,7 +173,10 @@ function FileRow({ hit, expanded, onToggle }: { hit: FileHit; expanded: boolean;
           >
             <KindIcon kind={hit.fileKind} className="size-5" />
             <span className="min-w-0">
-              <span className="block truncate font-mono text-label-small text-content-primary">{location.originalName}</span>
+              <span className="flex min-w-0 items-center gap-2">
+                <span className="truncate font-mono text-label-small text-content-primary">{location.originalName}</span>
+                <FlagMark sha={hit.sha256} className="shrink-0 max-sm:h-6" />
+              </span>
               <span className="mt-0.5 block text-paragraph-xsmall text-content-tertiary sm:hidden">
                 {KIND_LABELS[hit.fileKind]} · <When iso={location.modifiedAt} />
               </span>

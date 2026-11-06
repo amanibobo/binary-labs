@@ -44,6 +44,9 @@ LAB_TABLES = (
     "calendar_entries",
     "file_vectors",
     "file_neighbors",
+    "check_requests",
+    "check_results",
+    "flags",
     "audit_log",
 )
 

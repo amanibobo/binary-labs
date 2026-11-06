@@ -286,6 +286,16 @@ export function InfoIcon(props: IconProps) {
   );
 }
 
+// A pennant on a pole: a flag raised against a protocol's check.
+export function FlagIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path {...line} d="M6 20.5V4" />
+      <path {...line} d="M6 4.5h10.2a.8.8 0 0 1 .6 1.3L14.5 9l2.3 3.2a.8.8 0 0 1-.6 1.3H6" />
+    </Svg>
+  );
+}
+
 // A checklist line: an open ring, filled with a tick once it's done.
 export function ChecklistMarkIcon({ done, ...props }: IconProps & { done: boolean }) {
   return (

@@ -1,0 +1,23 @@
+Software Version,3.11.19
+Plate Number,Plate 1
+Date,11/4/2026
+Reader Type:,Synergy H1
+Read,Absorbance Endpoint
+,Wavelengths:  595
+
+Well,Sample,A595
+A1,Blank 1,0.199
+B1,Blank 2,0.225
+C1,Blank 3,0.208
+D1,Lysate rep 1,0.361
+E1,Lysate rep 2,0.356
+F1,Flow-through rep 1,0.454
+G1,Flow-through rep 2,0.457
+H1,Wash rep 1,0.550
+A2,Wash rep 2,0.543
+B2,Elution 1 rep 1,0.641
+C2,Elution 1 rep 2,0.639
+D2,Elution 2 rep 1,0.753
+E2,Elution 2 rep 2,0.757
+F2,Elution 3 rep 1,0.868
+G2,Elution 3 rep 2,0.856

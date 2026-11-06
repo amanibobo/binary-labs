@@ -8,7 +8,7 @@ import psycopg
 from procrastinate import App, JobContext, PsycopgConnector, RetryStrategy
 from procrastinate.exceptions import AlreadyEnqueued
 
-from bl_worker import data_tables, deletion, neighbors, process, scan, talk_throughs, videos
+from bl_worker import check_runs, data_tables, deletion, neighbors, process, scan, talk_throughs, videos
 from bl_worker.labels import job as labels
 from bl_worker.labels.learning import learn_pending
 from bl_worker.runtime import Runtime
@@ -91,6 +91,7 @@ def process_location(context: JobContext, location_id: str) -> None:
         ).fetchone()
     if row is not None:
         defer_label(row[0], row[1])
+        defer_checks_if_wanted(rt, row[0], row[1])
         with rt.pool.connection() as conn:
             for talk_through_id in talk_throughs.waiting_for_steps(
                 conn, location_id=UUID(location_id)
@@ -106,8 +107,11 @@ def defer_label(lab_id: UUID, sha256: str) -> bool:
 
 @app.task(name="label_blob", pass_context=True, retry=RetryStrategy(max_attempts=3, wait=10))
 def label_blob(context: JobContext, lab_id: str, sha256: str) -> None:
-    draft = labels.label_blob(_runtime(context), UUID(lab_id), sha256)
+    rt = _runtime(context)
+    draft = labels.label_blob(rt, UUID(lab_id), sha256)
     log.info("label %s: %s", sha256[:12], draft.status if draft else "skipped")
+    # A new or moved label asks for its file's checks (a trigger); run them without the wait.
+    defer_checks_if_wanted(rt, UUID(lab_id), sha256)
 
 
 @app.periodic(cron="* * * * * */10")
@@ -247,6 +251,41 @@ async def tend_neighbors(context: JobContext, timestamp: int) -> None:
     deferred = await asyncio.to_thread(tend)
     if deferred:
         log.info("deferred %d neighbor refreshes", deferred)
+
+
+def defer_checks(lab_id: UUID, sha256: str) -> bool:
+    return _defer_locked(
+        "run_checks", f"checks:{lab_id}:{sha256}", lab_id=str(lab_id), sha256=sha256
+    )
+
+
+def defer_checks_if_wanted(rt: Runtime, lab_id: UUID, sha256: str) -> bool:
+    with rt.pool.connection() as conn:
+        if not check_runs.wanted(conn, lab_id, sha256):
+            return False
+    return defer_checks(lab_id, sha256)
+
+
+@app.task(name="run_checks", pass_context=True, retry=RetryStrategy(max_attempts=3, wait=10))
+def run_checks(context: JobContext, lab_id: str, sha256: str) -> None:
+    outcome = check_runs.run_checks(_runtime(context), UUID(lab_id), sha256)
+    log.info("checks of %s: %s", sha256[:12], outcome or "skipped")
+
+
+@app.periodic(cron="* * * * * */10")
+@app.task(name="tend_checks", pass_context=True, queueing_lock="tend_checks")
+async def tend_checks(context: JobContext, timestamp: int) -> None:
+    """Queues checks for files whose table, label or protocol changed since their last check."""
+    rt = _runtime(context)
+
+    def tend() -> int:
+        with rt.pool.connection() as conn:
+            todo = check_runs.due(conn)
+        return sum(defer_checks(lab_id, sha) for lab_id, sha in todo)
+
+    deferred = await asyncio.to_thread(tend)
+    if deferred:
+        log.info("deferred %d file checks", deferred)
 
 
 @app.task(name="delete_lab", pass_context=True, retry=RetryStrategy(max_attempts=3, wait=30))

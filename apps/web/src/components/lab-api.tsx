@@ -9,7 +9,9 @@ import { BrowseResponse, type FolderPath } from "@/lib/folders";
 import { SourceStateWire, type SourceState } from "@/lib/source-state";
 import { answerOf, resultOf, type SendResult, type UploadResult } from "@/lib/upload-queue";
 import { uploadHeaders, UploadRowsWire, type UploadMeta, type UploadRow } from "@/lib/uploads";
-import type { ChartId, CorrectionId, LocationId, ProtocolId, Sha256, TalkThroughId } from "@/lib/ids";
+import type { ChartId, CorrectionId, FlagId, LocationId, ProtocolId, Sha256, TalkThroughId } from "@/lib/ids";
+import type { SaveChecksRequest } from "@/lib/checks";
+import { FileChecksWire, FlagAnswerWire, FlagMarksWire, type FileChecks, type FlagAnswer, type ReviewRequest } from "@/lib/flags";
 import { TableState } from "@/lib/data-tables";
 import { HubFiles, LocalView, type HubQuery, type LocalQuery } from "@/lib/map";
 import {
@@ -114,6 +116,13 @@ export type LabApi = {
   // The lab map: one hub's files, and the map around one node.
   mapHub: (q: HubQuery, signal: AbortSignal) => Promise<HubFiles>;
   mapLocal: (q: LocalQuery, signal: AbortSignal) => Promise<LocalView>;
+  },
+  // A file's checks and open flags; open flags per file for rows on screen.
+  fileChecks: (sha: Sha256, signal: AbortSignal) => Promise<FileChecks>;
+  flagMarks: (shas: readonly Sha256[], signal: AbortSignal) => Promise<Record<string, number>>;
+  // These reject with an Error whose message can be shown; a stale save resolves as { kind: "stale" }.
+  reviewFlag: (id: FlagId, req: ReviewRequest) => Promise<FlagAnswer>;
+  saveChecks: (id: ProtocolId, req: SaveChecksRequest) => Promise<SaveOutcome>;
 };
 
 // XMLHttpRequest, not fetch: only it reports upload progress.
@@ -295,6 +304,17 @@ export const httpLabApi: LabApi = {
     const params = new URLSearchParams({ around: q.around, depth: String(q.depth) });
     if (q.similar) params.set("similar", "1");
     return LocalView.parse(await getJson(`/api/map/local?${params}`, signal));
+  },
+  fileChecks: async (sha, signal) => FileChecksWire.parse(await getJson(`/api/flags?${new URLSearchParams({ sha256: sha })}`, signal)),
+  flagMarks: async (shas, signal) =>
+    FlagMarksWire.parse(await getJson(`/api/flags/marks?${new URLSearchParams({ shas: shas.join(",") })}`, signal)),
+  reviewFlag: async (id, req) => FlagAnswerWire.parse(await postJson(`/api/flags/${id}`, req)),
+  saveChecks: async (id, req) => {
+    const { status, json } = await sendJson(`/api/protocols/${id}/checks`, "POST", req);
+    if (status !== 200 && status !== 409) throw failure(json);
+    const outcome = SaveOutcomeWire.safeParse(json);
+    if (!outcome.success) throw failure(json);
+    return outcome.data;
   },
 };
 

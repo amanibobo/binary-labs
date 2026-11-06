@@ -243,3 +243,27 @@ page:   /map                 ──▶ lab_map(lab)                hubs, uses, s
 - Node ids are `file:<sha256>`, `protocol:<uuid>`, `experiment:<uuid>`, `person:<uuid>`, `instrument:<lowercased name>`; edges carry their kind (`label`, `attached`, `chart`, `talk-through`, `uses`, `shared`, `similar`). The three views are `security definer`, check `map_require_member` first and read only that lab's rows through helpers (`map_files`, `map_links`, `map_hubs`, `map_hub_files`, `map_nodes`, `map_edges`, `map_step`) that members can't call.
 - `lib/map.ts` parses the views at the boundary and builds the drawn graph (`globalGraph`, `localGraph`: hidden kinds removed, files left with no link dropped, a "more" node per hub with files left out); `lib/map-layout.ts` is the force layout in typed arrays; `components/map/map-canvas.tsx` draws it on a canvas (pan, zoom, pinch, drag, hover and keyboard focus, names by zoom) with colors from `--map-*` in globals.css, reread when the theme changes; `map-view.tsx` has the search, the type filters (the legend), Similar in meaning, the depth control, the list view and the strip under the map.
 - Tests: `workers/tests/test_neighbors.py` (the cache), `apps/web/src/lib/__tests__/map.test.ts` and `map-layout.test.ts` (graph building, layout limits), `map.db.test.ts` (the views as members of two labs). `scripts/e2e-map.sh` scans the sample lab with the real worker and reads the views as a member. Measurements: `workers/scripts/measure_map.py` (calibrate, scale) and `apps/web/scripts/map-perf.mjs` (frame times). Fixtures: `/dev/fixtures/map?view=default|expanded|similar|local|local2|protocol[&size=pilot][&open=all]`, a generated lab (`src/fixtures/map.ts`).
+
+## Checks and flags
+
+Migration 0018. A protocol version's `expected_values` holds its checks (`CheckSpec` in `lib/checks.ts`, `check_spec_ok` in SQL, `bl_worker/checks.py` evaluates them). `check_requests`, `check_results` and `flags` are lab tables the worker writes; members read all three under RLS and update only `flags.review` and `flags.review_note`, through `review_flag`. `save_checks` (`security definer`, membership checked) saves a version with new checks; `protocol_versions_carry_checks` keeps them on every other save.
+
+```
+triggers: data_tables ready, labels (experiment, date, needs_look), protocols (current version,
+          archived), experiments.protocol_id, protocol_files ──▶ check_requests.requested_at
+worker: tend_checks (10 s), or process_location / label_blob at once ──▶ run_checks (locked per file)
+        read <lab>/tables/<sha256>.json ──▶ checks.evaluate per check of each tied protocol
+        ──▶ one transaction: check_results replaced, flags kept / cleared / raised, checked_at = request
+page:   GET /api/flags/marks?shas= ──▶ file_flag_marks ──▶ amber "Flagged" on rows (FlagMarksProvider batches)
+        GET /api/flags?sha256= ──▶ file_checks + lab_flags + check_requests ──▶ the opened row's Checks
+        /flags ──▶ lab_flags (open) · /flags/<id> ──▶ lab_flags + the table from /api/tables/<sha>
+        POST /api/flags/<id> {review, note} ──▶ review_flag ──▶ flag.review in audit_log
+        /protocols/<id>/checks ──▶ POST /api/protocols/<id>/checks {baseVersionId, checks, note}
+          ──▶ save_checks ──▶ new version (409 stale on BL101) ──▶ its files are checked again
+```
+
+- A flag's source is columns: `source_sheet`, `source_columns` (letters), `source_rows` (an `int4multirange` of 0-based rows of the parsed table), and for a control check the same four for `control_*`. `lab_flags` hands rows to the browser as `[first, last]` pairs and the file as its newest live location (`flag_file_json`).
+- `flags_open_idx` keeps one open flag per file and check; `evidence` (sha256 of the rule, value and cells) decides whether a run keeps it.
+- `flag_queue_count` is the sidebar's number (open, unanswered); `file_flag_marks` leaves out flags answered "wrong"; `check_usefulness` is admins only.
+- Errors: `BL107` no such flag, `BL108` checks on a tutorial, plus the protocol codes.
+- Tests: `workers/tests/test_checks.py` (every kind and couldn't-check case on the fixtures), `test_checks_db.py` (runs, recheck triggers, the source constraint, RLS, audit, deletion), `apps/web/src/lib/__tests__/checks.test.ts`, `flags.test.ts`, `flags.db.test.ts`. `scripts/e2e-checks.sh` runs the real worker over arriving files. Fixtures: `workers/scripts/make_table_fixtures.py` writes the check files; pages at `/dev/fixtures/flags?view=list|empty|flag|control|answered|wrong|checks|checks-wrong|checks-empty|protocol`, and a flagged file on `/dev/fixtures/search?state=empty`.

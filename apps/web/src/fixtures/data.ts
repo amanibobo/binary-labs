@@ -312,6 +312,7 @@ export const fixtureShell: ShellData = {
   email: "a.okafor@university.edu",
   folders: folderRows,
   needsLookCount: needsLookFiles.length,
+  flagCount: 2,
   onboarding: fixtureOnboarding("quiet"),
 };
 

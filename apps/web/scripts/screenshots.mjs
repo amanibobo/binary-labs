@@ -50,6 +50,7 @@ const shots = [
   ...mapShots(),
   ...onboardingShots(),
   ...calendarShots(),
+  ...flagShots(),
 ];
 
 // The calendar, in New York the week the clocks went back: the month, the week, a day's record
@@ -80,6 +81,27 @@ function calendarShots() {
       steps: (page) => page.getByRole("heading", { name: "On the calendar" }).evaluate((el) => el.scrollIntoView({ block: "center" })),
       width: 1440,
     }).map((shot) => ({ ...shot, full: false })),
+  ];
+}
+
+// Checks and flags: the check editor, a flag on a file's row and opened view, the Flags list,
+// answering a flag, and a protocol page with its checks.
+function flagShots() {
+  const f = (view) => `/dev/fixtures/flags?view=${view}`;
+  const all = (shot) => ["dark", "light"].flatMap((scheme) => [1440, 390].map((width) => ({ ...shot, width, scheme })));
+  const openBradford = (page) => page.getByRole("button", { name: "Details for Bradford assay, Oct 30" }).dispatchEvent("click");
+  return [
+    ...all({ name: "flags-list", path: f("list") }),
+    ...all({ name: "flag-curve", path: f("flag"), tall: true }),
+    ...all({ name: "flag-review-wrong", path: f("wrong"), tall: true }),
+    ...all({ name: "check-editor", path: f("checks") }),
+    ...all({ name: "check-editor-open", path: f("checks-wrong") }),
+    ...all({ name: "flag-on-file", path: "/dev/fixtures/search?state=empty", steps: openBradford }),
+    { name: "flag-control", path: f("control"), width: 1440, scheme: "dark" },
+    { name: "flag-answered", path: f("answered"), width: 1440, scheme: "dark", tall: true },
+    { name: "flags-empty", path: f("empty"), width: 1440, scheme: "dark" },
+    { name: "check-editor-empty", path: f("checks-empty"), width: 1440, scheme: "dark" },
+    ...all({ name: "protocol-checks", path: f("protocol") }),
   ];
 }
 
