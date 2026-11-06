@@ -1,4 +1,4 @@
-import { SourceKey, type AnswerSource, type AskEvent, type FileSource, type RecentQuestion, type SavedAnswer } from "@/lib/answers";
+import { SourceKey, type AnswerSentence, type AnswerSource, type AskEvent, type AskStep, type FileSource, type RecentQuestion, type SavedAnswer } from "@/lib/answers";
 import { LocationId, ProtocolId, ProtocolVersionId, QuestionId, Sha256, SourceId, SuggestionId, UserId } from "@/lib/ids";
 import type { LabelSuggestion, ProtocolEditSuggestion } from "@/lib/suggestions";
 import { purification, purificationBody } from "./protocols";
@@ -68,34 +68,53 @@ const protocolSource: AnswerSource = {
   title: purification.title,
 };
 
-export const answerSources: AnswerSource[] = [yields, notes, gel, protocolSource];
-export const closestSources: AnswerSource[] = [sec, buffers, notes];
+// What retrieval found for the yield question: five files and a protocol, three of the files
+// cited. The closest files for a question with no answer are numbered from 1, as retrieval does.
+export const answerSources: AnswerSource[] = [yields, notes, gel, sec, buffers, protocolSource];
+export const closestSources: AnswerSource[] = [sec, buffers, notes].map((s, i) => ({ ...s, key: SourceKey.parse(`F${i + 1}`) }));
 
 const cell = (row: number, column: string, value: string) => ({ table: "Yields", column, row, value });
 
-export const answerEvents: AskEvent[] = [
-  { type: "sources", sources: answerSources },
-  { type: "sentence", sentence: { text: "Batch 3 gave 4.2 mg of BM3 from a 50 mL pellet.", citations: [{ source: "F1", cell: cell(3, "Yield (mg)", "4.2") }] } },
+export const answerSentences: AnswerSentence[] = [
+  { text: "Batch 3 gave 4.2 mg of BM3 from a 50 mL pellet.", citations: [{ source: "F1", cell: cell(3, "Yield (mg)", "4.2") }] },
   {
-    type: "sentence",
-    sentence: {
-      text: "The pooled fractions 9 to 11 had an A418/A280 of 0.46, above the 0.4 a good run needs.",
-      citations: [
-        { source: "F2", cell: null },
-        { source: "P1", cell: null },
-      ],
-    },
+    text: "The pooled fractions 9 to 11 had an A418/A280 of 0.46, above the 0.4 a good run needs.",
+    citations: [
+      { source: "F2", cell: null },
+      { source: "P1", cell: null },
+    ],
   },
-  { type: "sentence", sentence: { text: "The gel shows one strong band near 119 kDa.", citations: [{ source: "F3", cell: null }] } },
+  { text: "The gel shows one strong band near 119 kDa.", citations: [{ source: "F3", cell: null }] },
 ];
 
+// The steps the server sends while it gathers these sources, in its order: the search, each
+// file, each protocol, then each table read. The search goes out twice, running and then done.
+export function retrievalSteps(query: string, sources: readonly AnswerSource[]): { running: AskStep; done: AskStep[] } {
+  const files = sources.flatMap((s) => (s.kind === "file" ? [s] : []));
+  const protocols = sources.flatMap((s) => (s.kind === "protocol" ? [s] : []));
+  let id = 1;
+  const reads: AskStep[] = [
+    ...files.map((f): AskStep => ({ kind: "file", id: id++, source: f.key, name: f.name, fileKind: f.fileKind })),
+    ...protocols.map((p): AskStep => ({ kind: "protocol", id: id++, source: p.key, title: p.title, version: p.version })),
+    ...files.flatMap((f) =>
+      f.tables.map((t): AskStep => ({ kind: "table", id: id++, source: f.key, sheet: t.name, rows: t.rows, cells: t.rows * t.columns.length })),
+    ),
+  ];
+  return {
+    running: { kind: "search", id: 0, query, found: null },
+    done: [{ kind: "search", id: 0, query, found: { files: files.length, protocols: protocols.length, byMeaning: true } }, ...reads],
+  };
+}
+
+export const writeStep = (sources: readonly AnswerSource[], cached: boolean): AskStep => ({ kind: "write", id: retrievalSteps("", sources).done.length, cached });
+
 const answerId = QuestionId.parse("8a1c2c39-5a4e-4c55-9d7b-0c3c1a7a0001");
-export const doneOf = (events: AskEvent[], outcome: "answered" | "not_found"): AskEvent => ({
+export const doneOf = (sentences: AnswerSentence[], outcome: "answered" | "not_found", cached = false): AskEvent => ({
   type: "done",
   questionId: answerId,
   outcome,
-  answer: { sentences: events.flatMap((e) => (e.type === "sentence" ? [e.sentence] : [])) },
-  cached: false,
+  answer: { sentences },
+  cached,
   costUsd: 0.012,
   latencyMs: 3400,
 });
@@ -127,8 +146,9 @@ export const savedAnswer: SavedAnswer = {
   id: answerId,
   question: "What was the yield of P450 batch 3?",
   outcome: "answered",
-  answer: { sentences: answerEvents.flatMap((e) => (e.type === "sentence" ? [e.sentence] : [])) },
+  answer: { sentences: answerSentences },
   sources: answerSources,
+  steps: [...retrievalSteps("What was the yield of P450 batch 3?", answerSources).done, writeStep(answerSources, false)],
   askedAt: "2026-11-05T14:20:00Z",
   myVerdict: null,
 };
