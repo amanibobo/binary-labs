@@ -33,7 +33,10 @@ export function CalendarHeader({
 }) {
   return (
     <header className="flex flex-wrap items-center gap-x-2 gap-y-3 px-4 pt-5 pb-3 sm:px-8 sm:pt-8">
-      <h1 className="order-1 mr-auto min-w-0 text-heading-xsmall sm:text-heading-medium" aria-live="polite">
+      <p aria-live="polite" className="sr-only">
+        {viewTitle(mode, anchor)}
+      </p>
+      <h1 className="order-1 -ml-2 mr-auto min-w-0 text-heading-xsmall sm:text-heading-medium">
         <MonthPicker title={viewTitle(mode, anchor)} anchor={anchor} today={today} onPick={onPick} onYear={mode === "year" ? onYear : undefined} />
       </h1>
       <Button size="compact" className="order-2 max-sm:w-11 max-sm:px-0 md:order-5" onClick={onNew}>
@@ -55,7 +58,7 @@ export function CalendarHeader({
             title={`${MODE_NAMES[m]} (${MODE_KEYS[m]})`}
             onClick={() => onMode(m)}
             className={cn(
-              "min-h-10 rounded-[8px] px-2.5 text-label-small transition-colors duration-150 sm:min-h-7 sm:px-3",
+              "min-h-10 rounded-[8px] px-2 text-label-small transition-colors duration-150 sm:min-h-7 sm:px-3",
               mode === m ? "bg-background-raised text-content-primary shadow-raised" : "text-content-secondary hover:text-content-primary",
             )}
           >
@@ -63,15 +66,15 @@ export function CalendarHeader({
           </button>
         ))}
       </div>
-      <div className="order-4 ml-auto flex items-center md:ml-0">
-        <Button variant="tertiary" size="compact" shape="square" title={stepName(mode, "previous")} onClick={() => onStep(-1)}>
+      <div className="order-4 -mr-1 ml-auto flex items-center md:mr-0 md:ml-0">
+        <Button variant="tertiary" size="compact" shape="square" className="max-sm:w-9" title={stepName(mode, "previous")} onClick={() => onStep(-1)}>
           <ChevronRightIcon className="size-5 rotate-180" />
           <span className="sr-only">{stepName(mode, "previous")}</span>
         </Button>
-        <Button variant="tertiary" size="compact" aria-keyshortcuts="T" title="Today (T)" onClick={onToday}>
+        <Button variant="tertiary" size="compact" className="max-sm:px-2" aria-keyshortcuts="T" title="Today (T)" onClick={onToday}>
           Today
         </Button>
-        <Button variant="tertiary" size="compact" shape="square" title={stepName(mode, "next")} onClick={() => onStep(1)}>
+        <Button variant="tertiary" size="compact" shape="square" className="max-sm:w-9" title={stepName(mode, "next")} onClick={() => onStep(1)}>
           <ChevronRightIcon className="size-5" />
           <span className="sr-only">{stepName(mode, "next")}</span>
         </Button>

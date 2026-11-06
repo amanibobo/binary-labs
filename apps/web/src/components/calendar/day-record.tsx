@@ -41,7 +41,7 @@ export function DayPlanList({ day, plans }: { day: CalendarDay; plans: readonly 
             onClick={() => actions.openEntry(entry.id)}
             className="flex min-h-11 w-full min-w-0 items-baseline gap-3 rounded-lg px-3 py-2 text-left hover:bg-background-secondary"
           >
-            <span className="w-28 shrink-0 text-paragraph-small text-content-tertiary">{whenLine(entry.when, timeZone)}</span>
+            <span className="w-24 shrink-0 text-paragraph-small text-content-tertiary sm:w-28">{whenLine(entry.when, timeZone)}</span>
             <span className="min-w-0 flex-1">
               <span className="block truncate text-label-medium text-content-primary">{entry.title}</span>
               {entry.instrument !== null || entry.protocol !== null ? (

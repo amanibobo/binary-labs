@@ -37,7 +37,7 @@ export function MonthPicker({
   const grid = useRef<HTMLDivElement>(null);
   const yearField = useRef<HTMLInputElement>(null);
 
-  const focusAt = (month: number) => requestAnimationFrame(() => grid.current?.querySelector<HTMLElement>(`[data-month="${month}"]`)?.focus());
+  const focusAt = (month: number) => grid.current?.querySelector<HTMLElement>(`[data-month="${month}"]`)?.focus();
   const showYear = (next: number) => {
     setYear(next);
     setYearText(String(next));
@@ -90,7 +90,7 @@ export function MonthPicker({
         setOpen(next);
       }}
     >
-      <Popover.Trigger className="group -ml-2 inline-flex max-w-full min-w-0 items-center gap-1 rounded-lg px-2 py-0.5 text-left transition-colors duration-150 hover:bg-background-secondary focus-visible:bg-background-secondary data-[state=open]:bg-background-secondary">
+      <Popover.Trigger className="group inline-flex max-w-full min-w-0 items-center gap-1 rounded-lg px-2 py-0.5 text-left transition-colors duration-150 hover:bg-background-secondary focus-visible:bg-background-secondary data-[state=open]:bg-background-secondary">
         <span className="truncate">{title}</span>
         <span className="sr-only">, change month or year</span>
         <ChevronDownIcon

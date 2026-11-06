@@ -32,7 +32,7 @@ export function DayView({
       <div
         id={DAY_RECORD_ID}
         tabIndex={-1}
-        className="min-h-0 w-[340px] shrink-0 overflow-y-auto border-t border-l border-border-opaque px-6 pt-4 pb-10 outline-none lg:w-[400px]"
+        className="min-h-0 w-[340px] shrink-0 overflow-y-auto border-t border-l border-border-opaque px-6 pt-4 pb-10 outline-none lg:w-[400px] xl:w-[460px]"
       >
         <DayRecord key={day} day={day} filters={filters} />
       </div>

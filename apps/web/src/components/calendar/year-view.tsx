@@ -43,28 +43,29 @@ export function YearView({
     const next = move();
     if (yearOf(next) !== year) return;
     setFocused(next);
-    requestAnimationFrame(() => document.querySelector<HTMLElement>(`[data-year-day="${next}"]`)?.focus());
+    document.querySelector<HTMLElement>(`[data-year-day="${next}"]`)?.focus();
   }
 
   return (
     <div>
-      <div className="grid grid-cols-2 gap-x-5 gap-y-8 sm:grid-cols-3 sm:gap-x-8 lg:grid-cols-4 lg:gap-x-10">
-        {monthsOf(year).map((first) => (
-          <MiniMonth key={first} first={first} byDay={byDay} focusDay={focusDay} onMonth={onMonth} onDay={onDay} onKeys={keys} onFocusDay={setFocused} />
-        ))}
-      </div>
-      <p className="mt-10 flex flex-wrap items-center gap-x-5 gap-y-2 text-paragraph-xsmall text-content-tertiary">
+      <p className="mb-6 flex flex-wrap items-center gap-x-5 gap-y-2 text-paragraph-xsmall text-content-tertiary">
         <span className="flex items-center gap-2">
           <span aria-hidden className="size-4 rounded-full bg-background-tertiary" />
-          Something was added that day
+          Something added
         </span>
         <span className="flex items-center gap-2">
           <span aria-hidden className="grid size-4 place-items-end justify-center pb-0.5">
             <span className="size-1 rounded-full bg-content-secondary" />
           </span>
-          Something is planned
+          Something planned
         </span>
+        <span>Pick a day or a month to open it.</span>
       </p>
+      <div className="grid grid-cols-2 gap-x-5 gap-y-6 sm:grid-cols-3 sm:gap-x-8 sm:gap-y-8 lg:grid-cols-4 lg:gap-x-10">
+        {monthsOf(year).map((first) => (
+          <MiniMonth key={first} first={first} byDay={byDay} focusDay={focusDay} onMonth={onMonth} onDay={onDay} onKeys={keys} onFocusDay={setFocused} />
+        ))}
+      </div>
     </div>
   );
 }
