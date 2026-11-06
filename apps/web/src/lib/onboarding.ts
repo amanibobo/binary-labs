@@ -324,7 +324,7 @@ export const HELP_ANSWERS: readonly HelpAnswer[] = [
   {
     id: "chart",
     question: "Make a chart from a data sheet",
-    answer: "Open a spreadsheet or CSV in search and choose Make a chart. Tick the columns to plot, name it, and save.",
+    answer: "Open a spreadsheet or CSV in search and choose Make a chart, then pick what you want to show. The chart draws itself from your columns; click a title or a line on it to change it, and save.",
     clip: "chart",
   },
 ];
