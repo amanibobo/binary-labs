@@ -22,6 +22,7 @@ import {
   formatDate,
   isMeanColumn,
   isSpreadColumn,
+  numberColumns,
   repeatCount,
   spreadFor,
   type DataColumn,
@@ -177,16 +178,31 @@ function barProblem(spec: ChartSpec, table: DataTable): string | null {
 // Why a table can't make this kind of chart, or null when it can.
 export function choiceProblem(table: DataTable, type: ChartType): string | null {
   if (type === "heatmap") return plateLayout(table) === null ? "This sheet isn't laid out as a plate." : null;
+  const numbers = numberColumns(table).length;
+  if (numbers === 0) return "This sheet has no numbers to draw.";
   const spec = startFor(table, type);
-  if (spec === null) return type === "bar" ? "There are no numbers here to put side by side." : "There's no column of numbers or dates to run along the bottom.";
+  if (spec === null) {
+    if (type !== "bar") return numbers === 1 ? "There's one column of numbers, and nothing to set it against." : "There's no column of numbers or dates to put along the bottom.";
+    return table.rows > MAX_BARS ? `${table.rows.toLocaleString("en-US")} rows is too many for bars.` : "There's nothing here to put side by side.";
+  }
   return barProblem(spec, table) ?? specProblem(spec) ?? checkSpec(spec, table);
+}
+
+// The chart a switch to another kind lands on: the chart of that kind it came from, when
+// there is one (a plate and back), the same columns as the other kind of x/y chart, or else
+// that kind as a new chart of this table starts.
+export function switched(spec: ChartSpec, type: ChartType, table: DataTable, other: ChartSpec | null): ChartSpec | null {
+  if (spec.type === type) return spec;
+  const crossing = (spec.type === "heatmap") !== (type === "heatmap");
+  const kept = other !== null && (other.type === "heatmap") === (type === "heatmap");
+  return crossing && !kept ? startFor(table, type) : withType(spec, type, table, other);
 }
 
 // Why a chart can't switch to another kind as it stands, or null when it can.
 export function switchProblem(spec: ChartSpec, type: ChartType, table: DataTable, other: ChartSpec | null): string | null {
   if (spec.type === type) return null;
-  if (type === "heatmap") return choiceProblem(table, "heatmap");
-  const next = withType(spec, type, table, other);
+  const next = switched(spec, type, table, other);
+  if (next === null || next.type !== type) return choiceProblem(table, type);
   if (next.type === "scatter" && spec.type !== "heatmap" && spec.series.length > MAX_SERIES.scatter) {
     return `A scatter chart shows up to ${MAX_SERIES.scatter} columns, and this one has ${spec.series.length}.`;
   }

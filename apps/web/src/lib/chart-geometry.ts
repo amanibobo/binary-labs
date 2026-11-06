@@ -25,6 +25,7 @@ export type PlotSeries = {
   markers: boolean;
   label: { x: number; y: number } | null;
 };
+export type AxisTitle = { text: string; x: number; y: number; placeholder: boolean };
 export type LegendItem = { name: string; color: SeriesColor; stroke: Stroke; x: number; y: number };
 // A place the hover layer snaps to along x. row is the table row when every series that shares
 // the chart's x has its value there; series with their own x find their nearest point.
@@ -36,8 +37,9 @@ export type Plot = {
   title: { text: string; x: number; y: number } | null;
   xTicks: Tick[];
   yTicks: Tick[];
-  xTitle: { text: string; x: number; y: number } | null;
-  yTitle: { text: string; x: number; y: number } | null;
+  // An axis title; a placeholder is the "Add a title" an editable chart shows where none is set.
+  xTitle: AxisTitle | null;
+  yTitle: AxisTitle | null;
   // The y position of the zero line when it's in view; bars stand on it.
   baseline: number | null;
   series: PlotSeries[];
@@ -51,6 +53,7 @@ export type Plot = {
 export const TICK_FONT = 12;
 export const LABEL_FONT = 13;
 export const TITLE_FONT = 17;
+export const PLACEHOLDER = "Add a title";
 const MAX_POINTS = 5_000;
 const MARKERS_UP_TO = 40;
 // Past this many points the hover layer reads the thinned line instead of every row.
@@ -260,7 +263,7 @@ export function plotChart(
   spec: XYSpec,
   table: DataTable,
   size: { width: number; height: number },
-  options: { title?: string } = {},
+  options: { title?: string; placeholders?: boolean } = {},
 ): Plot {
   const notes: string[] = [];
   const isBar = spec.type === "bar";
@@ -349,8 +352,10 @@ export function plotChart(
     right += legendRight;
   }
 
-  const yTitleText = axisText(spec.y.title, spec.y.unit);
-  const xTitleText = axisText(spec.x.title, xColumn?.kind === "date" ? "" : spec.x.unit);
+  const yTitleSet = axisText(spec.y.title, spec.y.unit);
+  const xTitleSet = axisText(spec.x.title, xColumn?.kind === "date" ? "" : spec.x.unit);
+  const yTitleText = yTitleSet || (options.placeholders ? PLACEHOLDER : "");
+  const xTitleText = xTitleSet || (options.placeholders ? PLACEHOLDER : "");
 
   // The y domain, so the tick labels can be measured.
   const plotHeightGuess = Math.max(80, size.height - top - 60);
@@ -526,8 +531,8 @@ export function plotChart(
     if (ys.some((y, i) => i > 0 && y - ys[i - 1] < TICK_FONT + 2)) for (const s of series) s.label = null;
   }
 
-  const xTitle = xTitleText ? { text: xTitleText, x: area.left + area.width / 2, y: area.top + area.height + TICK_FONT + 10 + LABEL_FONT + 8 } : null;
-  const yTitle = yTitleText ? { text: yTitleText, x: LABEL_FONT, y: area.top + area.height / 2 } : null;
+  const xTitle = xTitleText ? { text: xTitleText, x: area.left + area.width / 2, y: area.top + area.height + TICK_FONT + 10 + LABEL_FONT + 8, placeholder: xTitleSet === "" } : null;
+  const yTitle = yTitleText ? { text: yTitleText, x: LABEL_FONT, y: area.top + area.height / 2, placeholder: yTitleSet === "" } : null;
   const baseline = !isLog && yDomain[0] <= 0 && yDomain[1] >= 0 ? yScale.map(0) : null;
 
   return {

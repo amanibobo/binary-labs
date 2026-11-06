@@ -134,12 +134,18 @@ export function ChartSvg({
       </g>
       <g fontSize={LABEL_FONT} fill={ink.label}>
         {plot.xTitle === null ? null : (
-          <text x={plot.xTitle.x} y={plot.xTitle.y} textAnchor="middle">
+          <text x={plot.xTitle.x} y={plot.xTitle.y} textAnchor="middle" fill={plot.xTitle.placeholder ? ink.tick : undefined}>
             {plot.xTitle.text}
           </text>
         )}
         {plot.yTitle === null ? null : (
-          <text x={plot.yTitle.x} y={plot.yTitle.y} textAnchor="middle" transform={`rotate(-90 ${plot.yTitle.x} ${plot.yTitle.y})`}>
+          <text
+            x={plot.yTitle.x}
+            y={plot.yTitle.y}
+            textAnchor="middle"
+            transform={`rotate(-90 ${plot.yTitle.x} ${plot.yTitle.y})`}
+            fill={plot.yTitle.placeholder ? ink.tick : undefined}
+          >
             {plot.yTitle.text}
           </text>
         )}
@@ -325,7 +331,7 @@ export function PlateSvg({
             </g>
           ))}
           {scale.title === "" ? null : (
-            <text x={scale.left} y={scale.top + scale.height + 6 + TICK_FONT * 2 + 8} fill={ink.label} fontSize={LABEL_FONT}>
+            <text x={scale.left} y={scale.top + scale.height + 6 + TICK_FONT * 2 + 8} fill={scale.placeholder ? ink.tick : ink.label} fontSize={LABEL_FONT}>
               {scale.title}
             </text>
           )}

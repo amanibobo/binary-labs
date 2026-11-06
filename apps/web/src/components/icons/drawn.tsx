@@ -301,3 +301,37 @@ export function ChecklistMarkIcon({ done, ...props }: IconProps & { done: boolea
     </Svg>
   );
 }
+
+// The chart builder's glyphs: a pencil where something can be renamed or recolored on the
+// chart, undo and redo, and a download.
+export function PencilIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path {...line} d="M14.5 6.5l3 3M5 19l1-4.5L15.5 5a2.1 2.1 0 0 1 3 3L9 17.5z" />
+    </Svg>
+  );
+}
+
+export function UndoIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path {...line} d="M9 14 4.5 9.5 9 5M4.5 9.5H14a5 5 0 0 1 0 10h-3" />
+    </Svg>
+  );
+}
+
+export function RedoIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path {...line} d="m15 14 4.5-4.5L15 5M19.5 9.5H10a5 5 0 0 0 0 10h3" />
+    </Svg>
+  );
+}
+
+export function DownloadIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path {...line} d="M12 4v11M7.5 10.5 12 15l4.5-4.5M5 15v3a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3" />
+    </Svg>
+  );
+}

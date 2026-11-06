@@ -1,5 +1,5 @@
 import { plateShape, type HeatmapSpec } from "./charts";
-import { formatValue, linearTicks, niceDomain, textWidth, TICK_FONT, TITLE_FONT, type Tick } from "./chart-geometry";
+import { formatValue, linearTicks, niceDomain, PLACEHOLDER, textWidth, TICK_FONT, TITLE_FONT, type Tick } from "./chart-geometry";
 import { findColumn, type DataTable } from "./data-tables";
 import { plateCells, plateLayout, rowLetter, wellName, type PlateCell } from "./plates";
 
@@ -35,7 +35,7 @@ export type PlatePlot = {
   wells: PlateWell[];
   rowLabels: { text: string; x: number; y: number }[];
   columnLabels: { text: string; x: number; y: number }[];
-  scale: { left: number; top: number; width: number; height: number; ticks: Tick[]; title: string; lo: number; hi: number } | null;
+  scale: { left: number; top: number; width: number; height: number; ticks: Tick[]; title: string; placeholder: boolean; lo: number; hi: number } | null;
   rows: number;
   columns: number;
   notes: string[];
@@ -67,7 +67,12 @@ export function readLabel(spec: HeatmapSpec, table: DataTable): string | null {
   return `Read ${source.row + 1} of ${table.rows}${when}`;
 }
 
-export function plotPlate(spec: HeatmapSpec, table: DataTable, size: { width: number; height: number }, options: { title?: string } = {}): PlatePlot {
+export function plotPlate(
+  spec: HeatmapSpec,
+  table: DataTable,
+  size: { width: number; height: number },
+  options: { title?: string; placeholders?: boolean } = {},
+): PlatePlot {
   const notes: string[] = [];
   const { rows, columns } = plateShape(spec);
   const layout = plateLayout(table);
@@ -89,7 +94,8 @@ export function plotPlate(spec: HeatmapSpec, table: DataTable, size: { width: nu
 
   const title = options.title ? { text: options.title, x: 0, y: TITLE_FONT + 4 } : null;
   let top = 8 + (title ? TITLE_FONT + 16 : 0);
-  const scaleTitle = valueTitle(spec);
+  const scaleTitleSet = valueTitle(spec);
+  const scaleTitle = scaleTitleSet || (options.placeholders ? PLACEHOLDER : "");
   // Below the plate: the scale's bar, its tick labels and its title.
   const below = 20 + BAR_HEIGHT + 6 + TICK_FONT + (scaleTitle ? TICK_FONT + 10 : 0);
   const labelLeft = textWidth("P", TICK_FONT) + 12;
@@ -141,7 +147,7 @@ export function plotPlate(spec: HeatmapSpec, table: DataTable, size: { width: nu
     .map((v) => ({ pos: map(v), label: formatValue(v) }))
     .filter((t) => ends.every((e) => Math.abs(e.pos - t.pos) > Math.max(textWidth(e.label, TICK_FONT), textWidth(t.label, TICK_FONT)) / 2 + 12));
   const ticks = [ends[0], ...inner, ends[1]];
-  const scale = hasData ? { left, top: barTop, width: barWidth, height: BAR_HEIGHT, ticks, title: scaleTitle, lo: domain[0], hi: domain[1] } : null;
+  const scale = hasData ? { left, top: barTop, width: barWidth, height: BAR_HEIGHT, ticks, title: scaleTitle, placeholder: scaleTitleSet === "", lo: domain[0], hi: domain[1] } : null;
 
   const usedHeight = barTop + below - 20;
   return {
