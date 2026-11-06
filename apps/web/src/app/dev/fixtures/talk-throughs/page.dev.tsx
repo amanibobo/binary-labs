@@ -3,19 +3,23 @@ import { AppShell } from "@/components/app-shell";
 import { ProtocolEditor } from "@/components/protocols/protocol-editor";
 import { Recorder } from "@/components/talk-throughs/recorder";
 import { TalkThroughView } from "@/components/talk-throughs/talk-through-view";
-import { doneSource, fixtureShell } from "@/fixtures/data";
+import { doneSource, experiments, fixtureShell, people } from "@/fixtures/data";
+import { VOICE_NOTE_SHA } from "@/fixtures/smart-labels";
+
+const lists = { experiments, people };
 import { FixtureLabApi } from "@/fixtures/fixture-api";
 import { requireFixtures, type FixtureProps } from "@/fixtures/gate";
 import { authors, purification } from "@/fixtures/protocols";
 import { DRAFT_BODY, DRAFT_TITLE, talkThrough, videoTalkThrough, type FixtureStatus } from "@/fixtures/talk-throughs";
 import { editorStart } from "@/lib/talk-throughs";
 
-// Every talk-through screen: ?view=record|record-new, a status (transcribing|drafting|ready|
+// Every talk-through screen: ?view=record|record-new, question (a ready draft whose recording asks
+// which experiment it was), a status (transcribing|drafting|ready|
 // no-draft|failed), edit|edit-new for the editor filled with the drafted steps, or steps
 // drafted from a video on the page: video-waiting (for its transcript), video-ready and
 // video-dismissed.
 const View = z
-  .enum(["record", "record-new", "transcribing", "drafting", "ready", "no-draft", "failed", "edit", "edit-new", "video-waiting", "video-ready", "video-dismissed"])
+  .enum(["record", "record-new", "transcribing", "drafting", "ready", "question", "no-draft", "failed", "edit", "edit-new", "video-waiting", "video-ready", "video-dismissed"])
   .catch("record");
 
 export default async function TalkThroughsFixture({ searchParams }: FixtureProps) {
@@ -54,12 +58,15 @@ function Screen({ view }: { view: z.infer<typeof View> }) {
     case "ready":
     case "no-draft":
     case "failed":
-      return <TalkThroughView initial={talkThrough(view)} authors={authors} />;
+      return <TalkThroughView initial={talkThrough(view)} authors={authors} lists={lists} />;
+    case "question":
+      // The recording said "that thing from Tuesday", so its label asks which experiment.
+      return <TalkThroughView initial={{ ...talkThrough("ready"), recording: VOICE_NOTE_SHA }} authors={authors} lists={lists} />;
     case "video-waiting":
     case "video-ready":
     case "video-dismissed": {
       const tt = videoView(view);
-      return tt === null ? null : <TalkThroughView initial={tt} authors={authors} />;
+      return tt === null ? null : <TalkThroughView initial={tt} authors={authors} lists={lists} />;
     }
     case "edit":
     case "edit-new": {

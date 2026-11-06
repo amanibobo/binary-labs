@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   CorrectionRows,
+  PLAIN_LABEL,
   EmbedResponse,
   LabelRow,
   needsCheck,
@@ -74,6 +75,7 @@ describe("label parser", () => {
       instrument: "ChemiDoc",
       tags: ["batch 3"],
       confidence: 0.62,
+      ...PLAIN_LABEL,
     });
     expect(needsCheck(hit?.label ?? null)).toBe(true);
     expect(needsCheck(LabelRow.parse({ ...label, status: "suggested" }))).toBe(false);

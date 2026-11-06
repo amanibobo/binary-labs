@@ -1,4 +1,5 @@
 import "server-only";
+import { logError } from "./log";
 import { putFile } from "./object-store";
 import { receiveUpload, type Received } from "./upload-receive";
 import { parseUploadHeaders, RecordUploadRows, refusedKind, UPLOAD_MAX_BYTES, uploadKey, type UploadReceipt } from "./uploads";
@@ -77,7 +78,13 @@ async function receiveAndStore<R>(
   }
 }
 
-export async function acceptUpload(request: Request, labId: string, record: RecordUpload): Promise<Accepted> {
+// tagBatch records which files were sent together; a failure there doesn't fail the upload.
+export async function acceptUpload(
+  request: Request,
+  labId: string,
+  record: RecordUpload,
+  tagBatch?: (locationId: string, batch: string) => Promise<void>,
+): Promise<Accepted> {
   const meta = parseUploadHeaders(request.headers);
   if (meta === null) return { status: 400, error: "The upload is missing its name or date." };
   return receiveAndStore(request, labId, { refused: refusedKind, maxBytes: UPLOAD_MAX_BYTES, tooLarge: TOO_LARGE }, async (stored) => {
@@ -94,6 +101,9 @@ export async function acceptUpload(request: Request, labId: string, record: Reco
     if (error?.code === "22023") return { status: 400, error: error.message };
     if (error !== null) throw new Error(`record_upload: ${error.message} (${error.code ?? "no code"})`);
     const recorded = RecordUploadRows.parse(data);
+    if (!recorded.duplicate && meta.batch !== undefined && meta.batch !== null && tagBatch !== undefined) {
+      await tagBatch(recorded.locationId, meta.batch).catch((e: unknown) => logError("uploads.batch_failed", { labId, error: e }));
+    }
     return { status: recorded.duplicate ? 200 : 201, receipt: { ...recorded, sha256: stored.sha256 } };
   });
 }

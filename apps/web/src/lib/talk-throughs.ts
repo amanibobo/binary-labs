@@ -209,6 +209,8 @@ export type TalkThrough = {
   durationMs: number | null;
   // What was said: a recording made for this, or a video already on the page.
   media: TalkThroughMedia;
+  // The recording's content hash once it's in, so its label (and any question it asks) can show.
+  recording: Sha256 | null;
   status: TalkThroughStatus;
   // The page as it is now, to read the draft against; null for a new page.
   current: { version: number; body: string } | null;
@@ -306,6 +308,7 @@ function fromRow(r: TalkThroughRow): TalkThrough {
     recordedAt: r.recorded_at,
     durationMs: r.duration_ms,
     media: { kind: r.source === "video" ? "video" : "audio", locationId: r.location_id, name: r.name },
+    recording: r.source === "recording" ? r.sha256 : null,
     status: statusOf(r),
     current: r.current_version !== null && r.current_body !== null ? { version: r.current_version, body: r.current_body } : null,
     dismissed: r.dismissed_at !== null,
@@ -337,6 +340,7 @@ export const TalkThroughWire = z.object({
   recordedAt: Timestamp,
   durationMs: z.number().int().positive().nullable(),
   media: z.object({ kind: z.enum(["audio", "video"]), locationId: LocationId, name: z.string() }),
+  recording: Sha256.nullable().default(null),
   status: StatusWire,
   current: z.object({ version: z.number().int().positive(), body: z.string() }).nullable(),
   dismissed: z.boolean(),

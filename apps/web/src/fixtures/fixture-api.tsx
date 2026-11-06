@@ -9,6 +9,7 @@ import type { TalkThrough } from "@/lib/talk-throughs";
 import type { ProtocolVideo } from "@/lib/videos";
 import { folderFixtureFiles, folders, laterLabels, needsLookFiles, recentFiles, searchHits } from "./data";
 import { createFixtureLabels } from "./fixture-labels";
+import { NOTE_PAGE_PREVIEWS, smartFiles, voiceNote } from "./smart-labels";
 import { PREVIEW_BY_FIRST_CHAR } from "./previews";
 import { protocolHits, purification, purificationTheirs } from "./protocols";
 import { fixtureUploadTalkThrough, fixtureApplyTalkThrough, talkThrough as fixtureTalkThrough } from "./talk-throughs";
@@ -35,15 +36,31 @@ const wait = (ms: number, signal?: AbortSignal) =>
     });
   });
 
-// Every query gets the same results, except that recent files holding the whole query come
-// first ("plate 7" finds the plate 7 read), so the cold reads can search for something.
+// Every query gets the same results, except that recent files holding the query come first
+// ("plate 7" finds the plate 7 read; "failed drug A" finds the drug A runs, the failed one
+// first), so the cold reads can search for something. A word from page 7 of the notebook opens
+// the note at that page, as search_files does.
 function fixtureResults(q: string): FileHit[] {
   const wanted = q.trim().toLowerCase();
+  const words = wanted.split(/\s+/).filter((w) => w.length >= 3 && !["the", "and", "run", "for"].includes(w));
   const text = (h: FileHit) =>
-    [h.locations[0].path, h.snippet ?? "", h.label?.cleanName ?? "", ...(h.label?.tags ?? [])].join(" ").toLowerCase();
-  const found = recentFiles
-    .filter((h) => !searchHits.some((s) => s.sha256 === h.sha256) && text(h).includes(wanted))
-    .map((h): FileHit => ({ ...h, matchedBy: ["words"] }));
+    [
+      h.locations[0].path,
+      h.snippet ?? "",
+      h.label?.cleanName ?? "",
+      h.label?.summary ?? "",
+      h.label?.outcome ?? "",
+      ...(h.label?.conditions ?? []).map((c) => `${c.what} ${c.value ?? ""} ${c.unit ?? ""}`),
+      ...(h.label?.tags ?? []),
+    ]
+      .join(" ")
+      .toLowerCase();
+  const score = (h: FileHit) => (text(h).includes(wanted) ? words.length + 1 : words.filter((w) => text(h).includes(w)).length);
+  const page7 = /evaporat|edge check|lids/.test(wanted);
+  const found = [...smartFiles, ...recentFiles]
+    .filter((h) => !searchHits.some((s) => s.sha256 === h.sha256) && score(h) > 0)
+    .toSorted((a, b) => score(b) - score(a))
+    .map((h): FileHit => ({ ...h, matchedBy: ["words"], matchedPage: page7 && h.label?.note != null ? 7 : null }));
   return [...found, ...searchHits];
 }
 
@@ -85,7 +102,7 @@ export function FixtureLabApi({
   const [videoUploads] = useState(createFixtureVideoUploads);
   const [map] = useState(() => (mapSize === null ? null : fixtureLab(mapSize)));
   const [labels] = useState(() =>
-    createFixtureLabels({ initial: [...searchHits, ...recentFiles, ...needsLookFiles], later: laterLabels }),
+    createFixtureLabels({ initial: [...searchHits, ...recentFiles, ...needsLookFiles, ...smartFiles, voiceNote], later: laterLabels }),
   );
   const withLabels = (hits: FileHit[]) => hits.map((h) => ({ ...h, label: labels.get(h.sha256) }));
   const api: LabApi = {
@@ -105,7 +122,7 @@ export function FixtureLabApi({
       await wait(150, signal);
       return folderFixtureFiles(path, offset);
     },
-    previewUrl: (sha) => PREVIEW_BY_FIRST_CHAR[sha.charAt(0)] ?? "",
+    previewUrl: (sha) => NOTE_PAGE_PREVIEWS.get(sha) ?? PREVIEW_BY_FIRST_CHAR[sha.charAt(0)] ?? "",
     fileLabels: async (shas, signal) => {
       await wait(80, signal);
       return labels.poll(shas);
@@ -117,6 +134,9 @@ export function FixtureLabApi({
     undoCorrection: async (id) => {
       await wait(150);
       return labels.undo(id);
+    },
+    changeNote: async () => {
+      await wait(150);
     },
     protocol: async (_id, signal) => {
       await wait(150, signal);

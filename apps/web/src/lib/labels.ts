@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { IsoDate } from "./domain";
+import { IsoDate, LabelCondition, LabelOutcome, NoteKind } from "./domain";
 import { CorrectionId, ExperimentId, PersonId, Sha256, type LabId } from "./ids";
 import type { LabelDraft } from "./label-edit";
 
@@ -12,6 +12,10 @@ export const CorrectRequest = z.object({
   personId: PersonId.nullable(),
   instrument: z.string().trim().max(120).nullable(),
   tags: z.array(z.string().max(200)).max(20),
+  outcome: LabelOutcome.nullable(),
+  summary: z.string().trim().max(400).nullable(),
+  conditions: z.array(LabelCondition).max(24),
+  noteKind: NoteKind.nullable(),
 });
 export type CorrectRequest = z.infer<typeof CorrectRequest>;
 
@@ -24,6 +28,10 @@ export function correctRequest(sha256: Sha256, draft: LabelDraft): CorrectReques
     personId: draft.person?.id ?? null,
     instrument: draft.instrument,
     tags: draft.tags,
+    outcome: draft.outcome,
+    summary: draft.summary,
+    conditions: draft.conditions,
+    noteKind: draft.noteKind,
   };
 }
 
@@ -36,6 +44,8 @@ export type CorrectLabelArgs = {
   p_person_id: PersonId | null;
   p_instrument: string | null;
   p_tags: string[];
+  // The fields 0025 added, each set as given.
+  p_more: { outcome: string | null; summary: string | null; conditions: LabelCondition[]; note_kind: string | null };
 };
 
 export function correctLabelArgs(labId: LabId, req: CorrectRequest): CorrectLabelArgs {
@@ -48,6 +58,7 @@ export function correctLabelArgs(labId: LabId, req: CorrectRequest): CorrectLabe
     p_person_id: req.personId,
     p_instrument: req.instrument,
     p_tags: req.tags,
+    p_more: { outcome: req.outcome, summary: req.summary, conditions: req.conditions, note_kind: req.noteKind },
   };
 }
 
@@ -75,6 +86,8 @@ export function correctionFailure(error: { code?: string; message: string }): { 
       return { status: 409, message: "The label changed since, so that undo no longer applies." };
     case "BL005":
       return { status: 403, message: "Only the person who made that change can undo it." };
+    case "BL006":
+      return { status: 400, message: "Check the conditions and try again." };
     case "23514":
       return { status: 400, message: "A label needs a name." };
     case "42501":

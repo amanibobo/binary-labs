@@ -13,7 +13,15 @@ export async function POST(request: NextRequest) {
   const { supabase, lab } = access.member;
   const accepted = isTalkThroughUpload(request.headers)
     ? await acceptTalkThrough(request, lab.id, async (args) => await supabase.rpc("record_talk_through", args))
-    : await acceptUpload(request, lab.id, async (args) => await supabase.rpc("record_upload", args));
+    : await acceptUpload(
+        request,
+        lab.id,
+        async (args) => await supabase.rpc("record_upload", args),
+        async (locationId, batch) => {
+          const { error } = await supabase.rpc("tag_upload_batch", { p_location_id: locationId, p_batch_id: batch });
+          if (error !== null) throw new Error(error.message);
+        },
+      );
   return "receipt" in accepted
     ? NextResponse.json(accepted.receipt, { status: accepted.status })
     : NextResponse.json({ error: accepted.error }, { status: accepted.status });

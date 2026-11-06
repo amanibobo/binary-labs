@@ -66,7 +66,7 @@ describe("receiveUpload", () => {
 });
 
 describe("upload headers", () => {
-  const meta: UploadMeta = { name: "Gel ünïcode #3.jpg", experiment: "P450 / BM3", uploadedOn: "2026-11-04", modifiedAt: 1_762_000_000_000 };
+  const meta: UploadMeta = { name: "Gel ünïcode #3.jpg", experiment: "P450 / BM3", uploadedOn: "2026-11-04", modifiedAt: 1_762_000_000_000, batch: null };
 
   it("round-trip through encoding", () => {
     expect(parseUploadHeaders(new Headers(uploadHeaders(meta)))).toEqual(meta);

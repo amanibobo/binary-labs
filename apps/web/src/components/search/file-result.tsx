@@ -6,11 +6,12 @@ import type { FileHit } from "@/lib/domain";
 import { excerpt } from "@/lib/highlight";
 import { folderOf, formatDay, matchLine, openTarget, otherPlacesLine } from "@/lib/format";
 import { isRowKey, rowStep } from "@/lib/row-keys";
-import { rowSummary } from "@/lib/row-summary";
+import { pageCount, rowSummary } from "@/lib/row-summary";
 import { cn } from "@/lib/cn";
 import { FileThumb } from "../files/file-thumb";
 import { PreviewPanel } from "../files/preview-panel";
-import { CheckMark, LabelsSection, RowName, SummaryLine, TagList } from "../labels/file-label";
+import { CheckMark, OutcomeWord, RowName, SummaryLine, TagList } from "../labels/file-label";
+import { LabelsSection } from "../labels/labels-section";
 import { useLabels } from "../labels/labels-context";
 import { OpenExternalIcon } from "../icons/drawn";
 import { FlagMark } from "../flags/flag-marks";
@@ -49,7 +50,7 @@ export function FileResult({
   const labelDay = label?.date ?? null;
   // Opened, the preview shows the text with its matches, so the row doesn't repeat it.
   const showSnippet = query !== "" && !expanded && hit.snippet !== null && hit.fileKind !== "image";
-  const notes = [matchLine(hit.matchedBy), otherPlacesLine(others.length)].filter((part) => part !== null);
+  const notes = [pageCount(label), matchLine(hit.matchedBy), otherPlacesLine(others.length)].filter((part) => part !== null);
   const check = summary.kind === "labeled" && summary.check;
 
   return (
@@ -87,6 +88,7 @@ export function FileResult({
         <span data-tour="label" className="pointer-events-none relative min-w-0 flex-1">
           <span className="flex min-w-0 items-start gap-2">
             <RowName hit={hit} label={label} />
+            <OutcomeWord label={label} className="mt-px" />
             {check ? <CheckMark className="mt-px" /> : null}
             <FlagMark sha={hit.sha256} className="mt-px h-5 shrink-0 px-1.5 max-sm:h-5" />
           </span>
@@ -141,7 +143,14 @@ export function FileResult({
             exit={{ height: 0, opacity: 0 }}
             className="overflow-hidden"
           >
-            <PreviewPanel id={panelId} hit={hit} query={query} labels={<LabelsSection hit={hit} />} className="px-3 pt-1 pb-5 sm:pl-[84px]" />
+            <PreviewPanel
+              id={panelId}
+              hit={hit}
+              query={query}
+              note={label?.note ?? null}
+              labels={<LabelsSection hit={hit} />}
+              className="px-3 pt-1 pb-5 sm:pl-[84px]"
+            />
           </motion.div>
         ) : null}
       </AnimatePresence>

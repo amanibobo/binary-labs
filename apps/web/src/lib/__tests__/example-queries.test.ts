@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Experiment, Label, Person } from "../domain";
+import { PLAIN_LABEL, type Experiment, type Label, type Person } from "../domain";
 import { exampleQueries } from "../example-queries";
 import { ExperimentId, PersonId } from "../ids";
 
@@ -12,7 +12,7 @@ const rotation = experiment(3, "Rotation projects");
 const priya = person(1, "Priya Nair");
 const ade = person(2, "Ade Okafor");
 
-const base: Label = { status: "suggested", cleanName: "x", date: null, experiment: null, person: null, instrument: null, tags: [], confidence: 0.9 };
+const base: Label = { ...PLAIN_LABEL, status: "suggested", cleanName: "x", date: null, experiment: null, person: null, instrument: null, tags: [], confidence: 0.9 };
 const labeled = (details: Partial<Pick<Label, "experiment" | "person" | "instrument">>) => ({ label: { ...base, ...details } });
 const empty = { experiments: [], people: [] };
 
