@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { SOCIAL } from "./links";
+import { SOCIAL, SOCIAL_SHOWN } from "./links";
 
 function Icon({ children }: { children: ReactNode }) {
   return (
@@ -54,9 +54,10 @@ const LABELS: Record<keyof typeof SOCIAL, string> = {
 };
 
 export function SocialLinks() {
+  if (SOCIAL_SHOWN.length === 0) return null;
   return (
     <ul className="-mr-3 flex items-center">
-      {(Object.keys(SOCIAL) as (keyof typeof SOCIAL)[]).map((key) => (
+      {SOCIAL_SHOWN.map((key) => (
         <li key={key}>
           <a
             href={SOCIAL[key]}

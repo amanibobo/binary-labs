@@ -30,6 +30,25 @@ function Link({ href, children, tone }: { href: string; children: string; tone?:
 }
 
 export default function Home() {
+  const links = [
+    PILOT_MAILTO === null ? null : (
+      <Link key="pilot" href={PILOT_MAILTO} tone="green">
+        Request a pilot
+      </Link>
+    ),
+    APP_URL === null ? null : (
+      <Link key="app" href={APP_URL}>
+        Sign in
+      </Link>
+    ),
+    CALL_MAILTO === null ? null : (
+      <Link key="call" href={CALL_MAILTO}>
+        Book a call
+      </Link>
+    ),
+  ]
+    .filter((link) => link !== null)
+    .flatMap((link, i) => (i === 0 ? [link] : [<span key={`dot-${i}`} aria-hidden>&middot;</span>, link]));
   return (
     <div className="flex min-h-dvh flex-col px-5">
       <main className="mx-auto w-full max-w-[460px] flex-1 pt-20 pb-16 sm:pt-28">
@@ -42,15 +61,11 @@ export default function Home() {
           lab&rsquo;s own work.
         </p>
 
-        <nav aria-label="Links" className="mt-3 flex flex-wrap items-center gap-x-2.5 text-[13px] text-black/55">
-          <Link href={PILOT_MAILTO} tone="green">
-            Request a pilot
-          </Link>
-          <span aria-hidden>&middot;</span>
-          <Link href={APP_URL}>Sign in</Link>
-          <span aria-hidden>&middot;</span>
-          <Link href={CALL_MAILTO}>Book a call</Link>
-        </nav>
+        {links.length === 0 ? null : (
+          <nav aria-label="Links" className="mt-3 flex flex-wrap items-center gap-x-2.5 text-[13px] text-black/55">
+            {links}
+          </nav>
+        )}
 
         <section aria-labelledby="mission" className="mt-16 sm:mt-20">
           <h2 id="mission" className="font-mono text-[11px] text-black/40">
