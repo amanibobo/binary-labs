@@ -60,7 +60,7 @@ export function FlagView({ flag, authors, initialReview }: { flag: Flag; authors
             </span>
           </Fact>
           <Fact term="Expected">
-            <span className="font-mono">{rangeText(flag.expected, flag.unit)}</span>
+            {rangeText(flag.expected, flag.unit)}
           </Fact>
           <Fact term="From">
             <Link href={protocolHref(flag.protocolId, flag.protocolVersion)} className="text-content-accent underline-offset-2 hover:underline">
@@ -135,7 +135,11 @@ function Source({ title, cells, kind }: { title: string; cells: Cells; kind: Fla
         table.isPending && cells.file !== null ? <p className="mt-4 text-paragraph-small text-content-tertiary">Loading the table…</p> : null
       ) : (
         <div className="mt-5 grid gap-6">
-          {kind === "curve_fit" || kind === "peak" ? <SourceChart cells={cells} table={found} kind={kind} /> : null}
+          {kind === "curve_fit" || kind === "peak" ? (
+            <div className="max-w-2xl">
+              <SourceChart cells={cells} table={found} kind={kind} />
+            </div>
+          ) : null}
           <FlagTable table={found} columns={cells.columns} rows={cells.rows} caption={`${sourceLine(cells)}, the rows read marked`} />
         </div>
       )}

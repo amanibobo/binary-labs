@@ -68,8 +68,8 @@ export function FlagTable({ table, columns, rows, caption }: { table: DataTable;
                 </td>
               </tr>
             ) : (
-              <tr key={r.index} className={cn("border-t border-border-opaque", r.used && "bg-background-warning text-content-warning")}>
-                <td className={cn("px-3 py-1.5 font-mono text-paragraph-xsmall tabular-nums", !r.used && "text-content-tertiary")}>
+              <tr key={r.index} className={cn("border-t border-border-opaque", r.used && "bg-background-warning/60")}>
+                <td className={cn("px-3 py-1.5 font-mono text-paragraph-xsmall tabular-nums", r.used ? "text-content-warning" : "text-content-tertiary")}>
                   {r.index + 1}
                   {r.used ? <span className="sr-only">, read</span> : null}
                 </td>

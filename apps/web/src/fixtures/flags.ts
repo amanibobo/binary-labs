@@ -1,6 +1,5 @@
 import { CheckSpecs, type CheckSpec } from "@/lib/checks";
 import { DataTables, type TableState } from "@/lib/data-tables";
-import { FileLocation } from "@/lib/domain";
 import { FlagRows, usefulnessKey, type FileChecks, type Flag, type UsefulnessByCheck } from "@/lib/flags";
 import { CheckId, ProtocolId, Sha256 } from "@/lib/ids";
 import { ProtocolVersionWire } from "@/lib/protocols";
@@ -80,16 +79,16 @@ export const bradfordUsefulness: UsefulnessByCheck = {
 };
 
 const source = "6f1c2c39-5a4e-4c55-9d7b-0c3c1a7a0001";
-const location = (id: number, path: string, modified: string) =>
-  FileLocation.parse({
-    id: `6f1c2c39-5a4e-4c55-9d7b-0c3c1a7f${String(id).padStart(4, "0")}`,
-    source_id: source,
-    source_kind: "dropbox",
-    path,
-    original_name: path.slice(path.lastIndexOf("/") + 1),
-    modified_at: modified,
-  });
-const ref = (loc: FileLocation, cleanName: string | null) => ({ location: loc, cleanName });
+// Rows as flag_file_json writes them.
+const location = (id: number, path: string, modified: string) => ({
+  id: `6f1c2c39-5a4e-4c55-9d7b-0c3c1a7f${String(id).padStart(4, "0")}`,
+  source_id: source,
+  source_kind: "dropbox",
+  path,
+  original_name: path.slice(path.lastIndexOf("/") + 1),
+  modified_at: modified,
+});
+const ref = (loc: ReturnType<typeof location>, cleanName: string | null) => ({ location: loc, cleanName });
 
 const row = (r: Record<string, unknown>) => ({
   protocol_id: PROTOCOL,
