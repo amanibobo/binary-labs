@@ -206,3 +206,19 @@ worker: scan of an instrument source lists nothing ──▶ process_location re
 ## Demo lab
 
 Migration 0016 adds the `import` source kind: files copied into the store at `<lab_id>/files/<sha256>` that keep their folder paths (`external_id` and `path` are the path, `source_rev` the sha256). The worker reads them like uploads (`STORED_SOURCES`) and `/api/files/<location>` opens them. `bl demo-lab` (`bl_worker/demo_lab.py`, content in `demo_content.py`) is the only writer; its lab is `labs.plan = 'demo'`. `workers/tests/test_demo_lab.py` covers a second run, other labs and deletion; `apps/web/src/lib/__tests__/demo-e2e.test.ts` opens demo files through the real files route and checks each chart against its stored table, run by hand against a filled local database.
+## Calendar
+
+Migration 0017. `calendar_entries` holds plans (dates or instants, links, `person_ids`); members insert, update and delete under RLS with column grants, and triggers keep links in the lab and write the audit rows. The record is worked out on read by `security invoker` functions over the caller's lab, each taking a range of days (at most 62) and the viewer's IANA zone:
+
+```
+calendar_files(lab, from, to, tz, experiment, person, instrument)   one row per file and its day, kind, group
+calendar_events(…)                                                  protocol versions, charts, talk-throughs
+calendar_record(…)  ──▶ counted per (day, kind, group); members only (42501)
+calendar_plans(…)   ──▶ calendar_entry_json per entry in range
+calendar_entry(id), calendar_upcoming(lab, protocol, limit), calendar_overlaps(lab, instrument, from, to, tz, except)
+```
+
+- Routes: `GET /api/calendar?from&to&tz` (record and plans), `GET /api/calendar/day?day&tz` (the day's record, events and each file group's first page through `file_hits`), `GET /api/calendar/files` (more of a group), `GET /api/calendar/overlaps`, `POST /api/calendar/entries`, `POST|DELETE /api/calendar/entries/<id>` (409 with theirs when stale). The core is `lib/calendar-store.ts`.
+- `lib/calendar-time.ts` does day arithmetic on UTC midnights and zone math with `Intl` (`wallClock`, `instantAt`); `lib/calendar-layout.ts` places bars in a week row, lines in a month cell and overlapping blocks in a day; `lib/calendar-edit.ts` holds the editor's date rules. All three are pure and unit-tested, DST included.
+- The page is `components/calendar/`: `calendar-view.tsx` (state, header, drag and keys), `month-view.tsx`, `week-view.tsx`, `agenda.tsx` (phones), `entry-peek.tsx` and `day-peek.tsx` in `side-peek.tsx`, and `CalendarApi` (`calendar-api.tsx`), its own context beside `LabApi`. The URL carries `view`, `date`, and `day` or `entry`.
+- Fixtures: `/dev/fixtures/calendar?view=month|week[&day=…|&entry=…]`, November 2026 in New York with the clock pinned; `scripts/screenshots.mjs calendar` captures it with `timezoneId`.
