@@ -22,6 +22,7 @@ import {
   type RecordKind,
 } from "./calendar";
 import type { CalendarDay, DayRange } from "./calendar-time";
+import { yearActivity, yearChunks, type YearResponse } from "./calendar-year";
 import type { FileHit } from "./domain";
 import { FolderFilesRows } from "./folders";
 import type { InstrumentId, LabId, ProtocolId } from "./ids";
@@ -51,6 +52,12 @@ export async function loadRange(
   const args = rangeArgs(labId, range, timeZone, filters);
   const [record, plans] = await Promise.all([supabase.rpc("calendar_record", args), supabase.rpc("calendar_plans", args)]);
   return { record: RecordRows.parse(unwrap(record)), plans: EntryJsonRows.parse(unwrap(plans)) };
+}
+
+// The year view's marks: the same reads as a month, two months at a time, counted per day.
+export async function loadYear(supabase: Supabase, labId: LabId, year: number, timeZone: string, filters: CalendarFilters): Promise<YearResponse> {
+  const parts = await Promise.all(yearChunks(year).map((range) => loadRange(supabase, labId, range, timeZone, filters)));
+  return { days: yearActivity({ year, timeZone, record: parts.flatMap((p) => p.record), plans: parts.flatMap((p) => p.plans) }) };
 }
 
 // The files of one group on one day, a page at a time, as search shows them.

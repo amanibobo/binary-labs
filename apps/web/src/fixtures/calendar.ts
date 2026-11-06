@@ -2,6 +2,7 @@ import {
   CalendarEntryId,
   EntryWire,
   type CalendarEntry,
+  type CalendarFilters,
   type DayEvent,
   type EntryDraft,
   type RangeResponse,
@@ -9,7 +10,9 @@ import {
   type RecordKind,
 } from "@/lib/calendar";
 import { heldWindow } from "@/lib/calendar-edit";
-import { addDays, CalendarDay, daysBetween, instantAt, inRange, weekday } from "@/lib/calendar-time";
+import { startOfYear, viewRange } from "@/lib/calendar-nav";
+import { addDays, CalendarDay, daysBetween, instantAt, inRange, weekday, type DayRange } from "@/lib/calendar-time";
+import { yearActivity } from "@/lib/calendar-year";
 import type { FileHit } from "@/lib/domain";
 import { ChartId, ProtocolId, TalkThroughId, UserId } from "@/lib/ids";
 import type { CalendarApi } from "@/components/calendar/calendar-api";
@@ -120,6 +123,12 @@ export const calendarEntries: CalendarEntry[] = [
     createdBy: adeUser,
   }),
   entry({ title: "Thanksgiving, lab closed", when: { kind: "allDay", first: d("2026-11-26"), last: d("2026-11-27") }, createdBy: adeUser }),
+  // Further out, for the year view.
+  entry({ title: "Safety training", when: { kind: "allDay", first: d("2026-08-03"), last: d("2026-08-03") }, createdBy: adeUser }),
+  entry({ title: "Freezer defrost", when: { kind: "allDay", first: d("2026-09-18"), last: d("2026-09-18") }, createdBy: adeUser }),
+  entry({ title: "Committee meeting", when: { kind: "timed", start: at("2026-10-14", 13), end: at("2026-10-14", 14) }, createdBy: adeUser }),
+  entry({ title: "Group retreat", when: { kind: "allDay", first: d("2026-12-10"), last: d("2026-12-11") }, createdBy: adeUser }),
+  entry({ title: "Winter break, lab closed", when: { kind: "allDay", first: d("2026-12-24"), last: d("2027-01-01") }, createdBy: adeUser }),
 ];
 
 const group = (
@@ -142,10 +151,12 @@ const bradfordGroup = bradford === undefined ? null : { id: bradford.id, name: b
 // The record: weekdays busy, weekends quiet, a day after a big copy-in with hundreds of files.
 export const calendarRecord: RecordGroup[] = (() => {
   const out: RecordGroup[] = [];
-  for (let day = d("2026-10-25"); daysBetween(day, d("2026-12-05")) >= 0; day = addDays(day, 1)) {
+  for (let day = d("2026-08-03"); daysBetween(day, d("2026-12-05")) >= 0; day = addDays(day, 1)) {
     const seed = Number(day.slice(8)) + Number(day.slice(5, 7)) * 31;
     const weekend = weekday(day) === 0 || weekday(day) === 6;
     if (daysBetween(day, CALENDAR_TODAY) < 0) continue;
+    // Before the purification push the lab was quieter.
+    if (daysBetween(day, d("2026-10-25")) > 0 && (weekend || seed % 3 === 0)) continue;
     if (weekend) {
       if (seed % 3 === 0) out.push(group(day, "file", 1 + (seed % 2), null, "Bench notes"));
       continue;
@@ -203,23 +214,30 @@ const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, 
 export function createFixtureCalendar(): CalendarApi {
   let entries = [...calendarEntries];
   const record = calendarRecord;
+  const read = (range: DayRange, filters: CalendarFilters): RangeResponse => {
+    const plans = entries.filter(
+      (e) =>
+        (filters.experiment === undefined || e.experiment?.id === filters.experiment) &&
+        (filters.person === undefined || e.people.some((p) => p.id === filters.person)) &&
+        (filters.instrument === undefined || e.instrument?.id === filters.instrument),
+    );
+    const shown = record.filter(
+      (g) =>
+        inRange(g.day, range) &&
+        (filters.experiment === undefined || g.groupId === filters.experiment) &&
+        (filters.instrument === undefined || g.groupId === filters.instrument) &&
+        filters.person === undefined,
+    );
+    return { record: shown, plans };
+  };
   return {
     range: async ({ range, filters }) => {
       await wait(60);
-      const plans = entries.filter(
-        (e) =>
-          (filters.experiment === undefined || e.experiment?.id === filters.experiment) &&
-          (filters.person === undefined || e.people.some((p) => p.id === filters.person)) &&
-          (filters.instrument === undefined || e.instrument?.id === filters.instrument),
-      );
-      const shown = record.filter(
-        (g) =>
-          inRange(g.day, range) &&
-          (filters.experiment === undefined || g.groupId === filters.experiment) &&
-          (filters.instrument === undefined || g.groupId === filters.instrument) &&
-          filters.person === undefined,
-      );
-      return { record: shown, plans } satisfies RangeResponse;
+      return read(range, filters);
+    },
+    year: async ({ year, timeZone, filters }) => {
+      await wait(80);
+      return yearActivity({ year, timeZone, ...read(viewRange("year", startOfYear(year)), filters) });
     },
     day: async ({ day }) => {
       await wait(80);

@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, use, type KeyboardEvent, type PointerEvent } from "react";
-import { KIND_COLORS, type CalendarEntry, type CalendarEntryId, type EntryWhen, type RecordKind } from "@/lib/calendar";
+import { KIND_COLORS, type CalendarEntry, type CalendarEntryId, type EntryWhen, type RecordGroup, type RecordKind } from "@/lib/calendar";
 import type { CalendarDay } from "@/lib/calendar-time";
 import type { Experiment, Person } from "@/lib/domain";
 import type { InstrumentId, ProtocolId } from "@/lib/ids";
@@ -23,7 +23,8 @@ export type DragMode = "move" | "resize";
 // What the grids hand back up: opening things, starting a new entry, dragging and the arrow keys.
 export type CalendarActions = {
   openEntry: (id: CalendarEntryId) => void;
-  openDay: (day: CalendarDay) => void;
+  // A record line passes its group, which the day view scrolls to.
+  openDay: (day: CalendarDay, group?: Pick<RecordGroup, "kind" | "groupId">) => void;
   // Starts a new entry in place, waiting for its title.
   beginCreate: (when: EntryWhen) => void;
   // The new entry's title, or null to let it go.

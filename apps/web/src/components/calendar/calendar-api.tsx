@@ -19,6 +19,7 @@ import {
   type RecordKind,
 } from "@/lib/calendar";
 import type { CalendarDay, DayRange } from "@/lib/calendar-time";
+import { YearResponse, type DayActivity } from "@/lib/calendar-year";
 import type { FileHit } from "@/lib/domain";
 import type { InstrumentId } from "@/lib/ids";
 
@@ -26,6 +27,7 @@ import type { InstrumentId } from "@/lib/ids";
 // canned data without touching the rest of the app's API.
 export type CalendarApi = {
   range: (q: { range: DayRange; timeZone: string; filters: CalendarFilters }, signal: AbortSignal) => Promise<Range>;
+  year: (q: { year: number; timeZone: string; filters: CalendarFilters }, signal: AbortSignal) => Promise<DayActivity[]>;
   day: (q: { day: CalendarDay; timeZone: string; filters: CalendarFilters }, signal: AbortSignal) => Promise<Day>;
   dayFiles: (
     q: { day: CalendarDay; timeZone: string; filters: CalendarFilters; kind: RecordKind; groupId: string | null; offset: number },
@@ -66,6 +68,8 @@ function failure(json: unknown): Error {
 export const httpCalendarApi: CalendarApi = {
   range: async ({ range, timeZone, filters }, signal) =>
     RangeResponse.parse(await getJson("/api/calendar", { from: range.first, to: range.last, tz: timeZone, ...filterQuery(filters) }, signal)),
+  year: async ({ year, timeZone, filters }, signal) =>
+    YearResponse.parse(await getJson("/api/calendar/year", { year: String(year), tz: timeZone, ...filterQuery(filters) }, signal)).days,
   day: async ({ day, timeZone, filters }, signal) =>
     DayResponse.parse(await getJson("/api/calendar/day", { day, tz: timeZone, ...filterQuery(filters) }, signal)),
   dayFiles: async ({ day, timeZone, filters, kind, groupId, offset }, signal) =>

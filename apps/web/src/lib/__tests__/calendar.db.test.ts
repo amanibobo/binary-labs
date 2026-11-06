@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { z } from "zod";
 import { DayEventRows, EntryDraft, EntryJson, EntryJsonRows, entryColumns, RecordRows, recordLine } from "../calendar";
 import { CalendarDay, instantAt } from "../calendar-time";
+import { yearActivity, yearChunks } from "../calendar-year";
 import { CreateLabResult } from "../domain";
 import { FolderFilesRows } from "../folders";
 import { LabId } from "../ids";
@@ -150,5 +151,24 @@ describe("the calendar's reads parse as the web app reads them", () => {
       asUser(ana, () => db.query("update calendar_entries set title = $1 where id = $2 and updated_at = $3", [title, id, before.updatedAt]));
     expect((await update("Gel run, lanes 1 to 8")).rowCount).toBe(1);
     expect((await update("Someone else's title")).rowCount).toBe(0);
+  });
+
+  it("reads a year two months at a time, each within the range the database allows", async () => {
+    await insert(ana, labA, draft("Winter break", { kind: "allDay", first: day("2026-12-30"), last: day("2027-01-02") }));
+    // One connection, so the chunks are read one after another; the route reads them at once.
+    const parts = [];
+    for (const c of yearChunks(2026)) {
+      parts.push({
+        record: RecordRows.parse(await asUser(ana, () => rows("select * from calendar_record($1, $2, $3, $4)", [labA, c.first, c.last, NY]))),
+        plans: EntryJsonRows.parse(await asUser(ana, () => jsonRows("calendar_plans($1, $2, $3, $4)", [labA, c.first, c.last, NY]))),
+      });
+    }
+    const year = yearActivity({ year: 2026, timeZone: NY, record: parts.flatMap((p) => p.record), plans: parts.flatMap((p) => p.plans) });
+    const on = (d: string) => year.find((a) => a.day === d);
+    expect(on("2026-11-03")).toMatchObject({ items: 3 });
+    // The retreat runs Nov 6 to 8; the timed plate reads are on the 5th; the winter break stops at New Year.
+    expect(["2026-11-05", "2026-11-06", "2026-11-07", "2026-11-08"].map((d) => on(d)?.plans)).toEqual([1, 1, 1, 1]);
+    expect(on("2026-12-31")?.plans).toBe(1);
+    expect(year.at(-1)?.day).toBe("2026-12-31");
   });
 });

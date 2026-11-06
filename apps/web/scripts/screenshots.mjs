@@ -86,6 +86,17 @@ function calendarShots() {
   const day = async (page) => {
     await page.getByRole("dialog").getByText("Batch 4 SDS-PAGE gel").first().waitFor();
   };
+  const record = async (page) => {
+    await page.getByText(/SDS-PAGE gel$/).filter({ visible: true }).first().waitFor();
+  };
+  const title = (page) => page.getByRole("button", { name: /change month or year/ });
+  const picker = async (page) => {
+    await title(page).click();
+    await page.getByRole("group", { name: "Months of 2026" }).waitFor();
+  };
+  const hoverTitle = async (page) => {
+    if (page.viewportSize().width >= 500) await title(page).hover();
+  };
   return [
     ...both({ name: "calendar-month", path: c("view=month"), width: 1440 }),
     ...both({ name: "calendar-week", path: c("view=week"), width: 1440 }),
@@ -94,6 +105,16 @@ function calendarShots() {
     ...both({ name: "calendar-agenda", path: c("view=month"), width: 390 }),
     ...both({ name: "calendar-day", path: c("view=month&day=2026-11-03"), steps: day, width: 390 }),
     ...both({ name: "calendar-peek", path: c("view=month&entry=8c1c2c39-5a4e-4c55-9d7b-0c3c1a7c0007"), steps: peek, width: 390 }),
+    // The day view (hours beside the day's record; a list on a phone), the year, and the
+    // title's month and year picker, hovered and open.
+    ...[1440, 390].flatMap((width) => [
+      ...both({ name: "calendar-dayview", path: c("view=day&date=2026-11-05"), steps: record, width }),
+      ...both({ name: "calendar-dayview-nov3", path: c("view=day&date=2026-11-03"), steps: record, width }),
+      ...both({ name: "calendar-year", path: c("view=year"), width }),
+      ...both({ name: "calendar-picker", path: c("view=month"), steps: picker, width }),
+      // A touch screen has no hover, so its chevron always shows.
+      ...both({ name: "calendar-title-hover", path: c("view=month"), steps: hoverTitle, width, touch: width < 500 }),
+    ]),
     // A protocol's page with its coming entries. It reads the real clock, so it shows the
     // fixture's November entries only until they've passed.
     ...both({

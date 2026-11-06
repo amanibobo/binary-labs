@@ -179,10 +179,13 @@ export function formatHour(minutes: number): string {
 const DAY_FORMATS = {
   month: new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric", timeZone: "UTC" }),
   monthShort: new Intl.DateTimeFormat("en-US", { month: "short", timeZone: "UTC" }),
+  monthLong: new Intl.DateTimeFormat("en-US", { month: "long", timeZone: "UTC" }),
+  weekday: new Intl.DateTimeFormat("en-US", { weekday: "long", timeZone: "UTC" }),
   long: new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" }),
   medium: new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" }),
   weekdayShort: new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: "UTC" }),
   monthDay: new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" }),
+  date: new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" }),
 } as const;
 
 export type DayFormat = keyof typeof DAY_FORMATS;

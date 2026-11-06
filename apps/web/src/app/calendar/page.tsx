@@ -26,6 +26,7 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
     <AppShell shell={shell} location={{ section: "calendar" }}>
       <CalendarScreen
         start={start}
+        viewer={viewer.user.id}
         lists={{
           experiments,
           people,

@@ -3,6 +3,7 @@ import { FileHitWire, type FileHit } from "./domain";
 import { ChartId, ExperimentId, InstrumentId, PersonId, ProtocolId, TalkThroughId, UserId } from "./ids";
 import { CalendarDay, wallClock, type DayRange } from "./calendar-time";
 import { countLine } from "./format";
+import type { CalendarMode } from "./calendar-start";
 
 // The lab calendar (docs/decisions.md, "the lab calendar"): plans people write, and the record
 // of what happened, worked out per day by calendar_record (db/migrations/0017_calendar.sql).
@@ -331,7 +332,7 @@ export const DayFilesResponse = z.object({ files: z.array(FileHitWire) });
 export const DayFileRows = z.array(z.object({ sha256: z.string(), kind: RecordKind, group_id: z.uuid().nullable() }));
 
 // Where a plan or a day opens on the calendar, for links from elsewhere.
-export function calendarHref(at: { day: CalendarDay; entry?: CalendarEntryId; view?: "month" | "week" }): string {
+export function calendarHref(at: { day: CalendarDay; entry?: CalendarEntryId; view?: CalendarMode }): string {
   const params = new URLSearchParams({ date: at.day });
   if (at.view !== undefined) params.set("view", at.view);
   if (at.entry !== undefined) params.set("entry", at.entry);

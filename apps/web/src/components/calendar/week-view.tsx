@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type PointerEvent } from "react";
 import { recordLine, type CalendarEntry, type RecordGroup } from "@/lib/calendar";
 import { whenLine } from "@/lib/calendar-edit";
-import { layoutDay, layoutSpans, segmentOn, visibleEnd } from "@/lib/calendar-layout";
+import { dayColumn, layoutSpans, segmentOn, visibleEnd } from "@/lib/calendar-layout";
 import {
   dayNumber,
   formatCalendarDay,
@@ -20,36 +20,37 @@ import { cn } from "@/lib/cn";
 import { ENTRY_KEYS_ID, KindDot, useCalendar } from "./calendar-context";
 import { InlineTitle, type PendingEntry } from "./inline-title";
 
-// Notion Calendar's week: the hours down the side, an all-day row on top with the day's record
-// under it, and timed entries as blocks that share the width when they overlap.
+// Notion Calendar's week, and the day view's single column: the hours down the side, an
+// all-day row on top with the day's record under it, and timed entries as blocks that share
+// the width when they overlap.
 export const HOUR_PX = 48;
 const LINE = 22;
 const RECORD_LINES = 3;
-const GUTTER = "grid-cols-[56px_repeat(7,minmax(0,1fr))]";
+const gutter = (days: number) => ({ gridTemplateColumns: `56px repeat(${days}, minmax(0, 1fr))` });
 
-export function WeekView({
-  anchor,
+export function TimeGrid({
+  days,
   plans,
   record,
   pending,
 }: {
-  anchor: CalendarDay;
+  days: readonly CalendarDay[];
   plans: readonly CalendarEntry[];
   record: readonly RecordGroup[];
   pending: PendingEntry | null;
 }) {
   const { timeZone, today, actions } = useCalendar();
-  const days = weekOf(anchor);
-  const first = days[0] ?? anchor;
+  const first = days[0];
   const scroller = useRef<HTMLDivElement>(null);
   useEffect(() => {
     // Open on the working day, as Notion Calendar does.
     if (scroller.current !== null) scroller.current.scrollTop = 7.5 * HOUR_PX;
   }, []);
+  if (first === undefined) return null;
 
   return (
-    <div className="flex min-h-0 flex-col border-t border-border-opaque select-none">
-      <div className={cn("grid border-b border-border-opaque", GUTTER)}>
+    <div className="flex min-h-0 flex-1 flex-col border-t border-border-opaque select-none">
+      <div className="grid border-b border-border-opaque" style={gutter(days.length)}>
         <div className="self-end px-2 pb-1.5 text-right text-paragraph-xsmall text-content-tertiary">
           {zoneName(timeZone, instantAt(first, 12 * 60, timeZone))}
         </div>
@@ -79,7 +80,7 @@ export function WeekView({
       </div>
       <AllDayRow days={days} plans={plans} record={record} pending={pending} />
       <div ref={scroller} className="relative min-h-0 flex-1 overflow-y-auto">
-        <div className={cn("grid", GUTTER)} style={{ height: 24 * HOUR_PX }}>
+        <div className="grid" style={{ ...gutter(days.length), height: 24 * HOUR_PX }}>
           <div className="relative">
             {Array.from({ length: 23 }, (_, i) => (
               <span
@@ -100,13 +101,17 @@ export function WeekView({
   );
 }
 
+export function WeekView({ anchor, ...rest }: { anchor: CalendarDay } & Omit<Parameters<typeof TimeGrid>[0], "days">) {
+  return <TimeGrid days={weekOf(anchor)} {...rest} />;
+}
+
 function AllDayRow({
   days,
   plans,
   record,
   pending,
 }: {
-  days: CalendarDay[];
+  days: readonly CalendarDay[];
   plans: readonly CalendarEntry[];
   record: readonly RecordGroup[];
   pending: PendingEntry | null;
@@ -119,6 +124,7 @@ function AllDayRow({
   const placed = layoutSpans(
     allDay.flatMap((p) => (p.when.kind === "allDay" ? [{ id: p.id, first: p.when.first, last: p.when.last, order: 0 }] : [])),
     first,
+    days.length,
   );
   const pendingColumn = pending?.when.kind === "allDay" ? days.indexOf(pending.when.first) : -1;
   const lanes = Math.max(
@@ -130,9 +136,12 @@ function AllDayRow({
   const rows = Math.max(1, lanes + recordRows);
 
   return (
-    <div className={cn("grid border-b border-border-opaque", GUTTER)}>
+    <div className="grid border-b border-border-opaque" style={gutter(days.length)}>
       <div className="px-2 pt-1.5 text-right text-paragraph-xsmall text-content-tertiary">All day</div>
-      <div className="relative col-span-7 grid grid-cols-7" style={{ minHeight: rows * LINE + 8 }}>
+      <div
+        className="relative grid"
+        style={{ minHeight: rows * LINE + 8, gridColumn: `span ${days.length}`, gridTemplateColumns: `repeat(${days.length}, minmax(0, 1fr))` }}
+      >
         {days.map((day) => (
           <div key={day} data-day={day} className="relative border-l border-border-opaque">
             <button
@@ -144,7 +153,10 @@ function AllDayRow({
             />
           </div>
         ))}
-        <div className="pointer-events-none absolute inset-x-0 top-1 grid grid-cols-7" style={{ gridTemplateRows: `repeat(${rows}, ${LINE}px)` }}>
+        <div
+          className="pointer-events-none absolute inset-x-0 top-1 grid"
+          style={{ gridTemplateRows: `repeat(${rows}, ${LINE}px)`, gridTemplateColumns: `repeat(${days.length}, minmax(0, 1fr))` }}
+        >
           {placed.map((p) => {
             const entry = byId.get(p.id);
             if (entry === undefined) return null;
@@ -195,7 +207,7 @@ function AllDayRow({
               <button
                 key={`${day}:${g.kind}:${g.groupId ?? ""}`}
                 type="button"
-                onClick={() => actions.openDay(day)}
+                onClick={() => actions.openDay(day, g)}
                 className="pointer-events-auto mx-1 flex min-w-0 items-center gap-1.5 rounded-md px-1.5 text-left text-paragraph-xsmall text-content-secondary hover:bg-background-secondary"
                 style={{ gridColumn: column + 1, gridRow: lanes + i + 1 }}
               >
@@ -232,12 +244,7 @@ function TimeColumn({ day, plans, pending }: { day: CalendarDay; plans: readonly
   const { timeZone, today, actions, selected, dragging, pinnedNow } = useCalendar();
   // Dragging down empty space marks out a new entry; a click makes it an hour long.
   const [marking, setMarking] = useState<{ from: number; to: number } | null>(null);
-  const segments = plans.flatMap((p) => {
-    if (p.when.kind !== "timed") return [];
-    const seg = segmentOn(p.when, day, timeZone);
-    return seg === null ? [] : [{ ...seg, id: p.id }];
-  });
-  const byId = new Map<string, CalendarEntry>(plans.map((p) => [p.id, p]));
+  const { timed } = dayColumn(plans, day, timeZone);
   const pendingSeg = pending?.when.kind === "timed" ? segmentOn(pending.when, day, timeZone) : null;
   const now = useNow(pinnedNow);
   const nowMinutes = day === today ? wallClock(now, timeZone).minutes : null;
@@ -275,11 +282,11 @@ function TimeColumn({ day, plans, pending }: { day: CalendarDay; plans: readonly
       }}
       onPointerCancel={() => setMarking(null)}
     >
-      {layoutDay(segments).map((seg) => {
-        const entry = byId.get(seg.id);
-        if (entry === undefined || entry.when.kind !== "timed") return null;
+      {timed.map((seg) => {
+        const entry = seg.entry;
+        if (entry.when.kind !== "timed") return null;
         const height = ((visibleEnd(seg) - seg.start) / 60) * HOUR_PX;
-        const endsToday = segmentOn(entry.when, day, timeZone)?.end !== MINUTES_PER_DAY;
+        const endsToday = seg.end !== MINUTES_PER_DAY;
         return (
           <div
             key={seg.id}
