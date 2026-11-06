@@ -53,9 +53,11 @@ export type Plot = {
 export const TICK_FONT = 12;
 export const LABEL_FONT = 13;
 export const TITLE_FONT = 17;
-export const PLACEHOLDER = "Add a title";
+export const PLACEHOLDER = "Name this axis";
 const MAX_POINTS = 5_000;
 const MARKERS_UP_TO = 40;
+// A marker's height on screen: a 4 px radius and the outer half of its 2 px ring.
+const MARKER_SPAN = 10;
 // Past this many points the hover layer reads the thinned line instead of every row.
 const HOVER_POINTS = 20_000;
 const BAR_MAX = 24;
@@ -511,16 +513,22 @@ export function plotChart(
       const end = points.at(-1);
       const hover = points.length <= HOVER_POINTS ? points : drawn.points;
       if (s.ownX) for (const p of hover) stops.push({ row: null, px: p.px, label: xLabel(s.x, p.x) });
+      // Past six lines a dot on every point is noise; the dash tells the second six apart.
+      // Dots on a line only while they have room: at least 10 px apart, or a phone-width chart
+      // is a string of beads that hides the line.
+      const markers = spec.type === "scatter" || (points.length <= MARKERS_UP_TO && seriesColumns.length <= 6 && area.width / Math.max(1, points.length - 1) >= 10);
+      // An error bar shorter than its dot is hidden behind it; say so, or it reads as missing.
+      const hidden = markers ? whiskers.filter((w) => w.bottom - w.top < MARKER_SPAN).length : 0;
+      if (hidden > 0) {
+        notes.push(`${hidden} of ${s.spec.name}'s error bars ${hidden === 1 ? "is" : "are"} shorter than ${hidden === 1 ? "its dot" : "their dots"}, so ${hidden === 1 ? "it's" : "they're"} hidden behind ${hidden === 1 ? "it" : "them"}. Show the numbers to read ${hidden === 1 ? "it" : "them"}.`);
+      }
       series.push({
         ...style(s),
         points: hover,
         path,
         bars: [],
         whiskers,
-        // Past six lines a dot on every point is noise; the dash tells the second six apart.
-        // Dots on a line only while they have room: at least 10 px apart, or a phone-width chart
-        // is a string of beads that hides the line.
-        markers: spec.type === "scatter" || (points.length <= MARKERS_UP_TO && seriesColumns.length <= 6 && area.width / Math.max(1, points.length - 1) >= 10),
+        markers,
         label: roomForLabels && end !== undefined ? { x: Math.min(end.px, area.left + area.width) + 8, y: end.py } : null,
       });
     });

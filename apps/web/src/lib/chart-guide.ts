@@ -42,7 +42,7 @@ export const CHOICES = [
   { type: "line", question: "How something changes", kind: "Line chart", hint: "Over time, or along a run" },
   { type: "bar", question: "Compare samples or groups", kind: "Bar chart", hint: "Side by side" },
   { type: "scatter", question: "How two measurements relate", kind: "Scatter chart", hint: "Like a standard curve" },
-  { type: "heatmap", question: "A whole plate at a glance", kind: "Plate map", hint: "Every well, colored by its value" },
+  { type: "heatmap", question: "A whole plate at a glance", kind: "Plate heatmap", hint: "Every well, colored by its value" },
 ] as const satisfies readonly { type: ChartType; question: string; kind: string; hint: string }[];
 
 export type Choice = (typeof CHOICES)[number];
@@ -350,8 +350,10 @@ function describeXY(spec: XYSpec, table: DataTable): string {
     const range = yMin !== null && yMax !== null ? `from ${formatValue(yMin)} to ${formatValue(yMax)}` : yMin !== null ? `from ${formatValue(yMin)} up` : `up to ${formatValue(yMax ?? 0)}`;
     more.push(`The side axis runs ${range}.`);
   }
-  const ownX = drawn.filter((d) => d.series.x !== null).map((d) => d.series.name);
-  if (ownX.length > 0) more.push(`${listPhrase(ownX)} ${ownX.length === 1 ? "has its" : "have their"} own column along the bottom.`);
+  for (const d of drawn) {
+    const own = d.series.x === null ? undefined : findColumn(table, d.series.x);
+    if (own !== undefined) more.push(`${d.series.name} is drawn against its own bottom column, ${own.name}${own.unit ? ` (${own.unit})` : ""}, as the instrument recorded it.`);
+  }
 
   return [`${[first, ...clauses].join(", ")}.`, ...more].join(" ");
 }

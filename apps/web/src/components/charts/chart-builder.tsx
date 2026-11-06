@@ -261,7 +261,7 @@ function Builder({
         const chart = await api.createChart({ sha256: file.sha256, ...fields });
         setSaved(chart);
         void queryClient.invalidateQueries({ queryKey: fileChartsKey(file.sha256) });
-        toast.success("Chart saved");
+        toast.success("Chart saved", { description: `Find it again by opening ${file.name}.` });
         router.replace(chartHref(chart.id));
         return;
       }
@@ -276,7 +276,7 @@ function Builder({
         other,
       });
       void queryClient.invalidateQueries({ queryKey: fileChartsKey(file.sha256) });
-      toast.success("Chart saved");
+      toast.success("Chart saved", { description: `Find it again by opening ${file.name}.` });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "We couldn't save that chart.");
     } finally {
@@ -393,7 +393,7 @@ function Builder({
                 hint={
                   <>
                     <PencilIcon className="size-3.5" />
-                    {spec.type === "heatmap" ? "Click the scale's title to rename it." : `Click a title, a name or a ${MARK_WORD[spec.type]} to change it.`}
+                    {spec.type === "heatmap" ? "Point at a well to read it. Click the scale's title to rename it." : `Click a title, a name or a ${MARK_WORD[spec.type]} to change it.`}
                   </>
                 }
               />
@@ -478,13 +478,13 @@ function ExportMenu({ disabled, onExport }: { disabled: boolean; onExport: (kind
           <DropdownMenu.Item className={cn(menuItem, "items-start py-2")} onSelect={() => onExport("png")}>
             <span>
               <span className="block text-label-medium">Picture for slides</span>
-              <span className="block text-paragraph-small text-content-tertiary">PNG, for slides and documents</span>
+              <span className="block text-paragraph-small text-content-tertiary">PNG of the chart and its title, for slides</span>
             </span>
           </DropdownMenu.Item>
           <DropdownMenu.Item className={cn(menuItem, "items-start py-2")} onSelect={() => onExport("svg")}>
             <span>
               <span className="block text-label-medium">Picture for a paper</span>
-              <span className="block text-paragraph-small text-content-tertiary">SVG, sharp at any size</span>
+              <span className="block text-paragraph-small text-content-tertiary">SVG of the chart and its title, sharp at any size</span>
             </span>
           </DropdownMenu.Item>
         </DropdownMenu.Content>

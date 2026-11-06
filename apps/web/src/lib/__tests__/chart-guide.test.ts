@@ -5,6 +5,7 @@ import elisaJson from "@/fixtures/tables/ELISA_plate3.json";
 import plateJson from "@/fixtures/tables/plate7_A420.json";
 import secJson from "@/fixtures/tables/SEC_trace_141026.json";
 import { ChartSpec, type XYSpec } from "../charts";
+import { plotChart } from "../chart-geometry";
 import {
   chartWarnings,
   choiceProblem,
@@ -197,5 +198,18 @@ describe("column cards and labels", () => {
   it("read a typed axis label back into its title and unit", () => {
     expect(splitAxisText("Absorbance at 595 nm (AU)")).toEqual({ title: "Absorbance at 595 nm", unit: "AU" });
     expect(splitAxisText(" Time ")).toEqual({ title: "Time", unit: "" });
+  });
+});
+
+describe("what a chart says about itself", () => {
+  it("names a curve's own bottom column", () => {
+    const spec = xy(startFor(sec, "line"));
+    const own = { ...spec, series: [...spec.series, { ...spec.series[0], column: col("D"), name: "A260", color: "orange" as const, x: col("C") }] };
+    expect(describeChart(own, sec)).toMatch(/ A260 is drawn against its own bottom column, UV 2_260 \(ml\), as the instrument recorded it\.$/);
+  });
+
+  it("says when error bars are hidden behind their dots, so they don't read as missing", () => {
+    const plot = plotChart(xy(startingChart(standards)), standards, { width: 760, height: 440 });
+    expect(plot.notes).toEqual(["2 of Mean's error bars are shorter than their dots, so they're hidden behind them. Show the numbers to read them."]);
   });
 });

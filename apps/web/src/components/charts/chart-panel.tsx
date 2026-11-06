@@ -137,7 +137,7 @@ function DataSource({ doc, table, onSheet }: { doc: DataTables; table: DataTable
   );
 }
 
-const KIND_NAMES = { line: "Line", bar: "Bar", scatter: "Scatter", heatmap: "Plate" } satisfies Record<ChartType, string>;
+const KIND_NAMES = { line: "Line", bar: "Bar", scatter: "Scatter", heatmap: "Heatmap" } satisfies Record<ChartType, string>;
 
 function KindTiles({ table, spec, other, onType }: { table: DataTable; spec: ChartSpec; other: ChartSpec | null; onType: (type: ChartType) => void }) {
   const choices = choicesFor(table);
@@ -189,7 +189,7 @@ function XYData({ spec, table, edit }: { spec: XYSpec; table: DataTable; edit: P
       <Section title="Along the bottom">
         {x === undefined ? null : <ColumnButton column={x} onClick={() => setPicking("bottom")} label="Change what goes along the bottom" />}
       </Section>
-      <Section title="What you measured" help={wells === null ? undefined : "Tap wells on the plate to draw them as lines."}>
+      <Section title="What you measured" help={wells === null ? undefined : "Tap a well to draw it as a line. Tap it again to take it off."}>
         {wells === null ? null : <WellPicker layout={wells} spec={spec} table={table} edit={edit} />}
         <ul className={cn("grid gap-1", wells === null ? "" : "mt-4")}>
           {spec.series.map((s) => (
@@ -203,7 +203,7 @@ function XYData({ spec, table, edit }: { spec: XYSpec; table: DataTable; edit: P
         ) : (
           <Button variant="tertiary" size="compact" className="mt-1 -ml-3 text-content-secondary" onClick={() => setPicking("measure")}>
             <PlusIcon className="size-5" />
-            Add a column
+            Add another measurement
           </Button>
         )}
         {spec.series.length > 6 ? <p className="mt-1 text-paragraph-xsmall text-content-tertiary">Past six lines, the colors come round again dashed.</p> : null}
@@ -304,7 +304,7 @@ function SeriesCard({ spec, series, table, edit }: { spec: XYSpec; series: Serie
           variant="tertiary"
           size="compact"
           shape="square"
-          className="shrink-0 text-content-tertiary sm:opacity-0 sm:group-hover/series:opacity-100 sm:focus-visible:opacity-100"
+          className="shrink-0 text-content-tertiary"
           onClick={() => edit.xy((s) => removeSeries(s, table, series.column))}
         >
           <DeleteIcon />
@@ -610,11 +610,11 @@ function ColumnPicker({
                   <span className="min-w-0 flex-1">
                     <span className={cn("block truncate text-label-medium", blocked ? "text-content-tertiary" : "text-content-primary")}>{column.name}</span>
                     <span className="mt-0.5 block truncate text-paragraph-small text-content-secondary">
-                      {blocked ? problem : [column.unit, isSpreadColumn(column) ? "How much repeats vary, usually drawn as bars" : columnKind(column)].filter(Boolean).join(" · ")}
+                      {blocked ? problem : [column.unit, isSpreadColumn(column) ? "Spread of repeats, best as error bars" : columnKind(column)].filter(Boolean).join(" · ")}
                     </span>
                     <span className="mt-1 block truncate text-paragraph-xsmall text-content-tertiary tabular-nums">{columnSample(column)}</span>
                   </span>
-                  <span className="shrink-0 text-paragraph-xsmall text-content-tertiary">{isSelected ? <CheckIcon className="size-5 text-content-primary" /> : `Column ${column.id}`}</span>
+                  <span className="shrink-0 text-paragraph-xsmall text-content-tertiary">{isSelected ? <CheckIcon className="size-5 text-content-primary" /> : `Sheet column ${column.id}`}</span>
                 </button>
               </li>
             );
