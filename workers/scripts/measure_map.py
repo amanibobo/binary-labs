@@ -84,7 +84,8 @@ def calibrate(args: argparse.Namespace) -> None:
         with rt.pool.connection() as conn:
             lab, _ = make_lab(conn, "sample")
             (source,) = conn.execute(
-                "insert into sources (lab_id, kind, root_path) values (%s, 'local', %s) returning id",
+                "insert into sources (lab_id, kind, root_path) values (%s, 'local', %s)"
+                " returning id",
                 (lab, str(folder)),
             ).fetchone()  # type: ignore[misc]
             t = time.monotonic()
@@ -92,7 +93,8 @@ def calibrate(args: argparse.Namespace) -> None:
                 process.process_location(rt, loc)
             print(f"scanned and embedded in {time.monotonic() - t:.1f}s")
             conn.execute(
-                "update file_vectors set chunks_changed_at = chunks_changed_at - interval '1 minute'"
+                "update file_vectors set chunks_changed_at = chunks_changed_at"
+                " - interval '1 minute'"
             )
         done = neighbors.refresh_lab(rt, lab)
         print(f"refresh: {done}")
@@ -100,9 +102,12 @@ def calibrate(args: argparse.Namespace) -> None:
             rows = conn.execute(
                 """
                 select a.path, b.path, 1 - (va.embedding <=> vb.embedding)
-                from file_vectors va join file_vectors vb on vb.lab_id = va.lab_id and vb.sha256 > va.sha256
-                join lateral (select path from file_locations where sha256 = va.sha256 order by path limit 1) a on true
-                join lateral (select path from file_locations where sha256 = vb.sha256 order by path limit 1) b on true
+                from file_vectors va
+                join file_vectors vb on vb.lab_id = va.lab_id and vb.sha256 > va.sha256
+                join lateral (select path from file_locations where sha256 = va.sha256
+                  order by path limit 1) a on true
+                join lateral (select path from file_locations where sha256 = vb.sha256
+                  order by path limit 1) b on true
                 where va.lab_id = %s and va.embedding is not null and vb.embedding is not null
                 order by 3 desc
                 """,
@@ -194,8 +199,8 @@ def generate(
             for sha in shas:
                 copy.write_row((sha, 1000, "text/plain", "text"))
         with cur.copy(
-            "copy file_locations (lab_id, source_id, external_id, path, original_name, size, modified_at,"
-            " source_rev, sha256, index_state) from stdin"
+            "copy file_locations (lab_id, source_id, external_id, path, original_name, size,"
+            " modified_at, source_rev, sha256, index_state) from stdin"
         ) as copy:
             for i, sha in enumerate(shas):
                 name = f"run_{i:05d}.csv"
@@ -214,8 +219,8 @@ def generate(
                     )
                 )
         with cur.copy(
-            "copy labels (lab_id, sha256, status, clean_name, experiment_id, person_id, instrument, confidence, source)"
-            " from stdin"
+            "copy labels (lab_id, sha256, status, clean_name, experiment_id, person_id,"
+            " instrument, confidence, source) from stdin"
         ) as copy:
             for i, sha in enumerate(shas):
                 person = (
@@ -300,7 +305,8 @@ def scale(args: argparse.Namespace) -> None:
             g = generate(conn, lab, user, args.files, rng)
             print(f"generated {args.files} files in {time.monotonic() - t:.1f}s")
             conn.execute(
-                "update file_vectors set chunks_changed_at = chunks_changed_at - interval '1 minute'"
+                "update file_vectors set chunks_changed_at = chunks_changed_at"
+                " - interval '1 minute'"
             )
 
         full = neighbors.refresh_lab(rt, lab, budget_s=3600)
@@ -312,16 +318,18 @@ def scale(args: argparse.Namespace) -> None:
         with psycopg.connect(url, autocommit=True) as conn:
             configure(conn)
             rows, size = conn.execute(
-                "select count(*), pg_total_relation_size('file_neighbors') + pg_total_relation_size('file_vectors')"
-                " from file_neighbors where lab_id = %s",
+                "select count(*), pg_total_relation_size('file_neighbors')"
+                " + pg_total_relation_size('file_vectors') from file_neighbors where lab_id = %s",
                 (lab,),
             ).fetchone()  # type: ignore[misc]
             per = conn.execute(
-                "select avg(n) from (select count(*) n from file_neighbors where lab_id = %s group by sha256) x",
+                "select avg(n) from (select count(*) n from file_neighbors"
+                " where lab_id = %s group by sha256) x",
                 (lab,),
             ).fetchone()[0]  # type: ignore[index]
             print(
-                f"  {rows} neighbor rows ({float(per):.2f} a listed file); vectors+lists take {size / 1e6:.0f} MB"
+                f"  {rows} neighbor rows ({float(per):.2f} a listed file);"
+                f" vectors+lists take {size / 1e6:.0f} MB"
             )
             for n in (1, 10, 100):
                 moved = rng.sample(g["shas"], n)
@@ -332,25 +340,30 @@ def scale(args: argparse.Namespace) -> None:
                         other = g["vectors"][rng.randrange(len(g["shas"]))]
                         v = unit(other + np_rng.normal(scale=0.03, size=DIM))
                         cur.execute(
-                            "update chunks set embedding = %s::vector where lab_id = %s and sha256 = %s and ord = 1",
+                            "update chunks set embedding = %s::vector"
+                            " where lab_id = %s and sha256 = %s and ord = 1",
                             ("[" + ",".join(f"{x:.5f}" for x in v) + "]", lab, sha),
                         )
                 conn.execute(
-                    "update file_vectors set chunks_changed_at = clock_timestamp() - interval '1 minute' where lab_id = %s and computed_at < chunks_changed_at",
+                    "update file_vectors set chunks_changed_at = clock_timestamp()"
+                    " - interval '1 minute' where lab_id = %s and computed_at < chunks_changed_at",
                     (lab,),
                 )
                 inc = neighbors.refresh_lab(rt, lab)
                 print(
-                    f"refresh after {n} files changed: {inc.moved} moved, {inc.lists} lists redone in {inc.seconds * 1000:.0f} ms"
+                    f"refresh after {n} files changed: {inc.moved} moved,"
+                    f" {inc.lists} lists redone in {inc.seconds * 1000:.0f} ms"
                 )
 
             # The member's side, with RLS on.
             biggest_person = conn.execute(
-                "select person_id from labels where lab_id = %s and person_id is not null group by 1 order by count(*) desc limit 1",
+                "select person_id from labels where lab_id = %s and person_id is not null"
+                " group by 1 order by count(*) desc limit 1",
                 (lab,),
             ).fetchone()[0]  # type: ignore[index]
             biggest_exp = conn.execute(
-                "select experiment_id from labels where lab_id = %s and experiment_id is not null group by 1 order by count(*) desc limit 1",
+                "select experiment_id from labels where lab_id = %s and experiment_id is not null"
+                " group by 1 order by count(*) desc limit 1",
                 (lab,),
             ).fetchone()[0]  # type: ignore[index]
             some_file = "file:" + g["shas"][123]
@@ -411,7 +424,8 @@ def scale(args: argparse.Namespace) -> None:
                 for label, sql, params in calls:
                     ms, raw, gz = timed(conn, sql, params)
                     print(
-                        f"{label}: {ms:.0f} ms, {raw / 1024:.1f} KB JSON, {gz / 1024:.1f} KB gzipped"
+                        f"{label}: {ms:.0f} ms, {raw / 1024:.1f} KB JSON,"
+                        f" {gz / 1024:.1f} KB gzipped"
                     )
                 if args.dump:
                     (out,) = conn.execute("select lab_map(%s)", (lab,)).fetchone()  # type: ignore[misc]
