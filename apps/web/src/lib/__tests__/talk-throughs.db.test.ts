@@ -21,7 +21,8 @@ vi.mock("server-only", () => ({}));
 const store = mkdtempSync(join(tmpdir(), "bl-store-"));
 process.env.PREVIEW_STORE = "local";
 process.env.PREVIEW_DIR = store;
-const { acceptTalkThrough, acceptUpload } = await import("../upload-accept");
+const { startUpload } = await import("../upload-accept");
+const { sendTalkThrough, sendUpload } = await import("./upload-through-core");
 
 // A talk-through through the web app's own route core, functions and parsers, as the
 // `authenticated` role with RLS. The worker's part (blob, transcript, draft) is written
@@ -84,17 +85,10 @@ const meta = (m: Partial<TalkThroughMeta> = {}): TalkThroughMeta => ({
   ...m,
 });
 
-function request(bytes: Uint8Array<ArrayBuffer>, m: TalkThroughMeta, headers: Record<string, string> = {}) {
-  return {
-    headers: new Headers({
-      "content-type": "audio/webm",
-      "content-length": String(bytes.byteLength),
-      ...talkThroughHeaders(m),
-      ...headers,
-    }),
-    body: new Blob([bytes]).stream(),
-  };
-}
+const recording = (bytes: Uint8Array<ArrayBuffer>, m: TalkThroughMeta, headers: Record<string, string> = {}) => ({
+  bytes,
+  meta: { ...talkThroughHeaders(m), ...headers },
+});
 
 const view = (userId: string, id: string) => asUser(userId, async () => TalkThroughRows.parse(await rpcJson("talk_through($1)", [id])));
 
@@ -117,8 +111,8 @@ describe("a talk-through from recording to a page", () => {
   const sha = createHash("sha256").update(audio).digest("hex");
 
   it("goes up through the upload route, is drafted, and its steps become a page", async () => {
-    const first = await acceptTalkThrough(request(audio, meta()), labH, recordAs(hana));
-    const again = await acceptTalkThrough(request(audio, meta()), labH, recordAs(hana));
+    const first = await sendTalkThrough(labH, recording(audio, meta()), recordAs(hana));
+    const again = await sendTalkThrough(labH, recording(audio, meta()), recordAs(hana));
     if (!("receipt" in first) || !("receipt" in again)) throw new Error(`expected receipts: ${JSON.stringify([first, again])}`);
     expect([first.status, again.status]).toEqual([201, 200]);
     expect(again.receipt).toEqual({ ...first.receipt, duplicate: true });
@@ -160,7 +154,7 @@ describe("a talk-through from recording to a page", () => {
   });
 
   it("is invisible to another lab, and can't be recorded into one", async () => {
-    const mine = await acceptTalkThrough(request(new Uint8Array(300).fill(9), meta()), labH, recordAs(hana));
+    const mine = await sendTalkThrough(labH, recording(new Uint8Array(300).fill(9), meta()), recordAs(hana));
     if (!("receipt" in mine)) throw new Error(JSON.stringify(mine));
     expect(await view(ivo, mine.receipt.talkThroughId)).toBeNull();
     await asUser(ivo, async () => {
@@ -168,8 +162,8 @@ describe("a talk-through from recording to a page", () => {
       expect((await db.query("select 1 from file_locations where id = $1", [mine.receipt.locationId])).rowCount).toBe(0);
       expect(OpenTalkThroughRows.parse(await rpcJson("open_talk_throughs($1, null)", [labH]))).toEqual([]);
     });
-    await expect(acceptTalkThrough(request(new Uint8Array(300).fill(8), meta()), labH, recordAs(ivo))).rejects.toThrow(/42501/);
-    const theirs = await acceptTalkThrough(request(new Uint8Array(300).fill(7), meta()), labI, recordAs(ivo));
+    await expect(sendTalkThrough(labH, recording(new Uint8Array(300).fill(8), meta()), recordAs(ivo))).rejects.toThrow(/42501/);
+    const theirs = await sendTalkThrough(labI, recording(new Uint8Array(300).fill(7), meta()), recordAs(ivo));
     expect(theirs.status).toBe(201);
   });
 
@@ -177,28 +171,22 @@ describe("a talk-through from recording to a page", () => {
     const cap = await asUser(hana, async () => (await db.query("select audio_max_bytes() as n")).rows[0]?.n);
     expect(Number(cap)).toBe(AUDIO_MAX_BYTES);
     const bytes = new Uint8Array(100).fill(1);
-    const big = await acceptTalkThrough(request(bytes, meta(), { "content-length": String(AUDIO_MAX_BYTES + 1) }), labH, recordAs(hana));
-    const video = await acceptTalkThrough(request(bytes, meta(), { "content-type": "video/mp4" }), labH, recordAs(hana));
-    const noPage = await acceptTalkThrough(
-      request(bytes, meta(), { "x-talk-through-page": "7a1c2c39-5a4e-4c55-9d7b-0c3c1a7a0001" }),
+    const never = async (): Promise<never> => {
+      throw new Error("a refused upload records nothing");
+    };
+    const big = await startUpload(labH, { purpose: "talk-through", size: AUDIO_MAX_BYTES + 1, type: "audio/webm" });
+    const video = await sendTalkThrough(labH, { ...recording(bytes, meta()), type: "video/mp4" }, never);
+    const noPage = await sendTalkThrough(labH, recording(bytes, meta(), { "x-talk-through-page": "7a1c2c39-5a4e-4c55-9d7b-0c3c1a7a0001" }), never);
+    const asPhoto = await sendUpload(
       labH,
-      recordAs(hana),
-    );
-    const asPhoto = await acceptUpload(
-      {
-        headers: new Headers({
-          "content-type": "audio/webm",
-          "content-length": "100",
-          ...uploadHeaders({ name: "memo.weba", experiment: null, uploadedOn: today, modifiedAt: null }),
-        }),
-        body: new Blob([bytes]).stream(),
-      },
-      labH,
-      async () => {
-        throw new Error("a refused upload records nothing");
-      },
+      { bytes, type: "audio/webm", meta: uploadHeaders({ name: "memo.weba", experiment: null, uploadedOn: today, modifiedAt: null }) },
+      never,
     );
     expect([big.status, video.status, noPage.status, asPhoto.status]).toEqual([413, 415, 400, 415]);
+    // A recording can be twice a photo's cap; the photo upload still holds to its own.
+    const bigPhoto = await startUpload(labH, { purpose: "file", size: AUDIO_MAX_BYTES, type: "image/png" });
+    const audioStart = await startUpload(labH, { purpose: "talk-through", size: AUDIO_MAX_BYTES, type: "audio/webm;codecs=opus" });
+    expect([bigPhoto.status, audioStart.status]).toEqual([413, 201]);
   });
 
   it("mirrors the database's file kinds", async () => {
