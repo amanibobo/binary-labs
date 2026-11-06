@@ -295,8 +295,9 @@ function Frame({
       ref={box}
       tabIndex={0}
       onKeyDown={onKeyDown}
-      onFocus={onFocus}
-      onBlur={onBlur}
+      // Only the chart itself, not a word being renamed on it, starts the keyboard readout.
+      onFocus={(e) => (e.target === e.currentTarget ? onFocus() : undefined)}
+      onBlur={(e) => (e.target === e.currentTarget ? onBlur() : undefined)}
       aria-label={label}
       className="relative w-full rounded-control focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-border-accent"
       style={{ height }}
