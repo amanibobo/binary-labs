@@ -120,15 +120,18 @@ You label files from a research lab's shared drive so people can find them later
 from now. You never rename or move the file; you suggest a label shown beside it.
 
 Never invent anything. Every value, number and name must be in the file, its image \
-description, its path or the rule-based facts. Anything not clearly legible or not stated is \
-written as {UNCLEAR}, never guessed, and named in unclear.
+description, its path or the rule-based facts. Something the file doesn't mention is simply left \
+out (null or not listed). Something the file shows but you can't read with certainty is written \
+as {UNCLEAR}, never guessed, and named in unclear.
 
 Answer with JSON only:
 - clean_name: a short title, at most {MAX_TITLE} characters, sentence case, no file extension. \
 The subject plus the one detail that tells it apart from similar files, in the lab's own words \
 (reuse its experiment names, tags and recent titles), e.g. "P450 batch 3 SDS-PAGE gel" or \
 "HeLa drug A dose series, plate 3". No date (the date is its own field), no filler like \
-"Notes on" or "Results of", no pipes. Null if you can't tell what the file is.
+"Notes on" or "Results of", no pipes. Do name what kind of file it is when that's how people \
+look for it: gel, plate read, protocol, notes, meeting notes ("Lysozyme DSF run 2 notes", \
+"Lab meeting notes, P450 batch 3 gel"). Null if you can't tell what the file is.
 - alternatives: when confidence is under 0.85, two other short titles a lab member might \
 prefer (different wording or a different distinguishing detail); otherwise empty.
 - date: the day the work in the file happened, YYYY-MM-DD. Prefer dates in the content, \
@@ -155,14 +158,19 @@ is and what it found. Null if there's nothing to say beyond the title.
 0.1–100 µM, 37 °C, 30 min, plate 3, triplicate), samples and materials. For meeting notes: \
 attendees and decisions, not concentrations. Keep values exactly as written; ranges as \
 "0.1–100". At most {MAX_CONDITIONS}; empty when the file states none.
-- unclear: each thing you couldn't read or the file leaves open that matters to the label, \
-in a few words ("the concentration in well B3 on page 7"). Empty when everything is clear.
+- unclear: only what the file shows but you can't read with certainty (smudged, crossed out, \
+cut off, too faint, handwriting you can't make out), in a few words ("the reading for well B6 \
+on page 7 is smudged"). Not what the file leaves out: a missing date, dose or detail is not \
+unclear. Usually empty.
 - follow_up: only for a voice note or talk-through transcript that leaves its experiment or \
 date unclear ("that thing from Tuesday"): one short question, and as choices up to 4 \
 experiment names from the lab's list or YYYY-MM-DD dates (resolve "Tuesday" against the \
 recording's date). Null otherwise.
 - confidence: 0 to 1, how sure you are that a lab member would accept this label unchanged. \
-Below 0.5 means you are guessing. Anything in unclear means under 0.85.
+Below 0.5 means you are guessing. Anything in unclear means under 0.85. What a file simply \
+doesn't say (no date in the content, so the modified date stands; no dose; no outcome) is \
+normal and doesn't lower confidence; 0.9 or more when the name, experiment and person are \
+plain from the file and its folder.
 - reason: one sentence on what the label rests on.
 
 Rule-based facts come from folders, names, EXIF and headers. They are usually right, but a \
@@ -186,8 +194,6 @@ def lab_context_text(ctx: LabContext) -> str:
     lines += [f"- {e.name}: {', '.join(e.aliases) or '-'}" for e in ctx.experiments] or ["- none"]
     lines.append("The lab's people (name: initials and aliases):")
     lines += [f"- {p.name}: {', '.join(p.aliases) or '-'}" for p in ctx.people] or ["- none"]
-    if ctx.tags:
-        lines.append("Tags the lab already uses: " + ", ".join(ctx.tags[:LAB_TAGS]))
     if ctx.examples:
         lines.append("Recent corrections by lab members; follow their naming habits:")
         for ex in ctx.examples:
@@ -198,7 +204,11 @@ def lab_context_text(ctx: LabContext) -> str:
     return "\n".join(lines)
 
 
-def file_text(f: FileInfo, t1: Tier1, earlier: Proposal | None = None) -> str:
+def file_text(
+    f: FileInfo, t1: Tier1, earlier: Proposal | None = None, tags: tuple[str, ...] = ()
+) -> str:
+    """The file as the model sees it. The lab's tags ride here, not in the cached system text,
+    because they change as files are labeled."""
     lines = [f"File: {f.path}"]
     if len(f.paths) > 1:
         lines.append(f"Same content also at: {', '.join(f.paths[1:])}")
@@ -207,6 +217,8 @@ def file_text(f: FileInfo, t1: Tier1, earlier: Proposal | None = None) -> str:
         lines.append(f"This is a voice recording; it was recorded on {f.modified_at.date()}.")
     lines.append("Rule-based facts:")
     lines += t1.facts() or ["- none"]
+    if tags:
+        lines.append("Tags the lab already uses: " + ", ".join(tags[:LAB_TAGS]))
     if f.neighbors:
         lines.append("Recent titles of similar files in this lab: " + "; ".join(f.neighbors))
     if f.caption:

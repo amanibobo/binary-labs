@@ -264,7 +264,7 @@ def _ask(
     request = ModelRequest(
         model=model,
         system=(LABEL_INSTRUCTIONS, lab_context_text(ctx)),
-        content=(file_text(f, t1, earlier),),
+        content=(file_text(f, t1, earlier, ctx.tags),),
         schema=LabelOutput,
         effort="low" if model == TIER2_MODEL else "medium",
         max_tokens=4000 if model == TIER2_MODEL else 8000,
@@ -331,7 +331,14 @@ def label_blob(rt: Runtime, lab_id: UUID, sha256: str, *, call_models: bool = Tr
     used (re-suggesting)."""
     with rt.pool.connection() as conn:
         note = note_cover(conn, lab_id, sha256)
-    if note is not None:
+        # The first page gets its own label (and description) first; the note waits for it.
+        unlabeled = (
+            conn.execute(
+                "select 1 from labels where lab_id = %s and sha256 = %s", (lab_id, sha256)
+            ).fetchone()
+            is None
+        )
+    if note is not None and not unlabeled:
         from bl_worker.labels.notes import label_note
 
         return label_note(rt, note, call_models=call_models)

@@ -190,9 +190,8 @@ language sql stable security invoker set search_path = public as $$
         'position', p.position,
         'role', p.role,
         'has_preview', exists (select 1 from previews pr where pr.lab_id = p_lab_id and pr.sha256 = p.sha256),
-        'name', (select fl.original_name from file_locations fl
-          where fl.lab_id = p_lab_id and fl.sha256 = p.sha256 and fl.deleted_at is null
-          order by fl.modified_at desc limit 1)
+        -- Where the page lives, newest first, so it opens like any file.
+        'location', live_locations_json(p_lab_id, p.sha256) -> 0
       ) order by p.position)
       from note_pages p where p.note_id = n.id and p.live
     )

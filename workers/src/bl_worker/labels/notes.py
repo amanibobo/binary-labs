@@ -184,10 +184,12 @@ def pages_key(shas: Sequence[str]) -> str:
     return hashlib.sha256(("note:" + ",".join(shas)).encode()).hexdigest()
 
 
-def note_text(pages: Sequence[FileInfo], t1: Tier1, earlier: Proposal | None) -> str:
+def note_text(
+    pages: Sequence[FileInfo], t1: Tier1, earlier: Proposal | None, tags: tuple[str, ...] = ()
+) -> str:
     """The first page as file_text shows a file, then every page's words in order."""
     cover = replace(pages[0], text="", caption=None)
-    lines = [file_text(cover, t1, None), f"This note has {len(pages)} pages:"]
+    lines = [file_text(cover, t1, None, tags), f"This note has {len(pages)} pages:"]
     budget = NOTE_CHARS
     for i, p in enumerate(pages, 1):
         body = "\n".join(t for t in (p.caption or "", p.text) if t)[: min(PAGE_CHARS, budget)]
@@ -215,7 +217,7 @@ def _ask_note(
     request = ModelRequest(
         model=model,
         system=(NOTE_INSTRUCTIONS, lab_context_text(ctx)),
-        content=(note_text(pages, t1, earlier),),
+        content=(note_text(pages, t1, earlier, ctx.tags),),
         schema=NoteOutput,
         effort="low" if model == TIER2_MODEL else "medium",
         max_tokens=6000 if model == TIER2_MODEL else 10000,
