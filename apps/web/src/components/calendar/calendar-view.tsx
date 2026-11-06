@@ -252,8 +252,8 @@ function CalendarBody({
       }}
     >
       <div className={cn("flex flex-col", mode === "week" && "md:h-dvh")}>
-        <header className="flex flex-wrap items-center gap-x-2 gap-y-3 px-4 pt-5 pb-3 sm:px-8 sm:pt-8">
-          <h1 className="mr-auto min-w-0 text-heading-small sm:text-heading-medium" aria-live="polite">
+        <header className="flex flex-wrap items-center gap-x-1 gap-y-3 px-4 pt-5 pb-3 sm:gap-x-2 sm:px-8 sm:pt-8">
+          <h1 className="mr-auto min-w-0 text-heading-xsmall sm:text-heading-medium" aria-live="polite">
             {title}
           </h1>
           <div
