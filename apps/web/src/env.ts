@@ -49,8 +49,10 @@ const PreviewEnv = z.discriminatedUnion("PREVIEW_STORE", [
 
 const EmbedEnv = z.object({ EMBED_URL: z.url(), EMBED_API_KEY: nonEmpty });
 
+type EnvSource = Readonly<Record<string, string | undefined>>;
+
 // `KEY=` lines in .env files arrive as empty strings; treat them as unset.
-function definedEnv(source: NodeJS.ProcessEnv): Record<string, string> {
+function definedEnv(source: EnvSource): Record<string, string> {
   return Object.fromEntries(
     Object.entries(source).filter((entry): entry is [string, string] => (entry[1] ?? "").trim() !== ""),
   );
@@ -80,7 +82,63 @@ export const previewEnv = lazyGroup(
   ),
 );
 
-export type EmbedConfig = { kind: "configured"; url: string; apiKey: string } | { kind: "unconfigured" };
+// A production deploy checks every group up front instead (instrumentation.ts at startup,
+// next.config.ts at build), so a missing variable stops the deploy with one list rather than
+// failing a request later. Vercel sets VERCEL_ENV; anywhere else, BINARY_ENV=production.
+export function isProductionDeploy(source: EnvSource = process.env): boolean {
+  return source.BINARY_ENV === "production" || source.VERCEL_ENV === "production";
+}
+
+const https = (name: string) =>
+  z.url().refine((u) => URL.canParse(u) && new URL(u).protocol === "https:", `${name} must be an https:// URL in production`);
+
+// What dev can do without: an embedding service (search runs keyword-only), labels and
+// answers from the model, the R2 store (a local folder doesn't exist on a serverless host).
+const ProductionEnv = z.object({
+  NEXT_PUBLIC_SUPABASE_URL: https("NEXT_PUBLIC_SUPABASE_URL"),
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: nonEmpty,
+  SUPABASE_SERVICE_ROLE_KEY: nonEmpty,
+  TOKEN_ENCRYPTION_KEY: TokenKeyEnv.shape.TOKEN_ENCRYPTION_KEY,
+  DROPBOX_APP_KEY: nonEmpty,
+  DROPBOX_APP_SECRET: nonEmpty,
+  DROPBOX_REDIRECT_URI: https("DROPBOX_REDIRECT_URI").refine(
+    (u) => URL.canParse(u) && new URL(u).pathname === "/api/dropbox/callback",
+    "DROPBOX_REDIRECT_URI must end in /api/dropbox/callback",
+  ),
+  PREVIEW_STORE: z.literal("r2", { error: "PREVIEW_STORE must be r2 in production" }).default("r2"),
+  R2_ACCOUNT_ID: nonEmpty,
+  R2_ACCESS_KEY_ID: nonEmpty,
+  R2_SECRET_ACCESS_KEY: nonEmpty,
+  R2_BUCKET: nonEmpty,
+  EMBED_URL: https("EMBED_URL"),
+  EMBED_API_KEY: nonEmpty,
+  ANTHROPIC_API_KEY: nonEmpty,
+});
+
+export const PRODUCTION_ENV_NAMES = Object.keys(ProductionEnv.shape);
+
+// One line per bad variable; empty when a production deploy has what it needs.
+export function productionEnvProblems(source: EnvSource): string[] {
+  const defined = definedEnv(source);
+  const parsed = ProductionEnv.safeParse(defined);
+  if (parsed.success) return [];
+  const byName = new Map<string, string>();
+  for (const issue of parsed.error.issues) {
+    const name = String(issue.path[0] ?? "env");
+    if (!byName.has(name)) byName.set(name, name in defined ? issue.message : "missing");
+  }
+  return [...byName].map(([name, why]) => `${name}: ${why}`);
+}
+
+export function assertProductionEnv(source: EnvSource = process.env): void {
+  if (!isProductionDeploy(source)) return;
+  const problems = productionEnvProblems(source);
+  if (problems.length > 0) {
+    throw new Error(`Binary's environment isn't ready for production:\n${problems.map((p) => `  - ${p}`).join("\n")}`);
+  }
+}
+
+export type EmbedConfig ={ kind: "configured"; url: string; apiKey: string } | { kind: "unconfigured" };
 
 // Embedding is optional: without it search runs keyword-only and says so.
 export function embedConfig(): EmbedConfig {
