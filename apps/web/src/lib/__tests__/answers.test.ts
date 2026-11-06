@@ -249,5 +249,16 @@ describe("the protocol edit diff", () => {
     ]);
     expect(foldDiff(diff, 1).map((b) => b.kind)).toEqual(["folded", "lines", "folded"]);
   });
+
+  it("shows an inserted step as one added line, not every renumbered step after it", () => {
+    const diff = lineDiff("1. Thaw.\n2. Spin.\n3. Load.\n4. Wash.", "1. Thaw.\n2. Spin.\n3. Filter.\n4. Load.\n5. Wash.");
+    expect(diff).toEqual([
+      { kind: "same", text: "1. Thaw." },
+      { kind: "same", text: "2. Spin." },
+      { kind: "added", text: "3. Filter." },
+      { kind: "same", text: "4. Load." },
+      { kind: "same", text: "5. Wash." },
+    ]);
+  });
 });
 

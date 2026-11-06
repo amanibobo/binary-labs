@@ -149,7 +149,7 @@ function Feedback({ verdict, onPick }: { verdict: Verdict | null; onPick: (v: Ve
     { value: "not_helpful", label: "Not helpful" },
   ];
   return (
-    <div role="group" aria-label="Was this answer helpful?" className="flex gap-1">
+    <div role="group" aria-label="Was this answer helpful?" className="-mx-3 flex gap-1">
       {options.map((o) => (
         <Button
           key={o.value}
@@ -197,7 +197,7 @@ function SuggestActions({ state }: { state: Extract<AskState, { kind: "answered"
   }
 
   return (
-    <div className="flex flex-wrap gap-1">
+    <div className="-mx-3 flex flex-wrap gap-1">
       {protocol?.kind === "protocol" ? (
         <Button
           variant="tertiary"
@@ -315,7 +315,7 @@ function ClosestFiles({ sources }: { sources: readonly AnswerSource[] }) {
 // The row under the search box that turns a question into an answer.
 export function AskRow({ question, available, onAsk, className }: { question: string; available: boolean; onAsk: () => void; className?: string }) {
   if (!available) {
-    return <p className={cn("px-1 text-paragraph-small text-content-tertiary", className)}>Asking questions isn&apos;t set up here yet, so these are search results.</p>;
+    return <p className={cn("text-paragraph-small text-content-tertiary", className)}>Asking questions isn&apos;t set up here yet, so these are search results.</p>;
   }
   return (
     <button

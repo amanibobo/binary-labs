@@ -150,6 +150,10 @@ export function suggestionHref(id: SuggestionId): string {
 
 export type DiffLine = { kind: "same" | "added" | "removed"; text: string };
 
+// A step's number isn't its content: inserting step 4 renumbers every step after it, and
+// those lines shouldn't read as changed. They compare without the number and show the new one.
+const stepKey = (line: string) => line.replace(/^(\s*)\d+\.\s+/, "$1#. ");
+
 // Longest common subsequence over lines. Protocols are a few hundred lines at most; past a
 // size where the table would be large, it shows the whole old text removed and the new added.
 export function lineDiff(before: string, after: string): DiffLine[] {
@@ -158,6 +162,8 @@ export function lineDiff(before: string, after: string): DiffLine[] {
   if (a.length * b.length > 4_000_000) {
     return [...a.map((text) => ({ kind: "removed" as const, text })), ...b.map((text) => ({ kind: "added" as const, text }))];
   }
+  const ka = a.map(stepKey);
+  const kb = b.map(stepKey);
   const n = a.length;
   const m = b.length;
   const lcs: Uint32Array[] = Array.from({ length: n + 1 }, () => new Uint32Array(m + 1));
@@ -166,15 +172,15 @@ export function lineDiff(before: string, after: string): DiffLine[] {
     const below = lcs[i + 1];
     if (row === undefined || below === undefined) continue;
     for (let j = m - 1; j >= 0; j--) {
-      row[j] = a[i] === b[j] ? (below[j + 1] ?? 0) + 1 : Math.max(below[j] ?? 0, row[j + 1] ?? 0);
+      row[j] = ka[i] === kb[j] ? (below[j + 1] ?? 0) + 1 : Math.max(below[j] ?? 0, row[j + 1] ?? 0);
     }
   }
   const out: DiffLine[] = [];
   let i = 0;
   let j = 0;
   while (i < n && j < m) {
-    if (a[i] === b[j]) {
-      out.push({ kind: "same", text: a[i] ?? "" });
+    if (ka[i] === kb[j]) {
+      out.push({ kind: "same", text: b[j] ?? "" });
       i += 1;
       j += 1;
     } else if ((lcs[i + 1]?.[j] ?? 0) >= (lcs[i]?.[j + 1] ?? 0)) {

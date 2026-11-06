@@ -93,7 +93,7 @@ function Decided({ suggestion, authors, viewerId }: { suggestion: Suggestion; au
   const applied = suggestion.changes.filter((c) => c.applied).length;
   return (
     <Notice>
-      Approved by {who} on {when}: {applied} of {suggestion.changes.length} files changed, as their corrections.
+      Approved by {who} on {when}. {applied} of {suggestion.changes.length} files changed, each as a correction by {who}.
     </Notice>
   );
 }
@@ -257,20 +257,19 @@ function ChangeRow({ change, checked, onToggle, open }: { change: LabelChange; c
   const name = change.current.cleanName ?? change.path.split("/").at(-1) ?? change.path;
   return (
     <li className="flex items-start gap-3 py-3">
-      {open ? (
-        <input id={id} type="checkbox" checked={checked} onChange={onToggle} className="mt-1 size-4 shrink-0 accent-[var(--content-primary)]" />
-      ) : (
-        <span className="mt-0.5 w-16 shrink-0 text-paragraph-xsmall text-content-tertiary">{change.applied ? "Changed" : "Left out"}</span>
-      )}
+      {open ? <input id={id} type="checkbox" checked={checked} onChange={onToggle} className="mt-1 size-4 shrink-0 accent-[var(--content-primary)]" /> : null}
       <label htmlFor={open ? id : undefined} className="min-w-0 flex-1">
         <span className="block truncate text-label-medium text-content-primary">{name}</span>
         <span className="mt-0.5 block truncate font-mono text-paragraph-xsmall text-content-tertiary">{change.path}</span>
         {FIELDS.filter((f) => change.proposed[f.key] !== null).map((f) => (
           <span key={f.key} className="mt-1 block text-paragraph-small text-content-secondary">
-            {f.label}: {factText(f.key, change.current[f.key])} → <span className="text-content-primary">{factText(f.key, change.proposed[f.key])}</span>
+            {/* Once decided, the label shown now may already be the change, so only the change is said. */}
+            {f.label}: {open ? <>{factText(f.key, change.current[f.key])} → </> : null}
+            <span className="text-content-primary">{factText(f.key, change.proposed[f.key])}</span>
           </span>
         ))}
         <span className="mt-1 block text-paragraph-small text-content-tertiary">{change.reason}</span>
+        {!open && !change.applied ? <span className="mt-1 block text-paragraph-small text-content-secondary">Left out, so this label wasn&apos;t changed.</span> : null}
       </label>
     </li>
   );
@@ -291,7 +290,7 @@ function LabelChanges({ suggestion }: { suggestion: LabelSuggestion }) {
   return (
     <section className="mt-8">
       <h2 className="text-label-small text-content-tertiary">
-        {open ? `${suggestion.changes.length} ${suggestion.changes.length === 1 ? "file" : "files"}, all picked to start` : "Changes"}
+        {open ? "Uncheck any file to leave its label as it is" : "Changes"}
       </h2>
       <ul className="mt-1 divide-y divide-border-opaque">
         {suggestion.changes.map((change) => (
