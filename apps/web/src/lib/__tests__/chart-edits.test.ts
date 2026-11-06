@@ -91,6 +91,6 @@ describe("switching the kind of chart", () => {
     const elisaPlate = startingChart(elisa);
     if (elisaPlate === null) throw new Error("no plate");
     expect(switchProblem(elisaPlate, "line", elisa, null)).toBe("There's one column of numbers, and nothing to set it against.");
-    expect(switchProblem(elisaPlate, "bar", elisa, null)).toBe("96 rows is too many for bars.");
+    expect(switchProblem(elisaPlate, "bar", elisa, null)).toBe("96 rows in the sheet are too many for bars.");
   });
 });

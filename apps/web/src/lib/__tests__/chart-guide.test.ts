@@ -110,7 +110,7 @@ describe("a chart's first columns", () => {
     expect(xy(startFor(standards, "line"))).toMatchObject({ type: "line", series: [{ column: "E", error: "F" }] });
     expect(xy(startFor(standards, "bar"))).toMatchObject({ type: "bar", x: { column: "A" } });
     expect(choiceProblem(standards, "bar")).toBeNull();
-    expect(choiceProblem(sec, "bar")).toBe("961 rows is too many for bars. A line reads better.");
+    expect(choiceProblem(sec, "bar")).toBe("961 rows in the sheet are too many for bars. A line reads better.");
     expect(choiceProblem(standards, "heatmap")).toBe("This sheet isn't laid out as a plate.");
     expect(startFor(elisa, "heatmap")).toMatchObject({ type: "heatmap", plate: { size: 96 } });
     expect(xy(startFor(samples, "scatter"))).toMatchObject({ x: { column: "B" } });
@@ -129,7 +129,7 @@ describe("a chart's first columns", () => {
 describe("the sentence under a chart", () => {
   it("names the measurement, the count, the range with units, the repeats and the error bars", () => {
     expect(describeChart(xy(startingChart(standards)), standards)).toBe(
-      "Mean (AU) for 8 BSA values from 0 to 2,000 µg/mL, averaged over 3 repeats, with bars showing how much the repeats vary (± SD).",
+      "Mean (AU) for 8 BSA values from 0 to 2,000 µg/mL, each the mean of 3 repeats in the sheet, with bars showing how much the repeats vary (± SD).",
     );
   });
 
@@ -137,7 +137,7 @@ describe("the sentence under a chart", () => {
     const spec = xy(startingChart(standards));
     const renamed = { ...spec, x: { ...spec.x, title: "BSA standard" }, y: { ...spec.y, title: "Absorbance at 595 nm", scale: "log" as const } };
     expect(describeChart(renamed, standards)).toBe(
-      "Absorbance at 595 nm (AU) for 8 BSA standard values from 0 to 2,000 µg/mL, averaged over 3 repeats, with bars showing how much the repeats vary (± SD). The side axis is a log scale, so each step up is ten times the one before.",
+      "Absorbance at 595 nm (AU) for 8 BSA standard values from 0 to 2,000 µg/mL, each the mean of 3 repeats in the sheet, with bars showing how much the repeats vary (± SD). The side axis is a log scale, so each step up is ten times the one before.",
     );
   });
 
@@ -210,6 +210,6 @@ describe("what a chart says about itself", () => {
 
   it("says when error bars are hidden behind their dots, so they don't read as missing", () => {
     const plot = plotChart(xy(startingChart(standards)), standards, { width: 760, height: 440 });
-    expect(plot.notes).toEqual(["2 of Mean's error bars are shorter than their dots, so they're hidden behind them. Show the numbers to read them."]);
+    expect(plot.notes).toEqual(["2 error bars on Mean are shorter than the dot, so they hide behind it. Show the numbers lists every value."]);
   });
 });

@@ -188,7 +188,7 @@ function barProblem(spec: ChartSpec, table: DataTable): string | null {
   if (spec.type !== "bar") return null;
   const x = findColumn(table, spec.x.column);
   const bars = x === undefined ? 0 : filled(x);
-  return bars > MAX_BARS ? `${bars.toLocaleString("en-US")} rows is too many for bars. A line reads better.` : null;
+  return bars > MAX_BARS ? `${bars.toLocaleString("en-US")} rows in the sheet are too many for bars. A line reads better.` : null;
 }
 
 // Why a table can't make this kind of chart, or null when it can.
@@ -199,7 +199,7 @@ export function choiceProblem(table: DataTable, type: ChartType): string | null 
   const spec = startFor(table, type);
   if (spec === null) {
     if (type !== "bar") return numbers === 1 ? "There's one column of numbers, and nothing to set it against." : "There's no column of numbers or dates to put along the bottom.";
-    return table.rows > MAX_BARS ? `${table.rows.toLocaleString("en-US")} rows is too many for bars.` : "There's nothing here to put side by side.";
+    return table.rows > MAX_BARS ? `${table.rows.toLocaleString("en-US")} rows in the sheet are too many for bars.` : "There's nothing here to put side by side.";
   }
   return barProblem(spec, table) ?? specProblem(spec) ?? checkSpec(spec, table);
 }
@@ -289,7 +289,7 @@ function bound(v: number, column: DataColumn | undefined): string {
 }
 
 // What a chart shows, in one or two sentences a student can check against what they meant:
-// "Mean (AU) for 8 BSA values from 0 to 2,000 µg/mL, averaged over 3 repeats, with bars showing
+// "Mean (AU) for 8 BSA values from 0 to 2,000 µg/mL, each the mean of 3 repeats in the sheet, with bars showing
 // how much the repeats vary (± SD)."
 export function describeChart(spec: ChartSpec, table: DataTable): string {
   return spec.type === "heatmap" ? describePlate(spec, table) : describeXY(spec, table);
@@ -339,7 +339,7 @@ function describeXY(spec: XYSpec, table: DataTable): string {
 
   const clauses: string[] = [];
   const repeats = repeatCount(table);
-  if (drawn.length === 1 && isMeanColumn(drawn[0].column) && repeats > 0) clauses.push(`averaged over ${repeats} repeats`);
+  if (drawn.length === 1 && isMeanColumn(drawn[0].column) && repeats > 0) clauses.push(`each the mean of ${repeats} repeats in the sheet`);
   const withError = drawn.flatMap((d) => {
     const e = d.series.error === null ? undefined : findColumn(table, d.series.error);
     return e === undefined ? [] : [{ name: d.series.name, error: e }];

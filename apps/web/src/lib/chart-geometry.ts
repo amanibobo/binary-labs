@@ -53,7 +53,7 @@ export type Plot = {
 export const TICK_FONT = 12;
 export const LABEL_FONT = 13;
 export const TITLE_FONT = 17;
-export const PLACEHOLDER = "Name this axis";
+export const PLACEHOLDER = "Click to name this axis";
 const MAX_POINTS = 5_000;
 const MARKERS_UP_TO = 40;
 // A marker's height on screen: a 4 px radius and the outer half of its 2 px ring.
@@ -520,7 +520,8 @@ export function plotChart(
       // An error bar shorter than its dot is hidden behind it; say so, or it reads as missing.
       const hidden = markers ? whiskers.filter((w) => w.bottom - w.top < MARKER_SPAN).length : 0;
       if (hidden > 0) {
-        notes.push(`${hidden} of ${s.spec.name}'s error bars ${hidden === 1 ? "is" : "are"} shorter than ${hidden === 1 ? "its dot" : "their dots"}, so ${hidden === 1 ? "it's" : "they're"} hidden behind ${hidden === 1 ? "it" : "them"}. Show the numbers to read ${hidden === 1 ? "it" : "them"}.`);
+        const many = hidden > 1;
+        notes.push(`${hidden} ${many ? "error bars" : "error bar"} on ${s.spec.name} ${many ? "are" : "is"} shorter than the dot, so ${many ? "they hide" : "it hides"} behind it. Show the numbers lists every value.`);
       }
       series.push({
         ...style(s),

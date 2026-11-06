@@ -62,6 +62,7 @@ export function ChartPanel({
   edit: PanelEdit;
   footer?: ReactNode;
 }) {
+  const linked = protocols.find((p) => p.id === protocolId);
   return (
     <div className="grid gap-8">
       <DataSource doc={doc} table={table} onSheet={edit.sheet} />
@@ -69,6 +70,15 @@ export function ChartPanel({
         <KindTiles table={table} spec={spec} other={other} onType={edit.type} />
       </Section>
       {spec.type === "heatmap" ? <PlateData spec={spec} table={table} edit={edit} /> : <XYData spec={spec} table={table} edit={edit} />}
+      {linked === undefined ? null : (
+        <p className="text-paragraph-small text-content-secondary">
+          Shown on the protocol{" "}
+          <a href={protocolHref(linked.id)} className="text-content-accent underline-offset-2 hover:underline">
+            {linked.title}
+          </a>
+          . Change it under More options.
+        </p>
+      )}
       <MoreOptions spec={spec} table={table} protocols={protocols} protocolId={protocolId} edit={edit} footer={footer} />
       <p className="text-paragraph-xsmall text-content-tertiary">Your file stays as it is. Nothing you do here changes it, and Undo takes back any step.</p>
     </div>
@@ -109,7 +119,7 @@ function DataSource({ doc, table, onSheet }: { doc: DataTables; table: DataTable
           <span className="shrink-0 text-paragraph-small text-content-tertiary">{rows}</span>
         </div>
       ) : (
-        <p className="text-paragraph-small text-content-tertiary">{rows} of data</p>
+        <p className="text-paragraph-small text-content-tertiary">{rows} in the sheet</p>
       )}
       {table.notes.length === 0 ? null : (
         <div className="mt-2">
@@ -609,12 +619,12 @@ function ColumnPicker({
                 >
                   <span className="min-w-0 flex-1">
                     <span className={cn("block truncate text-label-medium", blocked ? "text-content-tertiary" : "text-content-primary")}>{column.name}</span>
-                    <span className="mt-0.5 block truncate text-paragraph-small text-content-secondary">
+                    <span className="mt-0.5 block text-paragraph-small text-content-secondary">
                       {blocked ? problem : [column.unit, isSpreadColumn(column) ? "Spread of repeats, best as error bars" : columnKind(column)].filter(Boolean).join(" · ")}
                     </span>
                     <span className="mt-1 block truncate text-paragraph-xsmall text-content-tertiary tabular-nums">{columnSample(column)}</span>
                   </span>
-                  <span className="shrink-0 text-paragraph-xsmall text-content-tertiary">{isSelected ? <CheckIcon className="size-5 text-content-primary" /> : `Sheet column ${column.id}`}</span>
+                  <span className="shrink-0 text-paragraph-xsmall text-content-tertiary"><span className="flex items-center gap-1">{isSelected ? <CheckIcon className="size-4 text-content-primary" /> : null}Sheet column {column.id}</span></span>
                 </button>
               </li>
             );

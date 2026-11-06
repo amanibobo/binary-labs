@@ -266,7 +266,7 @@ function Caption({ notes, hint, showTable, onToggle }: { notes: string[]; hint?:
           <p key={n}>{n}</p>
         ))}
       </div>
-      <Button variant="tertiary" size="compact" className="-mx-3 shrink-0 text-content-secondary sm:ml-0" aria-expanded={showTable} onClick={onToggle}>
+      <Button variant="secondary" size="compact" className="shrink-0 text-content-secondary" aria-expanded={showTable} onClick={onToggle}>
         {showTable ? "Hide the numbers" : "Show the numbers"}
       </Button>
     </figcaption>
