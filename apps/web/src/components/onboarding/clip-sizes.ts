@@ -4,7 +4,7 @@ import type { ClipId } from "@/lib/onboarding";
 export const CLIP_SIZES = {
   "search": { width: 720, height: 436 },
   "open": { width: 720, height: 436 },
-  "fix": { width: 720, height: 334 },
+  "fix": { width: 720, height: 436 },
   "needs-look": { width: 720, height: 402 },
   "upload": { width: 390, height: 460 },
   "talk-through": { width: 720, height: 468 },
