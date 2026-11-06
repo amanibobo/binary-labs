@@ -274,9 +274,9 @@ function chartShots() {
     ...all({ name: "chart-question", path: c("bradford") }),
     ...all({
       name: "chart-pick-data",
-      path: c("bradford"),
+      path: c("dates"),
       steps: async (page) => {
-        await answer("How two measurements relate")(page);
+        await answer("How something changes")(page);
         await page.getByRole("button", { name: "Add another measurement" }).click();
         await page.getByRole("dialog").waitFor();
       },
