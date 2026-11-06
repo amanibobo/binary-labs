@@ -270,3 +270,21 @@ def test_date_columns_round_trip_with_their_time_flag():
         "note": None,
         "time": False,
     }
+
+
+def test_a_layout_block_of_text_labels_is_a_plate_table_not_notes():
+    parsed = tables.parse((FIXTURES / "viability_drugA_layout.csv").read_bytes())
+    results, layout, conc = parsed.tables
+    assert results.notes[-1] == "Results" and layout.notes == ["Layout"]
+    assert conc.notes == ["Concentration (µM)"]
+    letters = layout.columns[0]
+    assert letters.kind == "text" and letters.values == list("ABCDEFGH")
+    one, two, three = layout.columns[1:4]
+    assert one.name == "1" and one.kind == "text"
+    assert (one.values[1], two.values[1], three.values[1]) == ("BLK", "CTL", "Drug A")
+    assert conc.columns[3].kind == "number" and conc.columns[3].values[1:4] == [100, 100, 100]
+
+
+def test_a_text_grid_without_row_letters_stays_notes():
+    data = samples.csv_text([["", "1", "2"], ["x", "BLK", "CTL"], ["y", "SPL", "SPL"]])
+    assert tables.parse(data).tables == []

@@ -1,0 +1,26 @@
+Well,Sample,Conc (µg/mL),Dilution,A595
+A1,Blank,,,0.436
+B1,Blank,,,0.430
+C1,Blank,,,0.424
+D1,Standard,125,,0.496
+E1,Standard,125,,0.512
+F1,Standard,250,,0.583
+G1,Standard,250,,0.574
+H1,Standard,500,,0.736
+A2,Standard,500,,0.741
+B2,Standard,750,,0.894
+C2,Standard,750,,0.886
+D2,Standard,1000,,1.030
+E2,Standard,1000,,1.025
+F2,Lysate,,20,0.829
+G2,Lysate,,20,0.827
+H2,Lysate,,20,0.824
+A3,Flow-through,,10,0.607
+B3,Flow-through,,10,0.620
+C3,Flow-through,,10,0.622
+D3,Wash,,1,0.463
+E3,Wash,,1,0.457
+F3,Wash,,1,0.461
+G3,Elution 1,,5,1.188
+H3,Elution 1,,5,1.203
+A4,Elution 1,,5,1.198

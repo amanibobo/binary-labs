@@ -1,0 +1,17 @@
+Treatment,Well,Cells (×10³)
+Vehicle,1,52.1
+Vehicle,2,53.4
+Vehicle,3,50.6
+Vehicle,4,53.1
+Drug A,1,40.8
+Drug A,2,39.2
+Drug A,3,42.7
+Drug A,4,35.3
+Drug B,1,49.2
+Drug B,2,46.9
+Drug B,3,46.6
+Drug B,4,48.4
+Drug A + B,1,21.7
+Drug A + B,2,22.3
+Drug A + B,3,22.5
+Drug A + B,4,27.7
