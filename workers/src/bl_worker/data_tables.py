@@ -104,7 +104,7 @@ def parse_waiting(rt: Runtime, lab_id: UUID, sha256: str) -> str | None:
               s.cursor
             from file_locations fl join sources s on s.id = fl.source_id
             where fl.lab_id = %s and fl.sha256 = %s and fl.deleted_at is null and {LIVE_SOURCE}
-            order by s.kind::text in ('upload', 'instrument') desc, fl.path limit 1
+            order by s.kind::text in ('upload', 'instrument', 'import') desc, fl.path limit 1
             """,
             (lab_id, sha256),
         ).fetchone()

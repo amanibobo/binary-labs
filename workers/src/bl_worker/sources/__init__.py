@@ -46,7 +46,7 @@ def build_source(row: SourceRow, settings: Settings) -> Source:
 
 
 # Sources whose bytes we hold, at <lab_id>/files/<sha256>; a location's source_rev is that sha256.
-STORED_SOURCES = frozenset({SourceKind.UPLOAD, SourceKind.INSTRUMENT})
+STORED_SOURCES = frozenset({SourceKind.UPLOAD, SourceKind.INSTRUMENT, SourceKind.IMPORT})
 
 
 def read_file(

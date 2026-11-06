@@ -41,6 +41,7 @@ const OPEN_TARGETS = {
   dropbox: (l) => ({ href: openInDropboxUrl(l.path), label: "Open in Dropbox" }),
   upload: (l) => ({ href: `/api/files/${l.id}`, label: "Open file" }),
   instrument: (l) => ({ href: `/api/files/${l.id}`, label: "Open file" }),
+  import: (l) => ({ href: `/api/files/${l.id}`, label: "Open file" }),
   local: () => null,
 } satisfies Record<SourceKind, (location: FileLocation) => OpenTarget | null>;
 

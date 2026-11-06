@@ -27,7 +27,7 @@ const noStore = { "cache-control": "private, no-store" };
 // Browsers send a video's later range requests to the link they were redirected to.
 const VIDEO_LINK_SECONDS = 4 * 60 * 60;
 
-// Opens a file: an upload or instrument file from our store, or a lab's Dropbox video through a temporary link
+// Opens a file: an upload, instrument or imported file from our store, or a lab's Dropbox video through a temporary link
 // so it plays on its protocol page. Other Dropbox files open in Dropbox instead. A video
 // element asks for ranges as it plays; only the request that starts the file is audited.
 export async function GET(request: NextRequest, ctx: RouteContext<"/api/files/[id]">) {
@@ -63,7 +63,8 @@ export async function GET(request: NextRequest, ctx: RouteContext<"/api/files/[i
   switch (row.sources.kind) {
     // Files we hold are stored by their sha256, which is the location's source_rev.
     case "upload":
-    case "instrument": {
+    case "instrument":
+    case "import": {
       const sha = Sha256.safeParse(row.source_rev);
       if (!sha.success) return NextResponse.json({ error: "no such file" }, { status: 404 });
       const headers = deliveryFor(row.blobs?.mime ?? null, row.original_name);

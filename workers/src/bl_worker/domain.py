@@ -13,6 +13,8 @@ class SourceKind(StrEnum):
     UPLOAD = "upload"
     # Files an instrument PC's uploader sends us; also recorded by the web app.
     INSTRUMENT = "instrument"
+    # A folder copied into our store with its paths kept (bl demo-lab); nothing to list.
+    IMPORT = "import"
 
 
 class FileKind(StrEnum):

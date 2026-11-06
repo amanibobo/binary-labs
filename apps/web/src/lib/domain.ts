@@ -15,7 +15,7 @@ export function isTextBearing(kind: FileKind): boolean {
 export const MemberRole = z.enum(["admin", "member"]);
 export type MemberRole = z.infer<typeof MemberRole>;
 
-export const SourceKind = z.enum(["dropbox", "local", "upload", "instrument"]);
+export const SourceKind = z.enum(["dropbox", "local", "upload", "instrument", "import"]);
 export type SourceKind = z.infer<typeof SourceKind>;
 
 export const AuditAction = z.enum([
