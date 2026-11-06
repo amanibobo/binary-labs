@@ -5,24 +5,50 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { AskEvent, citedSources, type AnswerSource } from "../answers";
 import { askLab } from "../ask";
+import { ExperimentRows, FileLabelRows, PersonRows } from "../domain";
+import { ProtocolVersionRows } from "../protocols";
+import { suggestLabels, suggestProtocolEdit } from "../suggest";
 import { DataTables } from "../data-tables";
-import { LabId, UserId } from "../ids";
+import { LabId, ProtocolId, UserId } from "../ids";
 import { anthropicJsonModel } from "../json-model";
 import { embedQuery } from "../search";
-import { pgAnswerWriter, pgAskReads } from "./pg-ask";
+import { asRole, pgAnswerWriter, pgAskReads, rows } from "./pg-ask";
 
 // The ask eval, driven by scripts/eval-ask.sh: the sample lab built by the real worker, real
 // query embeddings from /embed and the real model. Skipped in the normal unit run.
-const env = z
-  .object({
+const Env = z.object({
     EVAL_DATABASE_URL: z.string(),
     EVAL_STORE: z.string(),
     EVAL_OUT: z.string(),
     EMBED_URL: z.string(),
     EMBED_API_KEY: z.string(),
-    ANTHROPIC_API_KEY: z.string().min(1),
-  })
-  .safeParse(process.env);
+  ANTHROPIC_API_KEY: z.string().min(1),
+});
+const env = Env.safeParse(process.env);
+
+type Env = z.infer<typeof Env>;
+
+async function connect(e: Env) {
+  const db = new Client({ connectionString: e.EVAL_DATABASE_URL });
+  await db.connect();
+  const who = z.object({ lab_id: LabId, user_id: UserId }).parse((await db.query("select lab_id, user_id from members where role = 'admin' limit 1")).rows[0]);
+  const tables = (key: string) => {
+    try {
+      return DataTables.parse(JSON.parse(readFileSync(join(e.EVAL_STORE, key), "utf8")));
+    } catch {
+      return null;
+    }
+  };
+  const deps = {
+    labId: who.lab_id,
+    userId: who.user_id,
+    reads: pgAskReads(db, { labId: who.lab_id, userId: who.user_id, tables }),
+    writer: pgAnswerWriter(db),
+    model: anthropicJsonModel(e.ANTHROPIC_API_KEY),
+    embed: (text: string) => embedQuery({ config: { kind: "configured", url: e.EMBED_URL, apiKey: e.EMBED_API_KEY }, text, timeoutMs: 2000 }),
+  };
+  return { db, deps };
+}
 
 const Expected = z.object({ questions: z.array(z.object({ q: z.string(), expect: z.array(z.string()).nullable() })) });
 
@@ -36,24 +62,7 @@ describe.skipIf(!env.success)("asking the sample lab", () => {
     if (!env.success) return;
     const e = env.data;
     const expected = Expected.parse(JSON.parse(readFileSync(join(import.meta.dirname, "../../../../../workers/evals/ask_expected.json"), "utf8")));
-    const db = new Client({ connectionString: e.EVAL_DATABASE_URL });
-    await db.connect();
-    const who = z.object({ lab_id: LabId, user_id: UserId }).parse((await db.query("select lab_id, user_id from members where role = 'admin' limit 1")).rows[0]);
-    const tables = (key: string) => {
-      try {
-        return DataTables.parse(JSON.parse(readFileSync(join(e.EVAL_STORE, key), "utf8")));
-      } catch {
-        return null;
-      }
-    };
-    const deps = {
-      labId: who.lab_id,
-      userId: who.user_id,
-      reads: pgAskReads(db, { labId: who.lab_id, userId: who.user_id, tables }),
-      writer: pgAnswerWriter(db),
-      model: anthropicJsonModel(e.ANTHROPIC_API_KEY),
-      embed: (text: string) => embedQuery({ config: { kind: "configured", url: e.EMBED_URL, apiKey: e.EMBED_API_KEY }, text, timeoutMs: 2000 }),
-    };
+    const { db, deps } = await connect(e);
 
     const results = [];
     for (const item of expected.questions) {
@@ -111,5 +120,47 @@ describe.skipIf(!env.success)("asking the sample lab", () => {
     writeFileSync(e.EVAL_OUT, JSON.stringify({ summary, results }, null, 2));
     process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
     expect(results).toHaveLength(expected.questions.length);
+  });
+  // One measured draft of each kind: an edit to the SDS-PAGE page from the lab's files, and
+  // label fixes from a question about batch 3. Neither may change the protocol or a label.
+  it("drafts suggestions that change nothing", { timeout: 5 * 60_000 }, async () => {
+    if (!env.success) return;
+    const { db, deps } = await connect(env.data);
+    const counts = async () =>
+      z.object({ v: z.coerce.number(), c: z.coerce.number() }).parse((await db.query("select (select count(*) from protocol_versions) as v, (select count(*) from corrections) as c")).rows[0]);
+    const before = await counts();
+    const protocolId = ProtocolId.parse((await db.query("select p.id from protocols p join protocol_versions v on v.id = p.current_version_id where v.title like 'SDS-PAGE%'")).rows[0]?.id);
+    const protocol = ProtocolVersionRows.parse(await asRole(db, { kind: "member", userId: deps.userId }, () => rows(db, "protocol_version($1, null)", [protocolId])));
+    if (protocol === null) throw new Error("no SDS-PAGE page");
+    let started = performance.now();
+    const edit = await suggestProtocolEdit(deps, { protocol, questionId: null, question: null });
+    const editMs = Math.round(performance.now() - started);
+
+    const events: AskEvent[] = [];
+    await askLab(deps, "Which files are from P450 batch 3?", (ev) => events.push(ev));
+    const done = events.find((ev) => ev.type === "done");
+    const sources = events.flatMap((ev) => (ev.type === "sources" ? ev.sources : []));
+    if (done?.type !== "done") throw new Error("no answer");
+    const shas = sources.flatMap((s) => (s.kind === "file" ? [s.sha256] : []));
+    const labels = new Map(
+      FileLabelRows.parse(await asRole(db, { kind: "member", userId: deps.userId }, () => rows(db, "file_labels($1, $2)", [deps.labId, shas]))).map((r) => [r.sha256, r.label]),
+    );
+    const experiments = ExperimentRows.parse((await db.query("select id, name, aliases from experiments where lab_id = $1", [deps.labId])).rows);
+    const people = PersonRows.parse((await db.query("select id, display_name, aliases from people where lab_id = $1", [deps.labId])).rows);
+    started = performance.now();
+    const fixes = await suggestLabels(deps, {
+      asked: { id: done.questionId, question: "Which files are from P450 batch 3?", outcome: done.outcome, answer: done.answer, sources, askedAt: new Date().toISOString(), myVerdict: null },
+      labels,
+      lists: { experiments, people },
+    });
+    const labelsMs = Math.round(performance.now() - started);
+    const spend = z
+      .array(z.object({ n: z.coerce.number(), cost: z.coerce.number() }))
+      .parse((await db.query("select count(*) as n, coalesce(sum(cost_usd), 0) as cost from model_calls where purpose::text = 'suggestion'")).rows);
+    const drafted = (await db.query("select kind, summary, title, body, (select count(*) from suggestion_labels l where l.suggestion_id = s.id) as files from suggestions s")).rows;
+    const after = await counts();
+    await db.end();
+    process.stdout.write(`${JSON.stringify({ edit, editMs, fixes, labelsMs, spend, drafted }, null, 2)}\n`);
+    expect(after).toEqual(before);
   });
 });
