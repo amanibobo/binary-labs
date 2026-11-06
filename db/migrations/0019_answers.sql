@@ -487,7 +487,7 @@ language plpgsql security invoker set search_path = public as $$
 declare
   s suggestions;
   item suggestion_labels;
-  cur labels;
+  cur record;
   v_correction bigint;
   done jsonb := '[]';
 begin
@@ -502,7 +502,9 @@ begin
     raise exception 'pick files from this suggestion' using errcode = 'BL602';
   end if;
   for item in select * from suggestion_labels sl where sl.suggestion_id = p_id and sl.sha256 = any (p_shas) order by sl.sha256 loop
-    select * into cur from labels l where l.lab_id = s.lab_id and l.sha256 = item.sha256;
+    -- Members read labels by column, so name the ones this needs.
+    select l.clean_name, l.date, l.experiment_id, l.person_id, l.instrument, l.tags into cur
+    from labels l where l.lab_id = s.lab_id and l.sha256 = item.sha256;
     select c.correction_id into v_correction
     from correct_label(s.lab_id, item.sha256,
       coalesce(item.clean_name, cur.clean_name), coalesce(item.date, cur.date),
