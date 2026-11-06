@@ -58,7 +58,8 @@ const BOX_MAX = 40;
 const REPEAT_R = 3;
 const MEAN_R = 4.5;
 const round = (v: number) => Math.round(v * 10) / 10;
-const CAPTION_FONT = 11;
+// 7 pt at a journal column's width, like the tick labels.
+const CAPTION_FONT = 12;
 
 function axisText(title: string, unit: string): string {
   const t = title.trim();
@@ -106,7 +107,7 @@ type Frame = {
 function frame(
   size: { width: number; height: number },
   opts: Options,
-  axes: { x: string; y: string; yLabelWidth: number; xTickLines: number },
+  axes: { x: string; y: string; yLabelWidth: number; xTickLines: number; xPlaceholder?: boolean },
   legendNames: { name: string; color: SeriesColor; mark: LegendEntry["mark"] }[],
   captionLines: readonly string[],
 ): Frame {
@@ -129,13 +130,13 @@ function frame(
     top = (legend.at(-1)?.y ?? top) + 20;
   }
   const yText = axes.y || (opts.placeholders ? PLACEHOLDER : "");
-  const xText = axes.x || (opts.placeholders ? PLACEHOLDER : "");
+  const xText = axes.x || (opts.placeholders && axes.xPlaceholder !== false ? PLACEHOLDER : "");
   const left = Math.ceil(axes.yLabelWidth + 10 + (yText ? LABEL_FONT + 12 : 0));
   const right = 24;
   const tickBlock = TICK_FONT + 10 + (axes.xTickLines - 1) * (TICK_FONT + 2);
   const xTitleBlock = xText ? LABEL_FONT + 12 : 0;
-  const capLines = opts.caption ? captionLines.flatMap((l) => wrap(l, size.width, CAPTION_FONT)) : [];
-  const capBlock = capLines.length === 0 ? 0 : 12 + capLines.length * (CAPTION_FONT + 4);
+  const capLines = opts.caption ? captionLines.flatMap((l) => wrap(l.charAt(0).toUpperCase() + l.slice(1), size.width, CAPTION_FONT)) : [];
+  const capBlock = capLines.length === 0 ? 0 : 20 + capLines.length * (CAPTION_FONT + 4);
   const height = size.height + capBlock;
   const area = { left, top, width: Math.max(40, size.width - left - right), height: Math.max(60, size.height - top - tickBlock - xTitleBlock) };
   for (const item of legend) item.x += area.left;
@@ -174,8 +175,8 @@ function barPath(x: number, width: number, base: number, end: number): string {
 }
 
 // Repeats as a small beeswarm: each dot at the nearest free place beside its group's center.
-function swarm(values: readonly number[], center: number, toY: (v: number) => number, half: number): { px: number; py: number }[] {
-  const placed: { px: number; py: number }[] = [];
+function swarm(values: readonly number[], center: number, toY: (v: number) => number, half: number, taken: readonly { px: number; py: number }[] = []): { px: number; py: number }[] {
+  const placed: { px: number; py: number }[] = [...taken];
   const step = REPEAT_R * 2 + 1;
   const order = values.map((v, i) => ({ v, i })).sort((a, b) => a.v - b.v);
   const out = new Array<{ px: number; py: number }>(values.length);
@@ -275,10 +276,12 @@ function plotGroups(spec: Extract<SummarySpec, { type: "groups" }>, a: Extract<A
   const probe = y.probe(1, 0);
   const band0 = (size.width - labelWidth(probe) - 60) / Math.max(1, groups.length);
   const tickLabels = groups.map((g) => tickLines(g.label, band0));
+  // The groups name themselves under their bars, so an empty bottom title stays empty rather
+  // than asking to be named.
   const f = frame(
     size,
     opts,
-    { x: spec.x.title, y: axisText(spec.y.title, spec.y.unit), yLabelWidth: labelWidth(probe), xTickLines: Math.max(1, ...tickLabels.map((l) => l.length)) },
+    { x: spec.x.title, y: axisText(spec.y.title, spec.y.unit), yLabelWidth: labelWidth(probe), xTickLines: Math.max(1, ...tickLabels.map((l) => l.length)), xPlaceholder: false },
     [],
     opts.caption ? a.caption : [],
   );
@@ -437,7 +440,8 @@ function plotXY(spec: XYish, a: XYAnalysis, size: { width: number; height: numbe
       const py = clampY(g.summary.mean);
       const showBars = a.kind !== "band" || (spec.type === "band" && !spec.band);
       if (showBars && g.half !== null) out.whiskers.push({ px, top: clampY(g.summary.mean + g.half), bottom: clampY(g.summary.mean - g.half), color: set.color });
-      if (spec.points) for (const r of g.repeats) out.dots.push({ px: round(px), py: round(clampY(r.value)), color: set.color, r: REPEAT_R - 0.5, kind: "repeat" });
+      // Repeats beside their mean, nudged apart where they'd sit on top of each other.
+      if (spec.points) for (const p of swarm(g.repeats.map((r) => r.value), px, clampY, 9, [{ px, py }])) out.dots.push({ ...p, color: set.color, r: REPEAT_R - 0.5, kind: "repeat" });
       if (a.kind !== "band" || pts.length <= 40) out.dots.push({ px, py, color: set.color, r: a.kind === "band" ? 3.5 : MEAN_R, kind: "mean" });
       out.targets.push({ px, py, left: px - 12, right: px + 12, title: `${sets.length > 1 ? `${set.name}, ` : ""}${spec.x.title || "at"} ${formatValue(g.at ?? 0)}${u}`, lines: [spreadLine(g, spec.spread, spec.y.unit), repeatsLine(g)] });
     }

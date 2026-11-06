@@ -40,31 +40,46 @@ function render(element: ReactElement): string {
   return markup;
 }
 
-// The figure as SVG markup. Print sizes say their width in millimetres, so a journal's
-// template and Illustrator place it at size.
-export function chartMarkup(spec: ChartSpec, table: DataTable, title: string, size: ExportSize = "slides", tables: readonly DataTable[] = [table]): ChartFile {
+// The figure at an export size, before it's turned into markup.
+export function exportFigure(spec: ChartSpec, table: DataTable, title: string, size: ExportSize = "slides", tables: readonly DataTable[] = [table]): { element: ReactElement; width: number; height: number; mm: ChartFile["mm"] } {
   const box = EXPORT_SIZES[size];
   const frame = { width: box.width, height: box.height };
-  let markup: string;
-  let width: number;
-  let height: number;
+  const sized = (element: ReactElement, width: number, height: number) => ({
+    element,
+    width,
+    height,
+    mm: box.mm === null ? null : { width: box.mm, height: Math.round(((box.mm * height) / width) * 10) / 10 },
+  });
   if (isHeatmap(spec)) {
     const plot = plotPlate(spec, table, frame, { title });
-    markup = render(<PlateSvg plot={plot} ink={EXPORT_INK} gradientId="scale" label={title} />);
-    [width, height] = [plot.width, plot.height];
-  } else if (isXY(spec)) {
-    const plot = plotChart(spec, table, frame, { title });
-    markup = render(<ChartSvg plot={plot} ink={EXPORT_INK} clipId="plot" label={title} />);
-    [width, height] = [plot.width, plot.height];
-  } else {
-    // The test, the fit and what the bars show go on the figure itself, under the chart.
-    const plot = plotSummary(spec, table, frame, { title, caption: true }, tables);
-    markup = render(<SummarySvg plot={plot} ink={EXPORT_INK} clipId="plot" label={title} />);
-    [width, height] = [plot.width, plot.height];
+    return sized(<PlateSvg plot={plot} ink={EXPORT_INK} gradientId="scale" label={title} />, plot.width, plot.height);
   }
-  const mm = box.mm === null ? null : { width: box.mm, height: Math.round(((box.mm * height) / width) * 10) / 10 };
+  if (isXY(spec)) {
+    const plot = plotChart(spec, table, frame, { title });
+    return sized(<ChartSvg plot={plot} ink={EXPORT_INK} clipId="plot" label={title} />, plot.width, plot.height);
+  }
+  // The test, the fit and what the bars show go on the figure itself, under the chart.
+  const plot = plotSummary(spec, table, frame, { title, caption: true }, tables);
+  return sized(<SummarySvg plot={plot} ink={EXPORT_INK} clipId="plot" label={title} />, plot.width, plot.height);
+}
+
+// The figure's markup. Print sizes say their width in millimetres, so a journal's template and
+// Illustrator place it at size.
+export function figureMarkup(figure: ReturnType<typeof exportFigure>, toMarkup: (element: ReactElement) => string): ChartFile {
+  const { mm } = figure;
+  let markup = toMarkup(figure.element);
   if (mm !== null) markup = markup.replace(/^<svg([^>]*?) width="[^"]*" height="[^"]*"/, `<svg$1 width="${mm.width}mm" height="${mm.height}mm"`);
-  return { markup: `<?xml version="1.0" encoding="UTF-8"?>\n${markup}`, width, height, mm };
+  return { markup: `<?xml version="1.0" encoding="UTF-8"?>\n${markup}`, width: figure.width, height: figure.height, mm };
+}
+
+export function chartMarkup(spec: ChartSpec, table: DataTable, title: string, size: ExportSize = "slides", tables: readonly DataTable[] = [table]): ChartFile {
+  return figureMarkup(exportFigure(spec, table, title, size, tables), render);
+}
+
+// A PDF page's size in points for the figure.
+export function pdfPage(file: ChartFile): { width: number; height: number } {
+  const points = (mm: number) => (mm / MM_PER_INCH) * 72;
+  return file.mm === null ? { width: file.width * 0.75, height: file.height * 0.75 } : { width: points(file.mm.width), height: points(file.mm.height) };
 }
 
 export function fileName(title: string, extension: "svg" | "png" | "pdf" | "csv"): string {
@@ -119,9 +134,7 @@ export async function downloadPng(file: ChartFile, title: string): Promise<void>
 // A vector PDF. The writer loads only now, so the builder doesn't carry it.
 export async function downloadPdf(file: ChartFile, title: string): Promise<void> {
   const { svgToPdf } = await import("@/lib/pdf");
-  const points = (mm: number) => (mm / MM_PER_INCH) * 72;
-  const page = file.mm === null ? { width: file.width * 0.75, height: file.height * 0.75 } : { width: points(file.mm.width), height: points(file.mm.height) };
-  const bytes = svgToPdf(file.markup, page);
+  const bytes = svgToPdf(file.markup, pdfPage(file));
   const copy = new Uint8Array(bytes.length);
   copy.set(bytes);
   save(new Blob([copy.buffer], { type: "application/pdf" }), fileName(title, "pdf"));

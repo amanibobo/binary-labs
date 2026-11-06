@@ -2,7 +2,7 @@ import { z } from "zod";
 import { AppShell } from "@/components/app-shell";
 import { ChartBuilder, type BuilderMode } from "@/components/charts/chart-builder";
 import { doneSource, fixtureShell } from "@/fixtures/data";
-import { BIOREACTOR, BRADFORD, ELISA, fixtureFile, PLATE, savedChart, SEC } from "@/fixtures/charts";
+import { BIOREACTOR, BRADFORD, BRADFORD_PLATE, CELLS, DOSE, DOSE_LAYOUT, ELISA, fixtureFile, GROUPS, GROWTH, KNOCKDOWN, PENDULUM, PLATE, savedChart, SEC } from "@/fixtures/charts";
 import { FixtureLabApi } from "@/fixtures/fixture-api";
 import { requireFixtures, type FixtureProps } from "@/fixtures/gate";
 import { protocolList } from "@/fixtures/protocols";
@@ -14,13 +14,56 @@ import type { Sha256 } from "@/lib/ids";
 // sec-cond (conductivity on its own volume column), growth (the bioreactor on a time axis),
 // plate (the ELISA plate saved), plate-read (plate 7 at its last read), lines (ten wells,
 // four dashed), broken (a saved chart whose column went when the file was read again) and
-// waiting (the worker still reading the table).
+// waiting (the worker still reading the table). Charts of repeats (decisions.md, "charts round
+// 1"): dose (a viability plate whose export carries its layout), dose-paint (the same plate to
+// mark by hand), bradford-plate (standards, blanks and samples listed by well), knockdown (two
+// groups), groups (four, long format), growth-reps (a growth curve in triplicate), cells (200
+// cell sizes), pendulum (not biology) and saved-dose (the worked example, saved).
 const View = z
-  .enum(["new", "akta", "bradford", "dates", "elisa", "saved", "sec", "sec-cond", "growth", "plate", "plate-read", "lines", "broken", "waiting"])
+  .enum([
+    "new",
+    "akta",
+    "bradford",
+    "dates",
+    "elisa",
+    "saved",
+    "sec",
+    "sec-cond",
+    "growth",
+    "plate",
+    "plate-read",
+    "lines",
+    "broken",
+    "waiting",
+    "dose",
+    "dose-paint",
+    "bradford-plate",
+    "knockdown",
+    "groups",
+    "growth-reps",
+    "cells",
+    "pendulum",
+    "saved-dose",
+  ])
   .catch("new");
 
-const NEW: Partial<Record<z.infer<typeof View>, Sha256>> = { new: PLATE, akta: SEC, bradford: BRADFORD, dates: BIOREACTOR, elisa: ELISA, waiting: PLATE };
-const SAVED: Partial<Record<z.infer<typeof View>, number>> = { saved: 1, sec: 2, "sec-cond": 4, growth: 5, plate: 6, lines: 7, "plate-read": 8, broken: 9 };
+const NEW: Partial<Record<z.infer<typeof View>, Sha256>> = {
+  new: PLATE,
+  akta: SEC,
+  bradford: BRADFORD,
+  dates: BIOREACTOR,
+  elisa: ELISA,
+  waiting: PLATE,
+  dose: DOSE_LAYOUT,
+  "dose-paint": DOSE,
+  "bradford-plate": BRADFORD_PLATE,
+  knockdown: KNOCKDOWN,
+  groups: GROUPS,
+  "growth-reps": GROWTH,
+  cells: CELLS,
+  pendulum: PENDULUM,
+};
+const SAVED: Partial<Record<z.infer<typeof View>, number>> = { saved: 1, sec: 2, "sec-cond": 4, growth: 5, plate: 6, lines: 7, "plate-read": 8, broken: 9, "saved-dose": 10 };
 
 export default async function ChartsFixture({ searchParams }: FixtureProps) {
   requireFixtures();
@@ -28,7 +71,10 @@ export default async function ChartsFixture({ searchParams }: FixtureProps) {
   const n = SAVED[view];
   const chart = n === undefined ? null : savedChart(n);
   const sha = chart?.sha256 ?? NEW[view] ?? PLATE;
-  const mode: BuilderMode = chart === null ? { kind: "create", protocolId: null } : { kind: "edit", chart };
+  const mode: BuilderMode =
+    chart === null
+      ? { kind: "create", protocolId: null }
+      : { kind: "edit", chart, provenance: view === "saved-dose" ? { protocolVersion: { version: 2, title: "Bradford assay" }, layoutName: "Drug A, 5 doses by fives" } : undefined };
   return (
     <FixtureLabApi mode="hybrid" source={doneSource} tables={view === "waiting" ? "waiting" : "ready"}>
       <AppShell shell={fixtureShell} location={{ section: "search" }}>

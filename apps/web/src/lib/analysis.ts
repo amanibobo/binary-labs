@@ -42,7 +42,7 @@ export const TEST_NAMES = {
   none: "No test",
   welch: "Welch's t-test",
   anova: "One-way ANOVA",
-  control: "Each against the control (Welch's t-tests, Holm-corrected)",
+  control: "Each group against the control",
 } satisfies Record<TestChoice, string>;
 
 // One result, plain question first, its technical answer second, and what the term means.

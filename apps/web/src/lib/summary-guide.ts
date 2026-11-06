@@ -106,6 +106,9 @@ function measuredTitle(grouped: Grouped): { title: string; unit: string } {
   return { title: grouped.measure.name, unit: grouped.measure.unit };
 }
 
+// A sheet's own name as an axis title, when it's a name rather than "Table 1".
+const sheetTitle = (table: DataTable) => (/^Table \d+$|^Sheet\d*$/i.test(table.name) ? "" : table.name);
+
 const hasBlank = (grouped: Grouped) => grouped.groups.some((g) => g.role === "blank" && g.repeats.length > 0);
 
 // Past this many groups the bars' labels can't be read.
@@ -136,7 +139,7 @@ export function startKind(data: ChartData, kind: ChartKind): SummarySpec | Histo
         control: null,
         marks: false,
         x: { title: grouped.key.numeric ? grouped.key.name : "" },
-        y: { ...measuredTitle(grouped), scale: "linear", min: null, max: null },
+        y: { title: grouped.measure.name || sheetTitle(table), unit: grouped.measure.unit, scale: "linear", min: null, max: null },
       };
       const groups = prepared(table, spec).groups;
       const test = suggestTest(groups).test;
@@ -161,7 +164,7 @@ export function startKind(data: ChartData, kind: ChartKind): SummarySpec | Histo
         blank: hasBlank(grouped),
         fit: "line",
         unknowns: plate ? (grouped.groups.some((g) => g.role === "sample") ? { kind: "layout" } : null) : unknownsElsewhere(data, s),
-        x: { title: plate ? "Standard" : grouped.key.name, unit: grouped.key.unit, scale: "linear", min: null, max: null },
+        x: { title: plate ? "Concentration" : grouped.key.name, unit: grouped.key.unit, scale: "linear", min: null, max: null },
         y: { ...measuredTitle(grouped), scale: "linear", min: null, max: null },
       };
       return spec;
@@ -180,7 +183,7 @@ export function startKind(data: ChartData, kind: ChartKind): SummarySpec | Histo
         blank: false,
         band: true,
         x: { title: grouped.key.name, unit: grouped.key.unit, scale: "linear", min: null, max: null },
-        y: { title: one ? source.series[0].name : grouped.measure.name, unit: grouped.measure.unit, scale: "linear", min: null, max: null },
+        y: { title: one ? source.series[0].name : grouped.measure.name || sheetTitle(table), unit: grouped.measure.unit, scale: "linear", min: null, max: null },
         legend: "top",
       };
       return spec;
@@ -311,7 +314,8 @@ function rawSuggestions(data: ChartData): KindSuggestion[] {
   const layout = data.layout?.layout ?? null;
   const live = grouped.groups.filter((g) => g.repeats.length > 0);
   const reps = Math.max(0, ...live.map((g) => g.repeats.length));
-  const each = reps > 1 ? `, ${live.every((g) => g.repeats.length === reps) ? `${reps} each` : `up to ${reps} each`}` : "";
+  const unitWord = source.kind === "plate" ? "wells" : "repeats";
+  const each = reps > 1 ? `, ${live.every((g) => g.repeats.length === reps) ? `${reps} ${unitWord} each` : `up to ${reps} ${unitWord} each`}` : "";
   if (source.kind === "plate" && layout !== null) {
     const standards = live.filter((g) => g.role === "standard" && g.at !== null);
     const samples = live.filter((g) => g.role === "sample");
@@ -408,7 +412,8 @@ export function describeSummary(spec: SummarySpec | HistogramSpec, data: ChartDa
       const fit = a.fit === null ? "" : `, with a straight line${a.fit.origin ? " through zero" : ""} fitted to them (R² ${a.fit.r2.toFixed(3)})`;
       const unknowns = a.unknowns.length === 0 ? "" : ` ${plural(a.unknowns.length, "sample")} ${a.unknowns.length === 1 ? "is" : "are"} read off the line${a.unknowns.some((k) => k.outside !== null) ? `, ${a.unknowns.filter((k) => k.outside !== null).length} outside your standards` : ""}.`;
       const blank = a.blank === null ? "" : ` The blank (mean of ${plural(a.blank.n, "well")}) is taken off every reading.`;
-      return `${what} for ${plural(s.length, `${spec.x.title || "standard"} value`)} from ${formatValue(lo)} to ${formatValue(hi)}${u}${each}${fit}.${blank}${unknowns}`;
+      const points = spec.source.kind === "plate" ? plural(s.length, "standard") : plural(s.length, `${spec.x.title || "x"} value`);
+      return `${what} for ${points} from ${formatValue(lo)} to ${formatValue(hi)}${u}${each}${fit}.${blank}${unknowns}`;
     }
     case "band": {
       if (spec.type !== "band") return "";

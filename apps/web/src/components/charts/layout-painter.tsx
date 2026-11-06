@@ -74,7 +74,7 @@ export function LayoutPainter({
   const [picked, setPicked] = useState<string[]>([]);
   return (
     <Dialog open={open} onOpenChange={(o) => (o ? null : onClose())}>
-      <DialogContent title="Mark the wells" aria-describedby={undefined} className="sm:w-[min(980px,calc(100vw-48px))]">
+      <DialogContent title="Mark the wells" aria-describedby={undefined} className="sm:w-[min(1120px,calc(100vw-48px))]">
         {open ? (
           <PainterBody
             table={table}
@@ -131,7 +131,7 @@ function PainterBody({
   const [savedAs, setSavedAs] = useState<{ id: SavedLayout["id"]; from: string } | null>(null);
   return (
     <>
-      <div className="grid min-h-0 flex-1 gap-6 overflow-y-auto px-4 pt-1 pb-6 sm:px-6 lg:grid-cols-[minmax(0,1fr)_300px]">
+      <div className="grid min-h-0 flex-1 gap-6 overflow-x-hidden overflow-y-auto px-4 pt-1 pb-6 sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,320px)]">
         <div className="min-w-0">
           <p className="text-paragraph-small text-content-secondary">Drag across wells, or tap a row letter or column number, then say what they are. Wells marked the same are repeats of each other.</p>
           <PlateGrid size={size} layout={layout} readings={readings} picked={picked} onPick={setPicked} />
@@ -140,7 +140,7 @@ function PainterBody({
           </p>
           <Legend />
         </div>
-        <div className="grid content-start gap-6">
+        <div className="grid min-w-0 content-start gap-6">
           <MarkForm layout={layout} picked={picked} onApply={(l) => setLayout(l)} onClear={() => setPicked([])} />
           <Extras layout={layout} picked={picked} onLayout={setLayout} saved={saved} />
           <SaveForLater layout={layout} protocols={protocols} protocolId={protocolId} sha256={sha256} onSaved={(id, from) => setSavedAs({ id, from })} />
@@ -215,7 +215,7 @@ function PlateGrid({
         aria-multiselectable
         onKeyDown={key}
         className="inline-grid touch-none gap-1 select-none"
-        style={{ gridTemplateColumns: `1.5rem repeat(${columns}, minmax(${small ? "1.1rem" : "2.6rem"}, 1fr))` }}
+        style={{ gridTemplateColumns: `1.5rem repeat(${columns}, minmax(${small ? "1.1rem" : "2.25rem"}, 1fr))` }}
         onPointerUp={() => (dragging.current = false)}
         onPointerLeave={() => (dragging.current = false)}
       >
