@@ -307,6 +307,7 @@ The two-column sketch set aside in the tiles entry stacked every section on one 
 - **The talk-through is macOS `say` reading the fixtures' transcript** (`workers/tests/fixtures/bm3-lysis-talk-through.m4a`, 40 s, 166 KB), so its transcript and drafted steps are real. The video is `clip.mp4`.
 
 Measured on local Postgres with the real Qwen embedder, Claude and ElevenLabs: 64 locations (59 unique files) in 110 s, 63 indexed and one failed (`instrument/legacy_export.pdf`, truncated on purpose), labels 9 suggested, 41 check, 9 needs a look, 25 data tables ready, the video transcript and the talk-through draft ready, $0.22 in model calls ($0.0049 per file). A second run took under a second and changed nothing. The eval on the sample lab's 46 files in the demo scored 80.4% accepted without edits, against 87–89% in the eval's own runs; the demo adds three experiments and three people the eval doesn't expect.
+
 ## 2026-11-05 — the lab calendar
 
 A Calendar in the sidebar (after Protocols) holds two things on one grid: the lab's record, filled in from dates Binary already has, and plans people write. The operator asked for it "clean, Notion-like". Choices made while building it:

@@ -206,6 +206,7 @@ worker: scan of an instrument source lists nothing ──▶ process_location re
 ## Demo lab
 
 Migration 0016 adds the `import` source kind: files copied into the store at `<lab_id>/files/<sha256>` that keep their folder paths (`external_id` and `path` are the path, `source_rev` the sha256). The worker reads them like uploads (`STORED_SOURCES`) and `/api/files/<location>` opens them. `bl demo-lab` (`bl_worker/demo_lab.py`, content in `demo_content.py`) is the only writer; its lab is `labs.plan = 'demo'`. `workers/tests/test_demo_lab.py` covers a second run, other labs and deletion; `apps/web/src/lib/__tests__/demo-e2e.test.ts` opens demo files through the real files route and checks each chart against its stored table, run by hand against a filled local database.
+
 ## Calendar
 
 Migration 0017. `calendar_entries` holds plans (dates or instants, links, `person_ids`); members insert, update and delete under RLS with column grants, and triggers keep links in the lab and write the audit rows. The record is worked out on read by `security invoker` functions over the caller's lab, each taking a range of days (at most 62) and the viewer's IANA zone:
