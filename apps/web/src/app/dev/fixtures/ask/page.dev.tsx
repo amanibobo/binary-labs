@@ -7,14 +7,14 @@ import { FixtureAskApi } from "@/fixtures/fixture-ask-api";
 import { FixtureLabApi } from "@/fixtures/fixture-api";
 import { requireFixtures, type FixtureProps } from "@/fixtures/gate";
 
-// Asking the lab on the Search page: ?view=answer|no-answer|limit|unavailable|home, with the
+// Asking the lab on the Search page: ?view=answer|streaming|cached|no-answer|limit|unavailable|home, with the
 // question in ?q. Screenshots press "Ask the lab"; home shows the recent questions.
-const View = z.enum(["answer", "no-answer", "limit", "unavailable", "home"]).catch("answer");
+const View = z.enum(["answer", "streaming", "cached", "no-answer", "limit", "unavailable", "home"]).catch("answer");
 
 export default async function AskFixture({ searchParams }: FixtureProps) {
   requireFixtures();
   const view = View.parse((await searchParams).view);
-  const answer = view === "no-answer" || view === "limit" ? view : "answer";
+  const answer = view === "unavailable" || view === "home" ? "answer" : view;
   return (
     <FixtureLabApi mode="hybrid" source={doneSource}>
       <FixtureAskApi answer={answer}>

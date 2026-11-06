@@ -281,6 +281,12 @@
     from { opacity: 0; }
   }
 
+  /* A step of an answer's work arriving: up a few pixels into place. */
+  --animate-step-in: step-in 180ms var(--ease-out) both;
+  @keyframes step-in {
+    from { opacity: 0; transform: translateY(4px); }
+  }
+
   --animate-fade-out: fade-out 150ms ease-in forwards;
   @keyframes fade-out {
     to { opacity: 0; }

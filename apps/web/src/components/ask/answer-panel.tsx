@@ -3,53 +3,42 @@
 import { useRouter } from "next/navigation";
 import { useId, useState } from "react";
 import { toast } from "sonner";
-import { cellLabel, citedSources, sourceNumber, type AnswerSentence, type AnswerSource, type Citation, type Verdict } from "@/lib/answers";
+import { cellLabel, citedSources, type AnswerSentence, type AnswerSource, type SourceKey, type Verdict } from "@/lib/answers";
 import { limitMessage, type AskState } from "@/lib/ask-state";
 import { cn } from "@/lib/cn";
-import { folderOf, openTarget } from "@/lib/format";
-import { KIND_NAMES, protocolHref } from "@/lib/protocols";
+import { folderOf } from "@/lib/format";
+import { KIND_NAMES } from "@/lib/protocols";
 import { suggestionHref, type SuggestRequest } from "@/lib/suggestions";
 import { KindIcon } from "../files/kind-icon";
+import { DeleteIcon } from "../icons/base-web";
 import { ProtocolIcon } from "../icons/drawn";
 import { Button } from "../ui/button";
 import { Skeleton } from "../ui/skeleton";
+import { AskActivity, CitationLinkProvider, pointProps, useCitationLink, useRevealedSteps, type WriteOutcome } from "./ask-activity";
 import { useAskApi } from "./ask-api";
+import { citationHref } from "./citation-href";
 
-// The written answer above the search results: each sentence with the numbers of the sources
-// it came from, those sources under it, and what to do next. While the reply streams, checked
-// sentences appear one by one; when there's no answer, the closest files take its place.
-
-// Where a citation opens: the file itself (or its table), or the protocol at the cited version.
-export function citationHref(source: AnswerSource, citation: Citation | null): { href: string; external: boolean } {
-  switch (source.kind) {
-    case "protocol":
-      return { href: protocolHref(source.protocolId, source.version), external: false };
-    case "file": {
-      if (citation?.cell != null) return { href: `/charts/new?file=${source.location.id}`, external: false };
-      const open = openTarget(source.location);
-      if (open !== null) return { href: open.href, external: source.location.sourceKind === "dropbox" };
-      return { href: `/?${new URLSearchParams({ q: source.name, open: source.sha256 })}`, external: false };
-    }
-    default: {
-      const _exhaustive: never = source;
-      return _exhaustive;
-    }
-  }
-}
+// The answer box above the search results: its own surface, so an answer never reads as one
+// more result. At the top, the work behind it as it happens (ask-activity.tsx); then the
+// answer, each sentence followed by the numbers of the sources it came from, those sources
+// under it, and what to do next in the footer. When there's no answer, the closest files take
+// its place.
 
 function sourceTitle(source: AnswerSource): string {
   return source.kind === "file" ? source.name : source.title;
 }
 
-function Marks({ sentence, sources }: { sentence: AnswerSentence; sources: readonly AnswerSource[] }) {
+function Marks({ sentence, sources, numbers }: { sentence: AnswerSentence; sources: readonly AnswerSource[]; numbers: ReadonlyMap<SourceKey, number> }) {
+  const link = useCitationLink();
   return (
     <>
       {sentence.citations.map((c) => {
         const source = sources.find((s) => s.key === c.source);
-        const n = sourceNumber(sources, c.source);
-        if (source === undefined || n === null) return null;
+        const n = numbers.get(c.source);
+        if (source === undefined || n === undefined) return null;
         const target = citationHref(source, c);
         const label = c.cell === null ? sourceTitle(source) : `${sourceTitle(source)}, ${cellLabel(c.cell)}: ${c.cell.value}`;
+        const lit = link.key === c.source;
         return (
           <a
             key={`${c.source}-${c.cell?.table ?? ""}-${c.cell?.column ?? ""}-${c.cell?.row ?? ""}`}
@@ -57,7 +46,12 @@ function Marks({ sentence, sources }: { sentence: AnswerSentence; sources: reado
             {...(target.external ? { target: "_blank", rel: "noreferrer" } : {})}
             title={label}
             aria-label={`Source ${n}: ${label}`}
-            className="ml-0.5 inline-block rounded px-0.5 align-super text-[0.68em] leading-none font-medium text-content-accent tabular-nums hover:underline"
+            data-lit={lit}
+            className={cn(
+              "ml-px inline-block rounded px-[0.25em] align-super text-[0.68em] leading-[1.35] font-medium text-content-accent tabular-nums transition-colors duration-150 ease-out hover:underline",
+              lit && "bg-tag-blue-background-secondary text-tag-blue-content-secondary",
+            )}
+            {...pointProps(link, c.source)}
           >
             {n}
           </a>
@@ -67,14 +61,22 @@ function Marks({ sentence, sources }: { sentence: AnswerSentence; sources: reado
   );
 }
 
-export function AnswerText({ sentences, sources }: { sentences: readonly AnswerSentence[]; sources: readonly AnswerSource[] }) {
+export function AnswerText({
+  sentences,
+  sources,
+  numbers,
+}: {
+  sentences: readonly AnswerSentence[];
+  sources: readonly AnswerSource[];
+  numbers: ReadonlyMap<SourceKey, number>;
+}) {
   return (
     <p className="max-w-prose text-paragraph-large text-content-primary">
       {sentences.map((s, i) => (
-        <span key={i}>
+        <span key={i} className="animate-fade-in">
           {i > 0 ? " " : null}
           {s.text}
-          <Marks sentence={s} sources={sources} />
+          <Marks sentence={s} sources={sources} numbers={numbers} />
         </span>
       ))}
     </p>
@@ -91,25 +93,32 @@ function citedCells(source: AnswerSource, sentences: readonly AnswerSentence[]):
 export function SourceList({
   sources,
   sentences,
-  numbered,
+  numbers,
 }: {
   sources: readonly AnswerSource[];
   sentences: readonly AnswerSentence[];
   // Answer sources keep their citation numbers; the closest files are a plain list.
-  numbered: readonly AnswerSource[] | null;
+  numbers: ReadonlyMap<SourceKey, number> | null;
 }) {
+  const link = useCitationLink();
   return (
     <ul className="mt-2 space-y-1">
       {sources.map((source) => {
-        const n = numbered === null ? null : sourceNumber(numbered, source.key);
+        const n = numbers?.get(source.key) ?? null;
         const target = citationHref(source, null);
         const cells = citedCells(source, sentences);
+        const lit = n !== null && link.key === source.key;
         return (
           <li key={source.key}>
             <a
               href={target.href}
               {...(target.external ? { target: "_blank", rel: "noreferrer" } : {})}
-              className="-mx-3 flex items-start gap-3 rounded-xl px-3 py-2 transition-colors duration-150 ease-out hover:bg-background-secondary focus-visible:outline-offset-[-2px]"
+              data-lit={lit}
+              className={cn(
+                "-mx-3 flex items-start gap-3 rounded-xl px-3 py-2 transition-colors duration-150 ease-out hover:bg-background-secondary focus-visible:outline-offset-[-2px]",
+                lit && "bg-background-secondary",
+              )}
+              {...(n === null ? {} : pointProps(link, source.key))}
             >
               {n === null ? null : <span className="w-4 shrink-0 pt-0.5 text-right text-label-small text-content-tertiary tabular-nums">{n}</span>}
               <span className="shrink-0 pt-0.5">
@@ -134,15 +143,6 @@ export function SourceList({
   );
 }
 
-function readLine(sources: readonly AnswerSource[]): string {
-  const files = sources.filter((s) => s.kind === "file").length;
-  const protocols = sources.length - files;
-  const parts = [files > 0 ? `${files} ${files === 1 ? "file" : "files"}` : null, protocols > 0 ? `${protocols} ${protocols === 1 ? "protocol" : "protocols"}` : null].filter(
-    (p) => p !== null,
-  );
-  return `Read ${parts.join(" and ")}.`;
-}
-
 function Feedback({ verdict, onPick }: { verdict: Verdict | null; onPick: (v: Verdict) => void }) {
   const options: { value: Verdict; label: string }[] = [
     { value: "helpful", label: "Helpful" },
@@ -151,13 +151,7 @@ function Feedback({ verdict, onPick }: { verdict: Verdict | null; onPick: (v: Ve
   return (
     <div role="group" aria-label="Was this answer helpful?" className="-mx-3 flex gap-1">
       {options.map((o) => (
-        <Button
-          key={o.value}
-          variant={verdict === o.value ? "secondary" : "tertiary"}
-          size="compact"
-          aria-pressed={verdict === o.value}
-          onClick={() => onPick(o.value)}
-        >
+        <Button key={o.value} variant={verdict === o.value ? "secondary" : "tertiary"} size="compact" aria-pressed={verdict === o.value} onClick={() => onPick(o.value)}>
           {o.label}
         </Button>
       ))}
@@ -197,15 +191,16 @@ function SuggestActions({ state }: { state: Extract<AskState, { kind: "answered"
   }
 
   return (
-    <div className="-mx-3 flex flex-wrap gap-1">
+    <div className="-mx-3 flex min-w-0 flex-wrap gap-1">
       {protocol?.kind === "protocol" ? (
         <Button
           variant="tertiary"
           size="compact"
+          className="max-w-full min-w-0"
           disabled={busy !== null}
           onClick={() => void run("protocol", { kind: "protocol_edit", protocolId: protocol.protocolId, questionId: state.questionId })}
         >
-          {busy === "protocol" ? "Drafting an edit…" : `Suggest an edit to ${protocol.title}`}
+          <span className="truncate">{busy === "protocol" ? "Drafting an edit…" : `Suggest an edit to ${protocol.title}`}</span>
         </Button>
       ) : null}
       {hasFiles ? (
@@ -217,61 +212,117 @@ function SuggestActions({ state }: { state: Extract<AskState, { kind: "answered"
   );
 }
 
+function writeOutcome(state: Exclude<AskState, { kind: "idle" }>): WriteOutcome {
+  switch (state.kind) {
+    case "asking":
+      return "live";
+    case "answered":
+      return state.outcome;
+    case "limit":
+    case "failed":
+      return "stopped";
+    default: {
+      const _exhaustive: never = state;
+      return _exhaustive;
+    }
+  }
+}
+
+function sentencesOf(state: Exclude<AskState, { kind: "idle" }>): readonly AnswerSentence[] {
+  if (state.kind === "asking") return state.sentences;
+  if (state.kind === "answered") return state.answer.sentences;
+  return [];
+}
+
 export function AnswerPanel({
   state,
   onVerdict,
   onRetry,
+  onClose,
 }: {
   state: Exclude<AskState, { kind: "idle" }>;
   onVerdict: (verdict: Verdict) => void;
   onRetry: () => void;
+  onClose: () => void;
 }) {
   const headingId = useId();
+  const [pointed, point] = useState<SourceKey | null>(null);
+  const live = state.kind === "asking";
+  const shown = useRevealedSteps(state.steps.length, live);
+  const caughtUp = shown >= state.steps.length;
+  const sentences = sentencesOf(state);
+  // Numbered in the order the answer first cites them, so a number holds while sentences stream.
+  const cited = citedSources(state.sources ?? [], { sentences: [...sentences] });
+  const numbers = new Map(cited.map((s, i) => [s.key, i + 1]));
   return (
-    <section aria-labelledby={headingId} aria-busy={state.kind === "asking"} className="mb-10 px-3" data-testid="answer">
-      <h2 id={headingId} className="mb-2 text-label-small text-content-tertiary">
-        Answer
-      </h2>
-      <Body state={state} onRetry={onRetry} />
-      {state.kind === "answered" ? (
-        <div className="mt-5 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-border-opaque pt-3">
-          <Feedback verdict={state.verdict} onPick={onVerdict} />
-          {state.outcome === "answered" ? <SuggestActions state={state} /> : null}
+    <CitationLinkProvider value={{ key: pointed, point }}>
+      <section
+        aria-labelledby={headingId}
+        aria-busy={live}
+        data-testid="answer"
+        className="mx-3 mb-10 rounded-card border border-border-opaque bg-background-raised shadow-raised"
+      >
+        <header className="flex items-center justify-between gap-3 py-2 pr-2 pl-4 sm:pl-6">
+          <h2 id={headingId} className="text-label-small text-content-secondary">
+            Answer from the lab&apos;s files
+          </h2>
+          <Button variant="tertiary" size="compact" shape="square" aria-label="Close the answer" onClick={onClose}>
+            <DeleteIcon className="size-5 text-content-tertiary" />
+          </Button>
+        </header>
+        <div className="px-4 pb-5 sm:px-6 sm:pb-6">
+          <AskActivity steps={state.steps.slice(0, shown)} live={live} outcome={writeOutcome(state)} sources={state.sources} numbers={numbers} />
+          <Body state={state} caughtUp={caughtUp} cited={cited} numbers={numbers} onRetry={onRetry} />
         </div>
-      ) : null}
-    </section>
+        {state.kind === "answered" ? (
+          <footer className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-border-opaque px-4 py-2 sm:px-6">
+            <Feedback verdict={state.verdict} onPick={onVerdict} />
+            {state.outcome === "answered" ? <SuggestActions state={state} /> : null}
+          </footer>
+        ) : null}
+      </section>
+    </CitationLinkProvider>
   );
 }
 
-function Body({ state, onRetry }: { state: Exclude<AskState, { kind: "idle" }>; onRetry: () => void }) {
+function Body({
+  state,
+  caughtUp,
+  cited,
+  numbers,
+  onRetry,
+}: {
+  state: Exclude<AskState, { kind: "idle" }>;
+  // Whether every step so far is on screen; the answer waits for the steps above it.
+  caughtUp: boolean;
+  cited: readonly AnswerSource[];
+  numbers: ReadonlyMap<SourceKey, number>;
+  onRetry: () => void;
+}) {
   switch (state.kind) {
-    case "asking":
+    case "asking": {
+      const writing = state.steps.some((s) => s.kind === "write");
+      if (!caughtUp || !writing) return null;
       return (
         <div aria-live="polite">
           {state.sentences.length > 0 ? (
-            <AnswerText sentences={state.sentences} sources={state.sources ?? []} />
+            <AnswerText sentences={state.sentences} sources={state.sources ?? []} numbers={numbers} />
           ) : (
-            <div className="max-w-prose space-y-2.5 pt-1.5" aria-hidden>
+            <div className="max-w-prose animate-fade-in space-y-2.5 pt-1.5" aria-hidden>
               <Skeleton className="h-4 w-11/12" />
               <Skeleton className="h-4 w-3/5" />
             </div>
           )}
-          <p className="mt-3 text-paragraph-xsmall text-content-tertiary">
-            {state.sources === null ? "Looking through the lab's records…" : state.sources.length === 0 ? "Nothing in the lab matches." : `${readLine(state.sources)} Writing the answer…`}
-          </p>
         </div>
       );
+    }
     case "answered": {
       if (state.outcome === "not_found") return <NoAnswer sources={state.sources} message="The lab's records don't answer this." />;
-      const cited = citedSources(state.sources, state.answer);
       return (
         <div aria-live="polite">
-          <AnswerText sentences={state.answer.sentences} sources={cited} />
+          <AnswerText sentences={state.answer.sentences} sources={cited} numbers={numbers} />
           <h3 className="mt-6 text-label-small text-content-tertiary">Sources</h3>
-          <SourceList sources={cited} sentences={state.answer.sentences} numbered={cited} />
-          <p className="mt-2 text-paragraph-xsmall text-content-tertiary">
-            {readLine(state.sources)} Every sentence above cites one of them.
-          </p>
+          <SourceList sources={cited} sentences={state.answer.sentences} numbers={numbers} />
         </div>
       );
     }
@@ -307,7 +358,7 @@ function ClosestFiles({ sources }: { sources: readonly AnswerSource[] }) {
   return (
     <>
       <h3 className="mt-6 text-label-small text-content-tertiary">Closest files</h3>
-      <SourceList sources={sources.slice(0, 5)} sentences={[]} numbered={null} />
+      <SourceList sources={sources.slice(0, 5)} sentences={[]} numbers={null} />
     </>
   );
 }
@@ -332,4 +383,3 @@ export function AskRow({ question, available, onAsk, className }: { question: st
     </button>
   );
 }
-

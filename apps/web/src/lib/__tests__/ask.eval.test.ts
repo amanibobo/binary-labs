@@ -149,7 +149,7 @@ describe.skipIf(!env.success)("asking the sample lab", () => {
     const people = PersonRows.parse((await db.query("select id, display_name, aliases from people where lab_id = $1", [deps.labId])).rows);
     started = performance.now();
     const fixes = await suggestLabels(deps, {
-      asked: { id: done.questionId, question: "Which files are from P450 batch 3?", outcome: done.outcome, answer: done.answer, sources, askedAt: new Date().toISOString(), myVerdict: null },
+      asked: { id: done.questionId, question: "Which files are from P450 batch 3?", outcome: done.outcome, answer: done.answer, sources, steps: [], askedAt: new Date().toISOString(), myVerdict: null },
       labels,
       lists: { experiments, people },
     });

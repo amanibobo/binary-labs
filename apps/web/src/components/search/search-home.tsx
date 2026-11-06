@@ -135,7 +135,12 @@ export function SearchHome({
           <section aria-labelledby={headingId} className="-mx-3 mt-8 sm:mt-10">
             {asking.state.kind !== "idle" && askedThis ? (
               <AnswerPanel
+                key={asking.round}
                 state={asking.state}
+                onClose={() => {
+                  asking.close();
+                  input.current?.focus();
+                }}
                 onRetry={() => asking.ask(query.trim())}
                 onVerdict={(verdict) => {
                   if (asking.state.kind === "answered") asking.verdict(asking.state.questionId, verdict);

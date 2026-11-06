@@ -1,7 +1,7 @@
 import { Client } from "pg";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import { AskEvent } from "../answers";
+import { AskEvent, AskStep } from "../answers";
 import { askLab, ContextRows } from "../ask";
 import { CreateLabResult } from "../domain";
 import { ExperimentId, LabId, ProtocolId, ProtocolVersionId, QuestionId, Sha256, SuggestionId, UserId } from "../ids";
@@ -126,13 +126,27 @@ describe("the ledger, the cache and the cap", () => {
     expect(await count("audit_log where lab_id = $1 and action::text = 'question.ask' and actor = $2", [labA, ben])).toBeGreaterThanOrEqual(2);
   });
 
+  it("saves each answer's steps, which members read back with it", async () => {
+    const asked = await ask("Which gel shows batch 3 again?");
+    const done = asked.events.at(-1);
+    if (done?.type !== "done") throw new Error("expected an answer");
+    const steps = await asRole(db, { kind: "member", userId: ben }, async () =>
+      z.array(z.object({ steps: z.array(AskStep) })).parse((await db.query("select steps from questions where id = $1", [done.questionId])).rows),
+    );
+    const saved = steps[0]?.steps ?? [];
+    expect(saved[0]).toMatchObject({ kind: "search", query: "Which gel shows batch 3 again?" });
+    expect(saved[0]?.kind === "search" && saved[0].found).not.toBeNull();
+    expect(saved.at(-1)).toMatchObject({ kind: "write" });
+    expect(saved).toEqual(asked.events.flatMap((e) => (e.type === "step" ? [e.step] : [])).slice(1));
+  });
+
   it("stops asking at the lab's monthly cap", async () => {
     await db.query("update labs set ai_monthly_cap_usd = 0.01 where id = $1", [labA]);
     const budget = z.array(z.object({ spent_usd: z.coerce.number() })).parse(await asRole(db, member(ben), () => rows(db, "ai_budget($1)", [labA])));
     expect(budget[0]?.spent_usd).toBeGreaterThanOrEqual(0.01);
     const { events, model } = await ask("What did the batch 3 notes say about spinning?");
     expect(model.calls).toHaveLength(0);
-    expect(events.map((e) => e.type)).toEqual(["sources", "limit"]);
+    expect(events.filter((e) => e.type !== "step").map((e) => e.type)).toEqual(["sources", "limit"]);
     await db.query("update labs set ai_monthly_cap_usd = 25 where id = $1", [labA]);
   });
 
@@ -177,6 +191,7 @@ describe("what members and the model's output can write", () => {
         p_cached: false,
         p_latency_ms: 0,
         p_call: null,
+        p_steps: [],
       }),
     );
     expect(code).toBe("42501");
@@ -314,7 +329,7 @@ describe("label suggestions", () => {
         })),
       },
       {
-        asked: { id: done.questionId, question: "What files are from batch 3?", outcome: done.outcome, answer: done.answer, sources: sources.sources, askedAt: "2026-11-05T00:00:00Z", myVerdict: null },
+        asked: { id: done.questionId, question: "What files are from batch 3?", outcome: done.outcome, answer: done.answer, sources: sources.sources, steps: [], askedAt: "2026-11-05T00:00:00Z", myVerdict: null },
         labels,
         lists: { experiments: [{ id: batch3, name: "P450 batch 3", aliases: [] }], people: [] },
       },

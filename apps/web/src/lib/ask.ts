@@ -9,6 +9,7 @@ import {
   SentenceStream,
   type AnswerSource,
   type AskEvent,
+  type AskStep,
   type Budget,
   type CellRef,
   type CheckedAnswer,
@@ -100,6 +101,8 @@ export type RecordAnswerArgs = {
   p_cached: boolean;
   p_latency_ms: number;
   p_call: ModelCall | null;
+  // What retrieval and the model did, as the page showed it (migration 0022).
+  p_steps: AskStep[];
 };
 
 export type SuggestionLabelItem = {
@@ -172,10 +175,14 @@ function cellText(value: number | string | null): string {
 
 // Up to a few tables per file, their first rows and columns, rows numbered from 1 and columns
 // by letter, so "Kinetics!C4" names exactly one value the model saw.
-function renderTables(doc: DataTables): { text: string; tables: TableExcerpt[]; cells: Map<string, CellRef> } {
+type RenderedTables = { text: string; tables: TableExcerpt[]; cells: Map<string, CellRef>; filled: number[] };
+
+function renderTables(doc: DataTables): RenderedTables {
   const lines: string[] = [];
   const tables: TableExcerpt[] = [];
   const cells = new Map<string, CellRef>();
+  // Filled cells shown, per table in `tables`.
+  const filled: number[] = [];
   let budget = TABLE_CELLS_PER_FILE;
   for (const table of doc.tables.slice(0, TABLES_PER_FILE)) {
     const columns = table.columns.slice(0, TABLE_COLUMNS);
@@ -186,19 +193,27 @@ function renderTables(doc: DataTables): { text: string; tables: TableExcerpt[]; 
     lines.push(`Table "${table.name}" (rows 1-${rows} of ${of}):`);
     for (const note of table.notes.slice(0, 4)) lines.push(`Note: ${note}`);
     lines.push(["row", ...columns.map((c) => `${c.id}: ${columnLabel(c)}`)].join(" | "));
+    let count = 0;
     for (let r = 0; r < rows; r++) {
       const values = columns.map((c) => cellText(c.values[r] ?? null));
       lines.push([String(r + 1), ...values].join(" | "));
       columns.forEach((c, i) => {
         const value = values[i] ?? "";
         if (value === "") return;
+        count += 1;
         cells.set(`${table.name.trim().toLowerCase()}!${c.id}${r + 1}`, { table: table.name, column: columnLabel(c), row: r + 1, value });
       });
     }
     tables.push({ name: table.name, columns: columns.map((c) => ({ id: c.id, label: columnLabel(c) })), rows });
+    filled.push(count);
   }
-  return { text: lines.join("\n"), tables, cells };
+  return { text: lines.join("\n"), tables, cells, filled };
 }
+
+// A source's id as the model and the steps name it, by its place in retrieval's results.
+const fileKey = (i: number): SourceKey => `F${i + 1}`;
+const protocolKey = (i: number): SourceKey => `P${i + 1}`;
+const fileName = (row: ContextRow): string => row.label?.cleanName ?? row.locations[0].originalName;
 
 export function buildSources({
   files,
@@ -213,9 +228,9 @@ export function buildSources({
   const shown = new Map<string, ShownSource>();
   const blocks: string[] = [];
   files.forEach((row, i) => {
-    const key: SourceKey = `F${i + 1}`;
+    const key = fileKey(i);
     const location = row.locations[0];
-    const name = row.label?.cleanName ?? location.originalName;
+    const name = fileName(row);
     const doc = tables.get(row.sha256);
     const table = doc === undefined ? null : renderTables(doc);
     // A parsed table says more, and more exactly, than the text extracted from the same sheet,
@@ -241,7 +256,7 @@ export function buildSources({
     shown.set(key, { key, cells: table?.cells ?? new Map() });
   });
   protocols.forEach((p, i) => {
-    const key: SourceKey = `P${i + 1}`;
+    const key = protocolKey(i);
     const body = p.body.length > PROTOCOL_CHARS ? `${p.body.slice(0, PROTOCOL_CHARS)}\n…` : p.body;
     blocks.push(
       [`<source id="${key}" type="${p.kind}">`, `Title: ${p.title}`, `Version: ${p.version}`, "Text:", body.trim() === "" ? "(empty)" : body, "</source>"].join("\n"),
@@ -260,31 +275,68 @@ export function cacheKey(parts: readonly (string | number)[]): string {
   return createHash("sha256").update(JSON.stringify(parts)).digest("hex");
 }
 
+// The steps of one question, numbered as they start. Each is sent to the page when it starts
+// and again when it changes; the last version of each is what's saved with the answer.
+export class StepLog {
+  private readonly byId = new Map<number, AskStep>();
+  private next = 0;
+  constructor(private readonly emit: (event: AskEvent) => void = () => undefined) {}
+
+  nextId(): number {
+    return this.next++;
+  }
+
+  put(step: AskStep): void {
+    this.byId.set(step.id, step);
+    this.emit({ type: "step", step });
+  }
+
+  get steps(): AskStep[] {
+    return [...this.byId.values()].sort((a, b) => a.id - b.id);
+  }
+}
+
 export async function gatherSources({
   reads,
   embed,
   query,
   files = FILES_PER_QUESTION,
   protocols = PROTOCOLS_PER_QUESTION,
+  log = new StepLog(),
 }: {
   reads: AskReads;
   embed: (text: string) => Promise<EmbedOutcome>;
   query: string;
   files?: number;
   protocols?: number;
+  log?: StepLog;
 }): Promise<BuiltSources> {
+  // One search: the question's embedding, then files by words and meaning beside the
+  // matching protocols. Each file comes back with its best passages already picked.
+  const search = log.nextId();
+  log.put({ kind: "search", id: search, query, found: null });
   const outcome = await embed(query);
   const embedding = outcome.kind === "ok" ? outcome.embedding : null;
   const [rows, protocolRows] = await Promise.all([
     reads.context({ query, embedding, files }),
     protocols > 0 ? reads.protocols({ query, limit: protocols }) : Promise.resolve([]),
   ]);
+  log.put({ kind: "search", id: search, query, found: { files: rows.length, protocols: protocolRows.length, byMeaning: embedding !== null } });
+  rows.forEach((row, i) => log.put({ kind: "file", id: log.nextId(), source: fileKey(i), name: fileName(row), fileKind: row.file_kind }));
+  protocolRows.forEach((p, i) => log.put({ kind: "protocol", id: log.nextId(), source: protocolKey(i), title: p.title, version: p.version }));
+
+  // A spreadsheet's parsed tables, each one a step once it's read.
   const tables = new Map<string, DataTables>();
   await Promise.all(
-    rows.map(async (row) => {
+    rows.map(async (row, i) => {
       if (row.table_key === null) return;
       const doc = await reads.table(row.table_key);
-      if (doc !== null) tables.set(row.sha256, doc);
+      if (doc === null) return;
+      tables.set(row.sha256, doc);
+      const shown = renderTables(doc);
+      shown.tables.forEach((t, j) =>
+        log.put({ kind: "table", id: log.nextId(), source: fileKey(i), sheet: t.name, rows: t.rows, cells: shown.filled[j] ?? 0 }),
+      );
     }),
   );
   return buildSources({ files: rows, protocols: protocolRows, tables });
@@ -345,7 +397,8 @@ export async function askLab(deps: AskDeps, question: string, emit: (event: AskE
   const now = deps.now ?? (() => Date.now());
   const started = now();
   const modelId = deps.modelId ?? ANSWER_MODEL;
-  const built = await gatherSources({ reads: deps.reads, embed: deps.embed, query: question });
+  const log = new StepLog(emit);
+  const built = await gatherSources({ reads: deps.reads, embed: deps.embed, query: question, log });
   emit({ type: "sources", sources: built.sources });
 
   const finish = async (checked: CheckedAnswer, opts: { model: string | null; cached: boolean; call: ModelCall | null }) => {
@@ -363,6 +416,7 @@ export async function askLab(deps: AskDeps, question: string, emit: (event: AskE
       p_cached: opts.cached,
       p_latency_ms: latencyMs,
       p_call: opts.call,
+      p_steps: log.steps,
     });
     emit({
       type: "done",
@@ -386,6 +440,7 @@ export async function askLab(deps: AskDeps, question: string, emit: (event: AskE
     await deps.writer.cachedOutput({ p_lab_id: deps.labId, p_purpose: "answer", p_cache_key: key, p_model: modelId, p_prompt_version: ANSWER_PROMPT_VERSION }),
   );
   if (cached !== null) {
+    log.put({ kind: "write", id: log.nextId(), cached: true });
     const checked = checkAnswer(parseAnswer(cached.text), built.shown);
     for (const sentence of checked.answer.sentences) emit({ type: "sentence", sentence });
     await finish(checked, { model: modelId, cached: true, call: null });
@@ -398,6 +453,7 @@ export async function askLab(deps: AskDeps, question: string, emit: (event: AskE
     return;
   }
 
+  log.put({ kind: "write", id: log.nextId(), cached: false });
   const stream = new SentenceStream();
   let reply: JsonReply;
   try {

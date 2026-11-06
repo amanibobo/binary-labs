@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { AskEvent, checkAnswer, looksLikeQuestion, normalizeCell, SentenceStream } from "../answers";
+import { AskEvent, checkAnswer, looksLikeQuestion, normalizeCell, SentenceStream, type AskStep } from "../answers";
 import { askLab, buildSources, cacheKey, normalizeQuestion, type AnswerWriter, type AskReads, type ContextRow, type ModelCall, type RecordAnswerArgs } from "../ask";
 import type { DataTables } from "../data-tables";
 import { ColumnId, LabId, LocationId, ProtocolId, ProtocolVersionId, Sha256, SourceId, UserId, QuestionId } from "../ids";
 import { ModelUnavailable } from "../json-model";
+import type { EmbedOutcome } from "../search";
 import { foldDiff, lineDiff } from "../suggestions";
 import { fakeJsonModel } from "./fake-model";
 
@@ -146,12 +147,18 @@ describe("reading the reply as it streams", () => {
 
 describe("asking", () => {
   type Recorded = RecordAnswerArgs;
-  function harness({ cached = null, spent = 0, cap = 25, files = built() }: { cached?: ModelCall["output"] | null; spent?: number; cap?: number; files?: ReturnType<typeof built> | null } = {}) {
+  function harness({
+    cached = null,
+    spent = 0,
+    cap = 25,
+    files = built(),
+    tableMissing = false,
+  }: { cached?: ModelCall["output"] | null; spent?: number; cap?: number; files?: ReturnType<typeof built> | null; tableMissing?: boolean } = {}) {
     const recorded: Recorded[] = [];
     const reads: AskReads = {
       context: async () => (files === null ? [] : [fileRow("a", "/P450/batch3/notes.txt", "Batch 3 lysed on ice, 30 min."), fileRow("b", "/P450/yields.xlsx", "", "tables/b.json")]),
       protocols: async () => (files === null ? [] : [protocol]),
-      table: async () => yields,
+      table: async () => (tableMissing ? null : yields),
       budget: async () => ({ capUsd: cap, spentUsd: spent, resetsAt: "2026-12-01T00:00:00Z" }),
     };
     const writer: AnswerWriter = {
@@ -169,16 +176,114 @@ describe("asking", () => {
   }
   const reply = { sentences: [{ text: "Batch 3 gave 5.2 mg.", citations: [{ source: "F2", cell: "Yields!B3" }] }, { text: "Made up.", citations: [{ source: "F8", cell: null }] }] };
 
-  async function run(h: ReturnType<typeof harness>, model = fakeJsonModel(() => reply)) {
+  const noEmbed = async (): Promise<EmbedOutcome> => ({ kind: "failed", reason: "embed_unconfigured" });
+  async function run(h: ReturnType<typeof harness>, model = fakeJsonModel(() => reply), embed = noEmbed) {
     const events: AskEvent[] = [];
-    await askLab({ labId: lab, userId: user, reads: h.reads, writer: h.writer, model, embed: async () => ({ kind: "failed", reason: "embed_unconfigured" }), now: () => 0 }, "What was the yield of batch 3?", (e) => events.push(AskEvent.parse(e)));
+    await askLab({ labId: lab, userId: user, reads: h.reads, writer: h.writer, model, embed, now: () => 0 }, "What was the yield of batch 3?", (e) => events.push(AskEvent.parse(e)));
     return { events, model };
   }
+  const stepsOf = (events: AskEvent[]): AskStep[] => events.flatMap((e) => (e.type === "step" ? [e.step] : []));
+  // Each step as kind plus what it names, in the order sent.
+  const brief = (steps: AskStep[]) =>
+    steps.map((s) => {
+      switch (s.kind) {
+        case "search":
+          return s.found === null ? "search running" : `search found ${s.found.files} files, ${s.found.protocols} protocols${s.found.byMeaning ? "" : ", words only"}`;
+        case "file":
+          return `file ${s.source} ${s.name}`;
+        case "protocol":
+          return `protocol ${s.source} ${s.title} v${s.version}`;
+        case "table":
+          return `table ${s.source} ${s.sheet} ${s.rows} rows ${s.cells} cells`;
+        case "write":
+          return s.cached ? "write from cache" : "write";
+        default: {
+          const _exhaustive: never = s;
+          return _exhaustive;
+        }
+      }
+    });
+
+  describe("the steps behind an answer", () => {
+    it("sends each real step in order: the search, the files, the protocol, the table, then the writing", async () => {
+      const { events } = await run(harness());
+      expect(brief(stepsOf(events))).toEqual([
+        "search running",
+        "search found 2 files, 1 protocols, words only",
+        "file F1 notes.txt",
+        "file F2 yields.xlsx",
+        "protocol P1 SEC run v3",
+        "table F2 Yields 3 rows 6 cells",
+        "write",
+      ]);
+      // The steps come before the sources they read, and the writing before the first sentence.
+      const types = events.map((e) => (e.type === "step" ? `step:${e.step.kind}` : e.type));
+      expect(types.indexOf("sources")).toBeGreaterThan(types.lastIndexOf("step:table"));
+      expect(types.indexOf("step:write")).toBeLessThan(types.indexOf("sentence"));
+    });
+
+    it("sends the search twice under one id, and numbers the rest as they start", async () => {
+      const steps = stepsOf((await run(harness())).events);
+      const [running, found] = steps;
+      expect(running?.id).toBe(found?.id);
+      const ids = steps.slice(1).map((s) => s.id);
+      expect(ids).toEqual([...ids].sort((a, b) => a - b));
+      expect(new Set(ids).size).toBe(ids.length);
+    });
+
+    it("says the search used meaning when the question's embedding came back", async () => {
+      const { events } = await run(harness(), undefined, async () => ({ kind: "ok", embedding: [0.1, 0.2] }));
+      expect(stepsOf(events)[1]).toMatchObject({ kind: "search", found: { byMeaning: true } });
+    });
+
+    it("shows no table it couldn't read", async () => {
+      const { events } = await run(harness({ tableMissing: true }));
+      expect(stepsOf(events).some((s) => s.kind === "table")).toBe(false);
+    });
+
+    it("shows no reads and no writing when nothing in the lab matched", async () => {
+      const h = harness({ files: null });
+      const { events } = await run(h);
+      expect(brief(stepsOf(events))).toEqual(["search running", "search found 0 files, 0 protocols, words only"]);
+      expect(h.recorded[0]?.p_steps.map((s) => s.kind)).toEqual(["search"]);
+    });
+
+    it("shows no writing when the month's cap stops the question", async () => {
+      const { events } = await run(harness({ spent: 30, cap: 25 }));
+      expect(stepsOf(events).some((s) => s.kind === "write")).toBe(false);
+    });
+
+    it("on a cache hit, reads the same sources and says the answer was saved before", async () => {
+      const h = harness({ cached: { text: JSON.stringify(reply), stop_reason: "end_turn" } });
+      const { events, model } = await run(h);
+      expect(model.calls).toHaveLength(0);
+      expect(brief(stepsOf(events)).slice(-2)).toEqual(["table F2 Yields 3 rows 6 cells", "write from cache"]);
+      expect(h.recorded[0]?.p_steps.at(-1)).toMatchObject({ kind: "write", cached: true });
+    });
+
+    it("saves the last version of each step with the answer, in order", async () => {
+      const h = harness();
+      const { events } = await run(h);
+      const saved = h.recorded[0]?.p_steps ?? [];
+      expect(saved.map((s) => s.id)).toEqual([0, 1, 2, 3, 4, 5]);
+      expect(saved[0]).toMatchObject({ kind: "search", found: { files: 2, protocols: 1 } });
+      expect(saved).toEqual(stepsOf(events).slice(1));
+    });
+
+    it("keeps the writing step when the model can't be reached, and saves nothing", async () => {
+      const h = harness();
+      const down = Object.assign({ stream: async () => Promise.reject(new ModelUnavailable("overloaded", true)) }, { calls: [] });
+      const { events } = await run(h, down);
+      expect(stepsOf(events).at(-1)).toMatchObject({ kind: "write", cached: false });
+      expect(events.at(-1)).toMatchObject({ type: "failed" });
+      expect(h.recorded).toHaveLength(0);
+    });
+  });
 
   it("streams checked sentences, then saves the answer with its paid call", async () => {
     const h = harness();
     const { events, model } = await run(h);
-    expect(events.map((e) => e.type)).toEqual(["sources", "sentence", "done"]);
+    expect(events.filter((e) => e.type !== "step").map((e) => e.type)).toEqual(["sources", "sentence", "done"]);
     expect(model.calls).toHaveLength(1);
     expect(model.calls[0]?.user).toContain("Question: What was the yield of batch 3?");
     const saved = h.recorded[0];
@@ -201,7 +306,7 @@ describe("asking", () => {
     const h = harness({ spent: 25.01, cap: 25 });
     const { events, model } = await run(h);
     expect(model.calls).toHaveLength(0);
-    expect(events.map((e) => e.type)).toEqual(["sources", "limit"]);
+    expect(events.filter((e) => e.type !== "step").map((e) => e.type)).toEqual(["sources", "limit"]);
     expect(h.recorded).toHaveLength(0);
   });
 
