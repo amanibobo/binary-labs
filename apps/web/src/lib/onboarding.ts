@@ -267,7 +267,7 @@ export const HINTS: readonly Hint[] = [
   {
     id: "check-this",
     anchor: '[data-hint~="check-this"]',
-    text: "Check this means we're not sure about this label. Open the file to say it looks right, or fix it under Labels.",
+    text: "Check this means these labels were a guess. Open the file to confirm them, or fix what's wrong under Labels.",
     coarseOnly: false,
   },
   {

@@ -67,6 +67,7 @@ export function FileResult({
         <button
           type="button"
           data-row-toggle
+          aria-keyshortcuts="ArrowUp ArrowDown Home End"
           aria-expanded={expanded}
           aria-controls={panelId}
           onClick={onToggle}

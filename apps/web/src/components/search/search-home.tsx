@@ -244,7 +244,7 @@ function SearchResults({
         <h2 id={headingId} className="text-label-small text-content-tertiary" aria-live="polite">
           {count === 0 ? `No ${noun[1]}` : count === 1 ? `1 ${noun[0]}` : `${count} ${noun[1]}`}
         </h2>
-        {data.kind === "keyword" ? <p className="text-paragraph-xsmall text-content-tertiary">Showing exact word matches only right now.</p> : null}
+        {data.kind === "keyword" ? <p className="text-paragraph-xsmall text-content-tertiary">Showing exact word matches only right now.</p> : <KeysHint />}
       </div>
       {count === 0 ? (
         <p className="px-3 pt-2 text-paragraph-medium text-content-secondary">
@@ -258,6 +258,15 @@ function SearchResults({
         </ul>
       )}
     </div>
+  );
+}
+
+// For keyboards only: says once, quietly, that the rows answer the arrow keys.
+function KeysHint() {
+  return (
+    <p className="text-paragraph-xsmall text-content-tertiary max-md:hidden pointer-coarse:hidden" aria-hidden>
+      ↑ ↓ to move, Enter opens, Esc closes
+    </p>
   );
 }
 
@@ -322,9 +331,12 @@ function RecentFiles({
   }
   return (
     <>
-      <h2 id={headingId} className="mb-1 px-3 text-label-small text-content-tertiary">
-        Recent files
-      </h2>
+      <div className="mb-1 flex items-baseline justify-between gap-4 px-3">
+        <h2 id={headingId} className="text-label-small text-content-tertiary">
+          Recent files
+        </h2>
+        <KeysHint />
+      </div>
       <ul data-tour="results" className="space-y-1">
         {recent.map((hit) => (
           <FileResult key={hit.sha256} hit={hit} query="" expanded={expanded === hit.sha256} onToggle={() => onToggle(hit.sha256)} />

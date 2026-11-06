@@ -74,7 +74,7 @@ export function SummaryLine({
     case "unlabeled":
       return null;
     case "needs_look":
-      return <span className="mt-0.5 block text-paragraph-small text-content-tertiary">Needs a look: say what this is</span>;
+      return <span className="mt-0.5 block text-paragraph-small text-content-tertiary">Not labeled yet, so it&apos;s in Needs a look</span>;
     case "labeled": {
       const count = tagCount(summary.tags.length);
       if (summary.facts.length === 0 && count === null) return null;
@@ -91,7 +91,7 @@ export function SummaryLine({
                 onClick={onToggleTags}
                 className={cn(
                   interactive,
-                  "-mx-1 inline-flex shrink-0 items-center gap-0.5 rounded-md px-1 text-content-tertiary transition-colors duration-150 ease-out hover:bg-background-tertiary hover:text-content-primary max-sm:after:absolute max-sm:after:-inset-y-3 max-sm:after:inset-x-0",
+                  "-mx-1 inline-flex shrink-0 items-center gap-0.5 rounded-md px-1 text-content-secondary underline decoration-content-tertiary decoration-dotted underline-offset-4 transition-colors duration-150 ease-out hover:bg-background-tertiary hover:text-content-primary max-sm:after:absolute max-sm:after:-inset-y-3 max-sm:after:inset-x-0",
                 )}
               >
                 {count}
@@ -188,16 +188,19 @@ export function LabelsSection({ hit, className }: { hit: FileHit; className?: st
       <h3 id={headingId} className="text-label-medium text-content-primary">
         Labels
       </h3>
+      <p className="mt-0.5 text-paragraph-xsmall text-content-tertiary">Click any value to change it. Enter saves, and you can undo.</p>
       {check ? (
-        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2">
-          <span className="text-paragraph-small text-content-secondary">We&apos;re not sure about this label.</span>
+        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg bg-background-warning px-3 py-2">
+          <span className="text-paragraph-small text-content-warning">
+            Check this: these labels were a guess. Fix any that are wrong, or confirm them all.
+          </span>
           <button
             type="button"
             onClick={() => labels.accept(hit)}
             className={cn(buttonVariants({ variant: "secondary", size: "compact" }), "gap-1 pl-2")}
           >
             <CheckIcon className="size-4" />
-            Looks right
+            All look right
           </button>
         </div>
       ) : null}
