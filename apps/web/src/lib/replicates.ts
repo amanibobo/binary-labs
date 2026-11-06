@@ -257,7 +257,11 @@ export function sourcesFor(table: DataTable): Source[] {
     break;
   }
   const measures = numberColumns(table).filter((c) => !isIndex(c) && !isSpreadColumn(c) && !isMeanColumn(c) && !used.has(c.id));
-  if (text.length === 0 && reps.length === 0 && measures.length >= 1 && table.rows <= 1000) {
+  // Columns as groups: a short sheet of numbers only, no dates or names ("Control | Knockdown"),
+  // or one long column of values to count.
+  const dated = table.columns.some((c) => c.kind === "date");
+  const fits = measures.length === 1 ? table.rows <= 100_000 : table.rows <= 100;
+  if (text.length === 0 && !dated && reps.length === 0 && measures.length >= 1 && fits) {
     const first = measures[0];
     const isAxis = measures.length >= 2 && rises(first);
     if (!isAxis) out.push({ kind: "columns", columns: measures.slice(0, 24).map((c) => c.id) });

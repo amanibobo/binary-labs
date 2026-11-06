@@ -298,7 +298,8 @@ function rawSuggestions(data: ChartData): KindSuggestion[] {
       out.push({ kind: "histogram", reason: `${plural(count, "value")} of ${many.name}, so a histogram shows how they're spread.` });
       out.push({ kind: "box", reason: "A box plot shows the middle half and the spread, with every value." });
     }
-    if (pair !== null && plate === null && startKind(data, "scatter") !== null) {
+    const named = data.table.columns.some((c) => c.kind === "text" || c.kind === "date");
+    if (pair !== null && plate === null && !named && startKind(data, "scatter") !== null) {
       const g = groupsOf(data.table, pair);
       if (g.groups.length <= 200) {
         out.push({ kind: "scatter", reason: `Each row pairs ${g.key.name} with ${g.measure.name}, so a scatter with a fitted line shows how they relate, with its R².` });

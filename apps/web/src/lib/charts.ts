@@ -687,7 +687,7 @@ export const ChartRow = z
     title: z.string(),
     spec: ChartSpec,
     protocol_id: ProtocolId.nullable(),
-    protocol_version_id: ProtocolVersionId.nullable(),
+    protocol_version_id: ProtocolVersionId.nullable().default(null),
     created_by: UserId.nullable(),
     created_at: z.string(),
     updated_at: z.string(),

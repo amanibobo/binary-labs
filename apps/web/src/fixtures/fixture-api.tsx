@@ -14,7 +14,9 @@ import { protocolHits, purification, purificationTheirs } from "./protocols";
 import { fixtureUploadTalkThrough, fixtureApplyTalkThrough, talkThrough as fixtureTalkThrough } from "./talk-throughs";
 import { createFixtureUploads } from "./uploads";
 import { createFixtureVideoUploads, FIXTURE_VIDEO, fixtureVideoSources, pageVideos } from "./videos";
-import { chartsOf, fixtureTable, savedCharts } from "./charts";
+import { chartsOf, fixtureTable, savedCharts, savedLayouts } from "./charts";
+import { LayoutId } from "@/lib/ids";
+import { SaveLayoutRequest, type SavedLayout } from "@/lib/layouts";
 import { fixtureHubFiles, fixtureLab, fixtureLocal, type LabSize } from "./map";
 import { ChartId, UserId } from "@/lib/ids";
 import { CreateChartRequest, SaveChartRequest } from "@/lib/charts";
@@ -71,6 +73,7 @@ export function FixtureLabApi({
 }) {
   const [uploads] = useState(() => createFixtureUploads({ earlier: earlierUploads }));
   const [videoUploads] = useState(createFixtureVideoUploads);
+  const [layoutStore] = useState(() => [...savedLayouts]);
   const [map] = useState(() => (mapSize === null ? null : fixtureLab(mapSize)));
   const [labels] = useState(() =>
     createFixtureLabels({ initial: [...searchHits, ...recentFiles, ...needsLookFiles], later: laterLabels }),
@@ -159,7 +162,31 @@ export function FixtureLabApi({
       const now = new Date().toISOString();
       const id = ChartId.parse("8c1c2c39-5a4e-4c55-9d7b-0c3c1a7c9999");
       const createdBy = UserId.parse("00000000-0000-4000-8000-00000000000a");
-      return { ...CreateChartRequest.parse(req), id, createdBy, createdAt: now, updatedAt: now };
+      return { ...CreateChartRequest.parse(req), id, protocolVersionId: null, createdBy, createdAt: now, updatedAt: now };
+    },
+    layouts: async (signal) => {
+      await wait(80, signal);
+      return [...layoutStore];
+    },
+    saveLayout: async (req) => {
+      await wait(150);
+      const r = SaveLayoutRequest.parse(req);
+      const saved: SavedLayout = { id: LayoutId.parse(`9d1c2c39-5a4e-4c55-9d7b-0c3c1a7d${String(layoutStore.length + 10).padStart(4, "0")}`), ...r, updatedAt: new Date().toISOString() };
+      layoutStore.unshift(saved);
+      return saved;
+    },
+    updateLayout: async (id, req) => {
+      await wait(150);
+      const r = SaveLayoutRequest.parse(req);
+      const saved: SavedLayout = { id, ...r, updatedAt: new Date().toISOString() };
+      const i = layoutStore.findIndex((l) => l.id === id);
+      if (i >= 0) layoutStore.splice(i, 1, saved);
+      return saved;
+    },
+    deleteLayout: async (id) => {
+      await wait(100);
+      const i = layoutStore.findIndex((l) => l.id === id);
+      if (i >= 0) layoutStore.splice(i, 1);
     },
     saveChart: async (id, req) => {
       await wait(200);

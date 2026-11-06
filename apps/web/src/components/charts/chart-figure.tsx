@@ -2,7 +2,7 @@
 import { Popover } from "radix-ui";
 import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
 import { cn } from "@/lib/cn";
-import { isHeatmap, type ChartSpec, type HeatmapSpec, type XYSpec } from "@/lib/charts";
+import { isHeatmap, isXY, type ChartSpec, type HeatmapSpec, type XYSpec } from "@/lib/charts";
 import { formatValue, LABEL_FONT, plotChart, pointAt, textWidth, TICK_FONT, xLabel, type Plot, type Point } from "@/lib/chart-geometry";
 import { cellText, columnLabel, findColumn, rowsNote, type DataColumn, type DataTable } from "@/lib/data-tables";
 import type { LabelTarget } from "@/lib/chart-edits";
@@ -13,6 +13,7 @@ import { PencilIcon } from "../icons/drawn";
 import { menuSurface } from "../ui/menu";
 import { Button } from "../ui/button";
 import { ChartSvg, DASH, PlateSvg, SCREEN_INK } from "./chart-svg";
+import { SummaryFigure } from "./summary-figure";
 
 const HIT = 24;
 // How far from the pointer a series with its own x still counts as there.
@@ -40,6 +41,7 @@ export type FigureEdit = {
 export function ChartFigure({
   spec,
   table,
+  tables,
   label,
   className,
   edit,
@@ -47,20 +49,20 @@ export function ChartFigure({
 }: {
   spec: ChartSpec;
   table: DataTable;
+  // The file's other tables, for a standard curve that reads its samples from another sheet.
+  tables?: readonly DataTable[];
   label: string;
   className?: string;
   edit?: FigureEdit;
   // A line under the chart, beside "Show the numbers".
   hint?: ReactNode;
 }) {
-  return isHeatmap(spec) ? (
-    <PlateFigure spec={spec} table={table} label={label} className={className} edit={edit} hint={hint} />
-  ) : (
-    <XYFigure spec={spec} table={table} label={label} className={className} edit={edit} hint={hint} />
-  );
+  if (isHeatmap(spec)) return <PlateFigure spec={spec} table={table} label={label} className={className} edit={edit} hint={hint} />;
+  if (isXY(spec)) return <XYFigure spec={spec} table={table} label={label} className={className} edit={edit} hint={hint} />;
+  return <SummaryFigure spec={spec} table={table} tables={tables ?? [table]} label={label} className={className} edit={edit} hint={hint} />;
 }
 
-type LabelBox = { target: LabelTarget; text: string; name: string; style: CSSProperties; rotate: boolean; input: CSSProperties };
+export type LabelBox = { target: LabelTarget; text: string; name: string; style: CSSProperties; rotate: boolean; input: CSSProperties };
 
 const keyOf = (t: LabelTarget) => (t.kind === "series" ? `series-${t.column}` : t.kind);
 
@@ -142,7 +144,7 @@ function plateLabels(plot: PlatePlot): LabelBox[] {
 
 // The renameable words over a chart: each shows a pencil on hover and turns into a text field
 // when clicked; Enter or leaving keeps the change, Escape drops it.
-function EditableLabels({ labels, edit }: { labels: readonly LabelBox[]; edit: FigureEdit }) {
+export function EditableLabels({ labels, edit }: { labels: readonly LabelBox[]; edit: FigureEdit }) {
   const [editing, setEditing] = useState<string | null>(null);
   return (
     <>
@@ -244,7 +246,7 @@ function MarkPopover({ at, onClose, children }: { at: { x: number; y: number } |
   );
 }
 
-function useWidth(): [React.RefObject<HTMLDivElement | null>, number | null] {
+export function useWidth(): [React.RefObject<HTMLDivElement | null>, number | null] {
   const box = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState<number | null>(null);
   useEffect(() => {
@@ -273,7 +275,7 @@ function Caption({ notes, hint, showTable, onToggle }: { notes: string[]; hint?:
   );
 }
 
-function Frame({
+export function Frame({
   box,
   height,
   label,

@@ -1,5 +1,5 @@
 import { axisText, splitAxisText } from "./chart-guide";
-import { MAX_SERIES, nextStyle, type ChartSpec, type HeatmapSpec, type Series, type SeriesColor, type Stroke, type XYSpec } from "./charts";
+import { isXY, MAX_SERIES, nextStyle, type ChartSpec, type HeatmapSpec, type Series, type SeriesColor, type Stroke, type XYSpec } from "./charts";
 import { findColumn, spreadFor, type DataColumn, type DataTable } from "./data-tables";
 import type { ColumnId } from "./ids";
 
@@ -96,6 +96,11 @@ export function setErrorBars(spec: XYSpec, table: DataTable, on: boolean): XYSpe
 
 // The text a label edits in place, units included.
 export function labelText(spec: ChartSpec, target: LabelTarget): string {
+  if (!isXY(spec) && spec.type !== "heatmap") {
+    if (target.kind === "x") return "unit" in spec.x ? axisText(spec.x.title, spec.x.unit) : spec.x.title;
+    if (target.kind === "y") return "unit" in spec.y ? axisText(spec.y.title, spec.y.unit) : spec.y.title;
+    return "";
+  }
   switch (target.kind) {
     case "x":
       return spec.type === "heatmap" ? "" : axisText(spec.x.title, spec.x.unit);
@@ -118,6 +123,20 @@ export function rename(spec: ChartSpec, table: DataTable, target: LabelTarget, t
   const parts = splitAxisText(text.slice(0, 80));
   const unit = parts.unit.slice(0, 24);
   if (spec.type === "heatmap") return target.kind === "value" ? renameValue(spec, parts.title, unit) : spec;
+  if (!isXY(spec)) {
+    // A chart of repeats: its two axis titles. A bar chart of groups names its bottom only.
+    const whole = text.trim().slice(0, 80);
+    if (target.kind === "x") {
+      if (spec.type === "groups") return { ...spec, x: { title: whole } };
+      if (spec.type === "histogram") return { ...spec, x: { ...spec.x, title: parts.title, unit } };
+      return { ...spec, x: { ...spec.x, title: parts.title, unit } };
+    }
+    if (target.kind === "y") {
+      if (spec.type === "histogram") return { ...spec, y: { title: whole } };
+      return { ...spec, y: { ...spec.y, title: parts.title, unit } };
+    }
+    return spec;
+  }
   switch (target.kind) {
     case "x": {
       const isDate = findColumn(table, spec.x.column)?.kind === "date";

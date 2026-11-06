@@ -6,7 +6,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { ChartSvg, EXPORT_INK, PlateSvg } from "@/components/charts/chart-svg";
-import { ChartRows, ChartSpec, checkSpec } from "../charts";
+import { ChartRows, ChartSpec, checkSpec, isXY } from "../charts";
 import { startingChart } from "../chart-guide";
 import { plotChart } from "../chart-geometry";
 import { plotPlate } from "../plate-geometry";
@@ -85,6 +85,7 @@ describe.runIf(env.success)("a chart from a processed file, through the routes' 
 
         // The ELISA list starts as a plate heatmap; the rest as x/y charts.
         expect(spec.type === "heatmap").toBe(file.name.startsWith("ELISA"));
+        if (spec.type !== "heatmap" && !isXY(spec)) throw new Error("not a column chart");
         const svg =
           spec.type === "heatmap"
             ? renderToStaticMarkup(
