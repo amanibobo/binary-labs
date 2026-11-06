@@ -33,7 +33,7 @@ def worker(monkeypatch):
     async def open_async():
         yield app
 
-    monkeypatch.setattr(cli, "load_settings", lambda: argparse.Namespace(database_url="x"))
+    monkeypatch.setattr(cli, "load_checked_settings", lambda: argparse.Namespace(database_url="x"))
     monkeypatch.setattr(runtime, "build_runtime", lambda *_a, **_k: FakeRuntime())
     monkeypatch.setattr(app, "replace_connector", lambda _c: contextlib.nullcontext())
     monkeypatch.setattr(app, "open_async", open_async)

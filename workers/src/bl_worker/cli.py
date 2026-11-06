@@ -5,17 +5,20 @@ import logging
 from pathlib import Path
 from uuid import UUID
 
-from bl_worker.config import load_settings
+from bl_worker.config import load_checked_settings, load_settings
 
 
 def cmd_migrate(args: argparse.Namespace) -> None:
     from bl_worker.db import migrate
 
-    applied = migrate(load_settings().database_url, test_stub=args.test_stub)
+    applied = migrate(load_checked_settings().database_url, test_stub=args.test_stub)
     print("applied: " + (", ".join(applied) if applied else "nothing, up to date"))
 
 
 def cmd_worker(args: argparse.Namespace) -> None:
+    # Before anything else, so a bad environment is the one thing in the log.
+    settings = load_checked_settings()
+
     import asyncio
     import signal
     import time
@@ -25,7 +28,6 @@ def cmd_worker(args: argparse.Namespace) -> None:
     from bl_worker.jobs import app
     from bl_worker.runtime import build_runtime
 
-    settings = load_settings()
     log = logging.getLogger("bl_worker.cli")
     stop_requested = False
 
@@ -95,7 +97,7 @@ def cmd_serve_embed(args: argparse.Namespace) -> None:
     from bl_worker.embed import build_embedder
     from bl_worker.embed_api import create_app
 
-    settings = load_settings()
+    settings = load_checked_settings()
     if settings.embed_api_key is None:
         raise SystemExit("EMBED_API_KEY is required for serve-embed")
     app = create_app(
