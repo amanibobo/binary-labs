@@ -9,6 +9,7 @@ import type { TagRef } from "@/lib/label-edit";
 import { tagCount, type RowSummary } from "@/lib/row-summary";
 import { CheckIcon, PlusIcon } from "../icons/base-web";
 import { ChevronSmallIcon, PencilIcon } from "../icons/drawn";
+import { buttonVariants } from "../ui/button";
 import { InlineEdit } from "./inline-edit";
 import { useLabels, useLabLists } from "./labels-context";
 
@@ -78,8 +79,8 @@ export function SummaryLine({
       const count = tagCount(summary.tags.length);
       if (summary.facts.length === 0 && count === null) return null;
       return (
-        <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-paragraph-small text-content-secondary">
-          {summary.facts.length === 0 ? null : <span className="truncate">{summary.facts.join(" · ")}</span>}
+        <span className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 text-paragraph-small text-content-secondary sm:flex-nowrap">
+          {summary.facts.length === 0 ? null : <span className="min-w-0 sm:truncate">{summary.facts.join(" · ")}</span>}
           {count === null ? null : (
             <>
               {summary.facts.length === 0 ? null : <span aria-hidden>·</span>}
@@ -161,6 +162,7 @@ export function LabelsSection({ hit, className }: { hit: FileHit; className?: st
         <dl className={fieldGrid}>
           <Field name="Name">
             <EditableValue
+              field="Name"
               initial=""
               empty="Say what this is"
               inputLabel={`Name for ${original}`}
@@ -192,7 +194,7 @@ export function LabelsSection({ hit, className }: { hit: FileHit; className?: st
           <button
             type="button"
             onClick={() => labels.accept(hit)}
-            className="inline-flex min-h-11 items-center gap-1 rounded-control px-2 text-label-small text-content-primary ring-1 ring-border-opaque transition-colors duration-150 ease-out ring-inset hover:bg-button-secondary-hover sm:min-h-7"
+            className={cn(buttonVariants({ variant: "secondary", size: "compact" }), "gap-1 pl-2")}
           >
             <CheckIcon className="size-4" />
             Looks right
@@ -202,6 +204,7 @@ export function LabelsSection({ hit, className }: { hit: FileHit; className?: st
       <dl className={fieldGrid}>
         <Field name="Name">
           <EditableValue
+            field="Name"
             initial={label.cleanName}
             empty="Add a name"
             inputLabel={`Name for ${original}`}
@@ -214,6 +217,7 @@ export function LabelsSection({ hit, className }: { hit: FileHit; className?: st
           return (
             <Field key={ref.kind} name={field}>
               <EditableValue
+                field={field}
                 initial={value ?? ""}
                 empty={`Add ${field.toLowerCase()}`}
                 inputLabel={field}
@@ -288,6 +292,7 @@ function Field({ name, children }: { name: string; children: ReactNode }) {
 // One fact to click and type over. Empty reads "Add experiment" in the quiet color, and a
 // pencil shows on hover and focus so it reads as editable.
 function EditableValue({
+  field,
   initial,
   empty,
   inputLabel,
@@ -297,6 +302,7 @@ function EditableValue({
   onRemove,
   removeLabel,
 }: {
+  field: string;
   initial: string;
   empty: string;
   inputLabel: string;
@@ -326,7 +332,7 @@ function EditableValue({
         <>
           <span className="truncate">{blank ? empty : initial}</span>
           <PencilIcon className="size-3.5 shrink-0 text-content-tertiary opacity-0 transition-opacity duration-150 ease-out group-hover/value:opacity-100 group-focus-visible/value:opacity-100 pointer-coarse:opacity-100" />
-          <span className="sr-only">, edit {inputLabel.toLowerCase()}</span>
+          <span className="sr-only">, edit {field.toLowerCase()}</span>
         </>
       }
     />

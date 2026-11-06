@@ -8,8 +8,7 @@ import { folderOf, formatDay, matchLine, openTarget, otherPlacesLine } from "@/l
 import { isRowKey, rowStep } from "@/lib/row-keys";
 import { rowSummary } from "@/lib/row-summary";
 import { cn } from "@/lib/cn";
-import { useLabApi } from "../lab-api";
-import { KindIcon } from "../files/kind-icon";
+import { FileThumb } from "../files/file-thumb";
 import { PreviewPanel } from "../files/preview-panel";
 import { CheckMark, LabelsSection, RowName, SummaryLine, TagList } from "../labels/file-label";
 import { useLabels } from "../labels/labels-context";
@@ -82,7 +81,7 @@ export function FileResult({
             {check ? ", check this label" : ""}
           </span>
         </button>
-        <Thumb hit={hit} />
+        <FileThumb hit={hit} />
         <span data-tour="label" className="pointer-events-none relative min-w-0 flex-1">
           <span className="flex min-w-0 items-start gap-2">
             <RowName hit={hit} label={label} />
@@ -167,22 +166,4 @@ function moveBetweenRows(e: KeyboardEvent<HTMLButtonElement>) {
       box.focus();
     }
   }
-}
-
-// 48px on phones, 56px from sm up. Files without a preview get their kind icon in the same frame,
-// so every row's text starts at the same edge.
-function Thumb({ hit }: { hit: FileHit }) {
-  const api = useLabApi();
-  const frame = "pointer-events-none relative size-12 shrink-0 overflow-hidden rounded-lg border border-border-opaque sm:size-14";
-  if (hit.hasPreview) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element -- previews are short-lived presigned redirects
-      <img src={api.previewUrl(hit.sha256, { view: false })} alt="" loading="lazy" className={cn(frame, "bg-background-secondary object-cover object-top")} />
-    );
-  }
-  return (
-    <span className={cn(frame, "grid place-items-center bg-background-raised")}>
-      <KindIcon kind={hit.fileKind} />
-    </span>
-  );
 }

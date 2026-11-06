@@ -162,7 +162,7 @@ function TablePreview({ table, sheets, query }: { table: DataTable; sheets: numb
           <thead className="sticky top-0 bg-background-primary">
             <tr className="border-b border-border-opaque">
               {slice.columns.map((column) => (
-                <th key={column.id} scope="col" className="px-3 py-2 text-left font-medium whitespace-nowrap text-content-secondary">
+                <th key={column.id} scope="col" className="px-2.5 py-2 text-left font-medium whitespace-nowrap text-content-secondary">
                   {columnLabel(column)}
                 </th>
               ))}
@@ -172,7 +172,7 @@ function TablePreview({ table, sheets, query }: { table: DataTable; sheets: numb
             {Array.from({ length: slice.rows }, (_, row) => (
               <tr key={row}>
                 {slice.columns.map((column) => (
-                  <td key={column.id} className={cn("px-3 py-1 whitespace-nowrap text-content-primary", column.kind === "number" && "font-mono")}>
+                  <td key={column.id} className={cn("px-2.5 py-1 whitespace-nowrap text-content-primary", column.kind === "number" && "font-mono")}>
                     <Highlighted text={cellText(column, row, formatNumber)} query={query} />
                   </td>
                 ))}

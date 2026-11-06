@@ -2,8 +2,8 @@
 
 import { AnimatePresence, motion } from "motion/react";
 import { useId, useState } from "react";
-import { KindIcon } from "@/components/files/kind-icon";
-import { useLabApi } from "@/components/lab-api";
+import { FileThumb } from "@/components/files/file-thumb";
+import { When } from "@/components/ui/when";
 import { LabelsProvider, useLabels } from "@/components/labels/labels-context";
 import { dataRow, dataSurface } from "@/components/ui/data-table";
 import { Input } from "@/components/ui/field";
@@ -57,7 +57,6 @@ function Queue({ files }: { files: LabeledFileHit[] }) {
 }
 
 function QueueRow({ file }: { file: LabeledFileHit }) {
-  const api = useLabApi();
   const labels = useLabels();
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -65,27 +64,17 @@ function QueueRow({ file }: { file: LabeledFileHit }) {
   const [primary] = file.locations;
 
   return (
+    // The search row's shape: the preview square on the left, then the name and where it lives.
     <div className="flex items-start gap-4 py-4 pr-4 pl-4 sm:pr-5 sm:pl-5">
-      <KindIcon kind={file.fileKind} className="mt-0.5" />
+      <FileThumb hit={file} />
       <div className="min-w-0 flex-1">
-        <div className="flex items-start gap-3">
-          <div className="min-w-0 flex-1">
-            <p className="truncate font-mono text-label-medium text-content-primary">{primary.originalName}</p>
-            <p className="mt-1 truncate font-mono text-paragraph-xsmall text-content-tertiary">{folderOf(primary)}</p>
-            {file.snippet !== null && file.fileKind !== "image" ? (
-              <p className="mt-2 line-clamp-2 text-paragraph-small text-content-secondary">{file.snippet}</p>
-            ) : null}
-          </div>
-          {file.hasPreview ? (
-            // eslint-disable-next-line @next/next/no-img-element -- previews are short-lived presigned redirects
-            <img
-              src={api.previewUrl(file.sha256, { view: false })}
-              alt={`Preview of ${primary.originalName}`}
-              loading="lazy"
-              className="size-14 shrink-0 rounded-lg border border-border-opaque bg-background-secondary object-cover sm:size-16"
-            />
-          ) : null}
-        </div>
+        <p className="truncate font-mono text-label-medium text-content-primary">{primary.originalName}</p>
+        <p className="mt-0.5 truncate font-mono text-paragraph-xsmall text-content-tertiary">
+          {folderOf(primary)} · <When iso={primary.modifiedAt} />
+        </p>
+        {file.snippet !== null && file.fileKind !== "image" ? (
+          <p className="mt-1.5 line-clamp-2 text-paragraph-small text-content-secondary">{file.snippet}</p>
+        ) : null}
         <label htmlFor={`${id}-what`} className="sr-only">
           What is {primary.originalName}?
         </label>
