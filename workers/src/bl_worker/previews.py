@@ -70,6 +70,10 @@ class LocalPreviewStore:
 
     def delete_prefix(self, prefix: str) -> int:
         folder = self.root / prefix
+        # A whole key is a prefix of itself, as it is in R2.
+        if folder.is_file():
+            folder.unlink()
+            return 1
         if not folder.is_dir():
             return 0
         count = sum(1 for p in folder.rglob("*") if p.is_file())

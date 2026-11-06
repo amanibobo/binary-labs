@@ -59,3 +59,13 @@ language sql immutable parallel safe as $$
     false
   )
 $$;
+
+-- Re-parsing after a parser version bump (decisions.md, "re-parsing tables"). The worker's
+-- sweep reads stale tables again, those used longest ago first; one a newer parser couldn't
+-- read keeps its old table, and the row records which version tried and why, so the sweep
+-- moves on and doesn't try that version again. The stale rows are found by this index.
+alter table data_tables
+  add column reparse_version int,
+  add column reparse_error text check (reparse_error is null or length(reparse_error) <= 500),
+  add constraint data_tables_reparse_check check ((reparse_version is null) = (reparse_error is null));
+create index data_tables_parser_idx on data_tables (parser_version) where state in ('ready', 'failed');
