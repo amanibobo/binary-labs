@@ -241,7 +241,7 @@ function repeatShots() {
       path: c("knockdown"),
       steps: async (page) => {
         await answer("Compare groups")(page);
-        await page.getByRole("button", { name: /^Welch's t-test, p/ }).hover();
+        await page.getByRole("button", { name: /^Unlikely: Welch's t-test, p/ }).hover();
         await page.getByRole("dialog").waitFor();
       },
       full: false,
