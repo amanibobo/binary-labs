@@ -24,7 +24,7 @@ export function rowSummary(label: Label | null): RowSummary {
 export const OUTCOME_WORDS: Record<LabelOutcome, string> = {
   worked: "worked",
   failed: "failed",
-  repeat: "repeat",
+  repeat: "a repeat",
   final: "final",
   unclear: "outcome unclear",
 };
@@ -34,14 +34,15 @@ export function outcomeWord(label: Label | null): { text: string; problem: boole
   return { text: OUTCOME_WORDS[label.outcome], problem: label.outcome === "failed" };
 }
 
-// The choices in Labels, in the order a run goes: and "Not a run" for protocols and papers.
+// The choices in Labels, in the order a run goes, and None for protocols, papers and anything
+// that isn't a run. "A repeat" is a re-run of an earlier one, not one that needs repeating.
 export const OUTCOME_CHOICES: readonly { value: LabelOutcome | null; text: string }[] = [
   { value: "worked", text: "Worked" },
   { value: "failed", text: "Failed" },
-  { value: "repeat", text: "Repeat" },
+  { value: "repeat", text: "A repeat" },
   { value: "final", text: "Final" },
   { value: "unclear", text: "Unclear" },
-  { value: null, text: "Not a run" },
+  { value: null, text: "None" },
 ];
 
 export const NOTE_KIND_NAMES: Record<NoteKind, string> = {

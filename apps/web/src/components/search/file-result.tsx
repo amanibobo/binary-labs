@@ -89,7 +89,8 @@ export function FileResult({
           <span className="flex min-w-0 items-start gap-2">
             <RowName hit={hit} label={label} />
             <OutcomeWord label={label} className="mt-px" />
-            {check ? <CheckMark className="mt-px" /> : null}
+            {/* Opened, Labels says it with what to do. */}
+            {check && !expanded ? <CheckMark className="mt-px" /> : null}
             <FlagMark sha={hit.sha256} className="mt-px h-5 shrink-0 px-1.5 max-sm:h-5" />
           </span>
           {expanded ? null : (

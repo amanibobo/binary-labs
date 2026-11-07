@@ -80,7 +80,7 @@ export function NotePreview({
           Take this page out
         </button>
       </p>
-      <ol aria-label="Pages" className="mt-2 flex flex-wrap gap-1">
+      <ol aria-label="Pages" className="mt-2 grid max-w-sm grid-cols-6 gap-1 sm:grid-cols-12">
         {note.pages.map((p) => {
           const on = p.sha256 === page.sha256;
           return (
@@ -91,7 +91,7 @@ export function NotePreview({
                 aria-label={`Page ${p.position}`}
                 onClick={() => onPage(p)}
                 className={cn(
-                  "flex size-7 items-center justify-center rounded-md text-label-xsmall tabular-nums transition-colors duration-150 ease-out max-sm:size-11",
+                  "flex h-7 w-full items-center justify-center rounded-md text-label-xsmall tabular-nums transition-colors duration-150 ease-out max-sm:h-11",
                   on
                     ? "bg-button-primary-fill text-content-inverse-primary"
                     : "text-content-secondary ring-1 ring-border-opaque ring-inset hover:bg-background-tertiary hover:text-content-primary",
@@ -116,7 +116,9 @@ export function NoteControls({ hit, note }: { hit: LabeledFile; note: NoteInfo }
   return (
     <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-paragraph-small text-content-secondary">
       <span>
-        One note of {note.pages.length} pages{note.state === "suggested" ? ` (${note.reason.toLowerCase()})` : ""}.
+        {note.state === "suggested"
+          ? `Binary kept these ${note.pages.length} pages together as one note: ${note.reason.toLowerCase()}.`
+          : `${note.pages.length} pages kept together as one note.`}
       </span>
       <span className="inline-flex items-center gap-x-1.5 whitespace-nowrap">
         {note.state === "suggested" ? (
@@ -125,7 +127,7 @@ export function NoteControls({ hit, note }: { hit: LabeledFile; note: NoteInfo }
             onClick={() => void change({ run: () => api.changeNote({ action: "keep", noteId: note.id }), after: kept, message: "Kept as one note" })}
             className={noteAction}
           >
-            Keep
+            Keep together
           </button>
         ) : null}
         {note.state === "suggested" ? <span aria-hidden>·</span> : null}
@@ -141,7 +143,7 @@ export function NoteControls({ hit, note }: { hit: LabeledFile; note: NoteInfo }
           }
           className={noteAction}
         >
-          Split into pages
+          Split into separate files
         </button>
       </span>
     </p>

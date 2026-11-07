@@ -157,7 +157,8 @@ is and what it found. Null if there's nothing to say beyond the title.
 (value and unit null when there is none). For runs and experiment notes: conditions (drug A \
 0.1–100 µM, 37 °C, 30 min, plate 3, triplicate), samples and materials. For meeting notes: \
 attendees and decisions, not concentrations. Keep values exactly as written; ranges as \
-"0.1–100". At most {MAX_CONDITIONS}; empty when the file states none.
+"0.1–100". Readings and results (absorbances, an IC50) are not conditions; they belong in the \
+summary. At most {MAX_CONDITIONS}; empty when the file states none.
 - unclear: only what the file shows but you can't read with certainty (smudged, crossed out, \
 cut off, too faint, handwriting you can't make out), in a few words ("the reading for well B6 \
 on page 7 is smudged"). Not what the file leaves out: a missing date, dose or detail is not \

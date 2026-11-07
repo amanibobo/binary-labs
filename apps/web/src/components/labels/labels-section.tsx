@@ -189,7 +189,7 @@ function ReadLabels({ hit, label, onEdit }: { hit: FileHit; label: Label; onEdit
 function UnclearLine({ unclear }: { unclear: readonly string[] }) {
   return (
     <p className="max-w-prose text-paragraph-small text-content-secondary">
-      <span className="text-content-warning">Not clear in the file:</span> {unclear.join("; ")}.
+      <span className="text-content-warning">Binary couldn&apos;t read:</span> {unclear.join("; ")}.
     </p>
   );
 }
@@ -199,7 +199,7 @@ function Alternatives({ hit, label }: { hit: FileHit; label: Label }) {
   const labels = useLabels();
   return (
     <p className="flex flex-wrap items-center gap-1.5 text-paragraph-small text-content-tertiary">
-      <span>Or call it</span>
+      <span>Rename to</span>
       {label.alternatives.map((alt) => (
         <button
           key={alt}
@@ -255,7 +255,7 @@ function EditLabels({ hit, label, onDone }: { hit: FileHit; label: Label; onDone
   return (
     <>
       <p className="mt-0.5 text-paragraph-xsmall text-content-tertiary">
-        Click any value to change it. Enter saves, and you can undo.
+        Click any value to change it. Enter saves, a tap on a choice saves at once, and you can undo.
         {guessed ? (
           <>
             {" "}
@@ -390,14 +390,15 @@ function OutcomePicker({ hit, label }: { hit: FileHit; label: Label }) {
   return (
     <span role="radiogroup" aria-label="Outcome" className="flex flex-wrap gap-1 py-0.5">
       {OUTCOME_CHOICES.map((choice) => {
-        const on = label.outcome === choice.value;
+        // No outcome yet is no choice made, not "None".
+        const on = label.outcome !== null && label.outcome === choice.value;
         return (
           <button
             key={choice.text}
             type="button"
             role="radio"
             aria-checked={on}
-            onClick={() => labels.edit(hit, { kind: "outcome", outcome: choice.value }, choice.value === null ? "Marked as not a run" : `Marked as ${choice.text.toLowerCase()}`)}
+            onClick={() => labels.edit(hit, { kind: "outcome", outcome: choice.value }, choice.value === null ? "Outcome cleared" : `Marked as ${choice.text.toLowerCase()}`)}
             className={cn(
               "inline-flex min-h-7 items-center rounded-md px-2 text-label-xsmall transition-colors duration-150 ease-out max-sm:min-h-11",
               on

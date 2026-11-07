@@ -7,10 +7,19 @@ import { doneSource, experiments, fixtureShell, people } from "@/fixtures/data";
 import { VOICE_NOTE_SHA } from "@/fixtures/smart-labels";
 
 const lists = { experiments, people };
+
+// A ready draft whose recording opens with "that thing from Tuesday", so its label asks which
+// experiment it was.
+const ready = talkThrough("ready");
+const asking = {
+  ...ready,
+  recording: VOICE_NOTE_SHA,
+  status: { ...STATUSES.ready, transcript: `So this is for that thing from Tuesday. ${TRANSCRIPT}` },
+};
 import { FixtureLabApi } from "@/fixtures/fixture-api";
 import { requireFixtures, type FixtureProps } from "@/fixtures/gate";
 import { authors, purification } from "@/fixtures/protocols";
-import { DRAFT_BODY, DRAFT_TITLE, talkThrough, videoTalkThrough, type FixtureStatus } from "@/fixtures/talk-throughs";
+import { DRAFT_BODY, DRAFT_TITLE, STATUSES, TRANSCRIPT, talkThrough, videoTalkThrough, type FixtureStatus } from "@/fixtures/talk-throughs";
 import { editorStart } from "@/lib/talk-throughs";
 
 // Every talk-through screen: ?view=record|record-new, question (a ready draft whose recording asks
@@ -61,7 +70,7 @@ function Screen({ view }: { view: z.infer<typeof View> }) {
       return <TalkThroughView initial={talkThrough(view)} authors={authors} lists={lists} />;
     case "question":
       // The recording said "that thing from Tuesday", so its label asks which experiment.
-      return <TalkThroughView initial={{ ...talkThrough("ready"), recording: VOICE_NOTE_SHA }} authors={authors} lists={lists} />;
+      return <TalkThroughView initial={asking} authors={authors} lists={lists} />;
     case "video-waiting":
     case "video-ready":
     case "video-dismissed": {

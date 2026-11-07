@@ -77,7 +77,8 @@ export function PreviewPanel({
 }
 
 // Open, the one primary action; Make a chart beside it for a data sheet, where testers found
-// it too quiet in a list; the map and a protocol from the file behind More.
+// it too quiet in a list; the map, which cold readers missed under More; a protocol from the
+// file behind More.
 function Actions({ hit, opens, offerNewPage }: { hit: FileHit; opens: FileLocation; offerNewPage: boolean }) {
   const open = openTarget(opens);
   const newPage = offerNewPage && isTextBearing(hit.fileKind);
@@ -96,30 +97,29 @@ function Actions({ hit, opens, offerNewPage }: { hit: FileHit; opens: FileLocati
           Make a chart
         </Link>
       ) : null}
-      <DropdownMenu.Root>
-        <DropdownMenu.Trigger className={cn(buttonVariants({ variant: "tertiary", size: "compact" }), "gap-1 pr-2 text-content-secondary")}>
-          More
-          <ChevronSmallIcon className="size-4 rotate-90" />
-        </DropdownMenu.Trigger>
-        <DropdownMenu.Portal>
-          <DropdownMenu.Content align="start" sideOffset={6} className={menuSurface}>
-            <DropdownMenu.Item asChild className={menuItem}>
-              <Link href={localMapHref(fileNodeId(hit.sha256))}>
-                <MapIcon className="size-5 text-content-secondary" />
-                Map around this file
-              </Link>
-            </DropdownMenu.Item>
-            {newPage ? (
+      <Link href={localMapHref(fileNodeId(hit.sha256))} className={cn(buttonVariants({ variant: "tertiary", size: "compact" }), "text-content-secondary")}>
+        <MapIcon className="size-5" />
+        Map
+        <span className="sr-only"> around this file</span>
+      </Link>
+      {newPage ? (
+        <DropdownMenu.Root>
+          <DropdownMenu.Trigger className={cn(buttonVariants({ variant: "tertiary", size: "compact" }), "gap-1 pr-2 text-content-secondary")}>
+            More
+            <ChevronSmallIcon className="size-4 rotate-90" />
+          </DropdownMenu.Trigger>
+          <DropdownMenu.Portal>
+            <DropdownMenu.Content align="start" sideOffset={6} className={menuSurface}>
               <DropdownMenu.Item asChild className={menuItem}>
                 <Link href={newProtocolHref(hit.sha256)}>
                   <ProtocolIcon className="size-5 text-content-secondary" />
                   Make a protocol from this file
                 </Link>
               </DropdownMenu.Item>
-            ) : null}
-          </DropdownMenu.Content>
-        </DropdownMenu.Portal>
-      </DropdownMenu.Root>
+            </DropdownMenu.Content>
+          </DropdownMenu.Portal>
+        </DropdownMenu.Root>
+      ) : null}
     </div>
   );
 }
@@ -138,7 +138,7 @@ function Disclosure({ summary, tone = "quiet", children }: { summary: ReactNode;
           tone === "flag" ? "text-content-warning" : "text-content-secondary",
         )}
       >
-        <span className="min-w-0">{summary}</span>
+        <span className="min-w-0 underline decoration-content-tertiary decoration-dotted underline-offset-4">{summary}</span>
         <ChevronSmallIcon className={cn("size-4 shrink-0 transition-transform duration-150 ease-out", open ? "-rotate-90" : "rotate-90")} />
       </button>
       {open ? <div className="mt-1.5 mb-1">{children}</div> : null}

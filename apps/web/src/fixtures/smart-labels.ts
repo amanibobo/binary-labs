@@ -84,7 +84,6 @@ export const smartFiles: FileHit[] = SearchFilesRows.parse([
         { kind: "condition", what: "pre-incubation", value: "30", unit: "min" },
         { kind: "condition", what: "plate", value: "3", unit: null },
         { kind: "condition", what: "replicates", value: "triplicate", unit: null },
-        { kind: "condition", what: "50 µM well B6 reading", value: "[unclear]", unit: null },
         { kind: "sample", what: "HeLa cells", value: "5000", unit: "cells/well" },
         { kind: "material", what: "MTT", value: "0.5", unit: "mg/mL" },
       ],
