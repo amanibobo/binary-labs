@@ -55,8 +55,11 @@ function fixtureResults(q: string): FileHit[] {
     ]
       .join(" ")
       .toLowerCase();
-  const score = (h: FileHit) => (text(h).includes(wanted) ? words.length + 1 : words.filter((w) => text(h).includes(w)).length);
+  // Page 7 of the notebook says "evaporation at the edges? lids fogged".
   const page7 = /evaporat|edge check|lids/.test(wanted);
+  const onPage7 = (h: FileHit) => (page7 && h.label?.note != null ? words.length : 0);
+  const score = (h: FileHit) =>
+    onPage7(h) + (text(h).includes(wanted) ? words.length + 1 : words.filter((w) => text(h).includes(w)).length);
   const found = [...smartFiles, ...recentFiles]
     .filter((h) => !searchHits.some((s) => s.sha256 === h.sha256) && score(h) > 0)
     .toSorted((a, b) => score(b) - score(a))

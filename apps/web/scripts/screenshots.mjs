@@ -52,6 +52,7 @@ const shots = [
   ...calendarShots(),
   ...flagShots(),
   ...askShots(),
+  ...smartLabelShots(),
 ];
 
 // The Search home and its rows, quiet until opened: the home with recent questions, results,
@@ -71,6 +72,31 @@ function quietSearchShots() {
     ...all({ name: "search-open-image", path: results, steps: expandGel }),
     ...all({ name: "needs-a-look", path: "/dev/fixtures/needs-a-look" }),
     ...all({ name: "browse-subfolder", path: "/dev/fixtures/browse?path=P450%2Fbatch3", steps: (page) => page.getByRole("button", { name: "Batch 3 yields.xlsx" }).click() }),
+  ];
+}
+
+// Smart labels: rows with an outcome, a note of 12 handwritten pages (one smudged) opened with
+// its summary, conditions, other titles and what wasn't clear, the same note opened at page 7
+// by a search, Edit labels open, a data sheet's quieter opened row at rest and editing, and a
+// voice note's question on its talk-through.
+function smartLabelShots() {
+  const all = (shot) => ["dark", "light"].flatMap((scheme) => [1440, 390].map((width) => ({ ...shot, width, scheme })));
+  const drugA = "/dev/fixtures/search?state=notes&q=drug%20A";
+  const details = (name) => (page) => page.getByRole("button", { name: `Details for ${name}` }).first().dispatchEvent("click");
+  const openNote = details("HeLa drug A dose series, plate 3");
+  const edit = (open) => async (page) => {
+    await open(page);
+    await page.waitForTimeout(500);
+    await page.getByRole("button", { name: /^Edit( labels)?$/ }).first().click();
+  };
+  return [
+    ...all({ name: "smart-rows", path: drugA }),
+    ...all({ name: "smart-open-note", path: drugA, steps: openNote }),
+    ...all({ name: "smart-open-page-7", path: "/dev/fixtures/search?state=notes&q=evaporation%20lids", steps: openNote }),
+    ...all({ name: "smart-edit-note", path: drugA, steps: edit(openNote) }),
+    ...all({ name: "smart-open-sheet", path: "/dev/fixtures/ask?view=home", steps: details("Plate 7 absorbance at 420 nm") }),
+    ...all({ name: "smart-edit-sheet", path: "/dev/fixtures/ask?view=home", steps: edit(details("Plate 7 absorbance at 420 nm")) }),
+    ...all({ name: "smart-voice-question", path: "/dev/fixtures/talk-throughs?view=question" }),
   ];
 }
 

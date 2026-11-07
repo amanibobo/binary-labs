@@ -246,6 +246,38 @@ def cmd_demo_lab(args: argparse.Namespace) -> None:
         rt.close()
 
 
+def cmd_relabel(args: argparse.Namespace) -> None:
+    """The re-label sweep now, start to end, instead of a few files every 10 s: for a lab
+    moving to a new label prompt in one go, and to measure what the sweep costs."""
+    from bl_worker.labels import job, notes, sweep
+    from bl_worker.runtime import build_runtime
+
+    rt = build_runtime(load_settings(), pool_size=4)
+    try:
+        if rt.models is None:
+            raise SystemExit("relabel needs ANTHROPIC_API_KEY")
+        with rt.pool.connection() as conn:
+            (before,) = conn.execute(
+                "select coalesce(sum(cost_usd), 0) from model_calls"
+            ).fetchone()  # type: ignore[misc]
+        done = 0
+        while True:
+            with rt.pool.connection() as conn:
+                todo = sweep.stale_labels(conn, limit=args.batch)
+            if not todo:
+                break
+            for lab_id, sha in todo:
+                job.label_blob(rt, lab_id, sha)
+                done += 1
+            for _, note_id in notes.tend_notes(rt):
+                notes.label_note(rt, note_id)
+        with rt.pool.connection() as conn:
+            (after,) = conn.execute("select coalesce(sum(cost_usd), 0) from model_calls").fetchone()  # type: ignore[misc]
+        print(f"relabeled {done} files for ${after - before:.4f}")
+    finally:
+        rt.close()
+
+
 def cmd_eval_labels(args: argparse.Namespace) -> None:
     from bl_worker.db import connect
     from bl_worker.labels.evaluate import load_expected, score
@@ -308,6 +340,10 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--concurrency", type=int, default=4)
     p.add_argument("--timeout", type=int, default=1800, help="seconds to wait for each settle")
     p.set_defaults(func=cmd_demo_lab)
+
+    p = sub.add_parser("relabel", help="run the re-label sweep to the end now, and print its cost")
+    p.add_argument("--batch", type=int, default=20)
+    p.set_defaults(func=cmd_relabel)
 
     p = sub.add_parser("eval-labels", help="score stored labels against evals/labels_expected.json")
     p.add_argument("db", help="database URL")

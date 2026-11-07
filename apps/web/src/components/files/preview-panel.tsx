@@ -54,20 +54,24 @@ export function PreviewPanel({
   const isSheet = hit.fileKind === "spreadsheet";
   const opens = shown?.location ?? primary;
   return (
-    <div id={id} className={cn("grid gap-x-10 gap-y-5 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]", className)}>
-      {note !== null && shown !== null ? <NotePreview note={note} page={shown} onPage={setPage} /> : <Preview hit={hit} query={query} />}
-      <div className="flex min-w-0 flex-col items-start gap-4">
+    <div id={id} className={cn("grid gap-x-8 gap-y-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]", className)}>
+      {note !== null && shown !== null ? (
+        <NotePreview hit={hit} note={note} page={shown} onPage={setPage} />
+      ) : (
+        <Preview hit={hit} query={query} />
+      )}
+      <div className="flex min-w-0 flex-col items-start gap-3 max-lg:-order-1">
         <Actions hit={hit} opens={opens} offerNewPage={offerNewPage} />
-        {note !== null && shown !== null ? <NoteControls hit={hit} note={note} page={shown} /> : null}
-        {labels}
+        {note !== null ? <NoteControls hit={hit} note={note} /> : null}
         {isSheet || others.length > 0 ? (
-          <div className="grid w-full min-w-0 gap-1.5 empty:hidden">
+          <div className="grid w-full min-w-0 gap-0.5 empty:hidden">
             {isSheet ? <FlagsLine hit={hit} /> : null}
             {isSheet ? <ChartsLine hit={hit} /> : null}
             {others.length === 0 ? null : <OtherPlaces locations={others} />}
           </div>
         ) : null}
       </div>
+      {labels === undefined ? null : <div className="min-w-0 lg:col-span-2">{labels}</div>}
     </div>
   );
 }
