@@ -1,9 +1,10 @@
 import type { CorrectionId, Sha256 } from "./ids";
-import type { Experiment, ExperimentRef, Label, LabelDetails, Person, PersonRef } from "./domain";
+import type { Experiment, ExperimentRef, Label, LabelCondition, LabelDetails, LabelOutcome, NoteKind, Person, PersonRef } from "./domain";
 
 export type LabLists = { experiments: readonly Experiment[]; people: readonly Person[] };
 
-// What correct_label takes: the name and every detail, since it replaces all six fields.
+// What correct_label takes: the name and every detail it sets (the six old fields, and the outcome,
+// summary, conditions and kind of note in p_more).
 export type LabelDraft = LabelDetails & { cleanName: string };
 
 export type TagRef =
@@ -18,7 +19,15 @@ export type LabelEdit =
   // Empty text clears the tag.
   | { kind: "set"; tag: TagRef; text: string }
   | { kind: "remove"; tag: TagRef }
-  | { kind: "add"; text: string };
+  | { kind: "add"; text: string }
+  | { kind: "outcome"; outcome: LabelOutcome | null }
+  | { kind: "noteKind"; noteKind: NoteKind | null }
+  // Empty text clears the summary.
+  | { kind: "summary"; text: string }
+  // A condition's value; empty text takes the condition off.
+  | { kind: "condition"; index: number; text: string }
+  // The answer to a voice note's question: an experiment id or a YYYY-MM-DD day.
+  | { kind: "answer"; field: "experiment" | "date"; value: string };
 
 export type EditResult = { kind: "changed"; draft: LabelDraft } | { kind: "unchanged" } | { kind: "invalid"; message: string };
 
@@ -26,6 +35,8 @@ export type EditResult = { kind: "changed"; draft: LabelDraft } | { kind: "uncha
 const MAX_NAME = 200;
 const MAX_INSTRUMENT = 120;
 const MAX_TAGS = 20;
+const MAX_SUMMARY = 400;
+const MAX_VALUE = 80;
 
 const DATE_HINT = "Use a date like 2026-10-14 or Oct 14 2026.";
 
@@ -128,11 +139,18 @@ function cleanTags(tags: readonly string[]): string[] {
   return [...new Set(tags.map((t) => t.trim()).filter((t) => t !== ""))];
 }
 
+function detailsOf(label: Label): LabelDetails {
+  const { date, experiment, person, instrument, tags, outcome, summary, conditions, noteKind } = label;
+  return { date, experiment, person, instrument, tags, outcome, summary, conditions, noteKind };
+}
+
 export function draftOf(label: Label): LabelDraft | null {
   if (label.status === "needs_look") return null;
-  const { date, experiment, person, instrument, tags, cleanName } = label;
-  return { cleanName, date, experiment, person, instrument, tags };
+  return { ...detailsOf(label), cleanName: label.cleanName };
 }
+
+const sameCondition = (a: LabelCondition, b: LabelCondition) =>
+  a.kind === b.kind && a.what === b.what && a.value === b.value && a.unit === b.unit;
 
 function sameDraft(a: LabelDraft, b: LabelDraft): boolean {
   return (
@@ -142,9 +160,67 @@ function sameDraft(a: LabelDraft, b: LabelDraft): boolean {
     a.person?.id === b.person?.id &&
     a.instrument === b.instrument &&
     a.tags.length === b.tags.length &&
-    a.tags.every((t, i) => t === b.tags[i])
+    a.tags.every((t, i) => t === b.tags[i]) &&
+    a.outcome === b.outcome &&
+    a.summary === b.summary &&
+    a.noteKind === b.noteKind &&
+    a.conditions.length === b.conditions.length &&
+    a.conditions.every((c, i) => {
+      const other = b.conditions[i];
+      return other !== undefined && sameCondition(c, other);
+    })
   );
 }
+
+// A condition's new value as typed: its unit dropped when typed again ("50 µM" for a µM value).
+function conditionValue(c: LabelCondition, text: string): FieldResult<string | null> {
+  let t = text.trim().replace(/\s+/g, " ");
+  if (c.unit !== null && t.toLowerCase().endsWith(c.unit.toLowerCase())) t = t.slice(0, -c.unit.length).trim();
+  if (t.length > MAX_VALUE) return { kind: "invalid", message: `Keep a value under ${MAX_VALUE} characters.` };
+  return { kind: "ok", value: t === "" ? null : t };
+}
+
+// The smart fields: an outcome, a kind of note, the summary, one condition, or a voice note's answer.
+function setSmart(details: LabelDetails, edit: SmartEdit, lists: LabLists): FieldResult<LabelDetails> {
+  switch (edit.kind) {
+    case "outcome":
+      return { kind: "ok", value: { ...details, outcome: edit.outcome } };
+    case "noteKind":
+      return { kind: "ok", value: { ...details, noteKind: edit.noteKind } };
+    case "summary": {
+      const t = edit.text.trim().replace(/\s+/g, " ");
+      if (t.length > MAX_SUMMARY) return { kind: "invalid", message: `Keep the summary under ${MAX_SUMMARY} characters.` };
+      return { kind: "ok", value: { ...details, summary: t === "" ? null : t } };
+    }
+    case "condition": {
+      const current = details.conditions[edit.index];
+      if (current === undefined) return { kind: "invalid", message: "That condition isn't there any more." };
+      const parsed = conditionValue(current, edit.text);
+      if (parsed.kind === "invalid") return parsed;
+      const conditions =
+        parsed.value === null && edit.text.trim() === ""
+          ? details.conditions.filter((_, i) => i !== edit.index)
+          : details.conditions.map((c, i) => (i === edit.index ? { ...c, value: parsed.value } : c));
+      return { kind: "ok", value: { ...details, conditions } };
+    }
+    case "answer": {
+      if (edit.field === "date") {
+        const parsed = parseDate(edit.value);
+        return parsed.kind === "date" && parsed.date !== null ? { kind: "ok", value: { ...details, date: parsed.date } } : { kind: "invalid", message: DATE_HINT };
+      }
+      const found = lists.experiments.find((e) => e.id === edit.value);
+      return found === undefined
+        ? { kind: "invalid", message: "That experiment isn't in the lab any more." }
+        : { kind: "ok", value: { ...details, experiment: { id: found.id, name: found.name } } };
+    }
+    default: {
+      const _exhaustive: never = edit;
+      return _exhaustive;
+    }
+  }
+}
+
+type SmartEdit = Extract<LabelEdit, { kind: "outcome" | "noteKind" | "summary" | "condition" | "answer" }>;
 
 function setTag(details: LabelDetails, tag: TagRef, text: string, lists: LabLists): FieldResult<LabelDetails> {
   switch (tag.kind) {
@@ -197,8 +273,7 @@ function addTag(details: LabelDetails, text: string, lists: LabLists): FieldResu
 
 export function applyEdit({ label, edit, lists }: { label: Label; edit: LabelEdit; lists: LabLists }): EditResult {
   const current = draftOf(label);
-  const { date, experiment, person, instrument, tags } = label;
-  const details: LabelDetails = { date, experiment, person, instrument, tags };
+  const details = detailsOf(label);
 
   let next: LabelDraft;
   switch (edit.kind) {
@@ -221,6 +296,17 @@ export function applyEdit({ label, edit, lists }: { label: Label; edit: LabelEdi
       next = { ...result.value, cleanName: current.cleanName };
       break;
     }
+    case "outcome":
+    case "noteKind":
+    case "summary":
+    case "condition":
+    case "answer": {
+      if (current === null) return { kind: "invalid", message: "Give the file a name first." };
+      const result = setSmart(details, edit, lists);
+      if (result.kind === "invalid") return result;
+      next = { ...result.value, cleanName: current.cleanName };
+      break;
+    }
     default: {
       const _exhaustive: never = edit;
       return _exhaustive;
@@ -231,10 +317,22 @@ export function applyEdit({ label, edit, lists }: { label: Label; edit: LabelEdi
 
 // What the database will store for a draft, shown before it answers. Same values as
 // before is an acceptance, as in corrections_apply.
+// A person's correction also settles what Binary was unsure of (the other titles, what it
+// couldn't read), and answers a voice note's question once its field is set.
 export function optimisticLabel(label: Label, draft: LabelDraft): Label {
   const current = draftOf(label);
   const accepted = current !== null && sameDraft(current, draft);
-  return { ...draft, status: accepted ? "accepted" : "corrected", confidence: 1 };
+  const q = label.followUp;
+  const answered = q !== null && (q.field === "experiment" ? draft.experiment !== null : draft.date !== null);
+  return {
+    ...draft,
+    alternatives: [],
+    unclear: [],
+    followUp: answered ? null : q,
+    note: label.note,
+    status: accepted ? "accepted" : "corrected",
+    confidence: 1,
+  };
 }
 
 export type TagView = { ref: TagRef; text: string; key: string };

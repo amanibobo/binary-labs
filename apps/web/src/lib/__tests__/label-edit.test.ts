@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Experiment, Label, Person } from "../domain";
+import { PLAIN_LABEL, type Experiment, type Label, type Person } from "../domain";
 import { CorrectionId, ExperimentId, PersonId, Sha256 } from "../ids";
 import {
   applyEdit,
@@ -21,6 +21,7 @@ const ade: Person = { id: PersonId.parse("00000000-0000-4000-8000-0000000000a2")
 const lists: LabLists = { experiments: [bm3, variants, screen], people: [priya, ade] };
 
 const label: Label = {
+  ...PLAIN_LABEL,
   status: "suggested",
   cleanName: "Batch 3 gel",
   date: "2026-10-14",
@@ -84,6 +85,10 @@ describe("applyEdit", () => {
       person: { id: ade.id, name: "Ade Okafor" },
       instrument: "ChemiDoc",
       tags: ["batch 3"],
+      outcome: null,
+      summary: null,
+      conditions: [],
+      noteKind: null,
     });
   });
 

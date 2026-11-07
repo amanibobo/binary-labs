@@ -1,5 +1,6 @@
 import "server-only";
 import type { Sha256 } from "./ids";
+import { logError } from "./log";
 import { discardStaged, keepStaged, receiveStagedPut, startStagedPut, verifyStaged } from "./staged-upload";
 import {
   parseUploadHeaders,
@@ -117,11 +118,14 @@ async function verifyAndRecord<R>(
   return recorded;
 }
 
+// tagBatch records which files were sent together (smart labels group them into one note); a
+// failure there doesn't fail the upload.
 export async function completeUpload(
   labId: string,
   uploadId: UploadId,
   request: { headers: Headers; claim: CompleteUploadRequest },
   record: RecordUpload,
+  tagBatch?: (locationId: string, batch: string) => Promise<void>,
 ): Promise<Accepted> {
   const meta = parseUploadHeaders(request.headers);
   if (meta === null) return { status: 400, error: "The upload is missing its name or date." };
@@ -139,6 +143,9 @@ export async function completeUpload(
     if (error?.code === "22023") return { status: 400, error: error.message };
     if (error !== null) throw new Error(`record_upload: ${error.message} (${error.code ?? "no code"})`);
     const recorded = RecordUploadRows.parse(data);
+    if (!recorded.duplicate && meta.batch !== undefined && meta.batch !== null && tagBatch !== undefined) {
+      await tagBatch(recorded.locationId, meta.batch).catch((e: unknown) => logError("uploads.batch_failed", { labId, error: e }));
+    }
     return { status: recorded.duplicate ? 200 : 201, receipt: { ...recorded, sha256: stored.sha256 } };
   });
 }

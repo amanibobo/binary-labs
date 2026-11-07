@@ -1,6 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import { z } from "zod";
+import { collapseNotes, missingCovers } from "./notes";
 import {
   ExperimentRows,
   FileKind,
@@ -141,7 +142,7 @@ export async function loadRecentFiles(supabase: Supabase, labId: LabId): Promise
   const labelBySha = new Map(FileLabelRows.parse(unwrap(labels)).map((l) => [l.sha256, l.label]));
 
   const toLocation = (r: RecentRow) => FileLocation.parse({ ...r, source_kind: r.sources.kind });
-  return shas.flatMap((sha): FileHit[] => {
+  const hits = shas.flatMap((sha): FileHit[] => {
     const [head, ...rest] = bySha.get(sha) ?? [];
     if (head === undefined) return [];
     return [
@@ -158,6 +159,8 @@ export async function loadRecentFiles(supabase: Supabase, labId: LabId): Promise
       },
     ];
   });
+  // A note shows once, as its first page, which carries the note's label.
+  return collapseNotes(hits, await loadFileHits(supabase, labId, missingCovers(hits)));
 }
 
 const NEEDS_LOOK_LIMIT = 50;

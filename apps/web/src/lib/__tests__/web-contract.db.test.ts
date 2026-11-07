@@ -77,7 +77,7 @@ async function correct(userId: string, labId: LabId, sha256: string, label: Labe
   if (result.kind !== "changed") throw new Error(`edit did not change the label: ${JSON.stringify(result)}`);
   const a = correctLabelArgs(labId, correctRequest(Sha256.parse(sha256), result.draft));
   const raw = await asUser(userId, () =>
-    rpcJson("correct_label($1, $2, $3, $4::date, $5::uuid, $6::uuid, $7, $8::text[])", [
+    rpcJson("correct_label($1, $2, $3, $4::date, $5::uuid, $6::uuid, $7, $8::text[], $9::jsonb)", [
       a.p_lab_id,
       a.p_sha256,
       a.p_clean_name,
@@ -86,6 +86,7 @@ async function correct(userId: string, labId: LabId, sha256: string, label: Labe
       a.p_person_id,
       a.p_instrument,
       a.p_tags,
+      JSON.stringify(a.p_more),
     ]),
   );
   return CorrectionRows.parse(raw);
@@ -343,6 +344,90 @@ describe("labels through the web app's args and parsers", () => {
     expect((await db.query("select 1 from experiments where id = $1", [id])).rowCount).toBe(1);
     expect((await asUser(alice, () => db.query(del, [id, labA]))).rowCount).toBe(1);
     await expect(add("p450 bm3")).rejects.toThrow(/experiments_lab_name_idx/);
+  });
+});
+
+describe("smart labels through the web app's args and parsers", () => {
+  const setSmart = () =>
+    db.query(
+      `update labels set outcome = 'failed', summary = 'Outer wells drifted on plate 3, so the run is unreliable.',
+         note_kind = 'experiment_notes', alternatives = '{Drug A plate 3 notes,Plate 3 IC50 attempt}',
+         unclear = '{the 50 µM reading is smudged}',
+         conditions = '[{"kind":"condition","what":"drug A","value":"0.1–100","unit":"µM"},
+                        {"kind":"condition","what":"well B6","value":"[unclear]","unit":null}]'
+       where lab_id = $1 and sha256 = $2`,
+      [labA, sha("a")],
+    );
+
+  it("search finds a file by its summary, conditions and outcome, and the row parses them", async () => {
+    await setSmart();
+    for (const q of ["drifted", "100 µM", "failed run", "plate 3"]) {
+      const hits = await search(carol, labA, { q });
+      expect(hits.map((h) => h.sha256)[0], q).toBe(sha("a"));
+    }
+    const [hit] = await search(carol, labA, { q: "drifted" });
+    expect(hit?.label).toMatchObject({
+      outcome: "failed",
+      noteKind: "experiment_notes",
+      alternatives: ["Drug A plate 3 notes", "Plate 3 IC50 attempt"],
+      unclear: ["the 50 µM reading is smudged"],
+      note: null,
+    });
+    expect(hit?.matchedPage).toBeNull();
+  });
+
+  it("a correction sets the outcome and fills in an unclear value, and undo brings back every field", async () => {
+    await setSmart();
+    const [before] = await search(carol, labA, { q: "drifted" });
+    if (!before?.label) throw new Error("expected a label");
+    const outcome = await correct(carol, labA, sha("a"), before.label, { kind: "outcome", outcome: "repeat" });
+    expect(outcome.label).toMatchObject({ status: "corrected", outcome: "repeat", alternatives: [], unclear: [] });
+    const filled = await correct(carol, labA, sha("a"), outcome.label, { kind: "condition", index: 1, text: "0.38" });
+    expect(filled.label.conditions[1]).toEqual({ kind: "condition", what: "well B6", value: "0.38", unit: null });
+    expect((await undo(carol, filled.correctionId)).label).toEqual(outcome.label);
+    expect((await undo(carol, outcome.correctionId)).label).toEqual(before.label);
+  });
+
+  it("picking another title is a rename the corrections table records", async () => {
+    await setSmart();
+    const [hit] = await search(carol, labA, { q: "drifted" });
+    if (!hit?.label) throw new Error("expected a label");
+    const picked = await correct(carol, labA, sha("a"), hit.label, { kind: "rename", text: hit.label.alternatives[1] ?? "" });
+    expect(picked.label.cleanName).toBe("Plate 3 IC50 attempt");
+    const recorded = await db.query("select before ->> 'clean_name' as b, after ->> 'clean_name' as a from corrections where id = $1", [
+      picked.correctionId,
+    ]);
+    expect(recorded.rows[0]).toEqual({ b: "Batch 3 gel, lane 6", a: "Plate 3 IC50 attempt" });
+    await undo(carol, picked.correctionId);
+  });
+
+  it("notes: members of the lab keep, split and restore them; nobody else sees or changes one", async () => {
+    await db.query(
+      `insert into blobs (sha256, size, mime, file_kind) values ($1, 10, 'image/jpeg', 'image'), ($2, 10, 'image/jpeg', 'image')
+       on conflict do nothing`,
+      [sha("7"), sha("8")],
+    );
+    for (const [i, s] of [sha("7"), sha("8")].entries()) {
+      await db.query(
+        `insert into file_locations (lab_id, source_id, external_id, path, original_name, size, modified_at, source_rev, sha256, index_state)
+         values ($1, $2, $3, $4, $5, 10, now(), 'rev', $6, 'indexed')`,
+        [labA, sourceA, `note:${i}`, `/Lab/Notebook/page_0${i + 1}.jpg`, `page_0${i + 1}.jpg`, s],
+      );
+    }
+    const noteId = z
+      .string()
+      .parse((await asUser(carol, () => db.query("select join_note($1, $2) as id", [labA, [sha("7"), sha("8")]]))).rows[0]?.id);
+    const pages = await asUser(carol, () => db.query("select count(*)::int as n from note_pages where note_id = $1", [noteId]));
+    expect(pages.rows[0]?.n).toBe(2);
+    expect((await asUser(bob, () => db.query("select count(*)::int as n from notes"))).rows[0]?.n).toBe(0);
+    await expect(asUser(bob, () => db.query("select split_note($1)", [noteId]))).rejects.toThrow(/no such note/);
+    await asUser(carol, () => db.query("select split_note($1)", [noteId]));
+    await asUser(carol, () => db.query("select restore_note($1)", [noteId]));
+    const audit = await db.query("select action::text from audit_log where target = $1 order by id", [noteId]);
+    expect(audit.rows.map((r) => r.action)).toEqual(["note.join", "note.split", "note.join"]);
+    // The folder tests below count every file; these pages were only for this test.
+    await db.query("delete from notes where id = $1", [noteId]);
+    await db.query("delete from file_locations where lab_id = $1 and external_id like 'note:%'", [labA]);
   });
 });
 

@@ -29,6 +29,8 @@ LAB_TABLES = (
     "labels",
     "corrections",
     "label_rules",
+    "notes",
+    "note_pages",
     "experiments",
     "people",
     "model_calls",
@@ -71,6 +73,7 @@ BLOB_REFERENCES = (
     "file_vectors",
     "suggestion_labels",
     "talk_throughs",
+    "note_pages",
 )
 # The column a table names its blob by, where it isn't sha256: a talk-through drafted from a
 # video names the video (its recording is a file_locations row).

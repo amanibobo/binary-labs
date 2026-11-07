@@ -8,6 +8,10 @@ import { cn } from "@/lib/cn";
 import { KIND_NAMES, protocolHref, type AuthorNames, authorName } from "@/lib/protocols";
 import { acceptRequest, formatClock, isSettled, recordHref, talkThroughHref, type TalkThrough, type TalkThroughStatus } from "@/lib/talk-throughs";
 import { useLabApi } from "../lab-api";
+import { FollowUpQuestion } from "../labels/follow-up";
+import { LabelsProvider, LabListsProvider, useLabels } from "../labels/labels-context";
+import type { LabLists } from "@/lib/label-edit";
+import type { Sha256 } from "@/lib/ids";
 import { CrumbBar } from "../protocols/crumb-bar";
 import { Markdown } from "../protocols/markdown";
 import { Button, buttonVariants } from "../ui/button";
@@ -18,7 +22,7 @@ const POLL_MS = 2_000;
 
 // A talk-through: what was said (a recording made for it, or a video already on the page),
 // its transcript, and the steps drafted from it, read against the page as it is now.
-export function TalkThroughView({ initial, authors }: { initial: TalkThrough; authors: AuthorNames }) {
+export function TalkThroughView({ initial, authors, lists }: { initial: TalkThrough; authors: AuthorNames; lists: LabLists }) {
   const api = useLabApi();
   const queryClient = useQueryClient();
   const query = useQuery({
@@ -78,6 +82,14 @@ export function TalkThroughView({ initial, authors }: { initial: TalkThrough; au
 
         <NextStep tt={tt} retrying={retrying} retryError={retryError} onRetry={() => void retry()} />
 
+        {tt.recording === null || video ? null : (
+          <LabListsProvider value={lists}>
+            <LabelsProvider>
+              <RecordingQuestion sha={tt.recording} />
+            </LabelsProvider>
+          </LabListsProvider>
+        )}
+
         <div className="mt-10 grid gap-10 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] lg:gap-12">
           <Pane title={video ? "What was said" : "What you said"} className="lg:order-1">
             {video ? (
@@ -105,6 +117,27 @@ export function TalkThroughView({ initial, authors }: { initial: TalkThrough; au
         ) : null}
       </div>
     </>
+  );
+}
+
+// The one question a voice note left open ("that thing from Tuesday"), with the lab's own
+// choices to tap. Answering corrects the recording's label, and the question goes away.
+function RecordingQuestion({ sha }: { sha: Sha256 }) {
+  const api = useLabApi();
+  const labels = useLabels();
+  const query = useQuery({ queryKey: ["file-labels", [sha]], queryFn: ({ signal }) => api.fileLabels([sha], signal) });
+  const found = query.data?.find((l) => l.sha256 === sha);
+  if (found === undefined) return null;
+  const file = { sha256: sha, label: found.label };
+  const followUp = labels.labelOf(file)?.followUp ?? null;
+  if (followUp === null) return null;
+  return (
+    <section aria-labelledby="question-heading" className="mt-6 max-w-xl rounded-control border border-border-opaque px-4 py-3">
+      <h2 id="question-heading" className="text-label-medium text-content-primary">
+        One question about this recording
+      </h2>
+      <FollowUpQuestion hit={file} followUp={followUp} className="mt-1" />
+    </section>
   );
 }
 

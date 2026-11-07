@@ -57,6 +57,8 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+# Lab notation: ranges take an en dash (0.1–100 µM).
+allowed-confusables = ["–"]
 
 [tool.ruff.lint.per-file-ignores]
 # Protocol bodies are Markdown, one paragraph to a line.

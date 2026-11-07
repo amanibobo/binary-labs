@@ -14,7 +14,8 @@ uv run bl serve-embed             # FastAPI on :8787
 uv run bl scan-local <lab_id> <folder>   # dev: create or reuse a local source, request a scan
 uv run python scripts/make_sample_lab.py ../.data/sample-lab
 uv run bl sample-lab <folder>     # dev: a lab over that folder, with its experiments and people
-uv run bl eval-labels <db_url>    # score stored labels against evals/labels_expected.json
+uv run bl eval-labels <db_url> [--findability]  # score labels; also run evals/findability.json
+uv run bl relabel                 # the re-label sweep to the end now, with its cost
 uv run bl demo-lab --admin-email <email> [--replace | --delete] [--no-worker]
                                   # a fake, fully populated lab for an existing user (decisions.md)
 sh scripts/eval_labels.sh         # all of the above on a fresh local database, then the score
@@ -56,4 +57,4 @@ uv run pytest -m slow    # loads the real Qwen3 model
 - When one duplicate is deleted, chunk 0 still lists its path until another location of that blob is processed again.
 - `LocalFolderSource` and `DropboxSource.read` hold the whole file in memory.
 - A file edited in place gets a new sha256 and so a new label; its old correction doesn't carry over unless a learned rule covers it.
-- Bumping `LABEL_PROMPT_VERSION` doesn't relabel existing files on its own.
+- The re-label sweep after a `LABEL_PROMPT_VERSION` bump runs 5 files a tick; `bl relabel` does a lab in one go.

@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { createContext, use, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
-import type { FileHit, FileLabel, Label } from "@/lib/domain";
+import type { FileHit, FileLabel, Label, NoteInfo } from "@/lib/domain";
 import type { Sha256 } from "@/lib/ids";
 import { MAX_POLLED_SHAS } from "@/lib/labels";
 import {
@@ -36,11 +36,17 @@ export type EditOutcome = { kind: "saved" } | { kind: "invalid"; message: string
 
 type Labels = {
   // Labels learned on this page (edits, undos, polls) win over what the page loaded.
-  labelOf: (hit: FileHit) => Label | null;
-  edit: (hit: FileHit, edit: LabelEdit, message: string) => EditOutcome;
-  accept: (hit: FileHit) => void;
+  labelOf: (hit: LabeledFile) => Label | null;
+  edit: (hit: LabeledFile, edit: LabelEdit, message: string) => EditOutcome;
+  accept: (hit: LabeledFile) => void;
   merge: (labels: readonly FileLabel[]) => void;
+  // After a note is kept, split or loses a page, the row shows it before the next load.
+  setNote: (hit: LabeledFile, note: NoteInfo | null) => void;
 };
+
+// What labels need of a file: its hash and the label it was loaded with. A search hit is one;
+// so is a talk-through's recording.
+export type LabeledFile = Pick<FileHit, "sha256" | "label">;
 
 const LabelsContext = createContext<Labels | null>(null);
 
@@ -92,7 +98,7 @@ export function LabelsProvider({ children }: { children: ReactNode }) {
     });
   }
 
-  function save(hit: FileHit, before: Label, draft: LabelDraft, message: string) {
+  function save(hit: LabeledFile, before: Label, draft: LabelDraft, message: string) {
     const optimistic = optimisticLabel(before, draft);
     write(hit.sha256, optimistic, hit.label);
     enqueue(hit.sha256, async () => {
@@ -134,6 +140,10 @@ export function LabelsProvider({ children }: { children: ReactNode }) {
       const draft = before === null ? null : draftOf(before);
       if (before === null || draft === null) return;
       save(hit, before, draft, "Marked as right");
+    },
+    setNote: (hit, note) => {
+      const before = showing(hit.sha256, hit.label);
+      if (before !== null) write(hit.sha256, { ...before, note }, hit.label);
     },
     merge: (polled) => {
       for (const { sha256, label } of polled) {

@@ -1,33 +1,40 @@
 "use client";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
+import { DropdownMenu } from "radix-ui";
 import { useState, type ReactNode } from "react";
+import { chartHref, newChartHref } from "@/lib/charts";
 import { formatNumber } from "@/lib/checks";
 import { cn } from "@/lib/cn";
 import { cellText, columnLabel, mainTable, type DataTable } from "@/lib/data-tables";
-import { isTextBearing, type FileHit, type FileLocation } from "@/lib/domain";
+import { isTextBearing, type FileHit, type FileLocation, type NoteInfo, type NotePage } from "@/lib/domain";
 import { openTarget } from "@/lib/format";
 import { fileNodeId, localMapHref } from "@/lib/map";
+import { openingPage } from "@/lib/notes";
 import { newProtocolHref } from "@/lib/protocols";
 import { textOverflows } from "@/lib/row-summary";
 import { tableSlice, type PreviewSize } from "@/lib/table-preview";
-import { FileCharts, MakeChartLink } from "../charts/file-charts";
-import { FileFlags } from "../flags/file-flags";
-import { MapIcon, OpenExternalIcon, ProtocolIcon } from "../icons/drawn";
+import { fileChartsKey } from "../charts/file-charts";
+import { fileChecksKey, FileFlagsList } from "../flags/file-flags";
+import { ChartIcon, ChevronSmallIcon, FlagIcon, MapIcon, OpenExternalIcon, ProtocolIcon } from "../icons/drawn";
 import { useLabApi } from "../lab-api";
 import { Highlighted } from "../search/highlighted";
 import { buttonVariants } from "../ui/button";
+import { menuItem, menuSurface } from "../ui/menu";
 import { When } from "@/components/ui/when";
+import { NoteControls, NotePreview } from "./note-pages";
 
-// The opened state of a file row. A short preview, and beside it the one obvious action,
-// opening the real file, over a short list of the rest. Under them the file's labels (when
-// the row has them) and, only when there are any, its checks, other places and charts.
+// The opened state of a file row, read first and edited on demand. A short preview (a note's
+// pages step through it), and beside it the actions on one line: Open, Make a chart for a data
+// sheet, and the rest under More. Under them the labels as a few quiet lines, then one line
+// each for charts, checks and other places, which open in place.
 export function PreviewPanel({
   hit,
   query,
   id,
   className,
   labels,
+  note = null,
   offerNewPage = true,
 }: {
   hit: FileHit;
@@ -36,55 +43,177 @@ export function PreviewPanel({
   className?: string;
   // The Labels section, from rows that edit labels (search, the calendar's day).
   labels?: ReactNode;
+  // The note this file is the first page of, when the row shows a note.
+  note?: NoteInfo | null;
   offerNewPage?: boolean;
 }) {
   const [primary, ...others] = hit.locations;
-  const open = openTarget(primary);
+  const [page, setPage] = useState<NotePage | null>(() => (note === null ? null : openingPage(note, hit.matchedPage)));
+  // A note can lose the page on screen (taken out, or the note split).
+  const shown = note === null ? null : (note.pages.find((p) => p.sha256 === page?.sha256) ?? note.pages[0]);
   const isSheet = hit.fileKind === "spreadsheet";
-  const newPage = offerNewPage && isTextBearing(hit.fileKind);
+  const opens = shown?.location ?? primary;
   return (
-    <div id={id} className={cn("grid gap-x-10 gap-y-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]", className)}>
-      <Preview hit={hit} query={query} />
-      <div className="flex min-w-0 flex-col items-start gap-3">
-        {open === null ? null : (
-          <a href={open.href} target="_blank" rel="noreferrer" className={buttonVariants({ size: "compact" })}>
-            <OpenExternalIcon className="size-5" />
-            {open.label}
-            <span className="sr-only"> (opens in a new tab)</span>
-          </a>
-        )}
-        <div className="flex flex-col items-start">
-          {isSheet ? <MakeChartLink hit={hit} /> : null}
-          <Link href={localMapHref(fileNodeId(hit.sha256))} className={actionLink}>
-            <MapIcon className="size-5" />
-            Map around this file
-          </Link>
-          {newPage ? (
-            <Link href={newProtocolHref(hit.sha256)} className={actionLink}>
-              <ProtocolIcon className="size-5" />
-              Make a protocol from this file
-            </Link>
-          ) : null}
-        </div>
+    <div id={id} className={cn("grid gap-x-8 gap-y-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]", className)}>
+      {note !== null && shown !== null ? (
+        <NotePreview hit={hit} note={note} page={shown} onPage={setPage} />
+      ) : (
+        <Preview hit={hit} query={query} />
+      )}
+      <div className="flex min-w-0 flex-col items-start gap-3 max-lg:-order-1">
+        <Actions hit={hit} opens={opens} offerNewPage={offerNewPage} />
+        {note !== null ? <NoteControls hit={hit} note={note} /> : null}
+        {isSheet || others.length > 0 ? (
+          <div className="grid w-full min-w-0 gap-0.5 empty:hidden">
+            {isSheet ? <FlagsLine hit={hit} /> : null}
+            {isSheet ? <ChartsLine hit={hit} /> : null}
+            {others.length === 0 ? null : <OtherPlaces locations={others} />}
+          </div>
+        ) : null}
       </div>
-      {labels}
-      <div className="flex min-w-0 flex-col items-start gap-6 empty:hidden">
-        {isSheet ? <FileFlags sha={hit.sha256} /> : null}
-        {others.length === 0 ? null : <OtherPlaces locations={others} />}
-        {isSheet ? <FileCharts hit={hit} /> : null}
-      </div>
+      {labels === undefined ? null : <div className="min-w-0 lg:col-span-2">{labels}</div>}
     </div>
   );
 }
 
-// The same shape as Make a chart's link, so the list reads as one.
-const actionLink = cn(buttonVariants({ variant: "tertiary", size: "compact" }), "-ml-3 text-content-secondary");
+// Open, the one primary action; Make a chart beside it for a data sheet, where testers found
+// it too quiet in a list; the map, which cold readers missed under More; a protocol from the
+// file behind More.
+function Actions({ hit, opens, offerNewPage }: { hit: FileHit; opens: FileLocation; offerNewPage: boolean }) {
+  const open = openTarget(opens);
+  const newPage = offerNewPage && isTextBearing(hit.fileKind);
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {open === null ? null : (
+        <a href={open.href} target="_blank" rel="noreferrer" className={buttonVariants({ size: "compact" })}>
+          <OpenExternalIcon className="size-5" />
+          {open.label}
+          <span className="sr-only"> (opens in a new tab)</span>
+        </a>
+      )}
+      {hit.fileKind === "spreadsheet" ? (
+        <Link href={newChartHref(hit.locations[0].id)} className={buttonVariants({ variant: "secondary", size: "compact" })}>
+          <ChartIcon className="size-5" />
+          Make a chart
+        </Link>
+      ) : null}
+      <Link href={localMapHref(fileNodeId(hit.sha256))} className={cn(buttonVariants({ variant: "tertiary", size: "compact" }), "text-content-secondary")}>
+        <MapIcon className="size-5" />
+        Map
+        <span className="sr-only"> around this file</span>
+      </Link>
+      {newPage ? (
+        <DropdownMenu.Root>
+          <DropdownMenu.Trigger className={cn(buttonVariants({ variant: "tertiary", size: "compact" }), "gap-1 pr-2 text-content-secondary")}>
+            More
+            <ChevronSmallIcon className="size-4 rotate-90" />
+          </DropdownMenu.Trigger>
+          <DropdownMenu.Portal>
+            <DropdownMenu.Content align="start" sideOffset={6} className={menuSurface}>
+              <DropdownMenu.Item asChild className={menuItem}>
+                <Link href={newProtocolHref(hit.sha256)}>
+                  <ProtocolIcon className="size-5 text-content-secondary" />
+                  Make a protocol from this file
+                </Link>
+              </DropdownMenu.Item>
+            </DropdownMenu.Content>
+          </DropdownMenu.Portal>
+        </DropdownMenu.Root>
+      ) : null}
+    </div>
+  );
+}
+
+// One line that opens in place to what it counts.
+function Disclosure({ summary, tone = "quiet", children }: { summary: ReactNode; tone?: "quiet" | "flag"; children: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="min-w-0">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        className={cn(
+          "-mx-1.5 inline-flex min-h-7 max-w-full items-center gap-1.5 rounded-md px-1.5 text-left text-paragraph-small transition-colors duration-150 ease-out hover:bg-background-tertiary max-sm:min-h-11",
+          tone === "flag" ? "text-content-warning" : "text-content-secondary",
+        )}
+      >
+        <span className="min-w-0 underline decoration-content-tertiary decoration-dotted underline-offset-4">{summary}</span>
+        <ChevronSmallIcon className={cn("size-4 shrink-0 transition-transform duration-150 ease-out", open ? "-rotate-90" : "rotate-90")} />
+      </button>
+      {open ? <div className="mt-1.5 mb-1">{children}</div> : null}
+    </div>
+  );
+}
+
+// "3 charts: Plate 7 kinetics at 420 nm and 2 more", opening to the list.
+function ChartsLine({ hit }: { hit: FileHit }) {
+  const api = useLabApi();
+  const query = useQuery({ queryKey: fileChartsKey(hit.sha256), queryFn: ({ signal }) => api.fileCharts(hit.sha256, signal) });
+  const charts = query.data ?? [];
+  const [first] = charts;
+  if (first === undefined) return null;
+  const more = charts.length - 1;
+  return (
+    <Disclosure
+      summary={
+        <>
+          <ChartIcon className="mr-1.5 inline size-4 align-[-3px] text-content-tertiary" />
+          {charts.length === 1 ? "1 chart" : `${charts.length} charts`}: {first.title}
+          {more > 0 ? ` and ${more} more` : ""}
+        </>
+      }
+    >
+      <ul className="grid gap-1.5">
+        {charts.map((c) => (
+          <li key={c.id} className="min-w-0 text-paragraph-small">
+            <Link href={chartHref(c.id)} className="text-content-accent underline-offset-2 hover:underline">
+              {c.title}
+            </Link>
+            <span className="text-paragraph-xsmall text-content-tertiary">
+              {" "}
+              · Saved <When iso={c.updatedAt} />
+            </span>
+          </li>
+        ))}
+      </ul>
+    </Disclosure>
+  );
+}
+
+// "1 flag: Standard curve fit" in amber when a check flagged the sheet, else how many checks
+// passed; either opens to the checks.
+function FlagsLine({ hit }: { hit: FileHit }) {
+  const api = useLabApi();
+  const query = useQuery({
+    queryKey: fileChecksKey(hit.sha256),
+    queryFn: ({ signal }) => api.fileChecks(hit.sha256, signal),
+    refetchInterval: (q) => (q.state.data?.checking ? 3000 : false),
+  });
+  const data = query.data;
+  if (data === undefined || (data.flags.length === 0 && data.checks.length === 0)) return null;
+  const [flag] = data.flags;
+  const summary =
+    flag !== undefined ? (
+      <>
+        <FlagIcon className="mr-1.5 inline size-4 align-[-3px]" />
+        {data.flags.length === 1 ? "1 flag" : `${data.flags.length} flags`}: {flag.checkName}
+        {data.flags.length > 1 ? ` and ${data.flags.length - 1} more` : ""}
+      </>
+    ) : (
+      `${data.checks.length === 1 ? "1 check" : `${data.checks.length} checks`}, nothing flagged`
+    );
+  return (
+    <Disclosure summary={summary} tone={flag === undefined ? "quiet" : "flag"}>
+      <FileFlagsList data={data} />
+    </Disclosure>
+  );
+}
 
 function OtherPlaces({ locations }: { locations: readonly FileLocation[] }) {
   return (
-    <div className="w-full min-w-0">
-      <h3 className="text-label-medium text-content-primary">Also in</h3>
-      <ul className="mt-2 grid gap-2">
+    <Disclosure summary={locations.length === 1 ? "Also in 1 other place" : `Also in ${locations.length} other places`}>
+      <ul className="grid gap-2">
         {locations.map((location) => {
           const target = openTarget(location);
           return (
@@ -109,7 +238,7 @@ function OtherPlaces({ locations }: { locations: readonly FileLocation[] }) {
           );
         })}
       </ul>
-    </div>
+    </Disclosure>
   );
 }
 

@@ -23,7 +23,16 @@ export async function POST(request: NextRequest, ctx: RouteContext<"/api/uploads
   const req = { headers: request.headers, claim: claim.data };
   const done = isTalkThroughUpload(request.headers)
     ? await completeTalkThrough(lab.id, uploadId.data, req, async (args) => await supabase.rpc("record_talk_through", args))
-    : await completeUpload(lab.id, uploadId.data, req, async (args) => await supabase.rpc("record_upload", args));
+    : await completeUpload(
+        lab.id,
+        uploadId.data,
+        req,
+        async (args) => await supabase.rpc("record_upload", args),
+        async (locationId, batch) => {
+          const { error } = await supabase.rpc("tag_upload_batch", { p_location_id: locationId, p_batch_id: batch });
+          if (error !== null) throw new Error(error.message);
+        },
+      );
   return "receipt" in done
     ? NextResponse.json(done.receipt, { status: done.status })
     : NextResponse.json({ error: done.error }, { status: done.status });

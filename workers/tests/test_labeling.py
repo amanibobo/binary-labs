@@ -24,6 +24,13 @@ def label_json(**overrides):
         "person": None,
         "instrument": None,
         "tags": ["dsf"],
+        "alternatives": [],
+        "note_kind": "data",
+        "outcome": None,
+        "summary": None,
+        "conditions": [],
+        "unclear": [],
+        "follow_up": None,
         "confidence": 0.9,
         "reason": "folder and content agree",
     }

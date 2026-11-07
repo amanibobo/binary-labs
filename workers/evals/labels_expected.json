@@ -1,5 +1,5 @@
 {
-  "about": "Hand-written labels for every file scripts/make_sample_lab.py writes. A list value means any of those is right; 'modified' means the file's modified date, since nothing in the file dates it. name_terms must all appear in the clean name (a nested list: any one of them).",
+  "about": "Hand-written labels for every file scripts/make_sample_lab.py writes. A list value means any of those is right; 'modified' means the file's modified date, since nothing in the file dates it. name_terms must all appear in the clean name (a nested list: any one of them). outcome, where given, is scored separately (a list means any of them).",
   "lab": {
     "experiments": [
       {
@@ -31,6 +31,13 @@
         "aliases": [
           "screen_plate_07",
           "plate07"
+        ]
+      },
+      {
+        "name": "HeLa drug A",
+        "aliases": [
+          "hela_drugA",
+          "drug A"
         ]
       }
     ],
@@ -715,6 +722,410 @@
       "date": "modified",
       "experiment": null,
       "person": "Grace Ho",
+      "instrument": null
+    },
+    {
+      "paths": [
+        "/AB/hela_drugA/plate2_A570.csv"
+      ],
+      "name_terms": [
+        [
+          "plate 2"
+        ]
+      ],
+      "date": "modified",
+      "experiment": "HeLa drug A",
+      "person": "Ama Boateng",
+      "instrument": "BioTek Gen5",
+      "outcome": null
+    },
+    {
+      "paths": [
+        "/AB/hela_drugA/plate3_A570.csv"
+      ],
+      "name_terms": [
+        [
+          "plate 3"
+        ]
+      ],
+      "date": "modified",
+      "experiment": "HeLa drug A",
+      "person": "Ama Boateng",
+      "instrument": "BioTek Gen5",
+      "outcome": [
+        null,
+        "failed"
+      ]
+    },
+    {
+      "paths": [
+        "/AB/hela_drugA/plate4 notes.txt"
+      ],
+      "name_terms": [
+        [
+          "plate 4"
+        ]
+      ],
+      "date": "modified",
+      "experiment": "HeLa drug A",
+      "person": "Ama Boateng",
+      "instrument": null,
+      "outcome": [
+        "final",
+        "worked",
+        "repeat"
+      ]
+    },
+    {
+      "paths": [
+        "/AB/notebook/hela drug A plate 3/page_01.jpg"
+      ],
+      "name_terms": [
+        [
+          "drug A"
+        ],
+        [
+          "plate 3"
+        ]
+      ],
+      "date": [
+        "2026-11-03",
+        "2026-11-05",
+        "modified"
+      ],
+      "experiment": "HeLa drug A",
+      "person": "Ama Boateng",
+      "instrument": null,
+      "outcome": "failed"
+    },
+    {
+      "paths": [
+        "/AB/notebook/hela drug A plate 3/page_02.jpg"
+      ],
+      "name_terms": [
+        [
+          "drug A",
+          "HeLa",
+          "plate 3",
+          "MTT",
+          "notebook",
+          "notes",
+          "page",
+          "IC50",
+          "readings"
+        ]
+      ],
+      "date": [
+        "2026-11-03",
+        "2026-11-05",
+        "2026-11-06",
+        "modified"
+      ],
+      "experiment": "HeLa drug A",
+      "person": [
+        "Ama Boateng",
+        null
+      ],
+      "instrument": null
+    },
+    {
+      "paths": [
+        "/AB/notebook/hela drug A plate 3/page_03.jpg"
+      ],
+      "name_terms": [
+        [
+          "drug A",
+          "HeLa",
+          "plate 3",
+          "MTT",
+          "notebook",
+          "notes",
+          "page",
+          "IC50",
+          "readings"
+        ]
+      ],
+      "date": [
+        "2026-11-03",
+        "2026-11-05",
+        "2026-11-06",
+        "modified"
+      ],
+      "experiment": "HeLa drug A",
+      "person": [
+        "Ama Boateng",
+        null
+      ],
+      "instrument": null
+    },
+    {
+      "paths": [
+        "/AB/notebook/hela drug A plate 3/page_04.jpg"
+      ],
+      "name_terms": [
+        [
+          "drug A",
+          "HeLa",
+          "plate 3",
+          "MTT",
+          "notebook",
+          "notes",
+          "page",
+          "IC50",
+          "readings"
+        ]
+      ],
+      "date": [
+        "2026-11-03",
+        "2026-11-05",
+        "2026-11-06",
+        "modified"
+      ],
+      "experiment": "HeLa drug A",
+      "person": [
+        "Ama Boateng",
+        null
+      ],
+      "instrument": null
+    },
+    {
+      "paths": [
+        "/AB/notebook/hela drug A plate 3/page_05.jpg"
+      ],
+      "name_terms": [
+        [
+          "drug A",
+          "HeLa",
+          "plate 3",
+          "MTT",
+          "notebook",
+          "notes",
+          "page",
+          "IC50",
+          "readings"
+        ]
+      ],
+      "date": [
+        "2026-11-03",
+        "2026-11-05",
+        "2026-11-06",
+        "modified"
+      ],
+      "experiment": "HeLa drug A",
+      "person": [
+        "Ama Boateng",
+        null
+      ],
+      "instrument": null
+    },
+    {
+      "paths": [
+        "/AB/notebook/hela drug A plate 3/page_06.jpg"
+      ],
+      "name_terms": [
+        [
+          "drug A",
+          "HeLa",
+          "plate 3",
+          "MTT",
+          "notebook",
+          "notes",
+          "page",
+          "IC50",
+          "readings"
+        ]
+      ],
+      "date": [
+        "2026-11-03",
+        "2026-11-05",
+        "2026-11-06",
+        "modified"
+      ],
+      "experiment": "HeLa drug A",
+      "person": [
+        "Ama Boateng",
+        null
+      ],
+      "instrument": null
+    },
+    {
+      "paths": [
+        "/AB/notebook/hela drug A plate 3/page_07.jpg"
+      ],
+      "name_terms": [
+        [
+          "drug A",
+          "HeLa",
+          "plate 3",
+          "MTT",
+          "notebook",
+          "notes",
+          "page",
+          "IC50",
+          "readings"
+        ]
+      ],
+      "date": [
+        "2026-11-03",
+        "2026-11-05",
+        "2026-11-06",
+        "modified"
+      ],
+      "experiment": "HeLa drug A",
+      "person": [
+        "Ama Boateng",
+        null
+      ],
+      "instrument": null
+    },
+    {
+      "paths": [
+        "/AB/notebook/hela drug A plate 3/page_08.jpg"
+      ],
+      "name_terms": [
+        [
+          "drug A",
+          "HeLa",
+          "plate 3",
+          "MTT",
+          "notebook",
+          "notes",
+          "page",
+          "IC50",
+          "readings"
+        ]
+      ],
+      "date": [
+        "2026-11-03",
+        "2026-11-05",
+        "2026-11-06",
+        "modified"
+      ],
+      "experiment": "HeLa drug A",
+      "person": [
+        "Ama Boateng",
+        null
+      ],
+      "instrument": null
+    },
+    {
+      "paths": [
+        "/AB/notebook/hela drug A plate 3/page_09.jpg"
+      ],
+      "name_terms": [
+        [
+          "drug A",
+          "HeLa",
+          "plate 3",
+          "MTT",
+          "notebook",
+          "notes",
+          "page",
+          "IC50",
+          "readings"
+        ]
+      ],
+      "date": [
+        "2026-11-03",
+        "2026-11-05",
+        "2026-11-06",
+        "modified"
+      ],
+      "experiment": "HeLa drug A",
+      "person": [
+        "Ama Boateng",
+        null
+      ],
+      "instrument": null
+    },
+    {
+      "paths": [
+        "/AB/notebook/hela drug A plate 3/page_10.jpg"
+      ],
+      "name_terms": [
+        [
+          "drug A",
+          "HeLa",
+          "plate 3",
+          "MTT",
+          "notebook",
+          "notes",
+          "page",
+          "IC50",
+          "readings"
+        ]
+      ],
+      "date": [
+        "2026-11-03",
+        "2026-11-05",
+        "2026-11-06",
+        "modified"
+      ],
+      "experiment": "HeLa drug A",
+      "person": [
+        "Ama Boateng",
+        null
+      ],
+      "instrument": null
+    },
+    {
+      "paths": [
+        "/AB/notebook/hela drug A plate 3/page_11.jpg"
+      ],
+      "name_terms": [
+        [
+          "drug A",
+          "HeLa",
+          "plate 3",
+          "MTT",
+          "notebook",
+          "notes",
+          "page",
+          "IC50",
+          "readings"
+        ]
+      ],
+      "date": [
+        "2026-11-03",
+        "2026-11-05",
+        "2026-11-06",
+        "modified"
+      ],
+      "experiment": "HeLa drug A",
+      "person": [
+        "Ama Boateng",
+        null
+      ],
+      "instrument": null
+    },
+    {
+      "paths": [
+        "/AB/notebook/hela drug A plate 3/page_12.jpg"
+      ],
+      "name_terms": [
+        [
+          "drug A",
+          "HeLa",
+          "plate 3",
+          "MTT",
+          "notebook",
+          "notes",
+          "page",
+          "IC50",
+          "readings"
+        ]
+      ],
+      "date": [
+        "2026-11-03",
+        "2026-11-05",
+        "2026-11-06",
+        "modified"
+      ],
+      "experiment": "HeLa drug A",
+      "person": [
+        "Ama Boateng",
+        null
+      ],
       "instrument": null
     }
   ]

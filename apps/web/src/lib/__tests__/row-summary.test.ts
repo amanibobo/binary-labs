@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Label } from "../domain";
+import { PLAIN_LABEL, type Label } from "../domain";
 import { ExperimentId, PersonId } from "../ids";
 import { isRowKey, rowStep } from "../row-keys";
 import { rowSummary, tagCount, textOverflows } from "../row-summary";
@@ -8,6 +8,7 @@ const screen = { id: ExperimentId.parse("00000000-0000-4000-8000-0000000000e3"),
 const ade = { id: PersonId.parse("00000000-0000-4000-8000-0000000000a2"), name: "Ade Okafor" };
 
 const plate: Label = {
+  ...PLAIN_LABEL,
   status: "check",
   cleanName: "Plate 7 absorbance at 420 nm",
   date: "2026-11-03",

@@ -43,6 +43,9 @@ export const UPLOAD_HEADERS = {
   experiment: "x-upload-experiment",
   uploadedOn: "x-upload-date",
   modifiedAt: "x-upload-modified",
+  // The files a person picked or photographed together share one id; Binary may suggest them
+  // as one note.
+  batch: "x-upload-batch",
 } as const;
 
 export type UploadMeta = {
@@ -52,6 +55,7 @@ export type UploadMeta = {
   uploadedOn: string;
   // The file's own modified time, epoch ms, when the browser knows it.
   modifiedAt: number | null;
+  batch?: string | null;
 };
 
 const Encoded = z.string().transform((s, ctx) => {
@@ -70,6 +74,7 @@ const UploadHeaders = z.object({
     .transform((e) => (e === undefined || e === "" ? null : e)),
   uploadedOn: IsoDate,
   modifiedAt: z.coerce.number().int().positive().optional().transform((m) => m ?? null),
+  batch: z.uuid().optional().transform((b) => b ?? null),
 });
 
 export function uploadHeaders(meta: UploadMeta): Record<string, string> {
@@ -79,6 +84,7 @@ export function uploadHeaders(meta: UploadMeta): Record<string, string> {
   };
   if (meta.experiment !== null) headers[UPLOAD_HEADERS.experiment] = encodeURIComponent(meta.experiment);
   if (meta.modifiedAt !== null) headers[UPLOAD_HEADERS.modifiedAt] = String(meta.modifiedAt);
+  if (meta.batch !== undefined && meta.batch !== null) headers[UPLOAD_HEADERS.batch] = meta.batch;
   return headers;
 }
 
@@ -89,6 +95,7 @@ export function parseUploadHeaders(headers: Headers): UploadMeta | null {
     experiment: read(UPLOAD_HEADERS.experiment),
     uploadedOn: read(UPLOAD_HEADERS.uploadedOn),
     modifiedAt: read(UPLOAD_HEADERS.modifiedAt),
+    batch: read(UPLOAD_HEADERS.batch),
   });
   return parsed.success ? parsed.data : null;
 }

@@ -4,6 +4,7 @@ import { createContext, use } from "react";
 import { z } from "zod";
 import { CorrectionWire, FileLabelsWire, SearchResponse, type Correction, type FileHit, type FileLabel, type SearchParams } from "@/lib/domain";
 import { correctRequest } from "@/lib/labels";
+import type { NoteRequest } from "@/lib/notes";
 import type { LabelDraft } from "@/lib/label-edit";
 import { BrowseResponse, type FolderPath } from "@/lib/folders";
 import { SourceStateWire, type SourceState } from "@/lib/source-state";
@@ -78,6 +79,8 @@ export type LabApi = {
   // Both reject with an Error whose message can be shown to the person.
   correctLabel: (sha: Sha256, draft: LabelDraft) => Promise<Correction>;
   undoCorrection: (id: CorrectionId) => Promise<Correction>;
+  // Keeps, splits (or un-splits), takes a page out of, or joins a note; rejects with a showable Error.
+  changeNote: (req: NoteRequest) => Promise<void>;
   // The page's current version, to start over from after someone else saved.
   protocol: (id: ProtocolId, signal: AbortSignal) => Promise<ProtocolVersion>;
   // These reject with an Error whose message can be shown; a stale save resolves as { kind: "stale" }.
@@ -288,6 +291,9 @@ export const httpLabApi: LabApi = {
     FileLabelsWire.parse(await getJson(`/api/labels?${new URLSearchParams({ shas: shas.join(",") })}`, signal)),
   correctLabel: async (sha, draft) => CorrectionWire.parse(await postJson("/api/labels/correct", correctRequest(sha, draft))),
   undoCorrection: async (id) => CorrectionWire.parse(await postJson("/api/labels/undo", { correctionId: id })),
+  changeNote: async (req) => {
+    await postJson("/api/notes", req);
+  },
   protocol: async (id, signal) => ProtocolVersionWire.parse(await getJson(`/api/protocols/${id}`, signal)),
   createProtocol: async (req) => SavedVersionWire.parse(await postJson("/api/protocols", req)),
   saveProtocol: async (id, req) => {

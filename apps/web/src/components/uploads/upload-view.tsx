@@ -37,6 +37,8 @@ export function UploadView({ experiments, personName }: { experiments: string[];
   const add = (files: readonly File[], source: "camera" | "picker" | "paste") => {
     if (files.length === 0) return;
     const now = new Date();
+    // Picked or photographed together: Binary may suggest them as one note.
+    const batch = files.length > 1 ? crypto.randomUUID() : null;
     const items = files.map((file): NewItem => {
       const name =
         source === "camera" ? capturedName("photo", now, file.type) : source === "paste" ? capturedName("screenshot", now, file.type) : file.name;
@@ -48,6 +50,7 @@ export function UploadView({ experiments, personName }: { experiments: string[];
           experiment: experiment.trim() === "" ? null : experiment.trim(),
           uploadedOn: localDay(now),
           modifiedAt: source === "picker" && file.lastModified > 0 ? file.lastModified : null,
+          batch,
         },
       };
     });

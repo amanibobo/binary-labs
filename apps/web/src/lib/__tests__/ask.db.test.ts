@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { AskEvent, AskStep } from "../answers";
 import { askLab, ContextRows } from "../ask";
-import { CreateLabResult } from "../domain";
+import { CreateLabResult, PLAIN_LABEL } from "../domain";
 import { ExperimentId, LabId, ProtocolId, ProtocolVersionId, QuestionId, Sha256, SuggestionId, UserId } from "../ids";
 import type { ProtocolVersion } from "../protocols";
 import { suggestLabels, suggestProtocolEdit } from "../suggest";
@@ -308,7 +308,7 @@ describe("label suggestions", () => {
     const sources = events.find((e) => e.type === "sources");
     if (sources?.type !== "sources") throw new Error("expected sources");
     const labels = new Map(
-      [notes, gel].map((sha) => [sha, { status: "suggested" as const, cleanName: sha === notes ? "Batch 3 notes" : "Gel photo", date: null, experiment: null, person: null, instrument: null, tags: [], confidence: 0.9 }]),
+      [notes, gel].map((sha) => [sha, { ...PLAIN_LABEL, status: "suggested" as const, cleanName: sha === notes ? "Batch 3 notes" : "Gel photo", date: null, experiment: null, person: null, instrument: null, tags: [], confidence: 0.9 }]),
     );
     const keyOf = (sha: Sha256) => sources.sources.find((s) => s.kind === "file" && s.sha256 === sha)?.key ?? "F9";
     const drafted = await suggestLabels(
