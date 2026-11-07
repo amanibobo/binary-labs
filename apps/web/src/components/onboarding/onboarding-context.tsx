@@ -34,13 +34,15 @@ async function postEvent(event: OnboardingEvent): Promise<void> {
 const SaveContext = createContext<OnboardingSave>(postEvent);
 export const OnboardingSaveProvider = SaveContext.Provider;
 
-export type SheetView = { kind: "checklist" } | { kind: "answer"; id: HelpAnswerId };
+export type SheetView = { kind: "checklist" } | { kind: "answers" } | { kind: "answer"; id: HelpAnswerId };
 
-// One thing at a time: the welcome, a tour step, one hint, or the help sheet, never two.
+// One thing at a time: the welcome, a tour step, the line after the tour, one hint, or the help
+// sheet, never two.
 export type Overlay =
   | { kind: "none" }
   | { kind: "welcome" }
   | { kind: "tour"; index: number }
+  | { kind: "start" }
   | { kind: "hint"; hint: HintId; anchor: Element }
   | { kind: "sheet"; view: SheetView };
 
@@ -129,7 +131,8 @@ export function OnboardingProvider({ data, tourHere, children }: { data: Onboard
       goToStep,
       endTour: (how) => {
         note({ kind: how === "done" ? "tour_done" : "tour_skipped" });
-        setOverlay({ kind: "none" });
+        // Someone who skipped knows their way around; a finished tour ends on where to begin.
+        setOverlay(how === "done" ? { kind: "start" } : { kind: "none" });
       },
       closeWelcome: () => {
         note({ kind: "welcome" });

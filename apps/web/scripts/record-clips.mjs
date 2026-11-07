@@ -69,6 +69,41 @@ async function column(page, anchor, { above, height }) {
   return { x: main.x + (main.width - width) / 2, y: Math.max(0, a.y - above), width, height };
 }
 
+// The chart builder hydrates after networkidle; its buttons do nothing until it has.
+const chartReady = (page) =>
+  page.waitForFunction(() => {
+    const button = document.querySelector("main button");
+    return button !== null && Object.keys(button).some((k) => k.startsWith("__reactProps"));
+  });
+
+// The chart builder's own column, from the top: the chart and what's said under it.
+async function chartColumn(page) {
+  const main = await box(page.locator("main"));
+  return { x: main.x + 8, y: 0, width: Math.min(720, main.width - 8), height: 740 };
+}
+
+// Fixture pages link to the real routes, which need a lab. A clip that clicks through to another
+// screen lists [pattern, fixture URL] pairs, and a click on a matching link loads the fixture.
+function followFixtureLinks(rules) {
+  document.addEventListener(
+    "click",
+    (e) => {
+      const link = e.target instanceof Element ? e.target.closest("a[href]") : null;
+      if (link === null) return;
+      const path = new URL(link.href).pathname;
+      for (const [pattern, to] of rules) {
+        const re = new RegExp(pattern);
+        if (!re.test(path)) continue;
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        window.location.assign(path.replace(re, to).replace(/path=([^&]+)/, (_, p) => `path=${encodeURIComponent(decodeURIComponent(p))}`));
+        return;
+      }
+    },
+    true,
+  );
+}
+
 const CLIPS = [
   {
     id: "search",
@@ -237,6 +272,234 @@ const CLIPS = [
       await page.waitForTimeout(1300);
     },
   },
+  // ---- One per tab, for the tour (decisions.md, "onboarding: a step per tab")
+  {
+    id: "ask",
+    // A question typed in Search and asked with Enter; the answer box with its sources.
+    path: "/dev/fixtures/ask?view=answer",
+    crop: (page) => column(page, page.getByRole("searchbox"), { above: 32, height: 500 }),
+    async run(page) {
+      await clickAt(page, page.getByRole("searchbox"));
+      await page.keyboard.type("What was the yield of P450 batch 3?", { delay: 55 });
+      await page.waitForTimeout(500);
+      await page.keyboard.press("Enter");
+      await page.getByText("Sources").first().waitFor();
+      await page.waitForTimeout(2200);
+    },
+  },
+  {
+    id: "browse",
+    path: "/dev/fixtures/browse",
+    rewrites: [["^/browse/(.+)$", "/dev/fixtures/browse?path=$1"]],
+    async crop(page) {
+      const main = await box(page.locator("main"));
+      return { x: main.x, y: 0, width: main.width, height: 600 };
+    },
+    async run(page) {
+      await page.waitForTimeout(500);
+      await clickAt(page, page.getByRole("link", { name: /^P450/ }).first());
+      await page.getByRole("link", { name: /^batch3/ }).first().waitFor();
+      await page.waitForTimeout(1000);
+      await clickAt(page, page.getByRole("link", { name: /^batch3/ }).first());
+      await page.getByRole("link", { name: /^gels/ }).first().waitFor();
+      await page.waitForTimeout(1500);
+    },
+  },
+  {
+    id: "protocols",
+    // The list, then one protocol's page scrolled to its steps.
+    path: "/dev/fixtures/protocols?view=list",
+    rewrites: [["^/protocols/[0-9a-f-]+$", "/dev/fixtures/protocols?view=page"]],
+    crop: (page) => column(page, page.getByRole("heading", { level: 1, name: "Protocols" }), { above: 40, height: 520 }),
+    async run(page) {
+      await page.waitForTimeout(600);
+      await clickAt(page, page.getByRole("link", { name: /^P450 BM3 purification/ }));
+      await page.getByRole("heading", { level: 1, name: "P450 BM3 purification" }).waitFor();
+      await page.waitForTimeout(1200);
+      for (let i = 0; i < 12; i++) {
+        await page.mouse.wheel(0, 40);
+        await page.waitForTimeout(40);
+      }
+      await page.waitForTimeout(1600);
+    },
+  },
+  {
+    id: "map",
+    // An experiment found by name shows its files around it. Framed at full size from the
+    // search field, so the dots still read in a tour card.
+    path: "/dev/fixtures/map",
+    async crop(page) {
+      const main = await box(page.locator("main"));
+      return { x: main.x, y: 0, width: 720, height: 520 };
+    },
+    async run(page) {
+      await page.waitForTimeout(1200);
+      await clickAt(page, page.getByLabel("Find on the map"));
+      await page.keyboard.type("Ligand soak", { delay: 70 });
+      await page.waitForTimeout(500);
+      await page.keyboard.press("Enter");
+      await page.waitForTimeout(3000);
+    },
+  },
+  {
+    id: "calendar",
+    // Booking the plate reader: a new entry, its title, the instrument, and the note that it's
+    // already booked that afternoon.
+    path: "/dev/fixtures/calendar?view=week",
+    crop: () => ({ x: DESKTOP.width - 720, y: 0, width: 720, height: 500 }),
+    async run(page) {
+      await page.waitForTimeout(500);
+      await clickAt(page, page.getByRole("button", { name: "New entry" }));
+      await page.waitForTimeout(500);
+      await page.keyboard.type("Plate reader, plate 10", { delay: 55 });
+      await page.keyboard.press("Enter");
+      await page.waitForTimeout(900);
+      await clickAt(page, page.getByRole("button", { name: "Instrument: None" }));
+      await page.waitForTimeout(500);
+      await clickAt(page, page.getByRole("menuitemradio", { name: "Plate reader, room 214" }));
+      await page.getByText(/is also booked/).waitFor();
+      await page.waitForTimeout(2200);
+    },
+  },
+  {
+    id: "flags",
+    // A flag opened from the list: the value, the range, where it came from, then an answer.
+    path: "/dev/fixtures/flags?view=list",
+    rewrites: [["^/flags/.+$", "/dev/fixtures/flags?view=flag"]],
+    crop: (page) => column(page, page.getByRole("heading", { level: 1, name: "Flags" }), { above: 40, height: 520 }),
+    async run(page) {
+      await page.waitForTimeout(600);
+      await clickAt(page, page.getByRole("link", { name: /^Standard curve fit.*Oct 30/ }));
+      await page.getByRole("heading", { level: 1, name: "Standard curve fit" }).waitFor();
+      await page.waitForTimeout(1500);
+      await clickAt(page, page.getByRole("button", { name: "Useful", exact: true }));
+      await page.waitForTimeout(400);
+      await clickAt(page, page.getByRole("button", { name: "Save answer" }));
+      await page.waitForTimeout(1600);
+    },
+  },
+  {
+    id: "help",
+    // Help's list of questions, then one answer. Recorded after "ask", which that answer shows.
+    path: "/dev/fixtures/search?state=results",
+    // The menu is opened before the recording starts; it sits outside the frame.
+    async crop(page) {
+      await page.waitForTimeout(400);
+      await page.getByRole("button", { name: "Help" }).click();
+      await page.getByRole("menuitem", { name: "How do I…" }).waitFor();
+      return { x: (DESKTOP.width - 640) / 2, y: 40, width: 640, height: DESKTOP.height - 80 };
+    },
+    async run(page) {
+      await clickAt(page, page.getByRole("menuitem", { name: "How do I…" }));
+      await page.getByRole("dialog", { name: "How do I…" }).waitFor();
+      await page.waitForTimeout(1200);
+      await clickAt(page, page.getByRole("button", { name: "Ask the lab a question" }));
+      await page.getByRole("dialog", { name: "Ask the lab a question" }).waitFor();
+      await page.waitForTimeout(1600);
+    },
+  },
+  // ---- For help answers
+  {
+    id: "calendar-views",
+    // The year, then the title's month picker jumping to a month.
+    path: "/dev/fixtures/calendar?view=month",
+    async crop(page) {
+      const main = await box(page.locator("main"));
+      return { x: main.x, y: 0, width: main.width, height: 640 };
+    },
+    async run(page) {
+      await page.waitForTimeout(600);
+      await clickAt(page, page.getByRole("button", { name: "Year", exact: true }));
+      await page.waitForTimeout(1500);
+      await clickAt(page, page.getByRole("button", { name: /change month or year/ }));
+      await page.getByRole("group", { name: "Months of 2026" }).waitFor();
+      await page.waitForTimeout(700);
+      await clickAt(page, page.getByRole("group", { name: "Months of 2026" }).getByRole("button", { name: /^Dec/ }));
+      await page.waitForTimeout(1800);
+    },
+  },
+  {
+    id: "invite",
+    path: "/dev/fixtures/search?state=results",
+    // Opened before the recording starts, so the clip is the dialog: the email, then Send invite.
+    async crop(page) {
+      await page.waitForTimeout(400);
+      await page.getByRole("button", { name: /^Invite people/ }).click();
+      const dialog = await box(page.getByRole("dialog"));
+      await page.waitForTimeout(600);
+      return { x: dialog.x - 16, y: dialog.y - 16, width: dialog.width + 32, height: Math.min(dialog.height + 32, 560) };
+    },
+    async run(page) {
+      const dialog = page.getByRole("dialog");
+      await page.waitForTimeout(500);
+      await clickAt(page, dialog.getByLabel("Invite by email"));
+      await page.keyboard.type("sam.chen@university.edu", { delay: 55 });
+      await page.waitForTimeout(300);
+      await pointAt(page, dialog.getByRole("button", { name: "Send invite" }));
+      await page.waitForTimeout(1500);
+    },
+  },
+  {
+    id: "chart-wells",
+    // Marking the blanks and the controls on a viability plate.
+    path: "/dev/fixtures/charts?view=dose-paint",
+    async crop(page) {
+      await chartReady(page);
+      await clickAt(page, page.getByRole("button", { name: "Mark the wells" }));
+      const dialog = await box(page.getByRole("dialog"));
+      return { x: dialog.x, y: dialog.y, width: dialog.width, height: Math.min(dialog.height, 600) };
+    },
+    async run(page) {
+      const dialog = page.getByRole("dialog");
+      const well = (name) => dialog.getByRole("gridcell", { name: new RegExp(`^${name},`) });
+      const paint = async (from, to, role) => {
+        await pointAt(page, well(from));
+        await page.mouse.down();
+        const b = await box(well(to));
+        await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 14 });
+        await page.mouse.up();
+        await page.waitForTimeout(300);
+        await clickAt(page, dialog.getByRole("radio", { name: new RegExp(`^${role}`) }));
+        await page.waitForTimeout(250);
+        await clickAt(page, dialog.getByRole("button", { name: /^Mark 3 wells/ }));
+        await page.waitForTimeout(700);
+      };
+      await page.waitForTimeout(500);
+      await paint("B1", "D1", "Blank");
+      await paint("B2", "D2", "Control");
+      await page.waitForTimeout(1000);
+    },
+  },
+  {
+    id: "chart-curve",
+    // Bradford standards and samples marked in the export: the suggested curve with the
+    // samples read off it.
+    path: "/dev/fixtures/charts?view=bradford-plate",
+    crop: (page) => chartColumn(page),
+    async run(page) {
+      await chartReady(page);
+      await page.waitForTimeout(700);
+      await clickAt(page, page.getByRole("button", { name: /^How two measurements relate/ }).first());
+      await page.locator("figure svg").first().waitFor();
+      // The pointer leaves the chart, so no readout covers the line.
+      await page.mouse.move(DESKTOP.width - 40, 120, { steps: 12 });
+      await page.waitForTimeout(2600);
+    },
+  },
+  {
+    id: "chart-ic50",
+    // A viability plate whose export carries its layout: the dose-response and its IC50.
+    path: "/dev/fixtures/charts?view=dose",
+    crop: (page) => chartColumn(page),
+    async run(page) {
+      await chartReady(page);
+      await page.waitForTimeout(700);
+      await clickAt(page, page.getByRole("button", { name: /^How a dose changes the effect/ }).first());
+      await page.locator("figure svg").first().waitFor();
+      await page.mouse.move(DESKTOP.width - 40, 120, { steps: 12 });
+      await page.waitForTimeout(2600);
+    },
+  },
 ];
 
 const even = (n) => Math.max(2, Math.round(n / 2) * 2);
@@ -293,6 +556,7 @@ try {
         ...(clip.phone ? { hasTouch: true, isMobile: true } : {}),
       });
       await context.addInitScript(CURSOR);
+      if (clip.rewrites) await context.addInitScript(followFixtureLinks, clip.rewrites);
       const page = await context.newPage();
       await page.goto(base + clip.path, { waitUntil: "networkidle" });
       await page.evaluate(() => document.fonts.ready);
@@ -320,7 +584,7 @@ try {
 
 // A filtered run re-records some clips; the sizes of the rest stay as the file has them.
 if (only !== undefined) {
-  const kept = readFileSync(sizesFile, "utf8").matchAll(/"([a-z-]+)": \{ width: (\d+), height: (\d+) \}/g);
+  const kept = readFileSync(sizesFile, "utf8").matchAll(/"([a-z0-9-]+)": \{ width: (\d+), height: (\d+) \}/g);
   for (const [, id, width, height] of kept) sizes[id] ??= { width: Number(width), height: Number(height) };
 }
 {

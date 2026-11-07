@@ -1,8 +1,16 @@
+import { existsSync, readdirSync, statSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { NAV, SETTINGS_NAV } from "@/components/nav";
+import { CLIP_SIZES } from "@/components/onboarding/clip-sizes";
 import {
   applyEvent,
   checklist,
   FRESH_STATE,
+  HELP_ANSWERS,
+  helpGroups,
+  START_POINTER,
+  type ClipId,
   noteArgs,
   NO_PROGRESS,
   OnboardingRows,
@@ -11,6 +19,9 @@ import {
   tourSteps,
   type Progress,
 } from "../onboarding";
+
+// Sentence ends: a full stop, question or exclamation mark before a space or the end.
+const sentences = (text: string) => text.split(/[.!?](?:\s|$)/).filter((part) => part.trim() !== "").length;
 
 const at = (day: number) => `2026-11-0${day}T12:00:00.000Z`;
 
@@ -65,15 +76,105 @@ describe("checklist", () => {
 });
 
 describe("tour", () => {
-  it("follows the PRD's member tour, with the setup step first for admins", () => {
-    expect(tourSteps("member").map((s) => s.id)).toEqual(["search", "open", "fix", "needs-look"]);
-    expect(tourSteps("admin").map((s) => s.id)).toEqual(["setup", "search", "open", "fix", "needs-look"]);
+  // Saved progress is a step number, so the order is part of the contract: change it on purpose.
+  it("keeps one step per tab, in the sidebar's order, ending on Help", () => {
+    const ids = ["search", "browse", "protocols", "map", "calendar", "needs-look", "flags", "upload", "settings", "help"];
+    expect(tourSteps("member").map((s) => s.id)).toEqual(ids);
+    expect(tourSteps("admin").map((s) => s.id)).toEqual(ids);
   });
 
-  it("falls back to the phone's menu for sidebar steps", () => {
-    for (const step of tourSteps("admin").filter((s) => s.id === "setup" || s.id === "needs-look")) {
+  it("spotlights each tab's sidebar link, found by its name there, with the phone's menu last", () => {
+    const sidebar = new Map<string, string>([...NAV, SETTINGS_NAV].map((item) => [item.label, item.section]));
+    sidebar.set("Help", "help");
+    for (const step of tourSteps("member")) {
+      const section = sidebar.get(step.title);
+      expect(section, step.title).toBeDefined();
+      expect(step.anchors[0]).toBe(`[data-tour~="${section}"]`);
       expect(step.anchors.at(-1)).toBe('[data-tour~="menu"]');
     }
+    // Every sidebar tab has its step.
+    expect(new Set(tourSteps("member").map((s) => s.title))).toEqual(new Set(sidebar.keys()));
+  });
+
+  it("tells admins to set the lab up from Settings", () => {
+    const settings = (role: "admin" | "member") => tourSteps(role).find((s) => s.id === "settings")?.when;
+    expect(settings("admin")).toMatch(/connect Dropbox and invite/);
+    expect(settings("member")).not.toBe(settings("admin"));
+  });
+
+  it("stays short: a name, then one sentence on what it's for and one on when", () => {
+    for (const role of ["admin", "member"] as const) {
+      for (const step of tourSteps(role)) {
+        expect(step.title.length, step.id).toBeLessThanOrEqual(16);
+        for (const line of [step.what, step.when]) {
+          expect(line.length, line).toBeLessThanOrEqual(110);
+          expect(sentences(line), line).toBe(1);
+        }
+      }
+    }
+    // About a minute: 10 steps of a few seconds' reading each.
+    const words = tourSteps("member").reduce((n, s) => n + `${s.what} ${s.when}`.split(/\s+/).length, 0);
+    expect(words).toBeLessThanOrEqual(220);
+  });
+
+  it("points to Protocols after the tour, in one line", () => {
+    expect(START_POINTER.anchors).toEqual(['[data-tour~="protocols"]', '[data-tour~="menu"]']);
+    expect(sentences(START_POINTER.text)).toBeLessThanOrEqual(2);
+    expect(START_POINTER.text.length).toBeLessThanOrEqual(90);
+  });
+});
+
+describe("how do I", () => {
+  it("answers each question in one or two short sentences", () => {
+    for (const answer of HELP_ANSWERS) {
+      expect(answer.question.length, answer.question).toBeLessThanOrEqual(36);
+      expect(answer.answer.length, answer.id).toBeLessThanOrEqual(230);
+      expect(sentences(answer.answer), answer.id).toBeLessThanOrEqual(2);
+    }
+    expect(new Set(HELP_ANSWERS.map((a) => a.id)).size).toBe(HELP_ANSWERS.length);
+  });
+
+  it("covers the newer parts of the app", () => {
+    const ids = HELP_ANSWERS.map((a) => a.id);
+    for (const id of ["ask", "map", "calendar", "flag", "chart", "wells", "standard-curve", "ic50", "test", "export", "invite"] as const) {
+      expect(ids).toContain(id);
+    }
+  });
+
+  it("puts every answer under a group, with no empty group", () => {
+    const groups = helpGroups();
+    expect(groups.flatMap((g) => g.answers).length).toBe(HELP_ANSWERS.length);
+    for (const g of groups) expect(g.answers.length).toBeGreaterThan(0);
+  });
+});
+
+describe("clips", () => {
+  const dir = join(import.meta.dirname, "../../../public/onboarding");
+  const used = new Set<ClipId>([
+    ...tourSteps("admin").map((s) => s.clip),
+    ...HELP_ANSWERS.flatMap((a) => (a.clip === null ? [] : [a.clip])),
+    "search", // the welcome's
+  ]);
+  const files = (clip: string) => ["dark", "light"].flatMap((scheme) => ["mp4", "webm", "webp"].map((ext) => `${clip}-${scheme}.${ext}`));
+
+  it("has every clip a step, an answer or the welcome shows, in both themes, with its size", () => {
+    for (const clip of used) {
+      expect(CLIP_SIZES[clip], clip).toBeDefined();
+      for (const file of files(clip)) expect(existsSync(join(dir, file)), file).toBe(true);
+    }
+  });
+
+  it("keeps each clip small", () => {
+    for (const [clip, size] of Object.entries(CLIP_SIZES)) {
+      expect(size.width).toBeLessThanOrEqual(720);
+      for (const file of files(clip)) expect(statSync(join(dir, file)).size, file).toBeLessThanOrEqual(260 * 1024);
+    }
+  });
+
+  it("leaves nothing in public/onboarding that nothing shows", () => {
+    const names = readdirSync(dir).map((f) => f.replace(/-(dark|light)\.(mp4|webm|webp)$/, ""));
+    expect(new Set(names)).toEqual(new Set(Object.keys(CLIP_SIZES)));
+    expect(new Set(Object.keys(CLIP_SIZES))).toEqual(used);
   });
 });
 
