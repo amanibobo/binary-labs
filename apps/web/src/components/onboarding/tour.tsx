@@ -171,7 +171,7 @@ function TourStepView(props: StepProps) {
               onEscapeKeyDown={onSkip}
               onInteractOutside={(e) => e.preventDefault()}
               onKeyDown={keys}
-              className="z-50 w-[340px] animate-fade-in rounded-xl border border-border-raised bg-background-raised p-3 text-content-primary shadow-deep-below focus-visible:outline-none"
+              className="z-50 w-[380px] animate-fade-in rounded-xl border border-border-raised bg-background-raised p-3 text-content-primary shadow-deep-below focus-visible:outline-none"
             >
               <StepCard {...props} inMenu={false} />
             </Popover.Content>
@@ -211,7 +211,7 @@ function StepCard({ step, index, total, onBack, onNext, onSkip, compact = false,
   const Icon = TAB_ICONS[step.id];
   return (
     <>
-      <Clip id={step.clip} className={compact ? "mx-auto max-h-40 w-auto max-w-full" : "mx-auto max-h-52 w-auto max-w-full"} />
+      <Clip id={step.clip} className={compact ? "mx-auto max-h-40 w-auto max-w-full" : "mx-auto max-h-60 w-auto max-w-full"} />
       <div className="mt-3 flex items-center gap-2 px-1">
         <Icon className="size-5 shrink-0 text-content-tertiary" />
         <h2 className="text-label-large text-content-primary">{step.title}</h2>
