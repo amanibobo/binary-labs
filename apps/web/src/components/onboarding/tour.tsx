@@ -2,9 +2,12 @@
 
 import { useReducedMotion } from "motion/react";
 import { Dialog, Popover } from "radix-ui";
-import { useEffect, useState, useSyncExternalStore, type KeyboardEvent } from "react";
+import { useEffect, useState, useSyncExternalStore, type KeyboardEvent, type ReactNode } from "react";
 import { cn } from "@/lib/cn";
-import { stepCount, type TourStep } from "@/lib/onboarding";
+import { START_POINTER, stepCount, type TourStep, type TourStepId } from "@/lib/onboarding";
+import { CalendarIcon } from "../icons/calendar";
+import { BrowseIcon, FlagIcon, InfoIcon, MapIcon, NeedsLookIcon, ProtocolIcon, SearchOutlineIcon, SettingsIcon, UploadIcon } from "../icons/drawn";
+import type { IconProps } from "../icons/svg";
 import { buttonVariants } from "../ui/button";
 import { Clip } from "./clip";
 import { useOnboarding } from "./onboarding-context";
@@ -91,8 +94,31 @@ function Dim({ spot }: { spot: Spot }) {
   );
 }
 
+// Each step wears its tab's sidebar icon, so it's easy to find again in the sidebar or the menu.
+const TAB_ICONS = {
+  search: SearchOutlineIcon,
+  browse: BrowseIcon,
+  protocols: ProtocolIcon,
+  map: MapIcon,
+  calendar: CalendarIcon,
+  "needs-look": NeedsLookIcon,
+  flags: FlagIcon,
+  upload: UploadIcon,
+  settings: SettingsIcon,
+  help: InfoIcon,
+} as const satisfies Record<TourStepId, (props: IconProps) => ReactNode>;
+
+const MENU = '[data-tour~="menu"]';
+
+// Focus lands on the button that moves things on (Next, Got it), not the first thing in the card.
+function focusNextButton(e: Event) {
+  e.preventDefault();
+  if (e.currentTarget instanceof HTMLElement) e.currentTarget.querySelector<HTMLElement>("[data-autofocus]")?.focus();
+}
+
 export function Tour() {
   const { overlay, steps, goToStep, endTour } = useOnboarding();
+  if (overlay.kind === "start") return <StartPointer />;
   if (overlay.kind !== "tour") return null;
   const step = steps[overlay.index];
   if (step === undefined) return null;
@@ -125,10 +151,6 @@ function TourStepView(props: StepProps) {
       onBack();
     }
   };
-  const focusNext = (e: Event) => {
-    e.preventDefault();
-    if (e.currentTarget instanceof HTMLElement) e.currentTarget.querySelector<HTMLElement>("[data-autofocus]")?.focus();
-  };
   const label = `Tour, ${stepCount(props.index, props.total)}`;
   if (spot === "measuring") return null;
 
@@ -140,18 +162,18 @@ function TourStepView(props: StepProps) {
           <Popover.Anchor virtualRef={{ current: spot.el }} />
           <Popover.Portal>
             <Popover.Content
-              side={props.step.side}
+              side="right"
               align="start"
               sideOffset={PAD + 10}
               collisionPadding={16}
               aria-label={label}
-              onOpenAutoFocus={focusNext}
+              onOpenAutoFocus={focusNextButton}
               onEscapeKeyDown={onSkip}
               onInteractOutside={(e) => e.preventDefault()}
               onKeyDown={keys}
               className="z-50 w-[340px] animate-fade-in rounded-xl border border-border-raised bg-background-raised p-3 text-content-primary shadow-deep-below focus-visible:outline-none"
             >
-              <StepCard {...props} />
+              <StepCard {...props} inMenu={false} />
             </Popover.Content>
           </Popover.Portal>
         </Popover.Root>
@@ -161,7 +183,7 @@ function TourStepView(props: StepProps) {
           <Dialog.Portal>
             <Dialog.Content
               aria-describedby={undefined}
-              onOpenAutoFocus={focusNext}
+              onOpenAutoFocus={focusNextButton}
               onEscapeKeyDown={onSkip}
               onInteractOutside={(e) => e.preventDefault()}
               onKeyDown={keys}
@@ -173,7 +195,7 @@ function TourStepView(props: StepProps) {
               )}
             >
               <Dialog.Title className="sr-only">{label}</Dialog.Title>
-              <StepCard {...props} compact={!wide} />
+              <StepCard {...props} compact={!wide} inMenu={spot?.el.matches(MENU) ?? false} />
             </Dialog.Content>
           </Dialog.Portal>
         </Dialog.Root>
@@ -182,12 +204,21 @@ function TourStepView(props: StepProps) {
   );
 }
 
-function StepCard({ step, index, total, onBack, onNext, onSkip, compact = false }: StepProps & { compact?: boolean }) {
+// The tab's name, what it's for and when you'd use it. On a phone the tab is behind the menu,
+// which is what's spotlit, so the card says so.
+function StepCard({ step, index, total, onBack, onNext, onSkip, compact = false, inMenu }: StepProps & { compact?: boolean; inMenu: boolean }) {
   const last = index === total - 1;
+  const Icon = TAB_ICONS[step.id];
   return (
     <>
       <Clip id={step.clip} className={compact ? "mx-auto max-h-40 w-auto max-w-full" : "mx-auto max-h-52 w-auto max-w-full"} />
-      <p className="mt-3 px-1 text-paragraph-medium text-content-primary">{step.text}</p>
+      <div className="mt-3 flex items-center gap-2 px-1">
+        <Icon className="size-5 shrink-0 text-content-tertiary" />
+        <h2 className="text-label-large text-content-primary">{step.title}</h2>
+        {inMenu ? <span className="ml-auto text-paragraph-small text-content-tertiary">In the menu</span> : null}
+      </div>
+      <p className="mt-1.5 px-1 text-paragraph-medium text-content-primary">{step.what}</p>
+      <p className="mt-1 px-1 text-paragraph-medium text-content-secondary">{step.when}</p>
       <div className="mt-3 flex items-center gap-2">
         <span className="mr-auto pl-1 text-paragraph-small text-content-tertiary tabular-nums">{stepCount(index, total)}</span>
         <button type="button" onClick={onSkip} className={cn(buttonVariants({ variant: "tertiary", size: "compact" }), "text-content-secondary")}>
@@ -203,5 +234,38 @@ function StepCard({ step, index, total, onBack, onNext, onSkip, compact = false 
         </button>
       </div>
     </>
+  );
+}
+
+// After a finished tour: one line by Protocols on where to begin, gone at Got it or a click
+// anywhere else. It isn't stored, so it never comes back.
+function StartPointer() {
+  const { closeOverlay } = useOnboarding();
+  const wide = useWide();
+  const [anchor] = useState(() => findAnchor(START_POINTER.anchors));
+  useEffect(() => {
+    if (anchor === null) closeOverlay();
+  }, [anchor, closeOverlay]);
+  if (anchor === null) return null;
+  return (
+    <Popover.Root open onOpenChange={(open) => (open ? undefined : closeOverlay())}>
+      <Popover.Anchor virtualRef={{ current: anchor }} />
+      <Popover.Portal>
+        <Popover.Content
+          side={wide ? "right" : "bottom"}
+          align={wide ? "center" : "end"}
+          sideOffset={10}
+          collisionPadding={16}
+          aria-label="Where to start"
+          onOpenAutoFocus={focusNextButton}
+          className="z-50 flex w-[min(360px,calc(100vw-32px))] animate-fade-in items-start gap-3 rounded-xl border border-border-raised bg-background-raised p-3 text-content-primary shadow-deep-below focus-visible:outline-none"
+        >
+          <p className="flex-1 pt-1 pl-1 text-paragraph-small text-content-primary">{START_POINTER.text}</p>
+          <Popover.Close data-autofocus className={cn(buttonVariants({ variant: "secondary", size: "compact" }), "shrink-0")}>
+            Got it
+          </Popover.Close>
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
   );
 }

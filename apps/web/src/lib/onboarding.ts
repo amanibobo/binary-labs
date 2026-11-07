@@ -8,7 +8,29 @@ export const HINT_IDS = ["check-this", "phone-upload"] as const;
 export const HintId = z.enum(HINT_IDS);
 export type HintId = z.infer<typeof HintId>;
 
-export type ClipId = "search" | "open" | "fix" | "needs-look" | "upload" | "talk-through" | "video" | "chart" | "settings";
+// Clips are recorded by scripts/record-clips.mjs; clip-sizes.ts lists them all.
+export type ClipId =
+  | "ask"
+  | "search"
+  | "browse"
+  | "protocols"
+  | "map"
+  | "calendar"
+  | "calendar-views"
+  | "needs-look"
+  | "flags"
+  | "upload"
+  | "settings"
+  | "help"
+  | "open"
+  | "fix"
+  | "talk-through"
+  | "video"
+  | "chart"
+  | "chart-wells"
+  | "chart-curve"
+  | "chart-ic50"
+  | "invite";
 
 export type TourEnd = "done" | "skipped";
 
@@ -215,49 +237,123 @@ export function progressText(summary: ChecklistSummary): string {
 
 // ---- Tour
 
-export type TourStepId = "setup" | "search" | "open" | "fix" | "needs-look";
+// One step per tab, in the sidebar's order, ending on Help where the tour can be taken again.
+export const TOUR_STEP_IDS = ["search", "browse", "protocols", "map", "calendar", "needs-look", "flags", "upload", "settings", "help"] as const;
+export type TourStepId = (typeof TOUR_STEP_IDS)[number];
 
 export type TourStep = {
   id: TourStepId;
   // Tried in order; the first one on screen is spotlit. None on screen centers the step.
   anchors: readonly string[];
-  side: "top" | "right" | "bottom" | "left";
-  text: string;
+  // The tab's name as the sidebar shows it.
+  title: string;
+  // What the tab is for, then when you'd use it: one short sentence each.
+  what: string;
+  when: string;
   clip: ClipId;
 };
 
-// Anchors are data-tour attributes; sidebar links carry their section's name, so Settings (at /settings) is "lab".
+// Anchors are data-tour attributes. Sidebar links carry their section's name, so Settings (at
+// /settings) is "lab"; on a phone the sidebar is behind the menu button, which stands in for it.
 const tour = (name: string) => `[data-tour~="${name}"]`;
+const inSidebar = (section: string) => [tour(section), tour("menu")];
 
-const TOUR: Record<TourStepId, Omit<TourStep, "id">> = {
-  setup: { anchors: [tour("lab"), tour("menu")], side: "right", text: "Connect Dropbox and invite your lab from Settings.", clip: "settings" },
-  search: { anchors: [tour("search-box")], side: "bottom", text: "Search for what you remember: a sample, a date, a word inside the file.", clip: "search" },
-  open: {
-    anchors: [`${tour("results")} > li:first-child`],
-    side: "bottom",
-    text: "Click a file to see its preview, then open the real file.",
-    clip: "open",
+type StepCopy = Omit<TourStep, "id">;
+
+const TOUR: Record<TourStepId, StepCopy> = {
+  // On a phone the Search home's box is on screen, so it's spotlit rather than the menu.
+  search: {
+    anchors: [tour("search"), tour("search-box"), tour("menu")],
+    title: "Search",
+    what: "Find any file by what's in it, or ask the lab a question and get an answer that links to its sources.",
+    when: "To ask, type a question, like “What was the yield of batch 3?”, and press Enter.",
+    clip: "ask",
   },
-  fix: {
-    anchors: [`${tour("results")} > li:first-child ${tour("label")}`, `${tour("results")} > li:first-child`],
-    side: "bottom",
-    text: "Open a file and fix its name, experiment or tags under Labels. Enter saves, and similar files learn from it.",
-    clip: "fix",
+  browse: {
+    anchors: inSidebar("browse"),
+    title: "Browse",
+    what: "The lab's folders, the way they're organized in Dropbox.",
+    when: "Use it when you know where a file lives and want to look around it.",
+    clip: "browse",
   },
-  "needs-look": { anchors: [tour("needs-look"), tour("menu")], side: "right", text: "Files we couldn't label wait in Needs a look for you to name.", clip: "needs-look" },
+  protocols: {
+    anchors: inSidebar("protocols"),
+    title: "Protocols",
+    what: "The lab's step-by-step methods, with versions, videos and talk-throughs.",
+    when: "Start here when you learn a technique, like running a gel.",
+    clip: "protocols",
+  },
+  map: {
+    anchors: inSidebar("map"),
+    title: "Map",
+    what: "How files, experiments, people and instruments connect.",
+    when: "Use it to see everything tied to one experiment or person: click its dot.",
+    clip: "map",
+  },
+  calendar: {
+    anchors: inSidebar("calendar"),
+    title: "Calendar",
+    what: "What happened each day, and the lab's plans.",
+    when: "Use it to book an instrument, like the plate reader, or to see what was done on a day.",
+    clip: "calendar",
+  },
+  "needs-look": {
+    anchors: inSidebar("needs-look"),
+    title: "Needs a look",
+    what: "Files Binary isn't sure about.",
+    when: "Tell it what one is in a line, and it learns from you.",
+    clip: "needs-look",
+  },
+  flags: {
+    anchors: inSidebar("flags"),
+    title: "Flags",
+    what: "Results outside what a protocol expects, each showing where it came from.",
+    when: "Look here when a result might be wrong, and say whether the flag was right.",
+    clip: "flags",
+  },
+  upload: {
+    anchors: inSidebar("upload"),
+    title: "Upload",
+    what: "Add a photo, file or recording from your phone or computer.",
+    when: "Use it at the bench: a photo of a gel is searchable within a minute.",
+    clip: "upload",
+  },
+  settings: {
+    anchors: inSidebar("lab"),
+    title: "Settings",
+    what: "Dropbox, instruments, experiments and people, plus your account and light or dark.",
+    when: "Most of it is set up for you. Come here to change your own account.",
+    clip: "settings",
+  },
+  help: {
+    anchors: inSidebar("help"),
+    title: "Help",
+    what: "Replay this tour, or read how to do something.",
+    when: "Open it whenever you're stuck.",
+    clip: "help",
+  },
 };
 
-// The PRD's member tour; admins see the setup step first.
-const MEMBER_TOUR: readonly TourStepId[] = ["search", "open", "fix", "needs-look"];
+// Admins set the lab up, so their Settings step says so.
+const ADMIN_SETTINGS_WHEN = "Start here to connect Dropbox and invite your lab.";
 
 export function tourSteps(role: MemberRole): TourStep[] {
-  const ids = role === "admin" ? ["setup" as const, ...MEMBER_TOUR] : MEMBER_TOUR;
-  return ids.map((id) => ({ id, ...TOUR[id] }));
+  return TOUR_STEP_IDS.map((id) => {
+    const copy = TOUR[id];
+    const when = id === "settings" && role === "admin" ? ADMIN_SETTINGS_WHEN : copy.when;
+    return { id, ...copy, when };
+  });
 }
 
 export function stepCount(index: number, total: number): string {
   return `${index + 1} of ${total}`;
 }
+
+// After a finished tour (not a skipped one), one quiet line by Protocols says where to begin.
+export const START_POINTER = {
+  anchors: inSidebar("protocols"),
+  text: "New here? Start with Protocols to learn a technique, or Search to find something.",
+} as const;
 
 // ---- Hints
 
@@ -280,51 +376,168 @@ export const HINTS: readonly Hint[] = [
 
 // ---- How do I…
 
-export type HelpAnswerId = "open-file" | "fix-label" | "needs-look" | "upload" | "talk-through" | "video" | "chart";
+export const HELP_GROUPS = [
+  { id: "find", title: "Finding things" },
+  { id: "protocols", title: "Protocols" },
+  { id: "day", title: "Plans, results and uploads" },
+  { id: "charts", title: "Charts" },
+  { id: "lab", title: "Your lab" },
+] as const;
+export type HelpGroupId = (typeof HELP_GROUPS)[number]["id"];
 
-export type HelpAnswer = { id: HelpAnswerId; question: string; answer: string; clip: ClipId };
+export type HelpAnswerId =
+  | "ask"
+  | "open-file"
+  | "fix-label"
+  | "needs-look"
+  | "map"
+  | "learn"
+  | "talk-through"
+  | "video"
+  | "calendar"
+  | "flag"
+  | "upload"
+  | "chart"
+  | "wells"
+  | "standard-curve"
+  | "ic50"
+  | "test"
+  | "export"
+  | "invite";
+
+// A clip where seeing it helps; a few answers are clear in words alone.
+export type HelpAnswer = { id: HelpAnswerId; group: HelpGroupId; question: string; answer: string; clip: ClipId | null };
 
 export const HELP_ANSWERS: readonly HelpAnswer[] = [
   {
+    id: "ask",
+    group: "find",
+    question: "Ask the lab a question",
+    answer: "Type a question in Search, like “What wavelength is the Bradford read at?”, and press Enter. The answer says which files and protocols it came from; click a number to open one.",
+    clip: "ask",
+  },
+  {
     id: "open-file",
+    group: "find",
     question: "Open the real file",
     answer: "Click a search result to see its preview, then Open in Dropbox. A file uploaded here opens with Open file.",
     clip: "open",
   },
   {
     id: "fix-label",
+    group: "find",
     question: "Fix a label",
     answer: "Click a file to open it, then click the name, experiment, person or a tag under Labels, type, and press Enter. Similar files learn from what you fix.",
     clip: "fix",
   },
   {
     id: "needs-look",
+    group: "find",
     question: "Find files that need a look",
-    answer: "Needs a look lists the files we couldn't label. Say what each one is and it leaves the list.",
+    answer: "Needs a look lists the files Binary isn't sure about. Say what each one is in a line and it leaves the list.",
     clip: "needs-look",
   },
   {
-    id: "upload",
-    question: "Upload from the bench",
-    answer: "Open Upload on your phone and take a photo or pick files. They're labeled and searchable within a minute.",
-    clip: "upload",
+    id: "map",
+    group: "find",
+    question: "Read the map",
+    answer: "Each dot is a protocol, experiment, person or instrument, bigger when it holds more files, and a line means two share files. Click a dot to show its files, or Show as a list to read the same thing as text.",
+    clip: "map",
+  },
+  {
+    id: "learn",
+    group: "protocols",
+    question: "Learn a technique",
+    answer: "Open Protocols and pick the method, like SDS-PAGE. It has the steps, every past version, and any videos and talk-throughs the lab added.",
+    clip: "protocols",
   },
   {
     id: "talk-through",
+    group: "protocols",
     question: "Record a talk-through",
     answer: "On a protocol, choose Record a talk-through and say the steps as you work. You review the written steps before they're saved.",
     clip: "talk-through",
   },
   {
     id: "video",
+    group: "protocols",
     question: "Add a video to a protocol",
     answer: "On a protocol, choose Add a video to record one with your phone, pick a file, or link a video already in the lab.",
     clip: "video",
   },
   {
+    id: "calendar",
+    group: "day",
+    question: "Use the calendar",
+    answer: "Drag down empty time, or choose New entry, to plan something like booking the plate reader; it saves as you type. Day, Week, Month and Year change the view, and clicking the month's name jumps to any month.",
+    clip: "calendar-views",
+  },
+  {
+    id: "flag",
+    group: "day",
+    question: "Answer a flag",
+    answer: "Open a flag in Flags to see the value, the range it was checked against and the protocol it came from. Say whether it was Useful, Wrong or a Known issue; Wrong lets you fix the check's range.",
+    clip: "flags",
+  },
+  {
+    id: "upload",
+    group: "day",
+    question: "Upload from the bench",
+    answer: "Open Upload on your phone and take a photo or pick files. They're labeled and searchable within a minute.",
+    clip: "upload",
+  },
+  {
     id: "chart",
+    group: "charts",
     question: "Make a chart from a data sheet",
-    answer: "Open a spreadsheet or CSV in search and choose Make a chart, then pick what you want to show. The chart draws itself from your columns; click a title or a line on it to change it, and save.",
+    answer: "Open a spreadsheet or CSV in Search, choose Make a chart, and pick what you want to show. It draws itself from your columns; click a title or a line to change it, then Save.",
     clip: "chart",
   },
+  {
+    id: "wells",
+    group: "charts",
+    question: "Mark the wells on a plate",
+    answer: "Choose Mark the wells, drag across some wells, pick Blank, Control, Standard or Sample, and choose Mark. Wells marked the same way count as repeats.",
+    clip: "chart-wells",
+  },
+  {
+    id: "standard-curve",
+    group: "charts",
+    question: "Read unknowns off a standard curve",
+    answer: "With your standards and samples marked, pick How two measurements relate. A line is fitted to the standards and each sample is read off it into a table under the chart, its dilution included.",
+    clip: "chart-curve",
+  },
+  {
+    id: "ic50",
+    group: "charts",
+    question: "Get an IC50",
+    answer: "With the doses marked, pick How a dose changes the effect. Binary fits the curve and shows the IC50 on it, with its 95% range under the chart.",
+    clip: "chart-ic50",
+  },
+  {
+    id: "test",
+    group: "charts",
+    question: "Check if a difference is real",
+    answer: "Pick Compare groups and Binary chooses a test and says why, under Could the difference be chance? It gives the answer in plain words first, then the p value.",
+    clip: null,
+  },
+  {
+    id: "export",
+    group: "charts",
+    question: "Export a chart for a paper",
+    answer: "Choose Download, pick Single journal column (85 mm) or Double column (180 mm), then PDF or SVG. The numbers behind the chart come as a CSV.",
+    clip: null,
+  },
+  {
+    id: "invite",
+    group: "lab",
+    question: "Invite someone",
+    answer: "Choose Invite people above Settings and type their email; they get a link to sign in. Only admins invite, so ask yours if you don't see it.",
+    clip: "invite",
+  },
 ];
+
+// The answers under each group's title, in the order above; a group with none is left out.
+export function helpGroups(): { id: HelpGroupId; title: string; answers: HelpAnswer[] }[] {
+  return HELP_GROUPS.map((g) => ({ ...g, answers: HELP_ANSWERS.filter((a) => a.group === g.id) })).filter((g) => g.answers.length > 0);
+}
