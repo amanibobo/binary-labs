@@ -121,12 +121,13 @@ export function HelpSheet() {
   );
 }
 
-// Every question, under a short heading per group, so the list scans in a few seconds.
+// Every question, under a short heading per group, so the list scans in a few seconds. Two
+// columns on a wider screen, so all of it fits without scrolling.
 function AnswerList({ onOpen }: { onOpen: (id: HelpAnswerId) => void }) {
   return (
-    <div className="grid gap-5">
+    <div className="gap-8 sm:columns-2">
       {helpGroups().map((group) => (
-        <section key={group.id} aria-labelledby={`help-${group.id}`}>
+        <section key={group.id} aria-labelledby={`help-${group.id}`} className="mb-5 break-inside-avoid last:mb-0">
           <h3 id={`help-${group.id}`} className="text-label-small text-content-tertiary">
             {group.title}
           </h3>

@@ -437,7 +437,7 @@ function onboardingShots() {
   // Every step spotlights its tab (or, on a phone, the menu); a step centered on the screen
   // means its anchor wasn't found, so the shot fails rather than shows it.
   const spotlit = (page) =>
-    page.waitForFunction(() => [...document.querySelectorAll("div[aria-hidden]")].some((d) => d.style.boxShadow.includes("200vmax")), null, { timeout: 5000 });
+    page.waitForFunction(() => [...document.querySelectorAll("div[aria-hidden] > div")].some((d) => d.style.boxShadow.includes("200vmax")), null, { timeout: 5000 });
   const tourStep = (n) => async (page) => {
     for (let i = 1; i < n; i++) {
       await page.getByRole("button", { name: "Next" }).click();
