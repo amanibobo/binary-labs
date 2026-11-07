@@ -76,6 +76,12 @@ export function HelpSheet() {
         <Dialog.Overlay className="fixed inset-0 z-40 bg-background-overlay data-[state=closed]:animate-fade-out data-[state=open]:animate-fade-in" />
         <Dialog.Content
           aria-describedby={undefined}
+          // Focus starts on the modal itself rather than ringing its close button; Tab goes on to the questions.
+          tabIndex={-1}
+          onOpenAutoFocus={(e) => {
+            e.preventDefault();
+            if (e.currentTarget instanceof HTMLElement) e.currentTarget.focus();
+          }}
           className={cn(
             "fixed inset-0 z-50 m-auto flex h-fit max-h-[min(720px,calc(100dvh-48px))] w-[min(600px,calc(100vw-32px))] flex-col overflow-y-auto",
             "rounded-card border border-border-raised bg-background-raised text-content-primary shadow-deep-below focus-visible:outline-none",

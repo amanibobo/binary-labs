@@ -427,17 +427,24 @@ function chartShots() {
   ].map((shot) => ({ ...shot, tall: true }));
 }
 
-// The welcome, each tour step, the getting-started card, a hint, the help menu and one answer,
-// in both schemes at desktop and phone width. ?onboarding= picks the state (src/fixtures/onboarding.ts).
+// The welcome, each tour step, the line after the tour, the getting-started card, a hint, the
+// help menu, its list of answers and one answer, in both schemes at desktop and phone width.
+// ?onboarding= picks the state (src/fixtures/onboarding.ts).
 function onboardingShots() {
   const s = (query) => `/dev/fixtures/search?${query}`;
   const all = (shot) => ["dark", "light"].flatMap((scheme) => [1440, 390].map((width) => ({ ...shot, width, scheme, full: false })));
+  const STEPS = 10;
+  // Every step spotlights its tab (or, on a phone, the menu); a step centered on the screen
+  // means its anchor wasn't found, so the shot fails rather than shows it.
+  const spotlit = (page) =>
+    page.waitForFunction(() => [...document.querySelectorAll("div[aria-hidden]")].some((d) => d.style.boxShadow.includes("200vmax")), null, { timeout: 5000 });
   const tourStep = (n) => async (page) => {
     for (let i = 1; i < n; i++) {
       await page.getByRole("button", { name: "Next" }).click();
       await page.waitForTimeout(250);
     }
-    await page.getByRole("dialog", { name: `Tour, ${n} of 5` }).waitFor();
+    await page.getByRole("dialog", { name: `Tour, ${n} of ${STEPS}` }).waitFor();
+    await spotlit(page);
     await page.waitForTimeout(500);
   };
   const openHelp = async (page) => {
@@ -445,9 +452,25 @@ function onboardingShots() {
     await page.getByRole("button", { name: "Help" }).last().click();
     await page.getByRole("menuitem", { name: "Take the tour" }).waitFor();
   };
+  const openAnswers = async (page) => {
+    await openHelp(page);
+    await page.getByRole("menuitem", { name: "How do I…" }).click();
+    await page.getByRole("dialog", { name: "How do I…" }).waitFor();
+    await page.waitForTimeout(300);
+  };
   return [
     ...all({ name: "onboarding-welcome", path: s("onboarding=new"), steps: (page) => page.getByRole("button", { name: "Take the 1-minute tour" }).waitFor() }),
-    ...[1, 2, 3, 4, 5].flatMap((n) => all({ name: `onboarding-tour-${n}`, path: s("onboarding=new&tour=1"), steps: tourStep(n) })),
+    ...Array.from({ length: STEPS }, (_, i) => i + 1).flatMap((n) => all({ name: `onboarding-tour-${n}`, path: s("onboarding=new&tour=1"), steps: tourStep(n) })),
+    ...all({
+      name: "onboarding-tour-after",
+      path: s("onboarding=new&tour=1"),
+      steps: async (page) => {
+        await tourStep(STEPS)(page);
+        await page.getByRole("button", { name: "Done" }).click();
+        await page.getByRole("dialog", { name: "Where to start" }).waitFor();
+        await page.waitForTimeout(400);
+      },
+    }),
     ...all({ name: "onboarding-checklist", path: s("onboarding=checklist") }),
     ...all({
       name: "onboarding-hint",
@@ -459,13 +482,24 @@ function onboardingShots() {
       },
     }),
     ...all({ name: "onboarding-help-menu", path: s("state=results"), steps: openHelp }),
+    ...all({ name: "onboarding-help-answers", path: s("state=results"), steps: openAnswers }),
+    // The list scrolled to its foot, so the last groups are seen too.
+    ...all({
+      name: "onboarding-help-answers-end",
+      path: s("state=results"),
+      steps: async (page) => {
+        await openAnswers(page);
+        await page.getByRole("button", { name: "Invite someone" }).scrollIntoViewIfNeeded();
+      },
+    }),
     ...all({
       name: "onboarding-help-answer",
       path: s("state=results"),
       steps: async (page) => {
-        await openHelp(page);
-        await page.getByRole("menuitem", { name: "Fix a label" }).click();
-        await page.getByRole("dialog", { name: "Fix a label" }).waitFor();
+        await openAnswers(page);
+        await page.getByRole("button", { name: "Ask the lab a question" }).click();
+        await page.getByRole("dialog", { name: "Ask the lab a question" }).waitFor();
+        await page.waitForTimeout(300);
       },
     }),
     {
