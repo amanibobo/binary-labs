@@ -142,7 +142,7 @@ export function NoteControls({ hit, note }: { hit: LabeledFile; note: NoteInfo }
           className={noteAction}
         >
           Split into pages
-      </button>
+        </button>
       </span>
     </p>
   );
