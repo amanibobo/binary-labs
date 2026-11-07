@@ -14,7 +14,7 @@ export const CLIP_SIZES = {
   "ask": { width: 720, height: 418 },
   "browse": { width: 720, height: 416 },
   "protocols": { width: 720, height: 436 },
-  "map": { width: 720, height: 554 },
+  "map": { width: 720, height: 520 },
   "calendar": { width: 720, height: 500 },
   "flags": { width: 720, height: 436 },
   "help": { width: 640, height: 720 },

@@ -325,11 +325,12 @@ const CLIPS = [
   },
   {
     id: "map",
-    // An experiment found by name shows its files around it, and what it is along the foot.
+    // An experiment found by name shows its files around it. Framed at full size from the
+    // search field, so the dots still read in a tour card.
     path: "/dev/fixtures/map",
     async crop(page) {
       const main = await box(page.locator("main"));
-      return { x: main.x, y: 0, width: main.width, height: DESKTOP.height };
+      return { x: main.x, y: 0, width: 720, height: 520 };
     },
     async run(page) {
       await page.waitForTimeout(1200);
