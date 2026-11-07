@@ -118,30 +118,32 @@ export function NoteControls({ hit, note }: { hit: LabeledFile; note: NoteInfo }
       <span>
         One note of {note.pages.length} pages{note.state === "suggested" ? ` (${note.reason.toLowerCase()})` : ""}.
       </span>
-      {note.state === "suggested" ? (
+      <span className="inline-flex items-center gap-x-1.5 whitespace-nowrap">
+        {note.state === "suggested" ? (
+          <button
+            type="button"
+            onClick={() => void change({ run: () => api.changeNote({ action: "keep", noteId: note.id }), after: kept, message: "Kept as one note" })}
+            className={noteAction}
+          >
+            Keep
+          </button>
+        ) : null}
+        {note.state === "suggested" ? <span aria-hidden>·</span> : null}
         <button
           type="button"
-          onClick={() => void change({ run: () => api.changeNote({ action: "keep", noteId: note.id }), after: kept, message: "Kept as one note" })}
+          onClick={() =>
+            void change({
+              run: () => api.changeNote({ action: "split", noteId: note.id }),
+              after: null,
+              message: `Split into ${note.pages.length} files`,
+              undo: { run: () => api.changeNote({ action: "restore", noteId: note.id }), after: kept, message: "Back to one note" },
+            })
+          }
           className={noteAction}
         >
-          Keep
-        </button>
-      ) : null}
-      {note.state === "suggested" ? <span aria-hidden>·</span> : null}
-      <button
-        type="button"
-        onClick={() =>
-          void change({
-            run: () => api.changeNote({ action: "split", noteId: note.id }),
-            after: null,
-            message: `Split into ${note.pages.length} files`,
-            undo: { run: () => api.changeNote({ action: "restore", noteId: note.id }), after: kept, message: "Back to one note" },
-          })
-        }
-        className={noteAction}
-      >
-        Split into pages
+          Split into pages
       </button>
+      </span>
     </p>
   );
 }

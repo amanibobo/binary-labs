@@ -138,7 +138,7 @@ function Disclosure({ summary, tone = "quiet", children }: { summary: ReactNode;
           tone === "flag" ? "text-content-warning" : "text-content-secondary",
         )}
       >
-        <span className="min-w-0 truncate">{summary}</span>
+        <span className="min-w-0">{summary}</span>
         <ChevronSmallIcon className={cn("size-4 shrink-0 transition-transform duration-150 ease-out", open ? "-rotate-90" : "rotate-90")} />
       </button>
       {open ? <div className="mt-1.5 mb-1">{children}</div> : null}
