@@ -28,7 +28,13 @@ from bl_worker.labels.prompt import (
     parse_label,
 )
 from bl_worker.labels.tier1 import Tier1
-from bl_worker.labels.titles import MAX_TITLE, differing_detail, tidy_title, with_detail
+from bl_worker.labels.titles import (
+    MAX_TITLE,
+    differing_detail,
+    missing_series,
+    tidy_title,
+    with_detail,
+)
 from bl_worker.models import TIER2_MODEL, FakeModels
 
 NOTES = Path(__file__).parent / "fixtures" / "notes"
@@ -89,6 +95,16 @@ def test_titles_are_cut_to_about_60_characters_at_a_word():
     t = tidy_title(long)
     assert t is not None and len(t) <= MAX_TITLE
     assert long.startswith(t) and not t.endswith((" and", " with", " in"))
+
+
+def test_a_title_keeps_the_run_its_file_name_numbers():
+    # A real Haiku title: the date goes, and so does the "run" it qualified.
+    title = tidy_title("Lysozyme DSF plate read, 2026-10-14 run")
+    assert title == "Lysozyme DSF plate read"
+    assert missing_series("/CD/lysozyme/DSF_run1.csv", title) == "run 1"
+    assert missing_series("/EF/plate07_read1.csv", "Thermal shift screen plate 07 read 1") is None
+    # Page numbers stay out: a note's first page carries the whole note's title.
+    assert missing_series("/AB/notebook/page_01.jpg", "HeLa drug A notes") is None
 
 
 def test_two_files_differ_by_the_detail_in_their_names():

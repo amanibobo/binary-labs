@@ -117,7 +117,7 @@ export function NoteControls({ hit, note }: { hit: LabeledFile; note: NoteInfo }
     <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-paragraph-small text-content-secondary">
       <span>
         {note.state === "suggested"
-          ? `Binary kept these ${note.pages.length} pages together as one note: ${note.reason.toLowerCase()}.`
+          ? `Binary kept these ${note.pages.length} pages together as one note (${note.reason.toLowerCase()}).`
           : `${note.pages.length} pages kept together as one note.`}
       </span>
       <span className="inline-flex items-center gap-x-1.5 whitespace-nowrap">
@@ -143,7 +143,7 @@ export function NoteControls({ hit, note }: { hit: LabeledFile; note: NoteInfo }
           }
           className={noteAction}
         >
-          Split into separate files
+          Split apart
         </button>
       </span>
     </p>

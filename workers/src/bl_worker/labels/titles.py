@@ -40,9 +40,13 @@ def tidy_title(text: str | None) -> str | None:
     t = " ".join(text.split())
     if "|" in t:
         t = " ".join(part.strip() for part in t.split("|") if part.strip())
+    undated = t
     for pattern in _DATES:
-        t = pattern.sub(" ", t)
-    t = re.sub(r"\(\s*\)", " ", t)
+        undated = pattern.sub(" ", undated)
+    if undated != t:
+        # "DSF plate read, 2026-10-14 run" loses its date and the word the date qualified.
+        undated = re.sub(r"[\s,]+(?:run|read|batch|plate|page)\s*$", "", undated, flags=re.I)
+    t = re.sub(r"\(\s*\)", " ", undated)
     t = " ".join(t.split()).strip(_EDGES)
     t = _FILLER.sub("", t).strip(_EDGES)
     t = shorten(t, MAX_TITLE)
@@ -69,11 +73,15 @@ _SERIES = re.compile(
 )
 
 
-def _series(name: str) -> dict[str, str]:
+def _series_in(text: str) -> dict[str, str]:
     found: dict[str, str] = {}
-    for word, number in _SERIES.findall(norm(PurePosixPath(name).stem)):
+    for word, number in _SERIES.findall(norm(text)):
         found.setdefault(word, str(int(number)))
     return found
+
+
+def _series(path: str) -> dict[str, str]:
+    return _series_in(PurePosixPath(path).stem)
 
 
 def _condition_values(conditions: Sequence[Condition]) -> dict[str, str]:
@@ -116,6 +124,18 @@ def with_detail(title: str, detail: str) -> str:
         return title
     base = shorten(title, MAX_TITLE - len(detail) - 2)
     return f"{base}, {detail}" if base else shorten(detail, MAX_TITLE)
+
+
+# Series words a file name numbers that a title should always carry: "run 1", not just "run".
+_KEPT_SERIES = ("run", "read", "plate", "batch", "rep", "replicate")
+
+
+def missing_series(path: str, title: str) -> str | None:
+    """The run, read, plate or batch number the file's name gives and its title leaves out."""
+    for word, number in _series(path).items():
+        if word in _KEPT_SERIES and _series_in(title).get(word) != number:
+            return f"{word} {number}"
+    return None
 
 
 def same_title(a: str | None, b: str | None) -> bool:

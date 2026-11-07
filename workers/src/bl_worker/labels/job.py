@@ -52,7 +52,7 @@ from bl_worker.labels.prompt import (
     source_text,
 )
 from bl_worker.labels.tier1 import Tier1, tier1
-from bl_worker.labels.titles import differing_detail, with_detail
+from bl_worker.labels.titles import differing_detail, missing_series, with_detail
 from bl_worker.model_cache import cached_call
 from bl_worker.models import TIER2_MODEL, TIER3_MODEL, Image, ModelRequest
 from bl_worker.previews import preview_key
@@ -413,6 +413,10 @@ def distinct_title(conn: psycopg.Connection, f: FileInfo, d: Draft) -> Draft:
     tells them apart; a title a person gave stays as it is."""
     if d.clean_name is None:
         return d
+    # A run, read, plate or batch the file name numbers always shows in the title.
+    missing = missing_series(f.path, d.clean_name)
+    if missing is not None:
+        d = replace(d, clean_name=with_detail(d.clean_name, missing))
     rows = conn.execute(
         """
         select l.sha256, l.status, l.conditions,
