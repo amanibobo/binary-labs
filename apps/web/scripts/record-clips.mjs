@@ -140,10 +140,14 @@ const CLIPS = [
       return column(page, row, { above: 24, height: 520 });
     },
     async run(page) {
-      // Open the row, then fix the name under Labels.
+      // Open the row, open Edit labels, then fix the name there.
       await clickAt(page, page.getByRole("button", { name: "Details for Batch 3 gel densitometry" }));
       await page.waitForTimeout(900);
-      await clickAt(page, page.getByRole("button", { name: /^Batch 3 gel densitometry\W*edit name$/ }));
+      await clickAt(page, page.getByRole("button", { name: /^Edit( labels)?$/ }).first());
+      await page.waitForTimeout(500);
+      const labels = page.getByRole("region", { name: "Labels" }).first();
+      await clickAt(page, labels.getByText("Batch 3 gel densitometry", { exact: true }).first());
+      await page.getByLabel(/^Name for /).first().waitFor();
       await page.keyboard.press("ControlOrMeta+a");
       await page.keyboard.type("Batch 3 densitometry, lanes 1 to 8", { delay: 55 });
       await page.waitForTimeout(300);
