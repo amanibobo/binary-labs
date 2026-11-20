@@ -50,8 +50,11 @@ export function useEntryWrites({ timeZone, askScope }: { timeZone: string; askSc
     return next;
   };
   // A change to a whole series rewrites rows this page never saw, so their versions are old.
+  // The entry itself keeps the version its own write returned.
   const forgetSeries = (entry: CalendarEntry) => {
-    for (const [id, known] of latest.current) if (known.repeat?.seriesId === entry.repeat?.seriesId) latest.current.delete(id);
+    const seriesId = entry.repeat?.seriesId;
+    if (seriesId === undefined) return;
+    for (const [id, known] of latest.current) if (id !== entry.id && known.repeat?.seriesId === seriesId) latest.current.delete(id);
   };
   const scopeFor = async (entry: CalendarEntry, how: { ask: "always" | "once" }): Promise<ChangeScope | null> =>
     entry.repeat === null ? "one" : askScope(entry, how);

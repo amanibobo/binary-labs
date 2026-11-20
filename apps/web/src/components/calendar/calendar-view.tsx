@@ -143,14 +143,24 @@ function CalendarBody({
   const askScope: AskScope = (entry, how) => {
     const known = remembered.current;
     if (how.ask === "once" && known?.id === entry.id) return Promise.resolve(known.scope);
+    const before = document.activeElement;
     return new Promise((resolve) =>
       setScopeAsk({
         entry,
-        returnTo: document.activeElement,
         answer: (scope) => {
           setScopeAsk(null);
           remembered.current = scope === null ? null : { id: entry.id, scope };
           resolve(scope);
+          // A move redraws the entry in another day, so what had focus may be gone; go back
+          // to it, or to the entry, once the answer has landed on screen.
+          setTimeout(
+            () =>
+              requestAnimationFrame(() => {
+                const back = before instanceof HTMLElement && before.isConnected && before !== document.body ? before : null;
+                (back ?? document.querySelector<HTMLElement>(`[data-entry="${entry.id}"]`))?.focus();
+              }),
+            0,
+          );
         },
       }),
     );

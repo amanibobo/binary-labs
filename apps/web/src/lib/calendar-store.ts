@@ -165,7 +165,11 @@ export async function createEntry(supabase: Supabase, labId: LabId, req: CreateE
   if (entry === null) return { kind: "error", error: { message: "the new entry wasn't readable" } };
   if (req.repeat === null) return { kind: "ok", entry };
   const repeated = await setRepeat(supabase, entry.id, { rule: req.repeat, basedOn: entry.updatedAt, timeZone: req.timeZone });
-  if (repeated.kind === "error") return repeated;
+  // A repeat the database refuses takes the new entry back with it, so a failed create leaves nothing.
+  if (repeated.kind === "error") {
+    await supabase.from("calendar_entries").delete().eq("lab_id", labId).eq("id", entry.id);
+    return repeated;
+  }
   return { kind: "ok", entry: repeated.outcome.entry ?? entry };
 }
 
