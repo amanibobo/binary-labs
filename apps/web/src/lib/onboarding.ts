@@ -425,6 +425,7 @@ export type HelpAnswerId =
   | "export"
   | "invite"
   | "members"
+  | "share-run"
   | "instrument";
 
 // A clip where seeing it helps; a few answers are clear in words alone.
@@ -646,6 +647,13 @@ export const HELP_ANSWERS: readonly HelpAnswer[] = [
     group: "lab",
     question: "Remove someone or make them an admin",
     answer: "In Settings, Members, an admin picks Admin or Member beside a person, or chooses Remove, which deletes nothing they made. A lab always keeps one admin.",
+    clip: null,
+  },
+  {
+    id: "share-run",
+    group: "lab",
+    question: "Share a run outside the lab",
+    answer: "An admin agrees for the lab in Settings, Sharing; then the person who ran a run, or an admin, opens it and chooses Turn sharing on. Nothing leaves the lab unless both are on, and changing a run turns its sharing off again.",
     clip: null,
   },
   {
