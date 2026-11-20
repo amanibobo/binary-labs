@@ -168,12 +168,15 @@ def _drop_pending(conn: psycopg.Connection, protocol_id: UUID, location_id: UUID
 def extractor_for(
     rt: Runtime, conn: psycopg.Connection, loc: Location, blob: Blob
 ) -> Extractor | None:
-    # Only a recording someone made as a talk-through is transcribed, whatever its bytes sniff
-    # as. Other audio is indexed by name: nobody pays to transcribe an archive by accident.
-    is_talk_through = conn.execute(
-        "select 1 from talk_throughs where location_id = %s", (loc.id,)
+    # Only a recording someone made as a talk-through or a run's debrief answer is transcribed,
+    # whatever its bytes sniff as. Other audio is indexed by name: nobody pays to transcribe an
+    # archive by accident.
+    is_recording = conn.execute(
+        "select 1 from talk_throughs where location_id = %(id)s"
+        " union all select 1 from run_debrief_answers where location_id = %(id)s",
+        {"id": loc.id},
     ).fetchone()
-    if is_talk_through is not None:
+    if is_recording is not None:
         return TranscriptExtractor(rt.transcriber, blob.mime)
     return EXTRACTORS.get(blob.kind)
 
