@@ -173,9 +173,7 @@ function AnswerWordsView({
             }}
             className="mt-3 min-h-20"
           />
-          <p className="mt-1 text-paragraph-xsmall text-content-tertiary">
-            {recording ? (edited ? "Your correction. The recording above is what you said." : "Written out from your recording.") : "Typed."}
-          </p>
+          {edited ? <p className="mt-1 text-paragraph-xsmall text-content-tertiary">Your correction. The recording above is what you said.</p> : null}
         </>
       )}
       <button type="button" onClick={onAnswer} className="mt-2 min-h-11 text-label-small text-content-secondary underline-offset-4 hover:underline sm:min-h-8">
