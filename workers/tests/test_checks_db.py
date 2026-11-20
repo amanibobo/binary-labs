@@ -547,3 +547,78 @@ def test_deleting_the_lab_takes_its_flags(rt, conn, bench):
     # Every file with a table had asked to be checked.
     assert (counts["flags"], counts["check_results"], counts["check_requests"]) == (1, 1, 6)
     assert conn.execute("select count(*) from flags").fetchone() == (0,)
+
+
+IC50_ID = "0f8f2c1e-0005-4a4e-8c55-0c3c1a7a0005"
+BLANK_COLUMNS_ID = "0f8f2c1e-0006-4a4e-8c55-0c3c1a7a0006"
+
+IC50 = curve() | {
+    "id": IC50_ID,
+    "name": "Drug A IC50",
+    "range": {"kind": "between", "min": 1, "max": 2},
+    "fit": "4pl",
+    "measure": "midpoint",
+}
+BLANK_COLUMNS = blank() | {"id": BLANK_COLUMNS_ID, "by": "column", "column": None}
+
+# The worked example's vehicle and Drug A wells, listed by well.
+DOSES = (
+    "Well,Drug A (µM),A570\nB2,0,1.081\nC2,0,1.094\nD2,0,1.088\n"
+    "B3,100,0.198\nC3,100,0.189\nD3,100,0.225\nB4,20,0.260\nC4,20,0.282\nD4,20,0.250\n"
+    "B5,4,0.511\nC5,4,0.518\nD5,4,0.490\nB6,0.8,0.907\nC6,0.8,0.933\nD6,0.8,0.925\n"
+    "B7,0.16,1.066\nC7,0.16,1.089\nD7,0.16,1.073\n"
+)
+KINETIC = (
+    "Time (s),Blank 1,Blank 2,Culture 1,Culture 2\n0,0.05,0.06,0.1,0.11\n600,0.05,0.31,0.21,0.23\n"
+)
+
+
+def test_an_ic50_and_blank_columns_raise_flags_with_their_cells(rt, conn, make_lab):
+    lab = make_lab("curves")
+    lab.write("Data/drugA_wells.csv", DOSES)
+    lab.write("Data/growth_kinetic.csv", KINETIC)
+    run_scan(rt, lab.source_id)
+    doses, growth = sha_of(conn, lab, "drugA_wells.csv"), sha_of(conn, lab, "growth_kinetic.csv")
+    pid, v2 = protocol(conn, lab, [IC50, BLANK_COLUMNS], title="Viability")
+    link(conn, lab, pid, doses)
+    link(conn, lab, pid, growth)
+    run_due(rt)
+
+    [ic50] = flags_of(conn, lab, doses)
+    assert (ic50["kind"], ic50["observed"], ic50["unit"]) == ("curve_fit", 2.35282, "µM")
+    assert (ic50["source_columns"], ic50["rows_text"]) == (["B", "C"], "{[3,18)}")
+    assert results_of(conn, lab, doses)[(BLANK_COLUMNS_ID, "control")][0] == "couldnt"
+
+    [blanks] = flags_of(conn, lab, growth)
+    assert (blanks["kind"], blanks["observed"]) == ("control", 0.31)
+    assert (blanks["control_columns"], blanks["control_text"]) == (["B", "C"], "{[0,2)}")
+    assert (blanks["source_columns"], blanks["rows_text"]) == (["D", "E"], "{[0,2)}")
+
+    # Loosened to take it in, the flag clears on the next run.
+    looser = IC50 | {"range": {"kind": "between", "min": 1, "max": 5}}
+    with committed_as_user(conn, lab.user_id):
+        save_checks(conn, pid, v2, [looser, BLANK_COLUMNS])
+    run_due(rt)
+    assert flags_of(conn, lab, doses) == []
+    assert results_of(conn, lab, doses)[(IC50_ID, "curve_fit")][:2] == ("passed", 2.35282)
+
+
+def test_new_check_shapes_are_refused_when_they_contradict_themselves(conn, bench):
+    with committed_as_user(conn, bench.user_id):
+        pid, v1, _ = conn.execute(
+            "select * from create_protocol(%s, 'protocol', 'Assay', '')", (bench.id,)
+        ).fetchone()
+    with as_user(conn, bench.user_id):
+        for bad in (
+            IC50 | {"fit": "line"},
+            curve() | {"measure": "outside", "fit": "4pl"},
+            curve() | {"fit": "4pl"},
+            curve() | {"fit": None, "measure": None},
+            curve() | {"fit": "spline", "measure": "r2"},
+            BLANK_COLUMNS | {"column": "A595"},
+            BLANK_COLUMNS | {"by": "cell"},
+            blank() | {"by": "row", "column": None},
+        ):
+            with raises_code("23514"), conn.transaction():
+                save_checks(conn, pid, v1, [bad])
+        save_checks(conn, pid, v1, [IC50, BLANK_COLUMNS, curve() | {"id": PEAK_ID}])
