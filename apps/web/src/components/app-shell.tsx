@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import type { ReactNode } from "react";
 import type { ShellData } from "@/lib/shell-data";
+import { ReminderToasts } from "./calendar/reminder-toasts";
 import { CommandPalette } from "./command-palette";
 import { FlagCountProvider } from "./flags/flag-count";
 import { FlagMarksProvider } from "./flags/flag-marks";
@@ -38,6 +39,7 @@ export async function AppShell({ shell, location, children }: { shell: ShellData
         <Tour />
         <Hints />
         <HelpSheet />
+        <ReminderToasts />
       </OnboardingProvider>
       </FlagMarksProvider>
       </FlagCountProvider>

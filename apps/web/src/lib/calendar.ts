@@ -4,6 +4,7 @@ import { ChartId, ExperimentId, InstrumentId, PersonId, ProtocolId, TalkThroughI
 import { CalendarDay, wallClock, type DayRange } from "./calendar-time";
 import { countLine } from "./format";
 import type { CalendarMode } from "./calendar-start";
+import { ChangeScope, EntryRepeatWire, RepeatJson, RepeatRuleWire, Reminders, SeriesId, type EntryRepeat } from "./calendar-repeat";
 
 // The lab calendar (docs/decisions.md, "the lab calendar"): plans people write, and the record
 // of what happened, worked out per day by calendar_record (db/migrations/0017_calendar.sql).
@@ -117,6 +118,10 @@ export type CalendarEntry = {
   protocol: { id: ProtocolId; title: string; archived: boolean } | null;
   instrument: { id: InstrumentId; name: string; revoked: boolean } | null;
   people: { id: PersonId; name: string }[];
+  // How it repeats, when it's one of a series.
+  repeat: EntryRepeat | null;
+  // The reader's own reminders, in minutes before the start.
+  reminders: number[];
   createdBy: UserId | null;
   createdAt: string;
   updatedAt: string;
@@ -140,6 +145,8 @@ export const EntryJson = z
     starts_at: Timestamp.nullable(),
     ends_at: Timestamp.nullable(),
     ...entryLinks,
+    repeat: RepeatJson.nullable().default(null),
+    reminders: z.array(z.number().int()).default([]),
     created_by: UserId.nullable(),
     created_at: Timestamp,
     updated_at: Timestamp,
@@ -161,6 +168,8 @@ export const EntryJson = z
       protocol: r.protocol,
       instrument: r.instrument,
       people: r.people,
+      repeat: r.repeat,
+      reminders: r.reminders,
       createdBy: r.created_by,
       createdAt: r.created_at,
       updatedAt: r.updated_at,
@@ -174,6 +183,8 @@ export const EntryWire = z.object({
   notes: z.string().nullable(),
   when: EntryWhenWire,
   ...entryLinks,
+  repeat: EntryRepeatWire.nullable(),
+  reminders: z.array(z.number().int()),
   createdBy: UserId.nullable(),
   createdAt: Timestamp,
   updatedAt: Timestamp,
@@ -196,8 +207,35 @@ export const EntryDraft = z
   );
 export type EntryDraft = z.infer<typeof EntryDraft>;
 
-export const SaveEntryRequest = z.object({ draft: EntryDraft, basedOn: Timestamp });
+// A new entry, and how it repeats. Undo puts a deleted occurrence back on its day in its series.
+export const CreateEntryRequest = z.object({
+  draft: EntryDraft,
+  repeat: RepeatRuleWire.nullable().default(null),
+  timeZone: z.string().min(1).max(64),
+  rejoin: z.object({ seriesId: SeriesId, occurrenceOn: CalendarDay }).nullable().default(null),
+});
+export type CreateEntryRequest = z.infer<typeof CreateEntryRequest>;
+
+export const SaveEntryRequest = z.object({ draft: EntryDraft, basedOn: Timestamp, scope: ChangeScope.default("one") });
 export type SaveEntryRequest = z.infer<typeof SaveEntryRequest>;
+
+export const RepeatRequest = z.object({ rule: RepeatRuleWire.nullable(), basedOn: Timestamp, timeZone: z.string().min(1).max(64) });
+export type RepeatRequest = z.infer<typeof RepeatRequest>;
+
+export const RemindersRequest = z.object({ minutes: Reminders, scope: ChangeScope.default("one") });
+
+// A reminder that's due: its entry, how long before the start, and the moment it was for.
+export type DueReminder = { entry: CalendarEntry; minutes: number; at: string };
+export const DueRemindersResponse = z.object({
+  due: z.array(z.object({ entry: EntryWire, minutes: z.number().int(), at: Timestamp })),
+}) satisfies z.ZodType<{ due: DueReminder[] }>;
+
+// The caller's feed: when they made its address. The address itself is only shown when made.
+export type FeedStatus = { madeAt: string | null };
+export const FeedStatus = z.object({ madeAt: z.string().nullable() }) satisfies z.ZodType<FeedStatus>;
+export const NewFeed = z.object({ url: z.string(), madeAt: z.string() });
+
+export const DeleteEntryRequest = z.object({ scope: ChangeScope.default("one") });
 
 export type EntrySaveOutcome = { kind: "saved"; entry: CalendarEntry } | { kind: "stale"; entry: CalendarEntry | null };
 export const EntrySaveOutcomeWire = z.discriminatedUnion("kind", [

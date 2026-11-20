@@ -6,6 +6,7 @@ import { useEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent, 
 import { draftOf, type CalendarEntry, type CalendarEntryId, type CalendarFilters, type EntryWhen } from "@/lib/calendar";
 import { allDayOn, shiftWhen, stretchWhen, whenLine } from "@/lib/calendar-edit";
 import { jumpToMonth, stepAnchor, startOfYear, viewRange, yearOf } from "@/lib/calendar-nav";
+import type { ChangeScope } from "@/lib/calendar-repeat";
 import {
   calendarSearch,
   calendarStart,
@@ -42,12 +43,14 @@ import { CalendarProvider, ENTRY_KEYS_HELP, ENTRY_KEYS_ID, type CalendarActions,
 import { CalendarHeader } from "./calendar-header";
 import { Agenda } from "./agenda";
 import { DayPeek } from "./day-peek";
+import { FeedButton } from "./feed-dialog";
 import { recordGroupAnchor } from "./day-record";
 import { DAY_RECORD_ID, DayView, PhoneDay } from "./day-view";
 import { EntryPeek } from "./entry-peek";
 import type { PendingEntry } from "./inline-title";
 import { MonthView } from "./month-view";
-import { useEntryWrites } from "./use-entry-writes";
+import { ScopeQuestion, type ScopeAsk } from "./scope-question";
+import { useEntryWrites, type AskScope } from "./use-entry-writes";
 import { HOUR_PX, WeekView } from "./week-view";
 import { YearView } from "./year-view";
 
@@ -122,7 +125,6 @@ function CalendarBody({
   pinnedNow: Date | null;
 }) {
   const api = useCalendarApi();
-  const writes = useEntryWrites();
   // This only renders in the browser, so the first place can read the screen and storage.
   const [initial] = useState<CalendarPlace>(() =>
     resolveStart(start, { stored: readStoredMode(viewer), phone: !window.matchMedia(WIDE).matches, today }),
@@ -134,6 +136,25 @@ function CalendarBody({
   const [pending, setPending] = useState<PendingEntry | null>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
   const [said, setSaid] = useState("");
+  const [scopeAsk, setScopeAsk] = useState<ScopeAsk | null>(null);
+  // The last answer to "only this one or all?", reused while the same entry keeps changing
+  // from the side peek or the arrow keys. A drag always asks.
+  const remembered = useRef<{ id: CalendarEntryId; scope: ChangeScope } | null>(null);
+  const askScope: AskScope = (entry, how) => {
+    const known = remembered.current;
+    if (how.ask === "once" && known?.id === entry.id) return Promise.resolve(known.scope);
+    return new Promise((resolve) =>
+      setScopeAsk({
+        entry,
+        answer: (scope) => {
+          setScopeAsk(null);
+          remembered.current = scope === null ? null : { id: entry.id, scope };
+          resolve(scope);
+        },
+      }),
+    );
+  };
+  const writes = useEntryWrites({ timeZone, askScope });
   const justDragged = useRef(false);
   const shownPlace = useRef<CalendarPlace | null>(null);
 
@@ -185,6 +206,10 @@ function CalendarBody({
 
   useEffect(() => writeStoredMode(viewer, mode), [viewer, mode]);
 
+  useEffect(() => {
+    remembered.current = null;
+  }, [open]);
+
   const go = (next: { mode?: CalendarMode; anchor?: CalendarDay }) => {
     setPending(null);
     if (next.mode !== undefined) setMode(next.mode);
@@ -202,7 +227,7 @@ function CalendarBody({
 
   function moveBy(entry: CalendarEntry, dragMode: DragMode, by: { days: number; minutes: number }) {
     const when = dragMode === "move" ? shiftWhen(entry.when, by, timeZone) : stretchWhen(entry.when, by, timeZone);
-    void writes.save(entry, { ...draftOf(entry), when });
+    void writes.save(entry, { ...draftOf(entry), when }, { ask: "once" });
     const day = when.kind === "allDay" ? when.first : wallClock(new Date(when.start), timeZone).day;
     setSaid(`${entry.title}: ${formatCalendarDay(day, "medium")}, ${whenLine(when, timeZone)}`);
     focusEntry(entry.id);
@@ -272,8 +297,8 @@ function CalendarBody({
       if (!moved) return;
       justDragged.current = true;
       setTimeout(() => (justDragged.current = false), 0);
-      void writes.save(entry, { ...draftOf(entry), when: last });
-      setDrag(null);
+      // Drawn where it was let go until it's saved, or back where it was if the person backs out.
+      void writes.save(entry, { ...draftOf(entry), when: last }, { ask: "always" }).then(() => setDrag(null));
     };
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
@@ -348,7 +373,7 @@ function CalendarBody({
           onYear={(y) => go({ anchor: startOfYear(y) })}
           onNew={() => setOpen({ kind: "new", when: newWhen })}
         />
-        <Filters lists={lists} value={filters} onChange={setFilters} />
+        <Filters lists={lists} value={filters} onChange={setFilters} end={<FeedButton />} />
 
         {mode === "year" ? (
           <div className="px-4 pt-2 pb-24 sm:px-8 md:pb-10">
@@ -397,6 +422,7 @@ function CalendarBody({
       <p id={ENTRY_KEYS_ID} hidden>
         {ENTRY_KEYS_HELP}
       </p>
+      <ScopeQuestion ask={scopeAsk} />
 
       {open.kind === "day" ? (
         <DayPeek
@@ -448,7 +474,17 @@ function slotAt(x: number, y: number): { day: CalendarDay; minutes: number | nul
   return { day: day.data, minutes: snap(((y - cell.getBoundingClientRect().top) / HOUR_PX) * 60) };
 }
 
-function Filters({ lists, value, onChange }: { lists: CalendarLists; value: CalendarFilters; onChange: (next: CalendarFilters) => void }) {
+function Filters({
+  lists,
+  value,
+  onChange,
+  end,
+}: {
+  lists: CalendarLists;
+  value: CalendarFilters;
+  onChange: (next: CalendarFilters) => void;
+  end: ReactNode;
+}) {
   return (
     <div
       role="group"
@@ -473,6 +509,7 @@ function Filters({ lists, value, onChange }: { lists: CalendarLists; value: Cale
         options={lists.instruments.map((i) => ({ id: i.id, name: i.name }))}
         onChange={(instrument) => onChange({ ...value, instrument })}
       />
+      <div className="ml-auto pl-2">{end}</div>
     </div>
   );
 }
