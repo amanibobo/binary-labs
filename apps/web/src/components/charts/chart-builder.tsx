@@ -1,10 +1,8 @@
 "use client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { DropdownMenu } from "radix-ui";
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
-import { cn } from "@/lib/cn";
 import { addSeries, labelText, rename, type LabelTarget } from "@/lib/chart-edits";
 import { chartWarnings, describeChart, describeRuns, startChart, startFor, suggestionsFor, switchKind } from "@/lib/chart-guide";
 import { chartHref, chartTrouble, checkSpec, findCitedCell, isSummary, isXY, repairSpec, specProblem, titleFromName, type CitedCell, type ChartSpec, type GridSpec, type HeatmapSpec, type SavedChart, type XYSpec } from "@/lib/charts";
@@ -15,15 +13,14 @@ import { plateLayout } from "@/lib/plates";
 import { protocolHref } from "@/lib/protocols";
 import { kindOf, type ChartData, type ChartKind, type PlateMap } from "@/lib/summary-guide";
 import { runName } from "@/lib/runs";
-import { AlertIcon, CheckIcon, ChevronDownIcon } from "../icons/base-web";
-import { DownloadIcon, PencilIcon, RedoIcon, UndoIcon } from "../icons/drawn";
+import { AlertIcon } from "../icons/base-web";
+import { PencilIcon, RedoIcon, UndoIcon } from "../icons/drawn";
 import { useLabApi } from "../lab-api";
 import { Breadcrumbs } from "../ui/breadcrumbs";
 import { Button } from "../ui/button";
 import { Dialog, DialogContent, DialogDock } from "../ui/dialog";
-import { menuItem, menuSurface } from "../ui/menu";
 import { Skeleton } from "../ui/skeleton";
-import { chartCsv, chartMarkup, downloadPdf, downloadPng, downloadSvg, EXPORT_SIZE_KEYS, EXPORT_SIZES, fileName, saveText, type ExportSize } from "./chart-export";
+import { chartCsv, chartMarkup, downloadPdf, downloadPng, downloadSvg, fileName, saveText, type ExportSize } from "./chart-export";
 import { ChartFigure, type FigureEdit } from "./chart-figure";
 import { ChartPanel, SeriesEditor, type PanelEdit } from "./chart-panel";
 import { ChartQuestion } from "./chart-question";
@@ -31,11 +28,12 @@ import { CitedCellView } from "./cited-cell";
 import { fileChartsKey } from "./file-charts";
 import { LayoutPainter } from "./layout-painter";
 import { RunsPanel, useRuns } from "./runs-panel";
+import { ExportMenu, type ExportKind } from "./export-menu";
+import { tableKey } from "./table-key";
 import { useHistory } from "./use-history";
 
 const POLL_MS = 2_000;
 
-export const tableKey = (sha: Sha256) => ["data-table", sha] as const;
 
 export type ChartFile = { locationId: LocationId | null; sha256: Sha256; name: string };
 export type ProtocolChoice = { id: ProtocolId; title: string };
@@ -635,58 +633,6 @@ function ChartTitle({ value, onChange }: { value: string; onChange: (title: stri
       />
       <PencilIcon className="pointer-events-none absolute top-1/2 right-1 size-5 -translate-y-1/2 text-content-tertiary opacity-0 transition-opacity duration-150 group-hover/title:opacity-100 group-focus-within/title:opacity-0" />
     </div>
-  );
-}
-
-type ExportKind = "pdf" | "svg" | "png" | "csv";
-
-// Download: the figure's size first, then the file. Print sizes are laid out for a journal's
-// column with its type at 7 pt; slides at 960 by 560.
-function ExportMenu({ disabled, size, onSize, onExport }: { disabled: boolean; size: ExportSize; onSize: (size: ExportSize) => void; onExport: (kind: ExportKind) => void }) {
-  const print = size !== "slides";
-  const item = (kind: ExportKind, title: string, help: string) => (
-    <DropdownMenu.Item className={cn(menuItem, "items-start py-2")} onSelect={() => onExport(kind)}>
-      <span>
-        <span className="block text-label-medium">{title}</span>
-        <span className="block text-paragraph-small text-content-tertiary">{help}</span>
-      </span>
-    </DropdownMenu.Item>
-  );
-  return (
-    <DropdownMenu.Root>
-      <DropdownMenu.Trigger asChild disabled={disabled}>
-        <Button variant="tertiary" size="compact" className="gap-1.5 text-content-secondary">
-          <DownloadIcon className="size-5" />
-          <span className="hidden sm:inline">Download</span>
-          <span className="sr-only sm:hidden">Download</span>
-          <ChevronDownIcon className="-mr-1 hidden size-4 sm:block" />
-        </Button>
-      </DropdownMenu.Trigger>
-      <DropdownMenu.Portal>
-        <DropdownMenu.Content align="end" sideOffset={6} className={cn(menuSurface, "w-80")}>
-          <p className="px-3 pt-2 pb-1 text-paragraph-xsmall text-content-tertiary">On white, with the title, and the test or fit written under the chart. Type prints at 7 pt.</p>
-          <DropdownMenu.Label className="px-3 pt-2 pb-1 text-paragraph-xsmall text-content-tertiary">Size</DropdownMenu.Label>
-          <DropdownMenu.RadioGroup value={size} onValueChange={(v) => onSize(v === "double" ? "double" : v === "slides" ? "slides" : "column")}>
-            {EXPORT_SIZE_KEYS.map((key) => (
-              <DropdownMenu.RadioItem key={key} value={key} onSelect={(e) => e.preventDefault()} className={cn(menuItem, "gap-2")}>
-                <span className="flex size-4 items-center justify-center">
-                  <DropdownMenu.ItemIndicator>
-                    <CheckIcon className="size-4" />
-                  </DropdownMenu.ItemIndicator>
-                </span>
-                {EXPORT_SIZES[key].label}
-              </DropdownMenu.RadioItem>
-            ))}
-          </DropdownMenu.RadioGroup>
-          <DropdownMenu.Separator className="my-1 h-px bg-border-opaque" />
-          {item("pdf", "PDF", print ? `For a paper, ${EXPORT_SIZES[size].short} wide, sharp at any zoom` : "For slides or a handout")}
-          {item("svg", "SVG", "To edit in Illustrator or Inkscape, sharp at any size")}
-          {item("png", "PNG picture", print ? `${EXPORT_SIZES[size].short} at 300 dpi` : "For slides, at twice screen size")}
-          <DropdownMenu.Separator className="my-1 h-px bg-border-opaque" />
-          {item("csv", "The numbers behind it (CSV)", "Means, spreads, n, the test, the fit and your samples, unrounded")}
-        </DropdownMenu.Content>
-      </DropdownMenu.Portal>
-    </DropdownMenu.Root>
   );
 }
 

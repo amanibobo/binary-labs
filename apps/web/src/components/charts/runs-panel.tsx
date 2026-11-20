@@ -6,7 +6,7 @@ import { MAX_OTHER_RUNS, type XYSpec } from "@/lib/charts";
 import { formatDate, type DataTable } from "@/lib/data-tables";
 import type { LocationId, Sha256 } from "@/lib/ids";
 import { combineRuns, isFailed, runName, type Combined, type RunInfo, type RunState } from "@/lib/runs";
-import { tableKey } from "./chart-builder";
+import { tableKey } from "./table-key";
 import { CheckIcon, DeleteIcon, PlusIcon } from "../icons/base-web";
 import { useLabApi } from "../lab-api";
 import { Button } from "../ui/button";

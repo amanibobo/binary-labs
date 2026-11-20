@@ -6,6 +6,7 @@ import { measureText, rangeText, usefulText, type CheckSpec } from "@/lib/checks
 import { usefulnessKey, type Flag, type UsefulnessByCheck } from "@/lib/flags";
 import type { ProtocolId } from "@/lib/ids";
 import { protocolHref } from "@/lib/protocols";
+import { historyHref } from "@/lib/run-history";
 import { buttonVariants } from "../ui/button";
 import { dataRow, dataSurface } from "../ui/data-table";
 import { FlagLine } from "./file-flags";
@@ -46,10 +47,17 @@ export function ProtocolChecks({ protocolId, data, editable }: { protocolId: Pro
             return (
               <li key={check.id} className={dataRow}>
                 <div className="px-4 py-4 sm:px-5">
-                  <p className="text-label-medium text-content-primary">{check.name}</p>
-                  <p className="mt-0.5 text-paragraph-small text-content-secondary">
-                    {measureText(check)}: {rangeText(check.range, check.unit)}
-                  </p>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <p className="text-label-medium text-content-primary">{check.name}</p>
+                      <p className="mt-0.5 text-paragraph-small text-content-secondary">
+                        {measureText(check)}: {rangeText(check.range, check.unit)}
+                      </p>
+                    </div>
+                    <Link href={historyHref(protocolId, check.id)} className="shrink-0 pt-0.5 text-paragraph-small text-content-accent underline-offset-2 hover:underline">
+                      Across runs
+                    </Link>
+                  </div>
                   {data.usefulness === null ? null : (
                     <p className="mt-1 text-paragraph-xsmall text-content-tertiary">
                       {usefulText(usefulness ?? { flags: 0, useful: 0, wrong: 0, knownIssue: 0 })}

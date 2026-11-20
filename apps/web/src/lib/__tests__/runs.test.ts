@@ -5,7 +5,7 @@ import run2Json from "@/fixtures/tables/growth_flask_run2.json";
 import run3Json from "@/fixtures/tables/growth_flask_run3.json";
 import pendulumJson from "@/fixtures/tables/pendulum.json";
 import { chartCsv, exportFigure, figureMarkup } from "@/components/charts/chart-export";
-import { describeChart, describeRuns, startChart } from "../chart-guide";
+import { describeRuns, startChart } from "../chart-guide";
 import { plotChart } from "../chart-geometry";
 import { ChartSpec, isXY, withType, type XYSpec } from "../charts";
 import { DataTables, mainTable, type DataTable } from "../data-tables";
@@ -85,7 +85,8 @@ describe("runs on one chart", () => {
   it("keeps runs on a scatter and drops them for bars, which can't draw them", () => {
     const s = spec();
     expect(ChartSpec.safeParse(s).success).toBe(true);
-    expect((withType(s, "scatter", run1, null) as XYSpec).runs).toHaveLength(2);
-    expect((withType(s, "bar", run1, null) as XYSpec).runs).toBeUndefined();
+    const runsOf = (c: ChartSpec) => (isXY(c) ? c.runs : "not an x/y chart");
+    expect(runsOf(withType(s, "scatter", run1, null))).toHaveLength(2);
+    expect(runsOf(withType(s, "bar", run1, null))).toBeUndefined();
   });
 });

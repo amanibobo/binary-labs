@@ -391,7 +391,10 @@ export function describeRuns(combined: Combined): string {
   if (x === undefined || drawn.length === 0) return "";
   const xs = drawn.flatMap((d) => {
     const along = d.series.x === null ? x : findColumn(table, d.series.x);
-    return along === undefined ? [] : d.column.values.flatMap((v, r) => (v === null ? [] : typeof along.values[r] === "number" ? [along.values[r] as number] : []));
+    return along === undefined ? [] : d.column.values.flatMap((v, r) => {
+      const at = along.values[r];
+      return v === null || typeof at !== "number" ? [] : [at];
+    });
   });
   const xName = spec.x.title.trim() || x.name;
   const xUnit = x.kind === "number" && spec.x.unit.trim() !== "" ? ` ${spec.x.unit.trim()}` : "";

@@ -33,7 +33,7 @@ export type ChartFile = { markup: string; width: number; height: number; mm: { w
 
 const MM_PER_INCH = 25.4;
 
-function render(element: ReactElement): string {
+export function render(element: ReactElement): string {
   const host = document.createElement("div");
   const root = createRoot(host);
   flushSync(() => root.render(element));

@@ -1,7 +1,9 @@
 import "server-only";
 import { z } from "zod";
 import { LabelOutcome } from "./domain";
-import { LocationId, Sha256, type LabId } from "./ids";
+import { CheckSpecs } from "./checks";
+import { CheckId, FlagId, LocationId, ProtocolId, Sha256, type LabId } from "./ids";
+import { historyOrder, RESULTS, type HistoryRun, type RunHistory } from "./run-history";
 import type { RunChoices, RunInfo } from "./runs";
 import { unwrap, type Supabase } from "./supabase/server";
 
@@ -75,6 +77,65 @@ export async function loadRunChoices(supabase: Supabase, labId: LabId, sha: Sha2
   const rest = runs.filter((r) => !ready.has(r.sha256));
   const experiment = experimentId === null ? null : (inExperiment[0]?.experiment ?? (await experimentName(supabase, labId, experimentId)));
   return { experiment, runs: [...inExperiment, ...rest] };
+}
+
+const ResultRow = z.object({
+  sha256: Sha256,
+  protocol_version_id: z.string(),
+  outcome: z.enum(RESULTS),
+  observed: z.number().nullable(),
+  unit: z.string().nullable(),
+  reason: z.string().nullable(),
+});
+
+// A check's results across the files it ran on, each with the range of the version it was
+// checked against; null when the protocol isn't the lab's or none of its versions has the check.
+export async function loadRunHistory(supabase: Supabase, labId: LabId, protocolId: ProtocolId, checkId: CheckId | null): Promise<RunHistory | null> {
+  const [found] = z
+    .array(z.object({ id: ProtocolId, current_version_id: z.string() }))
+    .parse(unwrap(await supabase.from("protocols").select("id, current_version_id").eq("lab_id", labId).eq("id", protocolId).limit(1)));
+  if (found === undefined) return null;
+  const [head] = z
+    .array(z.object({ title: z.string(), expected_values: CheckSpecs }))
+    .parse(unwrap(await supabase.from("protocol_versions").select("title, expected_values").eq("id", found.current_version_id).limit(1)));
+  if (head === undefined) return null;
+  const protocol = { id: found.id, title: head.title };
+  const current = head.expected_values;
+  const id = checkId ?? current[0]?.id ?? null;
+  if (id === null) return null;
+  const results = z.array(ResultRow).parse(
+    unwrap(await supabase.from("check_results").select("sha256, protocol_version_id, outcome, observed, unit, reason").eq("lab_id", labId).eq("protocol_id", protocolId).eq("check_id", id)),
+  );
+  const versionIds = [...new Set(results.map((r) => r.protocol_version_id))];
+  const versions =
+    versionIds.length === 0
+      ? []
+      : z
+          .array(z.object({ id: z.string(), version: z.number().int().positive(), expected_values: CheckSpecs }))
+          .parse(unwrap(await supabase.from("protocol_versions").select("id, version, expected_values").eq("protocol_id", protocolId).in("id", versionIds)));
+  const byVersion = new Map(versions.map((v) => [v.id, { version: v.version, check: v.expected_values.find((c) => c.id === id) }]));
+  const check = current.find((c) => c.id === id) ?? [...versions].sort((a, b) => b.version - a.version).flatMap((v) => v.expected_values.filter((c) => c.id === id))[0];
+  if (check === undefined) return null;
+  const [runs, flags] = await Promise.all([
+    loadRuns(supabase, labId, results.map((r) => r.sha256)),
+    z
+      .array(z.object({ id: FlagId, sha256: Sha256 }))
+      .parse(unwrap(await supabase.from("flags").select("id, sha256").eq("lab_id", labId).eq("protocol_id", protocolId).eq("check_id", id).is("cleared_at", null))),
+  ]);
+  const runOf = new Map(runs.map((r) => [r.sha256, r]));
+  const flagOf = new Map(flags.map((f) => [f.sha256, f.id]));
+  const history: HistoryRun[] = results.flatMap((r) => {
+    const run = runOf.get(r.sha256);
+    const held = byVersion.get(r.protocol_version_id);
+    if (run === undefined || held?.check === undefined) return [];
+    return [{ run, observed: r.observed, result: r.outcome, reason: r.reason, range: held.check.range, unit: r.unit ?? held.check.unit, version: held.version, flagId: flagOf.get(r.sha256) ?? null }];
+  });
+  return {
+    protocol: { id: protocol.id, title: protocol.title },
+    check,
+    checks: (current.length > 0 ? current : [check]).map((c) => ({ id: c.id, name: c.name })),
+    runs: history.sort(historyOrder),
+  };
 }
 
 async function experimentName(supabase: Supabase, labId: LabId, id: string): Promise<string | null> {

@@ -18,6 +18,8 @@ export type ChartInk = {
   font: string;
   // A page background behind an exported chart; on screen the page is the background.
   background: string | null;
+  // A flagged value on a run-history chart.
+  flag: string;
   // A plate well's color at a place on the scale, 0 to 1.
   ramp: (t: number) => string;
   // The ramp's stops for the scale's bar, low to high.
@@ -47,6 +49,7 @@ export const SCREEN_INK: ChartInk = {
   title: "var(--content-primary)",
   font: "inherit",
   background: null,
+  flag: "var(--chart-flag)",
   ramp: screenFill,
   rampStops: [0, 1, 2, 3, 4].map((i) => `var(--chart-seq-${i})`),
 };
@@ -63,6 +66,7 @@ export const EXPORT_INK: ChartInk = {
   title: "#18181a",
   font: "Geist, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif",
   background: "#ffffff",
+  flag: "#b26f00",
   ramp: exportFill,
   rampStops: [0, 0.25, 0.5, 0.75, 1].map(exportFill),
 };
