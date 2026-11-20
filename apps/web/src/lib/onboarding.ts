@@ -406,6 +406,7 @@ export type HelpAnswerId =
   | "failed-run"
   | "needs-look"
   | "older-version"
+  | "run-protocol"
   | "map"
   | "learn"
   | "talk-through"
@@ -426,6 +427,7 @@ export type HelpAnswerId =
   | "export"
   | "invite"
   | "members"
+  | "share-run"
   | "instrument";
 
 // A clip where seeing it helps; a few answers are clear in words alone.
@@ -514,6 +516,13 @@ export const HELP_ANSWERS: readonly HelpAnswer[] = [
     group: "find",
     question: "See an older version of a file",
     answer: "In Browse, choose Clean names, find the file and click its versions, like “4 versions”. Pick one to see what changed and open it as it was.",
+    clip: null,
+  },
+  {
+    id: "run-protocol",
+    group: "find",
+    question: "Say what changed from the protocol",
+    answer: "On a run's page, under Protocol, pick the protocol you followed and say whether you did it exactly as written. If not, change the steps you did differently and Binary lists each change.",
     clip: null,
   },
   {
@@ -654,6 +663,13 @@ export const HELP_ANSWERS: readonly HelpAnswer[] = [
     group: "lab",
     question: "Remove someone or make them an admin",
     answer: "In Settings, Members, an admin picks Admin or Member beside a person, or chooses Remove, which deletes nothing they made. A lab always keeps one admin.",
+    clip: null,
+  },
+  {
+    id: "share-run",
+    group: "lab",
+    question: "Share a run outside the lab",
+    answer: "An admin agrees for the lab in Settings, Sharing; then the person who ran a run, or an admin, opens it and chooses Turn sharing on. Nothing leaves the lab unless both are on, and changing a run turns its sharing off again.",
     clip: null,
   },
   {

@@ -333,6 +333,8 @@ export const folderRows = FolderTreeRows.parse(treeRows(TREE, "", null).rows);
 
 export const fixtureShell: ShellData = {
   labName: "Okafor Lab",
+  // The fixtures are made up, so their screenshots carry the Sample mark.
+  demo: true,
   memberCount: members.length,
   memberEmails: members.flatMap((m) => (m.email === null ? [] : [m.email])),
   isAdmin: true,

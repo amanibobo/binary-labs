@@ -227,6 +227,22 @@ describe("attest_cause", () => {
     expect(changed.failure).toMatchObject({ confirmerAttestedAt: null, confirmRecordedBy: ada });
   });
 
+  it("blocks export again when another member changes the cause, the method or the confirmer of an attested cause", async () => {
+    const blocks = async () => z.array(z.string()).parse((await owner("select run_export_blocks($1) as b", [failed.id])).rows[0]?.b);
+    const own = await confirm(ben, failed.id, { cause: "Buffer was old", person: benRow, method: "pi_opinion" });
+    const at = own.failure.confirmedAt;
+    expect(await blocks()).not.toContain("not_attested");
+    await confirm(ada, failed.id, { cause: "Buffer was older", person: benRow, method: "pi_opinion", at });
+    expect(await blocks()).toContain("not_attested");
+    await attest(ben, failed.id);
+    expect(await blocks()).not.toContain("not_attested");
+    await confirm(ada, failed.id, { cause: "Buffer was older", person: benRow, method: "repeat", at });
+    expect(await blocks()).toContain("not_attested");
+    await attest(ben, failed.id);
+    await confirm(ada, failed.id, { cause: "Buffer was older", person: priya, method: "repeat", at });
+    expect(await blocks()).toContain("not_attested");
+  });
+
   it("takes the yes back with the confirmation", async () => {
     expect((await confirm(ben, failed.id, { cause: "Buffer was old", person: benRow, method: "pi_opinion" })).failure.confirmerAttestedAt).not.toBeNull();
     expect((await confirm(ada, failed.id, { cause: null })).failure.confirmerAttestedAt).toBeNull();

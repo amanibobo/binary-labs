@@ -9,6 +9,7 @@ import type { Member } from "./viewer";
 // Everything the sidebar shows, loaded once per page.
 export type ShellData = {
   labName: string;
+  demo: boolean;
   memberCount: number;
   // Members' emails, oldest first, for the invite row's faces.
   memberEmails: string[];
@@ -32,6 +33,7 @@ export async function loadShell(member: Member): Promise<ShellData> {
   ]);
   return {
     labName: lab.name,
+    demo: lab.demo,
     memberCount: members.length,
     memberEmails: members.flatMap((m) => (m.email === null ? [] : [m.email])),
     isAdmin: lab.role === "admin",

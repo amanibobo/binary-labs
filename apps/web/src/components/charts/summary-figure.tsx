@@ -13,7 +13,9 @@ import { Button } from "../ui/button";
 import { menuSurface } from "../ui/menu";
 import { chartHeight, EditableLabels, Frame, useWidth, type FigureEdit, type LabelBox } from "./chart-figure";
 import { SCREEN_INK } from "./chart-svg";
-import { saveText } from "./chart-export";
+import { sampleTitle } from "@/lib/sample";
+import { useDemoLab } from "../demo-lab";
+import { fileName, saveText } from "./chart-export";
 import { SummarySvg } from "./summary-svg";
 
 // A chart of repeats that fills its container: a readout on hover and the arrow keys, what it
@@ -243,6 +245,7 @@ function SamplesTable({ analysis, spec, title }: { analysis: Extract<Analysis, {
   const amount = (v: number | null) => (v === null ? "—" : formatFit(v * by));
   const diluted = analysis.unknowns.some((k) => k.dilution !== null && k.dilution !== 1);
   const samples = chartNumbers(spec, analysis).find((t) => t.title === "Samples");
+  const fileTitle = sampleTitle(title, useDemoLab());
   return (
     <section aria-label="Your samples" className="mt-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -264,7 +267,7 @@ function SamplesTable({ analysis, spec, title }: { analysis: Extract<Analysis, {
           </div>
         ) : null}
         {samples === undefined ? null : (
-          <Button variant="tertiary" size="compact" className="-mr-2 text-content-secondary" onClick={() => saveText(numbersCsv([samples], [title]), `${title} samples.csv`, "text/csv")}>
+          <Button variant="tertiary" size="compact" className="-mr-2 text-content-secondary" onClick={() => saveText(numbersCsv([samples], [fileTitle]), fileName(`${fileTitle} samples`, "csv"), "text/csv")}>
             Download as CSV
           </Button>
         )}

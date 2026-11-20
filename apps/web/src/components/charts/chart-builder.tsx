@@ -13,6 +13,8 @@ import { plateLayout } from "@/lib/plates";
 import { protocolHref } from "@/lib/protocols";
 import { kindOf, type ChartData, type ChartKind, type PlateMap } from "@/lib/summary-guide";
 import { runName } from "@/lib/runs";
+import { sampleTitle } from "@/lib/sample";
+import { useDemoLab } from "../demo-lab";
 import { AlertIcon } from "../icons/base-web";
 import { PencilIcon, RedoIcon, UndoIcon } from "../icons/drawn";
 import { useLabApi } from "../lab-api";
@@ -193,6 +195,7 @@ function Builder({
   first: DataTable;
 }) {
   const api = useLabApi();
+  const demo = useDemoLab();
   const router = useRouter();
   const queryClient = useQueryClient();
   const [saved, setSaved] = useState<SavedChart | null>(mode.kind === "edit" ? mode.chart : null);
@@ -353,7 +356,7 @@ function Builder({
 
   async function exportAs(kind: ExportKind) {
     if (spec === null || problem !== null) return;
-    const title = draft.title.trim() || "Chart";
+    const title = sampleTitle(draft.title.trim() || "Chart", demo);
     try {
       if (kind === "csv") {
         saveText(chartCsv(drawn.spec ?? spec, drawn.table, title, provenance.map((p) => p.text), doc.tables), fileName(title, "csv"), "text/csv");
