@@ -665,6 +665,13 @@ export const HELP_ANSWERS: readonly HelpAnswer[] = [
     clip: null,
   },
   {
+    id: "model-check",
+    group: "lab",
+    question: "Test a run's task on AI models",
+    answer: "On a built task, open Model check and choose Check with models; they never see the answer key. Someone who didn't run it judges unclear answers, and you keep the tasks most models get wrong.",
+    clip: null,
+  },
+  {
     id: "instrument",
     group: "lab",
     question: "Connect an instrument PC",

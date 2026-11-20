@@ -10,15 +10,15 @@ const answerId = (n: number) => AnswerId.parse(`7d1c2c39-5a4e-4c55-9d7b-0c3c1a7e
 
 export const fixtureSetup: CheckSetup = {
   models: [
-    { model: "anthropic/claude-opus-5.5", ceilingUsd: 0.37 },
-    { model: "google/gemini-4-neon", ceilingUsd: 0.29 },
-    { model: "openai/gpt-6.2-astra", ceilingUsd: 0.69 },
-    { model: "x-ai/grok-4.7", ceilingUsd: 0.18 },
+    { model: "anthropic/claude-opus-5.5", ceilingUsd: 0.38 },
+    { model: "google/gemini-4-neon", ceilingUsd: 0.3 },
+    { model: "openai/gpt-6.2-astra", ceilingUsd: 0.7 },
+    { model: "x-ai/grok-4.7", ceilingUsd: 0.19 },
   ],
   unreachable: [],
   grader: "anthropic/claude-sonnet-5.5",
   costCapUsd: 2,
-  ceilingUsd: 1.53,
+  ceilingUsd: 1.57,
   missing: [],
   ready: true,
 };

@@ -17,7 +17,7 @@ const db = new Client({ connectionString: process.env.TEST_DATABASE_URL ?? "post
 const ada = "00000000-0000-4000-8000-0000000c0001";
 const ben = "00000000-0000-4000-8000-0000000c0002";
 const cy = "00000000-0000-4000-8000-0000000c0003";
-const sha = (n: number) => Sha256.parse(`c${n.toString(16).padStart(63, "0")}`);
+const sha = (n: number) => Sha256.parse(`acc${n.toString(16).padStart(61, "0")}`);
 
 async function asRole<T>(role: "authenticated" | "anon", userId: string | null, fn: () => Promise<T>): Promise<T> {
   await db.query("begin");
