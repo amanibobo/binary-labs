@@ -1,7 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import { embedConfig } from "@/env";
-import { AnswerSource, Answer, AskStep, RECENT_QUESTIONS_LOADED, RecentQuestionRows, SavedAnswer, Verdict, type AskHome, type RecentQuestion } from "./answers";
+import { AnswerSource, Answer, AskStep, type Budget, RECENT_QUESTIONS_LOADED, RecentQuestionRows, SavedAnswer, Verdict, type AskHome, type RecentQuestion } from "./answers";
 import { BudgetRows, CachedOutput, ContextRows, EvidenceRows, ProtocolContextRows, QUESTION_EMBED_TIMEOUT_MS, type AnswerWriter, type AskReads } from "./ask";
 import { readTables } from "./chart-store";
 import { FileLabelRows, type Label } from "./domain";
@@ -240,6 +240,16 @@ export async function loadSuggestion(supabase: Supabase, labId: LabId, id: Sugge
     };
   });
   return { ...common, kind: "labels", changes, lists: { experiments: experimentList, people: peopleList } };
+}
+
+// Settings > General's spending line; the page still loads without it.
+export async function loadBudget(supabase: Supabase, labId: LabId): Promise<Budget | null> {
+  try {
+    return BudgetRows.parse(unwrap(await supabase.rpc("ai_budget", { p_lab_id: labId })));
+  } catch (error) {
+    logError("ask.budget_failed", { labId, error });
+    return null;
+  }
 }
 
 // The Search home's part. It never fails the page, since search works without it.

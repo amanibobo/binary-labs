@@ -47,7 +47,7 @@ export default async function SettingsFixture({ params, searchParams }: Props) {
   const body = (s: SettingsSection): ReactNode => {
     switch (s) {
       case "general":
-        return <GeneralSection labName={LAB} isAdmin={isAdmin} />;
+        return <GeneralSection labName={LAB} isAdmin={isAdmin} budget={{ capUsd: 25, spentUsd: 3.2, resetsAt: "2026-12-01T00:00:00Z" }} />;
       case "members":
         return <MembersSection members={state === "connect" ? members.slice(0, 1) : members} isAdmin={isAdmin} email={email} />;
       case "dropbox":
