@@ -131,7 +131,6 @@ describe("the fixture run record", () => {
 
   it("answers a slice's methods as not built until that slice fills them in", async () => {
     const api = createFixtureRuns();
-    await expect(api.setRunShare(FIRST_TRY, true)).rejects.toThrow("isn't built yet");
     await expect(api.setSuspectedCause(FIRST_TRY, "old buffer")).rejects.toThrow("isn't built yet");
   });
 });

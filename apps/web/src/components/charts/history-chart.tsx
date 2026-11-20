@@ -10,6 +10,8 @@ import { flagHref } from "@/lib/flags";
 import { protocolHref } from "@/lib/protocols";
 import { describeHistory, HISTORY_COLUMNS, historyHref, historyRows, plotHistory, runDay, type HistoryPlot, type HistoryRun, type RunHistory } from "@/lib/run-history";
 import { isFailed, runName } from "@/lib/runs";
+import { sampleTitle } from "@/lib/sample";
+import { useDemoLab } from "../demo-lab";
 import { Breadcrumbs } from "../ui/breadcrumbs";
 import { Button } from "../ui/button";
 import { inputVariants } from "../ui/field";
@@ -141,6 +143,7 @@ export function RunHistoryView({ history }: { history: RunHistory }) {
   const [size, setSize] = useState<ExportSize>("column");
   const pickId = useId();
   const title = `${history.check.name} across runs`;
+  const demo = useDemoLab();
   const height = width === null ? 320 : historyHeight(width);
   const plot = useMemo(() => (width === null ? null : plotHistory(history, { width, height: historyHeight(width) })), [history, width]);
   const sentence = describeHistory(history);
@@ -163,20 +166,21 @@ export function RunHistoryView({ history }: { history: RunHistory }) {
   }
 
   async function exportAs(kind: ExportKind) {
+    const fileTitle = sampleTitle(title, demo);
     try {
       if (kind === "csv") {
-        saveText(numbersCsv([{ title: history.check.name, columns: HISTORY_COLUMNS, rows: historyRows(history) }], [title, `From ${history.protocol.title}`]), fileName(title, "csv"), "text/csv");
+        saveText(numbersCsv([{ title: history.check.name, columns: HISTORY_COLUMNS, rows: historyRows(history) }], [fileTitle, `From ${history.protocol.title}`]), fileName(fileTitle, "csv"), "text/csv");
         return;
       }
       const box = EXPORT_SIZES[size];
-      const drawn = plotHistory(history, { width: box.width, height: box.height }, { title });
+      const drawn = plotHistory(history, { width: box.width, height: box.height }, { title: fileTitle });
       const file = figureMarkup(
-        { element: <HistorySvg plot={drawn} ink={EXPORT_INK} label={title} />, width: box.width, height: box.height, mm: box.mm === null ? null : { width: box.mm, height: Math.round(((box.mm * box.height) / box.width) * 10) / 10 } },
+        { element: <HistorySvg plot={drawn} ink={EXPORT_INK} label={fileTitle} />, width: box.width, height: box.height, mm: box.mm === null ? null : { width: box.mm, height: Math.round(((box.mm * box.height) / box.width) * 10) / 10 } },
         render,
       );
-      if (kind === "svg") downloadSvg(file, title);
-      else if (kind === "pdf") await downloadPdf(file, title);
-      else await downloadPng(file, title);
+      if (kind === "svg") downloadSvg(file, fileTitle);
+      else if (kind === "pdf") await downloadPdf(file, fileTitle);
+      else await downloadPng(file, fileTitle);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "We couldn't make that file.");
     }

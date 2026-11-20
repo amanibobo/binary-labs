@@ -94,7 +94,8 @@ def add_run(conn, lab, sha, tag):
     ).fetchone()
     conn.execute(
         "update runs set suspected_cause = 'old lysis buffer', confirmed_cause = 'buffer pH was 9',"
-        " confirmed_by = %s, confirm_method = 'control', confirmed_at = now(), share = true"
+        " confirmed_by = %s, confirm_method = 'control', confirmed_at = now(),"
+        " confirmer_attested_at = now(), share = true"
         " where id = %s",
         (person, run),
     )

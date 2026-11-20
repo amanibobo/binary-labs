@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import type { ShellData } from "@/lib/shell-data";
 import { ReminderToasts } from "./calendar/reminder-toasts";
 import { CommandPalette } from "./command-palette";
+import { DemoLabProvider } from "./demo-lab";
 import { FlagCountProvider } from "./flags/flag-count";
 import { FlagMarksProvider } from "./flags/flag-marks";
 import { NeedsLookCountProvider } from "./labels/needs-look-count";
@@ -17,6 +18,7 @@ import { DesktopFrame, PhoneBar } from "./sidebar";
 export async function AppShell({ shell, location, children }: { shell: ShellData; location: ShellLocation; children: ReactNode }) {
   const collapsed = (await cookies()).get(SIDEBAR_COOKIE)?.value === "collapsed";
   return (
+    <DemoLabProvider demo={shell.demo}>
     <NeedsLookCountProvider initial={shell.needsLookCount}>
       <FlagCountProvider initial={shell.flagCount}>
       <FlagMarksProvider>
@@ -44,5 +46,6 @@ export async function AppShell({ shell, location, children }: { shell: ShellData
       </FlagMarksProvider>
       </FlagCountProvider>
     </NeedsLookCountProvider>
+    </DemoLabProvider>
   );
 }

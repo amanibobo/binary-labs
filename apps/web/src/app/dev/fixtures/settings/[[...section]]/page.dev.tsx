@@ -9,19 +9,23 @@ import { LabListSection } from "@/app/settings/lab-list-section";
 import { MembersSection } from "@/app/settings/members-section";
 import { DropboxNotice, SettingsSection } from "@/app/settings/sections";
 import { SettingsFrame } from "@/app/settings/settings-frame";
+import { SharingSettings } from "@/app/settings/sharing/sharing-settings";
 import { UploaderDownloadSection } from "@/app/settings/uploader-download-section";
 import { AppShell } from "@/components/app-shell";
 import { disconnectedSource, experiments, fixtureShell, members, people, scanningSource } from "@/fixtures/data";
 import { FixtureLabApi } from "@/fixtures/fixture-api";
 import { requireFixtures } from "@/fixtures/gate";
 import { fixturePairing, instruments, waitingInstrument } from "@/fixtures/instruments";
+import { fixtureLabSharing, fixtureSharingLog } from "@/fixtures/runs-sharing";
 
 // /dev/fixtures/settings[/<section>]?state=connect|scanning|disconnected&role=admin|member&code=shown|paired&dropbox=<notice>
 // /dev/fixtures/settings/instruments/download[?download=on]
+// /dev/fixtures/settings/sharing?sharing=off|on|demo
 const State = z.enum(["connect", "scanning", "disconnected"]).catch("scanning");
 const Role = z.enum(["admin", "member"]).catch("admin");
 const Section = SettingsSection.nullable().catch(null);
 const Code = z.enum(["shown", "paired"]).optional().catch(undefined);
+const Sharing = z.enum(["off", "on", "demo"]).catch("off");
 
 const SOURCES = { connect: { kind: "not_connected" as const }, scanning: scanningSource, disconnected: disconnectedSource };
 const LAB = "Okafor Lab";
@@ -64,6 +68,10 @@ export default async function SettingsFixture({ params, searchParams }: Props) {
         return <LabListSection kind="experiments" entries={state === "connect" ? [] : experiments} isAdmin={isAdmin} />;
       case "people":
         return <LabListSection kind="people" entries={state === "connect" ? [] : people} isAdmin={isAdmin} />;
+      case "sharing": {
+        const sharing = Sharing.parse(query.sharing);
+        return <SharingSettings initial={fixtureLabSharing(sharing, isAdmin)} initialLog={isAdmin ? (sharing === "on" ? fixtureSharingLog() : []) : null} />;
+      }
       case "account":
         return <AccountSection email={email} labName={LAB} isAdmin={isAdmin} />;
       case "appearance":
