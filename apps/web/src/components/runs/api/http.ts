@@ -31,8 +31,3 @@ export async function send(url: string, method: "POST" | "DELETE", body: unknown
   if (!res.ok) throw failure(json);
   return json;
 }
-
-// What a slice's method does until that slice is built.
-export function notBuilt(): Promise<never> {
-  return Promise.reject(new Error("This part of the run record isn't built yet."));
-}

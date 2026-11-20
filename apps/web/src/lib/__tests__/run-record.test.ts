@@ -128,9 +128,4 @@ describe("the fixture run record", () => {
     expect((await api.removeFile(RETRY, a.sha256)).files.map((f) => f.sha256)).toEqual([b.sha256]);
     await expect(api.removeFile(RETRY, b.sha256)).rejects.toThrow("A run keeps at least one file");
   });
-
-  it("answers a slice's methods as not built until that slice fills them in", async () => {
-    const api = createFixtureRuns();
-    await expect(api.startDebrief(FIRST_TRY)).rejects.toThrow("isn't built yet");
-  });
 });

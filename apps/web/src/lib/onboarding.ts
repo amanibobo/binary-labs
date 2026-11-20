@@ -429,6 +429,7 @@ export type HelpAnswerId =
   | "invite"
   | "members"
   | "share-run"
+  | "model-check"
   | "instrument";
 
 // A clip where seeing it helps; a few answers are clear in words alone.

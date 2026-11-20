@@ -6,6 +6,7 @@ import tomllib
 from pathlib import Path
 
 from bl_worker.config import Settings
+from bl_worker.model_check import CheckSettings
 
 WORKERS = Path(__file__).resolve().parents[1]
 
@@ -32,7 +33,7 @@ def test_template_and_fly_toml_set_every_setting_once():
     secrets = template_names()
     assert len(secrets) == len(set(secrets))
     assert not set(secrets) & fly_env(), "a setting is both a secret and in fly.toml [env]"
-    fields = {name.upper() for name in Settings.model_fields}
+    fields = {name.upper() for name in Settings.model_fields | CheckSettings.model_fields}
     assert set(secrets) | fly_env() | DEFAULTED == fields
 
 

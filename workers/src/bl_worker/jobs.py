@@ -12,6 +12,7 @@ from bl_worker import (
     check_runs,
     data_tables,
     deletion,
+    model_check,
     neighbors,
     originals,
     process,
@@ -396,3 +397,6 @@ async def sweep_deletions(context: JobContext, timestamp: int) -> None:
     deferred = await asyncio.to_thread(sweep)
     if deferred:
         log.info("deferred %d lab deletions", deferred)
+
+
+model_check.register(app)
