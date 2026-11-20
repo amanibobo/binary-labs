@@ -25,10 +25,10 @@ export const FailureListJson = fromRow(FailureList);
 
 // The three questions the picker asks, one per part of a code.
 export const FAILURE_PARTS = [
-  { part: "technique", prefix: "tech.", question: "What kind of experiment was it?", any: "Any kind of experiment" },
-  { part: "failedStep", prefix: "step.", question: "Where did it go wrong?", any: "Any step" },
-  { part: "causeCategory", prefix: "cause.", question: "What kind of problem was it?", any: "Any kind of problem" },
-] as const satisfies readonly { part: keyof FailureFields; prefix: string; question: string; any: string }[];
+  { part: "technique", prefix: "tech.", question: "What kind of experiment was it?", short: "Kind of experiment", any: "Any kind of experiment" },
+  { part: "failedStep", prefix: "step.", question: "Where did it go wrong?", short: "Where it went wrong", any: "Any step" },
+  { part: "causeCategory", prefix: "cause.", question: "What kind of problem was it?", short: "Kind of problem", any: "Any kind of problem" },
+] as const satisfies readonly { part: keyof FailureFields; prefix: string; question: string; short: string; any: string }[];
 export type FailurePart = (typeof FAILURE_PARTS)[number]["part"];
 
 export function termsOf(list: FailureList, prefix: string): FailureTerm[] {

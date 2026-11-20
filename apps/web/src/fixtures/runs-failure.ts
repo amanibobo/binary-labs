@@ -6,9 +6,14 @@ import { members, people } from "./data";
 import type { FixtureRunStore } from "./runs";
 
 // Slice A's fixture twin: the failure record over the page's own copy of the runs. The viewer
-// is Priya Nair, so a cause naming her shows "Yes, I confirmed this".
+// is Priya Nair unless a fixture page says otherwise (setFixtureViewer), so a cause another
+// member typed in naming her shows "Yes, I confirmed this".
 
-const priyaUser = UserId.parse(members[1]?.userId);
+let viewer = 1;
+export function setFixtureViewer(index: 0 | 1 | 2): void {
+  viewer = index;
+}
+const viewerUser = () => UserId.parse(members[viewer]?.userId);
 
 const term = (code: string, label: string, position: number, hint: string | null = null) => ({ version: 1, code, label, hint, position });
 
@@ -56,7 +61,8 @@ export const fixtureFailureList: FailureList = FailureList.parse({
 });
 
 
-const choices: ConfirmerChoice[] = people.map((p, i) => ({ id: p.id, name: p.name, you: i === 1, account: i !== 2 }));
+// Jordan has no account, so he can be named but can't say yes himself.
+const choices = (): ConfirmerChoice[] => people.map((p, i) => ({ id: p.id, name: p.name, you: i === viewer, account: i !== 2 }));
 
 const NO_CONFIRMATION = {
   confirmedCause: null,
@@ -82,20 +88,20 @@ export const fixtureFailureApi = (store: FixtureRunStore): FailureApi => {
     failureList: async () => fixtureFailureList,
     confirmerChoices: async () => {
       await wait(60);
-      return choices;
+      return choices();
     },
     setSuspectedCause: async (id, cause) => {
       await wait(120);
       const run = store.get(id);
       const text = cause?.trim() ?? "";
       if (text !== "") wentWrong(run);
-      return update(run, { suspectedCause: text === "" ? null : text, suspectedBy: text === "" ? null : priyaUser });
+      return update(run, { suspectedCause: text === "" ? null : text, suspectedBy: text === "" ? null : viewerUser() });
     },
     confirmCause: async (id, draft) => {
       await wait(150);
       const run = store.get(id);
       wentWrong(run);
-      const person = choices.find((c) => c.id === draft.personId);
+      const person = choices().find((c) => c.id === draft.personId);
       if (person === undefined) throw new Error("That person isn't in this lab's People. Add them in Settings, then pick them.");
       const at = draft.confirmedAt ?? new Date().toISOString();
       if (Date.parse(at) > Date.now() + 300_000) throw new Error("That time is in the future. Pick when it was confirmed.");
@@ -110,7 +116,7 @@ export const fixtureFailureApi = (store: FixtureRunStore): FailureApi => {
         confirmRun: repeat === null ? null : { id: repeat.id, title: repeat.title, startedOn: repeat.startedOn, status: repeat.status },
         confirmSha256: evidence.method === "control" ? evidence.sha256 : null,
         confirmedAt: at,
-        confirmRecordedBy: priyaUser,
+        confirmRecordedBy: viewerUser(),
         confirmerAttestedAt: person.you ? new Date().toISOString() : null,
       });
     },
@@ -121,7 +127,7 @@ export const fixtureFailureApi = (store: FixtureRunStore): FailureApi => {
     attestCause: async (id) => {
       await wait(120);
       const run = store.get(id);
-      const mine = choices.find((c) => c.you);
+      const mine = choices().find((c) => c.you);
       if (run.failure.confirmedBy === null || run.failure.confirmedBy.id !== mine?.id) throw new Error("Only the person named as the confirmer can say yes, from their own account.");
       return update(run, { confirmerAttestedAt: run.failure.confirmerAttestedAt ?? new Date().toISOString() });
     },

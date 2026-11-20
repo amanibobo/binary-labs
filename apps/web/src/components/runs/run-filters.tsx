@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useId } from "react";
 import { FAILURE_PARTS, termsOf } from "@/lib/run-failure";
 import { STATUS_CHOICES, type RunListFilter } from "@/lib/run-record";
@@ -19,12 +19,17 @@ export function RunFilters({ filter }: { filter: RunListFilter }) {
   const api = useRunsApi();
   const router = useRouter();
   const path = usePathname();
+  const params = useSearchParams();
   const id = useId();
   const list = useQuery({ queryKey: ["failure-list"], queryFn: ({ signal }) => api.failureList(signal), staleTime: Infinity });
 
-  const go = (key: keyof RunListFilter, value: string) => {
-    const next = new URLSearchParams(Object.entries(filter).flatMap(([k, v]) => (typeof v === "string" && k !== key ? [[k, v]] : [])));
-    if (value !== "") next.set(key, value);
+  // Keys the list doesn't read (a fixture page's ?view=) stay as they are.
+  const go = (set: Partial<Record<keyof RunListFilter, string>>) => {
+    const next = new URLSearchParams(params);
+    for (const [key, value] of Object.entries(set)) {
+      if (value === "") next.delete(key);
+      else next.set(key, value);
+    }
     const query = next.toString();
     router.push(query === "" ? path : `${path}?${query}`);
   };
@@ -36,7 +41,7 @@ export function RunFilters({ filter }: { filter: RunListFilter }) {
         <label htmlFor={`${id}-status`} className="text-paragraph-small text-content-secondary">
           How it went
         </label>
-        <select id={`${id}-status`} value={filter.status ?? ""} onChange={(e) => go("status", e.target.value)} className={select}>
+        <select id={`${id}-status`} value={filter.status ?? ""} onChange={(e) => go({ status: e.target.value })} className={select}>
           <option value="">Any</option>
           {STATUS_CHOICES.map((c) => (
             <option key={c.status} value={c.status}>
@@ -46,16 +51,16 @@ export function RunFilters({ filter }: { filter: RunListFilter }) {
           <option value="none">Not marked yet</option>
         </select>
       </div>
-      {FAILURE_PARTS.map(({ part, prefix, question, any }) => {
+      {FAILURE_PARTS.map(({ part, prefix, short, any }) => {
         const key = KEYS[part];
         const terms = list.data === undefined ? [] : termsOf(list.data, prefix);
         const value = filter[key] ?? "";
         return (
           <div key={part} className="grid content-start gap-1">
             <label htmlFor={`${id}-${key}`} className="text-paragraph-small text-content-secondary">
-              {question}
+              {short}
             </label>
-            <select id={`${id}-${key}`} value={value} disabled={list.data === undefined && value === ""} onChange={(e) => go(key, e.target.value)} className={select}>
+            <select id={`${id}-${key}`} value={value} disabled={list.data === undefined && value === ""} onChange={(e) => go({ [key]: e.target.value })} className={select}>
               <option value="">{any}</option>
               {value !== "" && !terms.some((t) => t.code === value) ? <option value={value}>{value}</option> : null}
               {terms.map((t) => (
@@ -70,7 +75,7 @@ export function RunFilters({ filter }: { filter: RunListFilter }) {
       {filtered ? (
         <button
           type="button"
-          onClick={() => router.push(path)}
+          onClick={() => go({ status: "", technique: "", step: "", cause: "" })}
           className="-mx-1.5 justify-self-start rounded-md px-1.5 text-label-small text-content-tertiary hover:text-content-primary max-sm:min-h-11 sm:col-span-4"
         >
           Clear filters
