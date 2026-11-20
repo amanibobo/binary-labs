@@ -74,7 +74,7 @@ beforeAll(async () => {
   lab = await made(fay, "Debrief store lab");
   otherLab = await made(gus, "Other debrief store lab");
   const source = (await db.query("insert into sources (lab_id, kind, root_path) values ($1, 'local', '/d') returning id", [lab])).rows[0]?.id;
-  const s = Sha256.parse(`e${"0".repeat(62)}1`);
+  const s = Sha256.parse(`db5${"0".repeat(60)}1`);
   await db.query("insert into blobs (sha256, size, mime, file_kind) values ($1, 12, 'text/csv', 'spreadsheet')", [s]);
   await db.query(
     `insert into file_locations (lab_id, source_id, external_id, path, original_name, size, modified_at, source_rev, sha256, index_state)

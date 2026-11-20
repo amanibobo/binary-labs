@@ -14,7 +14,7 @@ const db = new Client({ connectionString: process.env.TEST_DATABASE_URL ?? "post
 const ada = "00000000-0000-4000-8000-0000000db001";
 const ben = "00000000-0000-4000-8000-0000000db002";
 const cy = "00000000-0000-4000-8000-0000000db003";
-const sha = (n: number) => Sha256.parse(`d${n.toString(16).padStart(63, "0")}`);
+const sha = (n: number) => Sha256.parse(`db0${n.toString(16).padStart(61, "0")}`);
 const today = new Date().toISOString().slice(0, 10);
 
 async function asUser<T>(userId: string, fn: () => Promise<T>): Promise<T> {
