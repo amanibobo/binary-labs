@@ -58,6 +58,8 @@ export const AuditAction = z.enum([
   "note.split",
   "note.keep",
   "note.remove_page",
+  "calendar.repeat",
+  "calendar.feed_reset",
   "member.remove",
   "member.role",
   "lab.ai_cap",

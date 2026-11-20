@@ -402,6 +402,8 @@ export type HelpAnswerId =
   | "video"
   | "checks"
   | "calendar"
+  | "repeat"
+  | "calendar-feed"
   | "flag"
   | "upload"
   | "chart"
@@ -470,7 +472,7 @@ export const HELP_ANSWERS: readonly HelpAnswer[] = [
     clip: null,
   },
   {
-    id: "repeat",
+    id: "repeat-run",
     group: "find",
     question: "Link a repeat to its run",
     answer: "Open the repeat, choose Edit labels and mark it A repeat, then Pick the run it repeats. Each run then links to the other.",
@@ -531,6 +533,20 @@ export const HELP_ANSWERS: readonly HelpAnswer[] = [
     question: "Use the calendar",
     answer: "Drag down empty time, or choose New entry, to plan something like booking the plate reader; it saves as you type. Day, Week, Month and Year change the view, and clicking the month's name jumps to any month.",
     clip: "calendar-views",
+  },
+  {
+    id: "repeat-booking",
+    group: "day",
+    question: "Repeat a booking or get a reminder",
+    answer: "Open the entry and pick Repeat, like Every Tuesday, and Remind me, like 15 minutes before. Changing one later asks if it's for only that day or all of them.",
+    clip: null,
+  },
+  {
+    id: "calendar-feed",
+    group: "day",
+    question: "See plans in your own calendar",
+    answer: "On the calendar, choose Add to my calendar, then Make my address, and paste it into Google Calendar, Apple Calendar or Outlook.",
+    clip: null,
   },
   {
     id: "flag",

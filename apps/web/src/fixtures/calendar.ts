@@ -9,7 +9,8 @@ import {
   type RecordGroup,
   type RecordKind,
 } from "@/lib/calendar";
-import { heldWindow } from "@/lib/calendar-edit";
+import { heldWindow, shiftWhen } from "@/lib/calendar-edit";
+import { repeatDays, SeriesId, type RepeatRule } from "@/lib/calendar-repeat";
 import { startOfYear, viewRange } from "@/lib/calendar-nav";
 import { addDays, CalendarDay, daysBetween, instantAt, inRange, weekday, type DayRange } from "@/lib/calendar-time";
 import { yearActivity } from "@/lib/calendar-year";
@@ -47,6 +48,8 @@ function entry(fields: Omit<Partial<CalendarEntry>, "id"> & Pick<CalendarEntry, 
     protocol: null,
     instrument: null,
     people: [],
+    repeat: null,
+    reminders: [],
     createdBy: priyaUser,
     createdAt: "2026-10-28T15:00:00Z",
     updatedAt: "2026-10-28T15:00:00Z",
@@ -57,10 +60,22 @@ function entry(fields: Omit<Partial<CalendarEntry>, "id"> & Pick<CalendarEntry, 
 const readerRef = reader === undefined ? null : { id: reader.id, name: reader.name, revoked: false };
 const ref = <I extends string>(p: { id: I; name: string } | undefined) => (p === undefined ? null : { id: p.id, name: p.name });
 
+// Occurrences of one entry by its rule, as calendar_repeat makes them.
+function occurrences(first: CalendarEntry, rule: RepeatRule, seriesId: SeriesId): CalendarEntry[] {
+  const firstOn = first.when.kind === "allDay" ? first.when.first : d(new Date(first.when.start).toISOString().slice(0, 10));
+  const days = repeatDays(rule, firstOn).filter((day) => day !== firstOn);
+  const all = [firstOn, ...days].map((day, i) =>
+    i === 0 ? first : { ...first, id: entry({ title: first.title, when: first.when }).id, when: shiftWhen(first.when, { days: daysBetween(firstOn, day), minutes: 0 }, CALENDAR_ZONE) },
+  );
+  return all.map((e, i) => ({ ...e, repeat: { seriesId, rule, firstOn, occurrenceOn: [firstOn, ...days][i] ?? firstOn, count: all.length } }));
+}
+
 export const calendarEntries: CalendarEntry[] = [
-  entry({ title: "Lab meeting", when: { kind: "timed", start: at("2026-11-02", 10), end: at("2026-11-02", 11) }, createdBy: adeUser }),
-  entry({ title: "Lab meeting", when: { kind: "timed", start: at("2026-11-09", 10), end: at("2026-11-09", 11) }, createdBy: adeUser }),
-  entry({ title: "Lab meeting", when: { kind: "timed", start: at("2026-11-16", 10), end: at("2026-11-16", 11) }, createdBy: adeUser }),
+  ...occurrences(
+    entry({ title: "Lab meeting", when: { kind: "timed", start: at("2026-11-02", 10), end: at("2026-11-02", 11) }, createdBy: adeUser }),
+    { every: "week", step: 1, weekdays: [1], until: d("2026-11-30") },
+    SeriesId.parse("7b1c2c39-5a4e-4c55-9d7b-0c3c1a7c0001"),
+  ),
   entry({
     title: "Overnight culture check",
     // The second 1:30, after the clocks went back.
@@ -213,6 +228,8 @@ const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, 
 // An in-memory calendar: writes land in this page's copy and nowhere else.
 export function createFixtureCalendar(): CalendarApi {
   let entries = [...calendarEntries];
+  const shown = new Set<string>();
+  let feedMadeAt: string | null = null;
   const record = calendarRecord;
   const read = (range: DayRange, filters: CalendarFilters): RangeResponse => {
     const plans = entries.filter(
@@ -268,24 +285,111 @@ export function createFixtureCalendar(): CalendarApi {
         return Date.parse(held.from) < Date.parse(to) && Date.parse(held.to) > Date.parse(from);
       });
     },
-    createEntry: async (draft: EntryDraft) => {
+    createEntry: async ({ draft, repeat, rejoin }) => {
       await wait(120);
       const created = fromDraft(CalendarEntryId.parse(crypto.randomUUID()), draft, null);
-      entries = [...entries, created];
-      return created;
+      const back = rejoin === null ? created : { ...created, repeat: series(rejoin.seriesId)[0]?.repeat ?? null };
+      entries = [...entries, back];
+      if (repeat !== null) setRepeat(back, repeat);
+      return find(back.id) ?? back;
     },
-    saveEntry: async (id, draft) => {
+    saveEntry: async (id, draft, _basedOn, scope) => {
       await wait(120);
-      const before = entries.find((e) => e.id === id) ?? null;
+      const before = find(id) ?? null;
       const saved = fromDraft(id, draft, before);
       entries = entries.map((e) => (e.id === id ? saved : e));
-      return { kind: "saved", entry: saved };
+      const seriesId = saved.repeat?.seriesId;
+      if (scope === "all" && seriesId !== undefined && before !== null) {
+        const moved = JSON.stringify(before.when) !== JSON.stringify(saved.when);
+        entries = entries.map((e) =>
+          e.repeat?.seriesId !== seriesId || e.id === id
+            ? e
+            : {
+                ...e,
+                title: saved.title === before.title ? e.title : saved.title,
+                notes: saved.notes === before.notes ? e.notes : saved.notes,
+                when: moved && saved.repeat !== null && e.repeat !== null
+                  ? shiftWhen(saved.when, { days: daysBetween(saved.repeat.occurrenceOn, e.repeat.occurrenceOn), minutes: 0 }, CALENDAR_ZONE)
+                  : e.when,
+                experiment: saved.experiment?.id === before.experiment?.id ? e.experiment : saved.experiment,
+                protocol: saved.protocol?.id === before.protocol?.id ? e.protocol : saved.protocol,
+                instrument: saved.instrument?.id === before.instrument?.id ? e.instrument : saved.instrument,
+                people: JSON.stringify(saved.people) === JSON.stringify(before.people) ? e.people : saved.people,
+              },
+        );
+      }
+      return { kind: "saved", entry: find(id) ?? saved };
     },
-    deleteEntry: async (id) => {
+    setRepeat: async (id, rule) => {
+      await wait(150);
+      const at = find(id);
+      if (at === undefined) return { kind: "stale", entry: null };
+      setRepeat(at, rule);
+      return { kind: "saved", entry: find(id) ?? at };
+    },
+    setReminders: async (id, minutes, scope) => {
+      await wait(80);
+      const at = find(id);
+      const seriesId = at?.repeat?.seriesId;
+      const sorted = [...new Set(minutes)].sort((a, b) => a - b);
+      entries = entries.map((e) => (e.id === id || (scope === "all" && seriesId !== undefined && e.repeat?.seriesId === seriesId) ? { ...e, reminders: sorted } : e));
+      const saved = find(id);
+      if (saved === undefined) throw new Error("Someone deleted this entry.");
+      return saved;
+    },
+    deleteEntry: async (id, scope) => {
       await wait(100);
-      entries = entries.filter((e) => e.id !== id);
+      const seriesId = find(id)?.repeat?.seriesId;
+      entries = entries.filter((e) => e.id !== id && !(scope === "all" && seriesId !== undefined && e.repeat?.seriesId === seriesId));
+      recount();
+    },
+    dueReminders: async () => {
+      await wait(40);
+      const now = Date.parse(CALENDAR_NOW);
+      return entries.flatMap((e) =>
+        e.reminders.flatMap((minutes) => {
+          const base = e.when.kind === "timed" ? Date.parse(e.when.start) : instantAt(e.when.first, 9 * 60, CALENDAR_ZONE).getTime();
+          const end = Date.parse(heldWindow(e.when, CALENDAR_ZONE).to);
+          const fire = new Date(base - minutes * 60_000).toISOString();
+          return Date.parse(fire) <= now && end > now && !shown.has(`${e.id}:${minutes}:${fire}`) ? [{ entry: e, minutes, at: fire }] : [];
+        }),
+      );
+    },
+    reminderShown: async ({ entryId, minutes, at }) => {
+      shown.add(`${entryId}:${minutes}:${at}`);
+    },
+    feedStatus: async () => {
+      await wait(60);
+      return { madeAt: feedMadeAt };
+    },
+    resetFeed: async () => {
+      await wait(150);
+      feedMadeAt = new Date().toISOString();
+      return { url: `https://binary.example/api/calendar/feed/${"x".repeat(43)}.ics`, madeAt: feedMadeAt };
     },
   };
+
+  function find(id: CalendarEntryId): CalendarEntry | undefined {
+    return entries.find((e) => e.id === id);
+  }
+  function series(seriesId: SeriesId): CalendarEntry[] {
+    return entries.filter((e) => e.repeat?.seriesId === seriesId);
+  }
+  function recount() {
+    entries = entries.map((e) => (e.repeat === null ? e : { ...e, repeat: { ...e.repeat, count: series(e.repeat.seriesId).length } }));
+  }
+  // calendar_repeat: this one and later ones follow the new rule; earlier ones keep the old.
+  function setRepeat(from: CalendarEntry, rule: RepeatRule | null) {
+    const old = from.repeat;
+    if (old !== null) entries = entries.filter((e) => e.id === from.id || e.repeat?.seriesId !== old.seriesId || e.repeat.occurrenceOn < old.occurrenceOn);
+    const plain = { ...from, repeat: null };
+    entries = entries.map((e) => (e.id === from.id ? plain : e));
+    if (rule !== null) {
+      const made = occurrences(plain, rule, SeriesId.parse(crypto.randomUUID())).map((e, i) => (i === 0 ? e : { ...e, id: CalendarEntryId.parse(crypto.randomUUID()) }));
+      entries = [...entries.filter((e) => e.id !== from.id), ...made];
+    }
+    recount();
+  }
 }
 
 function fromDraft(id: CalendarEntryId, draft: EntryDraft, before: CalendarEntry | null): CalendarEntry {
@@ -302,6 +406,8 @@ function fromDraft(id: CalendarEntryId, draft: EntryDraft, before: CalendarEntry
     protocol: protocol === undefined ? null : { id: protocol.id, title: protocol.title, archived: false },
     instrument: instrument === undefined ? null : { id: instrument.id, name: instrument.name, revoked: false },
     people: draft.personIds.flatMap((pid) => people.filter((p) => p.id === pid).map((p) => ({ id: p.id, name: p.name }))),
+    repeat: before?.repeat ?? null,
+    reminders: before?.reminders ?? [],
     createdBy: before?.createdBy ?? priyaUser,
     createdAt: before?.createdAt ?? now,
     updatedAt: now,

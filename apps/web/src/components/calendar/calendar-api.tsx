@@ -5,19 +5,26 @@ import { z } from "zod";
 import {
   DayFilesResponse,
   DayResponse,
+  DueRemindersResponse,
   EntrySaveOutcomeWire,
+  FeedStatus,
+  NewFeed,
   EntryWire,
   filterQuery,
   RangeResponse,
   type CalendarEntry,
   type CalendarEntryId,
   type CalendarFilters,
+  type CreateEntryRequest,
   type DayResponse as Day,
+  type DueReminder,
+  type FeedStatus as Feed,
   type EntryDraft,
   type EntrySaveOutcome,
   type RangeResponse as Range,
   type RecordKind,
 } from "@/lib/calendar";
+import type { ChangeScope, RepeatRule } from "@/lib/calendar-repeat";
 import type { CalendarDay, DayRange } from "@/lib/calendar-time";
 import { YearResponse, type DayActivity } from "@/lib/calendar-year";
 import type { FileHit } from "@/lib/domain";
@@ -38,9 +45,16 @@ export type CalendarApi = {
     signal: AbortSignal,
   ) => Promise<CalendarEntry[]>;
   // These reject with an Error whose message can be shown; a stale save resolves as { kind: "stale" }.
-  createEntry: (draft: EntryDraft) => Promise<CalendarEntry>;
-  saveEntry: (id: CalendarEntryId, draft: EntryDraft, basedOn: string) => Promise<EntrySaveOutcome>;
-  deleteEntry: (id: CalendarEntryId) => Promise<void>;
+  createEntry: (req: CreateEntryRequest) => Promise<CalendarEntry>;
+  saveEntry: (id: CalendarEntryId, draft: EntryDraft, basedOn: string, scope: ChangeScope) => Promise<EntrySaveOutcome>;
+  setRepeat: (id: CalendarEntryId, rule: RepeatRule | null, basedOn: string, timeZone: string) => Promise<EntrySaveOutcome>;
+  setReminders: (id: CalendarEntryId, minutes: number[], scope: ChangeScope) => Promise<CalendarEntry>;
+  deleteEntry: (id: CalendarEntryId, scope: ChangeScope) => Promise<void>;
+  dueReminders: (timeZone: string, signal: AbortSignal) => Promise<DueReminder[]>;
+  reminderShown: (shown: { entryId: CalendarEntryId; minutes: number; at: string }) => Promise<void>;
+  feedStatus: (signal: AbortSignal) => Promise<Feed>;
+  // A new feed address, shown once; the old one stops working.
+  resetFeed: () => Promise<{ url: string; madeAt: string }>;
 };
 
 const ErrorBody = z.object({ error: z.string() });
@@ -65,6 +79,13 @@ function failure(json: unknown): Error {
   return new Error(parsed.success ? parsed.data.error : "We couldn't save that entry. Try again.");
 }
 
+function outcomeOf({ status, json }: { status: number; json: unknown }): EntrySaveOutcome {
+  if (status !== 200 && status !== 409) throw failure(json);
+  const outcome = EntrySaveOutcomeWire.safeParse(json);
+  if (!outcome.success) throw failure(json);
+  return outcome.data;
+}
+
 export const httpCalendarApi: CalendarApi = {
   range: async ({ range, timeZone, filters }, signal) =>
     RangeResponse.parse(await getJson("/api/calendar", { from: range.first, to: range.last, tz: timeZone, ...filterQuery(filters) }, signal)),
@@ -86,21 +107,32 @@ export const httpCalendarApi: CalendarApi = {
       .parse(
         await getJson("/api/calendar/overlaps", { instrument: instrumentId, from, to, tz: timeZone, ...(except === null ? {} : { except }) }, signal),
       ).entries,
-  createEntry: async (draft) => {
-    const { status, json } = await send("/api/calendar/entries", "POST", draft);
+  createEntry: async (req) => {
+    const { status, json } = await send("/api/calendar/entries", "POST", req);
     if (status !== 200) throw failure(json);
     return EntryWire.parse(json);
   },
-  saveEntry: async (id, draft, basedOn) => {
-    const { status, json } = await send(`/api/calendar/entries/${id}`, "POST", { draft, basedOn });
-    if (status !== 200 && status !== 409) throw failure(json);
-    const outcome = EntrySaveOutcomeWire.safeParse(json);
-    if (!outcome.success) throw failure(json);
-    return outcome.data;
-  },
-  deleteEntry: async (id) => {
-    const { status, json } = await send(`/api/calendar/entries/${id}`, "DELETE", {});
+  saveEntry: async (id, draft, basedOn, scope) => outcomeOf(await send(`/api/calendar/entries/${id}`, "POST", { draft, basedOn, scope })),
+  setRepeat: async (id, rule, basedOn, timeZone) =>
+    outcomeOf(await send(`/api/calendar/entries/${id}/repeat`, "POST", { rule, basedOn, timeZone })),
+  setReminders: async (id, minutes, scope) => {
+    const { status, json } = await send(`/api/calendar/entries/${id}/reminders`, "POST", { minutes, scope });
     if (status !== 200) throw failure(json);
+    return EntryWire.parse(json);
+  },
+  deleteEntry: async (id, scope) => {
+    const { status, json } = await send(`/api/calendar/entries/${id}`, "DELETE", { scope });
+    if (status !== 200) throw failure(json);
+  },
+  dueReminders: async (timeZone, signal) => DueRemindersResponse.parse(await getJson("/api/calendar/reminders", { tz: timeZone }, signal)).due,
+  reminderShown: async (shown) => {
+    await send("/api/calendar/reminders", "POST", shown);
+  },
+  feedStatus: async (signal) => FeedStatus.parse(await getJson("/api/calendar/feed", {}, signal)),
+  resetFeed: async () => {
+    const { status, json } = await send("/api/calendar/feed", "POST", {});
+    if (status !== 200) throw failure(json);
+    return NewFeed.parse(json);
   },
 };
 

@@ -14,6 +14,7 @@ import {
   RecordRows,
   type CalendarEntry,
   type CalendarFilters,
+  type CreateEntryRequest,
   type DayResponse,
   type EntryDraft,
   type EntrySaveOutcome,
@@ -21,6 +22,7 @@ import {
   type RecordGroup,
   type RecordKind,
 } from "./calendar";
+import { ruleArg, type ChangeScope, type RepeatRule } from "./calendar-repeat";
 import type { CalendarDay, DayRange } from "./calendar-time";
 import { yearActivity, yearChunks, type YearResponse } from "./calendar-year";
 import type { FileHit } from "./domain";
@@ -151,25 +153,66 @@ type Written = { kind: "ok"; entry: CalendarEntry } | { kind: "error"; error: Db
 
 const IdRows = z.array(z.object({ id: z.string() }));
 
-export async function createEntry(supabase: Supabase, labId: LabId, draft: EntryDraft): Promise<Written> {
+export async function createEntry(supabase: Supabase, labId: LabId, req: CreateEntryRequest): Promise<Written> {
+  const rejoin = req.rejoin === null ? {} : { series_id: req.rejoin.seriesId, occurrence_on: req.rejoin.occurrenceOn };
   const { data, error } = await supabase
     .from("calendar_entries")
-    .insert({ lab_id: labId, ...entryColumns(draft) })
+    .insert({ lab_id: labId, ...entryColumns(req.draft), ...rejoin })
     .select("id");
   if (error !== null) return { kind: "error", error };
   const [row] = IdRows.parse(data);
   const entry = row === undefined ? null : await loadEntry(supabase, CalendarEntryId.parse(row.id));
   if (entry === null) return { kind: "error", error: { message: "the new entry wasn't readable" } };
-  return { kind: "ok", entry };
+  if (req.repeat === null) return { kind: "ok", entry };
+  const repeated = await setRepeat(supabase, entry.id, { rule: req.repeat, basedOn: entry.updatedAt, timeZone: req.timeZone });
+  // A repeat the database refuses takes the new entry back with it, so a failed create leaves nothing.
+  if (repeated.kind === "error") {
+    await supabase.from("calendar_entries").delete().eq("lab_id", labId).eq("id", entry.id);
+    return repeated;
+  }
+  return { kind: "ok", entry: repeated.outcome.entry ?? entry };
 }
 
-// Saves over the entry unless someone saved it since the editor loaded it.
+const SaveOutcomeJson = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("saved"), entry: EntryJson }),
+  z.object({ kind: z.literal("stale"), entry: EntryJson.nullable() }),
+]);
+
+type Outcome = { kind: "outcome"; outcome: EntrySaveOutcome } | { kind: "error"; error: DbError };
+
+// How the entry repeats from here on, or null to stop. calendar_repeat makes the occurrences.
+export async function setRepeat(
+  supabase: Supabase,
+  id: CalendarEntryId,
+  req: { rule: RepeatRule | null; basedOn: string; timeZone: string },
+): Promise<Outcome> {
+  const { data, error } = await supabase.rpc("calendar_repeat", {
+    p_entry_id: id,
+    p_based_on: req.basedOn,
+    p_rule: req.rule === null ? null : ruleArg(req.rule),
+    p_tz: req.timeZone,
+  });
+  if (error !== null) return { kind: "error", error };
+  return { kind: "outcome", outcome: SaveOutcomeJson.parse(data) };
+}
+
+// Saves over the entry unless someone saved it since the editor loaded it. "all" spreads the
+// change to every occurrence of its series.
 export async function saveEntry(
   supabase: Supabase,
   labId: LabId,
   id: CalendarEntryId,
-  req: { draft: EntryDraft; basedOn: string },
-): Promise<{ kind: "outcome"; outcome: EntrySaveOutcome } | { kind: "error"; error: DbError }> {
+  req: { draft: EntryDraft; basedOn: string; scope: ChangeScope },
+): Promise<Outcome> {
+  if (req.scope === "all") {
+    const { data, error } = await supabase.rpc("calendar_save_series", {
+      p_entry_id: id,
+      p_based_on: req.basedOn,
+      p_draft: entryColumns(req.draft),
+    });
+    if (error !== null) return { kind: "error", error };
+    return { kind: "outcome", outcome: SaveOutcomeJson.parse(data) };
+  }
   const { data, error } = await supabase
     .from("calendar_entries")
     .update(entryColumns(req.draft))
@@ -183,6 +226,40 @@ export async function saveEntry(
   return { kind: "outcome", outcome: { kind: "saved", entry } };
 }
 
+export async function deleteEntry(
+  supabase: Supabase,
+  labId: LabId,
+  id: CalendarEntryId,
+  scope: ChangeScope,
+): Promise<{ kind: "ok" } | { kind: "error"; error: DbError }> {
+  const { error } =
+    scope === "all"
+      ? await supabase.rpc("calendar_delete_series", { p_entry_id: id })
+      : await supabase.from("calendar_entries").delete().eq("lab_id", labId).eq("id", id);
+  return error === null ? { kind: "ok" } : { kind: "error", error };
+}
+
+// The caller's reminders on the entry, or on all of its series.
+export async function setReminders(
+  supabase: Supabase,
+  id: CalendarEntryId,
+  req: { minutes: number[]; scope: ChangeScope },
+): Promise<{ kind: "ok"; entry: CalendarEntry | null } | { kind: "error"; error: DbError }> {
+  const { data, error } = await supabase.rpc("calendar_set_reminders", { p_entry_id: id, p_minutes: req.minutes, p_all: req.scope === "all" });
+  if (error !== null) return { kind: "error", error };
+  return { kind: "ok", entry: data === null ? null : EntryJson.parse(data) };
+}
+
+export const DueReminderRows = z.array(z.object({ entry: EntryJson, minutes: z.number().int(), at: z.string() }));
+
+export async function loadDueReminders(supabase: Supabase, labId: LabId, timeZone: string) {
+  return DueReminderRows.parse(unwrap(await supabase.rpc("calendar_due_reminders", { p_lab_id: labId, p_tz: timeZone })));
+}
+
+export async function markReminderShown(supabase: Supabase, q: { entryId: CalendarEntryId; minutes: number; at: string }) {
+  unwrap(await supabase.rpc("calendar_reminder_shown", { p_entry_id: q.entryId, p_minutes: q.minutes, p_at: q.at }));
+}
+
 const NO_STORE = { "cache-control": "private, no-store" };
 
 // A database refusal as the browser should see it.
@@ -193,6 +270,8 @@ export function entryError(error: DbError, ctx: { event: string; labId: LabId },
     BL103: [404, "That protocol isn't in this lab."],
     BL102: [409, "That protocol is archived. Pick another, or none."],
     BL402: [409, "That instrument was removed. Pick another, or none."],
+    BL403: [400, "A repeat can run for up to a year. Pick an earlier end."],
+    "23505": [409, "That day already has this entry."],
     "23514": [400, "Check the entry's dates and title."],
     "22023": [400, "Check the dates and the time zone."],
   };

@@ -4,6 +4,19 @@ import { useQuery } from "@tanstack/react-query";
 import { DropdownMenu } from "radix-ui";
 import { useId, useState, type ReactNode } from "react";
 import { draftOf, entryDays, type CalendarEntry, type EntryDraft, type EntryWhen } from "@/lib/calendar";
+import {
+  choiceOf,
+  clampUntil,
+  defaultUntil,
+  reminderChoices,
+  reminderName,
+  repeatChoices,
+  ruleName,
+  WEEKDAY_LETTERS,
+  weekdayName,
+  type RepeatRule,
+  type Weekday,
+} from "@/lib/calendar-repeat";
 import type { InstrumentId } from "@/lib/ids";
 import { heldWindow, moveEnd, moveStart, toggleAllDay, whenLine } from "@/lib/calendar-edit";
 import { CalendarDay, formatCalendarDay, minutesFromInput, timeInputValue, wallClock } from "@/lib/calendar-time";
@@ -18,13 +31,7 @@ import { When } from "../ui/when";
 import { useCalendarApi } from "./calendar-api";
 import { useCalendar } from "./calendar-context";
 import { SidePeek } from "./side-peek";
-
-export type EntryWrites = {
-  // Each resolves to the entry as it now stands, or null when the write didn't happen.
-  create: (draft: EntryDraft) => Promise<CalendarEntry | null>;
-  save: (entry: CalendarEntry, draft: EntryDraft) => Promise<CalendarEntry | null>;
-  remove: (entry: CalendarEntry) => Promise<void>;
-};
+import type { EntryWrites } from "./use-entry-writes";
 
 const blankDraft = (when: EntryWhen): EntryDraft => ({
   title: "",
@@ -57,6 +64,9 @@ export function EntryPeek({
   const [loaded, setLoaded] = useState(entry?.updatedAt ?? null);
   const [draft, setDraft] = useState<EntryDraft>(() => (entry === null ? blankDraft(newWhen) : draftOf(entry)));
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // A new entry keeps how it repeats and its reminders until it's saved with a title.
+  const [newRepeat, setNewRepeat] = useState<RepeatRule | null>(null);
+  const [newReminders, setNewReminders] = useState<number[]>([]);
   if (entry !== null && entry.updatedAt !== loaded) {
     setLoaded(entry.updatedAt);
     setDraft((current) => ({ ...draftOf(entry), title: document.activeElement?.id === titleId ? current.title : entry.title }));
@@ -66,29 +76,48 @@ export function EntryPeek({
     setDraft(next);
     if (next.title.trim() === "") return;
     if (entry === null) {
-      const created = await writes.create(next);
+      const created = await writes.create(next, { repeat: newRepeat, reminders: newReminders });
       if (created !== null) onCreated(created);
       return;
     }
     const saved = await writes.save(entry, next);
-    if (saved !== null) setLoaded(saved.updatedAt);
+    // Backing out of "only this one or all?" puts the fields back.
+    if (saved === null) setDraft(draftOf(entry));
+    else setLoaded(saved.updatedAt);
   }
 
   const change = (patch: Partial<EntryDraft>) => void commit({ ...draft, ...patch });
   const instrument = lists.instruments.find((i) => i.id === draft.instrumentId) ?? null;
+  const startDay = entryDays(draft.when, timeZone).first;
+  const rep = entry?.repeat ?? null;
+  const rule = entry === null ? newRepeat : (rep?.rule ?? null);
+  const reminders = entry === null ? newReminders : entry.reminders;
 
   return (
     <SidePeek
       labelledBy={titleId}
       onClose={onClose}
       tools={
-        entry === null ? null : confirmDelete ? (
+        entry === null ? null : confirmDelete && rep !== null ? (
           <>
             <span className="text-paragraph-small text-content-secondary max-sm:sr-only">Delete for everyone?</span>
             <Button variant="tertiary" size="compact" onClick={() => setConfirmDelete(false)}>
               Keep
             </Button>
-            <Button variant="negative" size="compact" onClick={() => void writes.remove(entry)}>
+            <Button variant="negative" size="compact" onClick={() => void writes.remove(entry, "one")}>
+              Only this one
+            </Button>
+            <Button variant="negative" size="compact" onClick={() => void writes.remove(entry, "all")}>
+              All {rep.count}
+            </Button>
+          </>
+        ) : confirmDelete ? (
+          <>
+            <span className="text-paragraph-small text-content-secondary max-sm:sr-only">Delete for everyone?</span>
+            <Button variant="tertiary" size="compact" onClick={() => setConfirmDelete(false)}>
+              Keep
+            </Button>
+            <Button variant="negative" size="compact" onClick={() => void writes.remove(entry, "one")}>
               Delete
             </Button>
           </>
@@ -111,7 +140,12 @@ export function EntryPeek({
           if (draft.title.trim() !== (entry?.title ?? "")) void commit(draft);
         }}
         onKeyDown={(e) => {
-          if (e.key === "Enter") e.currentTarget.blur();
+          // Without preventDefault the same Enter would press the first answer of the
+          // "only this one or all?" question the save opens.
+          if (e.key === "Enter") {
+            e.preventDefault();
+            e.currentTarget.blur();
+          }
         }}
         className="w-full bg-transparent text-heading-medium text-content-primary outline-none placeholder:text-content-tertiary"
       />
@@ -122,6 +156,27 @@ export function EntryPeek({
       <dl className="mt-6 grid grid-cols-1 items-start gap-x-3 gap-y-1 sm:grid-cols-[112px_minmax(0,1fr)]">
         <Property label="When">
           <WhenFields when={draft.when} onChange={(when) => change({ when })} />
+        </Property>
+        <Property label="Repeat">
+          <RepeatField
+            day={startDay}
+            rule={rule}
+            fromHere={rep !== null && rep.occurrenceOn !== rep.firstOn}
+            onChange={(next) => {
+              if (entry === null) setNewRepeat(next);
+              else void writes.repeat(entry, next);
+            }}
+          />
+        </Property>
+        <Property label="Remind me">
+          <ReminderField
+            allDay={draft.when.kind === "allDay"}
+            value={reminders}
+            onChange={(next) => {
+              if (entry === null) setNewReminders(next);
+              else void writes.remind(entry, next);
+            }}
+          />
         </Property>
         <Property label="Experiment">
           <Picker
@@ -377,5 +432,130 @@ function OverlapNotice({
         {instrument.name} is also booked {at}, for “{first.title}”{others > 0 ? `, and ${others} more` : ""}.
       </span>
     </p>
+  );
+}
+
+// How an entry repeats: a menu of the usual rules, then the days of the week for a weekly one
+// and the day it stops. Every change saves at once.
+function RepeatField({
+  day,
+  rule,
+  fromHere,
+  onChange,
+}: {
+  day: CalendarDay;
+  rule: RepeatRule | null;
+  // Changing the rule from a later occurrence leaves the earlier ones as they were.
+  fromHere: boolean;
+  onChange: (next: RepeatRule | null) => void;
+}) {
+  const until = rule?.until ?? defaultUntil(day);
+  const choices = repeatChoices(day, until);
+  const current = choiceOf(rule, day);
+  const name = rule === null ? "Doesn't repeat" : (choices.find((c) => c.id === current)?.label ?? ruleName(rule, day));
+  return (
+    <div className="flex flex-col gap-2">
+      <DropdownMenu.Root>
+        <DropdownMenu.Trigger aria-label={`Repeat: ${name}`} className={fieldTrigger}>
+          <span className={cn("truncate", rule === null && "text-content-tertiary")}>{name}</span>
+          <ChevronDownIcon className="size-4 shrink-0 text-content-tertiary" />
+        </DropdownMenu.Trigger>
+        <DropdownMenu.Portal>
+          <DropdownMenu.Content align="start" sideOffset={4} className={menuSurface}>
+            <DropdownMenu.RadioGroup value={current ?? ""} onValueChange={(id) => onChange(choices.find((c) => c.id === id)?.rule ?? null)}>
+              {choices.map((c) => (
+                <DropdownMenu.RadioItem key={c.id} value={c.id} className={menuItem}>
+                  <span className={cn("flex-1 truncate", c.rule === null && "text-content-tertiary")}>{c.label}</span>
+                  <DropdownMenu.ItemIndicator>
+                    <CheckIcon className="size-5" />
+                  </DropdownMenu.ItemIndicator>
+                </DropdownMenu.RadioItem>
+              ))}
+            </DropdownMenu.RadioGroup>
+          </DropdownMenu.Content>
+        </DropdownMenu.Portal>
+      </DropdownMenu.Root>
+      {rule === null ? null : (
+        <div className="flex flex-col gap-2 pb-1">
+          {rule.every === "week" ? (
+            <div role="group" aria-label="On these days" className="flex gap-1">
+              {WEEKDAYS.map((d) => {
+                const on = rule.weekdays.includes(d);
+                return (
+                  <button
+                    key={d}
+                    type="button"
+                    aria-pressed={on}
+                    aria-label={weekdayName(d)}
+                    title={weekdayName(d)}
+                    onClick={() => {
+                      const [first, ...rest] = on ? rule.weekdays.filter((w) => w !== d) : [...rule.weekdays, d].sort((a, b) => a - b);
+                      if (first !== undefined) onChange({ ...rule, weekdays: [first, ...rest] });
+                    }}
+                    className={cn(
+                      "size-9 rounded-full text-label-small transition-colors duration-150 sm:size-8",
+                      on
+                        ? "bg-button-primary-fill text-content-inverse-primary"
+                        : "text-content-secondary ring-1 ring-border-opaque ring-inset hover:bg-background-secondary",
+                    )}
+                  >
+                    {WEEKDAY_LETTERS[d]}
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
+          <div className="flex items-center gap-2">
+            <span className="w-11 shrink-0 text-paragraph-small text-content-tertiary">Until</span>
+            <input
+              type="date"
+              aria-label="Repeats until"
+              className={dateField}
+              value={rule.until}
+              min={day}
+              onChange={(e) => {
+                const d = CalendarDay.safeParse(e.target.value);
+                if (d.success) onChange({ ...rule, until: clampUntil(day, d.data) });
+              }}
+            />
+          </div>
+          {fromHere ? <p className="text-paragraph-small text-content-tertiary">A change here starts from this one; earlier ones stay as they were.</p> : null}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const WEEKDAYS: readonly Weekday[] = [0, 1, 2, 3, 4, 5, 6];
+
+// The member's own reminders, any of a few, shown in Binary when they're due.
+function ReminderField({ allDay, value, onChange }: { allDay: boolean; value: number[]; onChange: (next: number[]) => void }) {
+  const choices = [...new Set([...reminderChoices(allDay), ...value])].sort((a, b) => a - b);
+  const names = value.map((m) => reminderName(m, allDay)).join(", ");
+  return (
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger aria-label={`Remind me: ${names || "none"}`} className={fieldTrigger}>
+        <span className={cn("truncate", value.length === 0 && "text-content-tertiary")}>{value.length === 0 ? "None" : names}</span>
+        <ChevronDownIcon className="size-4 shrink-0 text-content-tertiary" />
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content align="start" sideOffset={4} className={menuSurface}>
+          {choices.map((m) => (
+            <DropdownMenu.CheckboxItem
+              key={m}
+              checked={value.includes(m)}
+              onSelect={(e) => e.preventDefault()}
+              onCheckedChange={(on) => onChange(on ? [...value, m].sort((a, b) => a - b) : value.filter((v) => v !== m))}
+              className={menuItem}
+            >
+              <span className="flex-1 truncate">{reminderName(m, allDay)}</span>
+              <DropdownMenu.ItemIndicator>
+                <CheckIcon className="size-5" />
+              </DropdownMenu.ItemIndicator>
+            </DropdownMenu.CheckboxItem>
+          ))}
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
   );
 }
