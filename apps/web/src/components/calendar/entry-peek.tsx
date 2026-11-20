@@ -140,7 +140,12 @@ export function EntryPeek({
           if (draft.title.trim() !== (entry?.title ?? "")) void commit(draft);
         }}
         onKeyDown={(e) => {
-          if (e.key === "Enter") e.currentTarget.blur();
+          // Without preventDefault the same Enter would press the first answer of the
+          // "only this one or all?" question the save opens.
+          if (e.key === "Enter") {
+            e.preventDefault();
+            e.currentTarget.blur();
+          }
         }}
         className="w-full bg-transparent text-heading-medium text-content-primary outline-none placeholder:text-content-tertiary"
       />

@@ -6,7 +6,9 @@ import { feedIcs, FeedJson } from "../calendar-feed";
 import { repeatDays, ruleArg, type RepeatRule } from "../calendar-repeat";
 import { CalendarDay, instantAt, wallClock } from "../calendar-time";
 import { CreateLabResult } from "../domain";
+import { FolderFilesRows } from "../folders";
 import { LabId } from "../ids";
+import { pageCount } from "../row-summary";
 
 // Repeats, reminders, the feed and notes (migration 0030) against the real migrations, as
 // members with RLS on, parsed with the web app's own schemas.
@@ -321,6 +323,10 @@ describe("notes on the calendar", () => {
       { sha256: shas[0], day: "2027-06-01" },
       { sha256: shas[3], day: "2027-06-04" },
     ]);
+    // The day lists it as search does: one row that says how many pages.
+    await db.query("insert into labels (lab_id, sha256, status, clean_name, confidence, source) values ($1, $2, 'accepted', 'Notebook, Jun 1', 0.9, 'test')", [labA, shas[0]]);
+    const [row] = FolderFilesRows.parse((await asUser(ana, () => db.query("select coalesce(jsonb_agg(h), '[]') as rows from file_hits($1, $2) h", [labA, [shas[0]]]))).rows[0]?.rows);
+    expect(row === undefined ? null : pageCount(row.label)).toBe("3 pages");
     // A week that holds only the later pages shows nothing for the note.
     const later = await asUser(ana, () => db.query("select sha256 from calendar_files($1, '2027-06-02', '2027-06-03', $2)", [labA, NY]));
     expect(later.rows).toEqual([]);

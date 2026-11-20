@@ -9,7 +9,12 @@ import { Button } from "../ui/button";
 import { Dialog, DialogContent, DialogDock } from "../ui/dialog";
 import { useCalendar } from "./calendar-context";
 
-export type ScopeAsk = { entry: CalendarEntry; answer: (scope: ChangeScope | null) => void };
+export type ScopeAsk = {
+  entry: CalendarEntry;
+  answer: (scope: ChangeScope | null) => void;
+  // Where focus was when the question opened, to go back to.
+  returnTo: Element | null;
+};
 
 // "Only this one, or all of them?" for a change to an occurrence of a repeating entry. Enter
 // takes the first answer, so a keyboard move is Alt and an arrow, then Enter.
@@ -17,7 +22,7 @@ export function ScopeQuestion({ ask }: { ask: ScopeAsk | null }) {
   const { timeZone } = useCalendar();
   const first = useRef<HTMLButtonElement>(null);
   if (ask === null) return null;
-  const { entry, answer } = ask;
+  const { entry, answer, returnTo } = ask;
   const rep = entry.repeat;
   const day = entry.when.kind === "allDay" ? entry.when.first : wallClock(new Date(entry.when.start), timeZone).day;
   return (
@@ -28,6 +33,14 @@ export function ScopeQuestion({ ask }: { ask: ScopeAsk | null }) {
         onOpenAutoFocus={(e) => {
           e.preventDefault();
           first.current?.focus();
+        }}
+        onCloseAutoFocus={(e) => {
+          // A move redraws the entry in another day, so the one focused before is gone.
+          e.preventDefault();
+          requestAnimationFrame(() => {
+            const back = returnTo instanceof HTMLElement && returnTo.isConnected && returnTo !== document.body ? returnTo : document.querySelector<HTMLElement>(`[data-entry="${entry.id}"]`);
+            back?.focus();
+          });
         }}
       >
         <p className="px-4 pt-2 text-paragraph-medium text-content-secondary sm:px-6">

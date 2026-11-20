@@ -146,6 +146,7 @@ function CalendarBody({
     return new Promise((resolve) =>
       setScopeAsk({
         entry,
+        returnTo: document.activeElement,
         answer: (scope) => {
           setScopeAsk(null);
           remembered.current = scope === null ? null : { id: entry.id, scope };
