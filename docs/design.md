@@ -91,6 +91,22 @@ See `.env.example` at the repo root. The web app reads `apps/web/.env.local`, an
 
 Browse is the only folder view now (the sidebar tree is gone). Folder tints come from `apps/web/src/lib/tints.ts`: a top-level folder's path hashes to one of six muted tints, and its subfolders use the lighter shade of the same tint.
 
+## The lab drive
+
+Migration 0027. `file_versions (id, lab_id, location_id, number, sha256, size, path, original_name, modified_at, seen_at, kept_at)`: one row each time a location's content changes, written by the trigger `record_file_version` on `file_locations` (insert, or update of `sha256`), numbered from 1 per location. Reading the same content again adds nothing. Members read it through RLS and can't write it; a second policy on `blobs` shows an older version's blob while its location is live.
+
+```
+scan sees a new source_rev ──▶ location pending ──▶ process_location reads the bytes
+  _store_blob sets file_locations.sha256 ──trigger──▶ file_versions (number n+1), and a person's label copied forward
+  originals.keep ──▶ store <lab_id>/files/<sha256> (once per content per lab) ──▶ kept_at = now()
+sweep_originals (every minute, 20 files) ──▶ keep_original: versions with no bytes whose content is still at the source
+```
+
+- `drive_entries(lab, by)` is one row per live content, standing at the location with the most versions; `drive_folders(lab, by)` and `drive_files(lab, by, key, limit, offset)` group and page it, `by` being `experiment`, `person` or `month`. `drive_files` rows are `folder_files` rows plus `versions`, so they parse into the `FileHit` every other list uses.
+- `file_history(lab, location)` returns every version oldest first with its label, `kept` and `who` (the uploader of an upload, the instrument's name). `version_text(lab, version)` is `file_text` for a version (`security definer`, membership checked). `lab_originals(lab)` totals kept and waiting bytes.
+- Web: `lib/drive.ts` (shapes, addresses, `versionDetails`, `changeLine`), `lib/text-diff.ts` (line comparison, capped at 2,000,000 table cells), `lib/drive-data.ts` (loaders), `components/drive/` and `app/drive/`. `GET /api/drive/versions/<id>` serves a kept version after `bytesMatch` checks the stored object against the sha256.
+- Browse and the drive share `FilesViewSwitch` in their bars; drive pages sit in the Browse section of the sidebar.
+
 ## Protocols
 
 Migration 0006 adds `protocols`, immutable `protocol_versions` and `protocol_files`. Members write through `create_protocol`, `save_protocol`, `link_protocol_file` and `unlink_protocol_file`; admins through `archive_protocol`. All are `security invoker`, and triggers do the checks: a version names the one it was edited from (`based_on`), must start from the current one or fail with `BL101`, and gets the next number. `unique (protocol_id, based_on)` keeps history a line even if two saves race. Triggers also write every create, save, archive, link and unlink to `audit_log`.
