@@ -104,7 +104,7 @@ export const questionRow =
 export function QuestionRowText({ q, viewerId }: { q: RecentQuestion; viewerId: UserId | null }) {
   return (
     <>
-      <span className="min-w-0 truncate text-paragraph-small text-content-primary sm:flex-1">{q.question}</span>
+      <span className="max-w-full min-w-0 truncate text-paragraph-small text-content-primary sm:flex-1">{q.question}</span>
       <span className="shrink-0 text-paragraph-xsmall text-content-tertiary">
         {asker(q, viewerId)} · <When iso={q.askedAt} />
         {q.outcome === "not_found" ? " · No answer" : ""}
