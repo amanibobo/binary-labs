@@ -687,6 +687,9 @@ export const HELP_ANSWERS: readonly HelpAnswer[] = [
     group: "lab",
     question: "Make a task from a failed run",
     answer: "On a shared run with a confirmed cause, choose Make a task from this run: a second scientist writes the question and rubric, then you read the record with names taken out and build the folder. Download it from the same page.",
+    clip: null,
+  },
+  {
     id: "model-check",
     group: "lab",
     question: "Test a run's task on AI models",
