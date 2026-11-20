@@ -9,9 +9,9 @@ import { LocationId, Sha256, type LabId } from "../ids";
 // `authenticated` role with RLS, serializing rows with to_jsonb the way PostgREST does.
 
 const db = new Client({ connectionString: process.env.TEST_DATABASE_URL ?? "postgresql://localhost/binary_labs_web_test" });
-const dana = "00000000-0000-4000-8000-0000000000e1";
-const outsider = "00000000-0000-4000-8000-0000000000e2";
-const [first, second, photo] = ["e1", "e2", "e3"].map((b) => Sha256.parse(b.repeat(32)));
+const dana = "00000000-0000-4000-8000-00000000dd01";
+const outsider = "00000000-0000-4000-8000-00000000dd02";
+const [first, second, photo] = ["d7", "d8", "d9"].map((b) => Sha256.parse(b.repeat(32)));
 
 async function asUser<T>(userId: string, fn: () => Promise<T>): Promise<T> {
   await db.query("begin");

@@ -390,6 +390,7 @@ export type HelpAnswerId =
   | "open-file"
   | "fix-label"
   | "needs-look"
+  | "older-version"
   | "map"
   | "learn"
   | "talk-through"
@@ -436,6 +437,13 @@ export const HELP_ANSWERS: readonly HelpAnswer[] = [
     question: "Find files that need a look",
     answer: "Needs a look lists the files Binary isn't sure about. Say what each one is in a line and it leaves the list.",
     clip: "needs-look",
+  },
+  {
+    id: "older-version",
+    group: "find",
+    question: "See an older version of a file",
+    answer: "In Browse, choose Clean names, find the file and click its versions, like “4 versions”. Pick one to see what changed and open it as it was.",
+    clip: null,
   },
   {
     id: "map",
