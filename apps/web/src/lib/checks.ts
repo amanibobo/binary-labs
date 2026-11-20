@@ -354,16 +354,17 @@ const MEASURE_STARTS = {
 
 export const measureLabel = (m: CurveMeasure) => MEASURE_STARTS[m].label;
 
-// Picking what a curve check reads starts its name and range afresh, unless they were typed.
+// An R², a dose and a count share no scale, so picking what a curve check reads starts its
+// range and unit afresh; a name is kept if it was typed.
 export function withMeasure(d: CheckDraft, measure: CurveMeasure): CheckDraft {
-  const was = MEASURE_STARTS[d.measure];
+  if (measure === d.measure) return d;
   const next = MEASURE_STARTS[measure];
-  const typedRange = d.range.a !== was.range.a || d.range.b !== was.range.b || d.range.kind !== was.range.kind;
   return {
     ...d,
     measure,
-    name: d.name === was.name ? next.name : d.name,
-    range: typedRange ? d.range : next.range,
+    name: d.name === MEASURE_STARTS[d.measure].name ? next.name : d.name,
+    range: next.range,
+    unit: "",
   };
 }
 

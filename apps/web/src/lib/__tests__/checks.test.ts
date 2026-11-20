@@ -189,11 +189,11 @@ describe("curve fits and controls by column", () => {
     expect(parseDraft({ ...newDraft("control", id), by: "column", column: "" }).kind).toBe("ok");
   });
 
-  it("starts an IC50 or a samples check with its own name and range, keeping what was typed", () => {
+  it("starts an IC50 or a samples check with its own range, keeping a typed name", () => {
     const fresh = withMeasure(withFit(newDraft("curve_fit", id), "4pl"), "midpoint");
     expect(fresh).toMatchObject({ fit: "4pl", measure: "midpoint", name: "IC50", range: { kind: "between", a: "", b: "" } });
-    const typed = withMeasure({ ...newDraft("curve_fit", id), name: "BSA curve", range: { kind: "at_least", a: "0.99", b: "" } }, "outside");
-    expect(typed).toMatchObject({ measure: "outside", name: "BSA curve", range: { kind: "at_least", a: "0.99" } });
+    const typed = withMeasure({ ...newDraft("curve_fit", id), name: "BSA curve", unit: "µM", range: { kind: "between", a: "1", b: "5" } }, "outside");
+    expect(typed).toMatchObject({ measure: "outside", name: "BSA curve", unit: "", range: { kind: "at_most", a: "0" } });
     expect(withMeasure(newDraft("curve_fit", id), "outside")).toMatchObject({ name: "Samples within the standards", range: { kind: "at_most", a: "0" } });
     // A line can't give an IC50, so leaving the 4PL goes back to the R² and its range.
     expect(withFit({ ...newDraft("curve_fit", id), ...fresh }, "log_line")).toMatchObject({ fit: "log_line", measure: "r2", name: "Standard curve fit", range: { a: "0.98" } });
