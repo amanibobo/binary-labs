@@ -36,7 +36,11 @@ SRC = Path(__file__).parent / "src" / "bl_worker"
 def download_weights() -> None:
     from huggingface_hub import snapshot_download
 
-    snapshot_download(MODEL, revision=REVISION)
+    snapshot = Path(snapshot_download(MODEL, revision=REVISION))
+    # QwenEmbedder loads the model by name, which offline resolves refs/main: point it at the pin.
+    refs = snapshot.parent.parent / "refs"
+    refs.mkdir(exist_ok=True)
+    (refs / "main").write_text(REVISION)
 
 
 image = (
@@ -49,6 +53,8 @@ image = (
         "huggingface-hub==2.4.0",
         "fastapi==0.162.0",
         "pydantic==2.14.2",
+        # embed.py's remote client; the service never calls it, but importing the module needs it.
+        "httpx==0.28.1",
     )
     .env({"HF_HOME": HF_HOME})
     .run_function(download_weights)
