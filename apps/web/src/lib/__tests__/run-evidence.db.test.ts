@@ -103,16 +103,15 @@ beforeAll(async () => {
   source = (await owner("insert into sources (lab_id, kind, root_path) values ($1, 'local', '/e') returning id", [lab])).rows[0]?.id;
   for (let n = 1; n <= 6; n += 1) await addFile(lab, source, sha(n), `plate${n}.csv`);
 
-  [v1, v2, v3] = (await protocol(ben, lab, "BM3 purification", [STEPS_1, STEPS_2, STEPS_3], ["2026-10-01T09:00:00Z", "2026-10-10T09:00:00Z", "2026-10-20T09:00:00Z"])) as [
-    ProtocolVersionId,
-    ProtocolVersionId,
-    ProtocolVersionId,
-  ];
-  [bradford] = (await protocol(ben, lab, "Bradford assay", ["1. Mix.\n"], ["2026-09-01T09:00:00Z"])) as [ProtocolVersionId];
+  const steps = await protocol(ben, lab, "BM3 purification", [STEPS_1, STEPS_2, STEPS_3], ["2026-10-01T09:00:00Z", "2026-10-10T09:00:00Z", "2026-10-20T09:00:00Z"]);
+  v1 = ProtocolVersionId.parse(steps[0]);
+  v2 = ProtocolVersionId.parse(steps[1]);
+  v3 = ProtocolVersionId.parse(steps[2]);
+  bradford = ProtocolVersionId.parse((await protocol(ben, lab, "Bradford assay", ["1. Mix.\n"], ["2026-09-01T09:00:00Z"]))[0]);
   const [archived] = await protocol(ben, lab, "Old Bradford", ["1. Mix.\n"], ["2026-09-01T09:00:00Z"]);
   await call(ada, "archive_protocol($1)", [(await owner("select protocol_id from protocol_versions where id = $1", [archived])).rows[0]?.protocol_id]);
   await asRole("authenticated", ben, () => db.query("select * from create_protocol($1, 'tutorial', 'Using the sonicator', 'Hold it.')", [lab]));
-  [theirs] = (await protocol(cy, otherLab, "Their purification", ["1. Secret.\n"], ["2026-10-01T09:00:00Z"])) as [ProtocolVersionId];
+  theirs = ProtocolVersionId.parse((await protocol(cy, otherLab, "Their purification", ["1. Secret.\n"], ["2026-10-01T09:00:00Z"]))[0]);
 
   hela = ExperimentId.parse(
     (await owner("insert into experiments (lab_id, name, protocol_id) values ($1, 'BM3', (select protocol_id from protocol_versions where id = $2)) returning id", [lab, v1])).rows[0]?.id,
