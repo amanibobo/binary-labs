@@ -45,20 +45,64 @@ const common = {
 export const STATS = ["mean", "max", "min", "cell"] as const;
 export type Stat = (typeof STATS)[number];
 
+// A curve check's fit, and what it reads from it. A midpoint (the IC50 or EC50) needs the 4PL;
+// samples outside the standards need a line. Checks saved before there was a choice carry
+// neither key and are a line's R².
+export const CURVE_FITS = ["line", "log_line", "4pl"] as const;
+export type CurveFit = (typeof CURVE_FITS)[number];
+export const CURVE_MEASURES = ["r2", "midpoint", "outside"] as const;
+export type CurveMeasure = (typeof CURVE_MEASURES)[number];
+
+export function measureFits(measure: CurveMeasure, fit: CurveFit): boolean {
+  switch (measure) {
+    case "r2":
+      return true;
+    case "midpoint":
+      return fit === "4pl";
+    case "outside":
+      return fit !== "4pl";
+    default: {
+      const _exhaustive: never = measure;
+      return _exhaustive;
+    }
+  }
+}
+
+// Controls are rows whose name has the pattern in it, or columns whose header does (a kinetic
+// read's blank wells). By column there's no column to read and no column of names.
+export const CONTROLS_BY = ["row", "column"] as const;
+export type ControlsBy = (typeof CONTROLS_BY)[number];
+
 export const CheckSpec = z.discriminatedUnion("kind", [
-  z.strictObject({ ...common, kind: z.literal("curve_fit"), x: ColumnRef.nullable(), y: ColumnRef.nullable() }),
+  z
+    .strictObject({
+      ...common,
+      kind: z.literal("curve_fit"),
+      x: ColumnRef.nullable(),
+      y: ColumnRef.nullable(),
+      fit: z.enum(CURVE_FITS).default("line"),
+      measure: z.enum(CURVE_MEASURES).default("r2"),
+    })
+    .refine((c) => measureFits(c.measure, c.fit), {
+      message: "An IC50 needs a dose-response curve, and samples outside the standards need a line.",
+      path: ["measure"],
+    }),
   z.strictObject({ ...common, kind: z.literal("peak"), x: ColumnRef.nullable(), y: ColumnRef.nullable() }),
   z
     .strictObject({ ...common, kind: z.literal("value"), column: ColumnRef, stat: z.enum(STATS), row: Optional(120) })
     .refine((c) => (c.stat === "cell") === (c.row !== null), { message: "A single cell names its row.", path: ["row"] }),
-  z.strictObject({
-    ...common,
-    kind: z.literal("control"),
-    pattern: z.string().trim().min(1, "Say what the control rows are called.").max(80),
-    labelColumn: ColumnRef.nullable(),
-    column: ColumnRef,
-    use: z.enum(["each", "mean"]),
-  }),
+  z
+    .strictObject({
+      ...common,
+      kind: z.literal("control"),
+      by: z.enum(CONTROLS_BY).default("row"),
+      pattern: z.string().trim().min(1, "Say what the controls are called.").max(80),
+      labelColumn: ColumnRef.nullable(),
+      column: ColumnRef.nullable(),
+      use: z.enum(["each", "mean"]),
+    })
+    .refine((c) => (c.by === "row") === (c.column !== null), { message: "Controls in rows name the column to read.", path: ["column"] })
+    .refine((c) => c.by === "row" || c.labelColumn === null, { message: "Controls in columns have no column of names.", path: ["labelColumn"] }),
 ]);
 export type CheckSpec = z.infer<typeof CheckSpec>;
 
@@ -108,17 +152,17 @@ export const ExpectedValuesRows = z
 // Words ---------------------------------------------------------------------------------------
 
 export const KIND_NAMES = {
-  curve_fit: "Standard curve fit",
+  curve_fit: "Curve fit",
   peak: "Peak position",
   value: "A value in range",
   control: "Controls in range",
 } satisfies Record<CheckKind, string>;
 
 export const KIND_HELP = {
-  curve_fit: "R² of a straight line through the standards, such as a Bradford or BCA curve.",
+  curve_fit: "How well standards fit a line or a dose-response curve, its IC50, or whether samples fall within the standards.",
   peak: "Where the highest reading sits, such as an absorbance maximum or an elution volume.",
   value: "The mean, highest or lowest of a column, or one cell such as an A260/A280 ratio.",
-  control: "The day's blanks or controls, found by their name, must read within the range.",
+  control: "The day's blanks or controls, found by the name of their row or column, must read within the range.",
 } satisfies Record<CheckKind, string>;
 
 const number = new Intl.NumberFormat("en-US", { maximumSignificantDigits: 6 });
@@ -176,9 +220,7 @@ const quoted = (s: string) => `“${s}”`;
 export function measureText(check: CheckSpec): string {
   switch (check.kind) {
     case "curve_fit":
-      return check.x === null && check.y === null
-        ? "R² of the standard curve"
-        : `R² of ${check.y === null ? "the signal" : quoted(check.y)} against ${check.x === null ? "concentration" : quoted(check.x)}`;
+      return curveText(check);
     case "peak":
       return check.x === null && check.y === null
         ? "Where the highest reading sits"
@@ -198,8 +240,54 @@ export function measureText(check: CheckSpec): string {
           return _exhaustive;
         }
       }
+    case "control": {
+      const what = check.by === "column" ? "column" : "row";
+      const which = `${check.use === "each" ? "Every" : "The mean of the"} ${quoted(check.pattern)} ${check.use === "each" ? what : `${what}s`}`;
+      return check.column === null ? which : `${which} in ${quoted(check.column)}`;
+    }
+    default: {
+      const _exhaustive: never = check;
+      return _exhaustive;
+    }
+  }
+}
+
+const FIT_WORDS = {
+  line: "the standard curve",
+  log_line: "the standard curve on a log scale",
+  "4pl": "the dose-response curve",
+} satisfies Record<CurveFit, string>;
+
+function curveText(check: Extract<CheckSpec, { kind: "curve_fit" }>): string {
+  const named = check.x !== null || check.y !== null;
+  const against = named ? ` (${check.y === null ? "the signal" : quoted(check.y)} against ${check.x === null ? "concentration" : quoted(check.x)})` : "";
+  switch (check.measure) {
+    case "r2":
+      return `R² of ${FIT_WORDS[check.fit]}${against}`;
+    case "midpoint":
+      return `IC50 or EC50 of the dose-response curve${against}`;
+    case "outside":
+      return `Samples outside the standards${against}`;
+    default: {
+      const _exhaustive: never = check.measure;
+      return _exhaustive;
+    }
+  }
+}
+
+const MEASURE_TERMS = { r2: "R² of the fit", midpoint: "IC50 or EC50", outside: "Samples outside the standards" } satisfies Record<CurveMeasure, string>;
+
+// What a flag's value is, as the heading over it.
+export function valueTerm(check: CheckSpec): string {
+  switch (check.kind) {
+    case "curve_fit":
+      return MEASURE_TERMS[check.measure];
+    case "peak":
+      return "Peak at";
+    case "value":
+      return "Value";
     case "control":
-      return `${check.use === "each" ? "Every" : "The mean of the"} ${quoted(check.pattern)} ${check.use === "each" ? "row" : "rows"} in ${quoted(check.column)}`;
+      return "Control";
     default: {
       const _exhaustive: never = check;
       return _exhaustive;
@@ -227,6 +315,9 @@ export type CheckDraft = {
   column: string;
   stat: Stat;
   row: string;
+  fit: CurveFit;
+  measure: CurveMeasure;
+  by: ControlsBy;
   pattern: string;
   labelColumn: string;
   use: "each" | "mean";
@@ -258,6 +349,9 @@ export function newDraft(kind: CheckKind, id: CheckId): CheckDraft {
     column: "",
     stat: "mean",
     row: "",
+    fit: "line",
+    measure: "r2",
+    by: "row",
     pattern: kind === "control" ? "blank" : "",
     labelColumn: "",
     use: "each",
@@ -286,12 +380,13 @@ export function toDraft(check: CheckSpec): CheckDraft {
   const base = { ...newDraft(check.kind, check.id), name: check.name, sheet: check.sheet ?? "", unit: check.unit ?? "", range: rangeDraft(check.range) };
   switch (check.kind) {
     case "curve_fit":
+      return { ...base, x: check.x ?? "", y: check.y ?? "", fit: check.fit, measure: check.measure };
     case "peak":
       return { ...base, x: check.x ?? "", y: check.y ?? "" };
     case "value":
       return { ...base, column: check.column, stat: check.stat, row: check.row ?? "" };
     case "control":
-      return { ...base, pattern: check.pattern, labelColumn: check.labelColumn ?? "", column: check.column, use: check.use };
+      return { ...base, by: check.by, pattern: check.pattern, labelColumn: check.labelColumn ?? "", column: check.column ?? "", use: check.use };
     default: {
       const _exhaustive: never = check;
       return _exhaustive;
@@ -339,12 +434,15 @@ export function parseDraft(d: CheckDraft): DraftOutcome {
   const raw = (() => {
     switch (d.kind) {
       case "curve_fit":
+        return { ...base, kind: d.kind, x: orNull(d.x), y: orNull(d.y), fit: d.fit, measure: measureFits(d.measure, d.fit) ? d.measure : "r2" };
       case "peak":
         return { ...base, kind: d.kind, x: orNull(d.x), y: orNull(d.y) };
       case "value":
         return { ...base, kind: d.kind, column: d.column, stat: d.stat, row: d.stat === "cell" ? orNull(d.row) : null };
       case "control":
-        return { ...base, kind: d.kind, pattern: d.pattern, labelColumn: orNull(d.labelColumn), column: d.column, use: d.use };
+        return d.by === "column"
+          ? { ...base, kind: d.kind, by: d.by, pattern: d.pattern, labelColumn: null, column: null, use: d.use }
+          : { ...base, kind: d.kind, by: d.by, pattern: d.pattern, labelColumn: orNull(d.labelColumn), column: d.column, use: d.use };
       default: {
         const _exhaustive: never = d.kind;
         return _exhaustive;
@@ -371,7 +469,7 @@ function messageFor(field: DraftField, fallback: string | undefined): string {
     case "row":
       return "Name the row, by the text in it or its number.";
     case "pattern":
-      return "Say what the control rows are called, such as blank.";
+      return "Say what the controls are called, such as blank.";
     case "name":
       return fallback?.startsWith("Give") || fallback?.startsWith("Keep") ? fallback : "Give the check a name.";
     default:

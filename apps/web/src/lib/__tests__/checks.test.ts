@@ -12,6 +12,7 @@ import {
   SaveChecksRequest,
   toDraft,
   usefulText,
+  valueTerm,
   type CheckDraft,
 } from "../checks";
 import { CheckId } from "../ids";
@@ -132,5 +133,57 @@ describe("the editor's drafts", () => {
     expect(readNumber(".5")).toBe(0.5);
     expect(readNumber("0.98abc")).toBeNull();
     expect(readNumber("")).toBeNull();
+  });
+});
+
+describe("curve fits and controls by column", () => {
+  const ic50 = { ...curve, name: "Drug A IC50", range: { kind: "between", min: 1, max: 5 }, fit: "4pl", measure: "midpoint" };
+  const columns = { ...blank, by: "column", column: null };
+
+  it("reads a check saved before the choice as a line's R² and controls by row", () => {
+    expect(CheckSpec.parse(curve)).toMatchObject({ fit: "line", measure: "r2" });
+    expect(CheckSpec.parse(blank)).toMatchObject({ by: "row" });
+  });
+
+  it("takes the shapes the database takes and refuses the ones it refuses", () => {
+    for (const s of [ic50, columns, { ...curve, fit: "log_line", measure: "r2" }, { ...curve, fit: "line", measure: "outside" }]) {
+      expect(CheckSpec.safeParse(s).success, JSON.stringify(s)).toBe(true);
+    }
+    for (const s of [
+      { ...ic50, fit: "line" },
+      { ...curve, fit: "4pl", measure: "outside" },
+      { ...curve, fit: "spline", measure: "r2" },
+      { ...columns, column: "A595" },
+      { ...columns, labelColumn: "Sample" },
+      { ...columns, by: "cell" },
+      { ...blank, by: "row", column: null },
+    ]) {
+      expect(CheckSpec.safeParse(s).success, JSON.stringify(s)).toBe(false);
+    }
+  });
+
+  it("says what each reads in plain words", () => {
+    expect(ruleText(CheckSpec.parse(ic50))).toBe("IC50 or EC50 of the dose-response curve: 1 to 5");
+    expect(ruleText(CheckSpec.parse({ ...curve, fit: "log_line", measure: "r2", x: "Quantity", y: "Ct" }))).toBe(
+      "R² of the standard curve on a log scale (“Ct” against “Quantity”): at least 0.98",
+    );
+    expect(ruleText(CheckSpec.parse({ ...curve, measure: "outside", range: { kind: "at_most", max: 0 } }))).toBe("Samples outside the standards: at most 0");
+    expect(ruleText(CheckSpec.parse(columns))).toBe("Every “blank” column: at most 0.1 AU");
+    expect(valueTerm(CheckSpec.parse(ic50))).toBe("IC50 or EC50");
+    expect(valueTerm(CheckSpec.parse(curve))).toBe("R² of the fit");
+  });
+
+  it("round-trips through the editor, and drops what a choice doesn't use", () => {
+    for (const s of [ic50, columns]) {
+      const check = CheckSpec.parse(s);
+      expect(parseDraft(toDraft(check))).toEqual({ kind: "ok", check });
+    }
+    // Switched back to a line, an IC50 check reads the R²; switched to columns, the names go.
+    const line = parseDraft({ ...toDraft(CheckSpec.parse(ic50)), fit: "line" });
+    expect(line.kind === "ok" && line.check.kind === "curve_fit" && line.check.measure).toBe("r2");
+    const byColumn = parseDraft({ ...toDraft(CheckSpec.parse({ ...blank, labelColumn: "Sample" })), by: "column" });
+    expect(byColumn.kind === "ok" && byColumn.check).toMatchObject({ by: "column", column: null, labelColumn: null });
+    expect(parseDraft({ ...newDraft("control", id), column: "" })).toMatchObject({ kind: "invalid", field: "column" });
+    expect(parseDraft({ ...newDraft("control", id), by: "column", column: "" }).kind).toBe("ok");
   });
 });

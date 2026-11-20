@@ -603,6 +603,21 @@ def test_an_ic50_and_blank_columns_raise_flags_with_their_cells(rt, conn, make_l
     assert results_of(conn, lab, doses)[(IC50_ID, "curve_fit")][:2] == ("passed", 2.35282)
 
 
+def test_an_old_check_saved_again_with_its_fit_spelled_out_keeps_its_flag(rt, conn, bench):
+    sha = sha_of(conn, bench, "Bradford_2026-11-04.xlsx")
+    pid, v2 = protocol(conn, bench, [curve(), blank()])
+    link(conn, bench, pid, sha)
+    run_due(rt)
+    [before] = flags_of(conn, bench, sha)
+    # What the editor saves now: the same rule with the keys it used to leave out.
+    with committed_as_user(conn, bench.user_id):
+        save_checks(
+            conn, pid, v2, [curve() | {"fit": "line", "measure": "r2"}, blank() | {"by": "row"}]
+        )
+    run_due(rt)
+    assert flags_of(conn, bench, sha, open_only=False) == [before]
+
+
 def test_new_check_shapes_are_refused_when_they_contradict_themselves(conn, bench):
     with committed_as_user(conn, bench.user_id):
         pid, v1, _ = conn.execute(

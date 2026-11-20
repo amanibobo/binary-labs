@@ -146,14 +146,20 @@ def _mark_checked(conn: psycopg.Connection, lab_id: UUID, sha256: str, asked: da
     )
 
 
+# Keys checks gained later, at the value a check without them means (0033_check_fits.sql).
+# Left out of the digest, so saving an old check again with them spelled out keeps its flag.
+_IMPLIED = {"fit": "line", "measure": "r2", "by": "row"}
+
+
 def evidence(item: Checked) -> str:
     r = item.result
     cells = [
         None if c is None else [c.sha256, c.sheet, list(c.columns), c.spans()]
         for c in (r.source, r.control)
     ]
+    rule = {k: v for k, v in item.check.items() if _IMPLIED.get(k, object()) != v}
     body = json.dumps(
-        {"check": item.check, "observed": r.observed, "unit": r.unit, "cells": cells},
+        {"check": rule, "observed": r.observed, "unit": r.unit, "cells": cells},
         sort_keys=True,
         separators=(",", ":"),
     )
