@@ -12,6 +12,7 @@ import type { DataTable } from "@/lib/data-tables";
 import { fileName, REVIEW_NAMES, REVIEW_NOTE_MAX, REVIEWS, rowsText, type Cells, type Flag, type FlagAnswer, type Review } from "@/lib/flags";
 import { openTarget } from "@/lib/format";
 import { authorName, protocolHref, type AuthorNames } from "@/lib/protocols";
+import { historyHref } from "@/lib/run-history";
 import { ChartFigure } from "../charts/chart-figure";
 import { FlagIcon, OpenExternalIcon } from "../icons/drawn";
 import { useLabApi } from "../lab-api";
@@ -72,6 +73,9 @@ export function FlagView({ flag, check, authors, initialReview }: { flag: Flag; 
           </Fact>
           <Fact term="Expected">
             {rangeText(flag.expected, flag.unit)}
+            <Link href={historyHref(flag.protocolId, flag.checkId)} className="mt-1 block text-paragraph-small text-content-accent underline-offset-2 hover:underline">
+              See it across runs
+            </Link>
           </Fact>
           <Fact term="From">
             <Link href={protocolHref(flag.protocolId, flag.protocolVersion)} className="text-content-accent underline-offset-2 hover:underline">

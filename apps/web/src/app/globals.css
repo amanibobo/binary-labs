@@ -71,6 +71,8 @@
   --chart-violet: #6250d6;
   --chart-magenta: #e87ba4;
   --chart-green: #008300;
+  /* A flagged value on a run-history chart (src/lib/run-history.ts): the amber of flags. */
+  --chart-flag: #b26f00;
 
   /* The lab map (src/components/map): hubs take the first three chart hues, which pass the
      colorblind checks for any two dots side by side; instruments and files stay in ink, told
@@ -154,6 +156,7 @@
   --chart-violet: #9085e9;
   --chart-magenta: #d55181;
   --chart-green: #008300;
+  --chart-flag: #e2a33b;
 
   --map-file: #6c6c72;
   --map-edge: #34343a;

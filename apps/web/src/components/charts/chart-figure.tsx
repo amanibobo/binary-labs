@@ -2,13 +2,12 @@
 import { Popover } from "radix-ui";
 import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
 import { cn } from "@/lib/cn";
-import { isHeatmap, isXY, type ChartSpec, type HeatmapSpec, type XYSpec } from "@/lib/charts";
+import { isScaled, isXY, type ChartSpec, type ScaledSpec, type XYSpec } from "@/lib/charts";
 import { formatValue, LABEL_FONT, plotChart, pointAt, textWidth, TICK_FONT, xLabel, type Plot, type Point } from "@/lib/chart-geometry";
 import { cellText, columnLabel, findColumn, rowsNote, type DataColumn, type DataTable } from "@/lib/data-tables";
 import type { LabelTarget } from "@/lib/chart-edits";
 import type { ColumnId } from "@/lib/ids";
-import { plateHeight, plotPlate, readLabel, type PlatePlot, type PlateWell } from "@/lib/plate-geometry";
-import { rowLetter } from "@/lib/plates";
+import { plotScaled, readLabel, scaledHeight, type PlatePlot, type PlateWell } from "@/lib/plate-geometry";
 import { PencilIcon } from "../icons/drawn";
 import { menuSurface } from "../ui/menu";
 import { Button } from "../ui/button";
@@ -27,12 +26,16 @@ export function chartHeight(width: number): number {
 }
 
 // What makes a chart editable in place (the builder; a protocol page's chart has none).
+export type CellMark = { column: ColumnId; row: number };
+
 export type FigureEdit = {
   rename: (target: LabelTarget, text: string) => void;
   // The text a label edits, which can differ from what's drawn ("A595 (AU)" is title and unit).
   textOf: (target: LabelTarget) => string;
   // What opens when a line, bar or dot is clicked: its name, color and style.
   seriesEditor: (column: ColumnId, close: () => void) => ReactNode;
+  // The names are the runs' own (lib/runs.ts), so they aren't renamed on the chart.
+  seriesFixed?: boolean;
 };
 
 // A chart that fills its container's width, with a readout on hover and focus, and the numbers
@@ -46,6 +49,8 @@ export function ChartFigure({
   className,
   edit,
   hint,
+  muted,
+  mark,
 }: {
   spec: ChartSpec;
   table: DataTable;
@@ -56,9 +61,13 @@ export function ChartFigure({
   edit?: FigureEdit;
   // A line under the chart, beside "Show the numbers".
   hint?: ReactNode;
+  // Series of failed runs, drawn gray and dashed (lib/runs.ts).
+  muted?: ReadonlySet<string>;
+  // A cell an answer cited, ringed where the chart draws it.
+  mark?: CellMark;
 }) {
-  if (isHeatmap(spec)) return <PlateFigure spec={spec} table={table} label={label} className={className} edit={edit} hint={hint} />;
-  if (isXY(spec)) return <XYFigure spec={spec} table={table} label={label} className={className} edit={edit} hint={hint} />;
+  if (isScaled(spec)) return <PlateFigure spec={spec} table={table} label={label} className={className} edit={edit} hint={hint} />;
+  if (isXY(spec)) return <XYFigure spec={spec} table={table} label={label} className={className} edit={edit} hint={hint} muted={muted} mark={mark} />;
   return <SummaryFigure spec={spec} table={table} tables={tables ?? [table]} label={label} className={className} edit={edit} hint={hint} />;
 }
 
@@ -312,7 +321,7 @@ export function Frame({
 // What the hover layer points at: a place along x (line and bar), or one dot (scatter).
 type Active = { kind: "row"; stop: number } | { kind: "point"; series: number; index: number };
 
-function XYFigure({ spec, table, label, className, edit, hint }: { spec: XYSpec; table: DataTable; label: string; className?: string; edit?: FigureEdit; hint?: ReactNode }) {
+function XYFigure({ spec, table, label, className, edit, hint, muted, mark }: { spec: XYSpec; table: DataTable; label: string; className?: string; edit?: FigureEdit; hint?: ReactNode; muted?: ReadonlySet<string>; mark?: CellMark }) {
   const [box, width] = useWidth();
   const [active, setActive] = useState<Active | null>(null);
   const [showTable, setShowTable] = useState(false);
@@ -322,11 +331,13 @@ function XYFigure({ spec, table, label, className, edit, hint }: { spec: XYSpec;
   const editable = edit !== undefined;
 
   const plot = useMemo(
-    () => (width === null ? null : plotChart(spec, table, { width, height: chartHeight(width) }, { placeholders: editable })),
-    [spec, table, width, editable],
+    () => (width === null ? null : plotChart(spec, table, { width, height: chartHeight(width) }, { placeholders: editable, muted })),
+    [spec, table, width, editable, muted],
   );
   const notes = [...(plot?.notes ?? []), ...columnNotes(spec, table), rowsNote(table)].filter((n): n is string => n !== null);
-  const labels = useMemo(() => (plot === null || !editable ? [] : xyLabels(plot, spec)), [plot, spec, editable]);
+  const fixedNames = edit?.seriesFixed === true;
+  const cited = mark === undefined ? undefined : plot?.series.find((s) => s.column === mark.column)?.points.find((p) => p.row === mark.row);
+  const labels = useMemo(() => (plot === null || !editable ? [] : xyLabels(plot, spec).filter((l) => !(fixedNames && l.target.kind === "series"))), [plot, spec, editable, fixedNames]);
 
   function at(event: PointerEvent<SVGRectElement>): { x: number; y: number } | null {
     const rect = event.currentTarget.ownerSVGElement?.getBoundingClientRect();
@@ -346,7 +357,7 @@ function XYFigure({ spec, table, label, className, edit, hint }: { spec: XYSpec;
     if (plot === null || p === null || !editable) return;
     const i = seriesAt(plot, spec.type, nearest(plot, spec.type, p.x, p.y), p.x, p.y);
     const column = i === null ? undefined : spec.series.find((s) => s.column === plot.series[i]?.column)?.column;
-    if (column !== undefined) setOpened({ column, ...p });
+    if (column !== undefined && !fixedNames) setOpened({ column, ...p });
   }
 
   function step(event: KeyboardEvent<HTMLDivElement>) {
@@ -370,6 +381,7 @@ function XYFigure({ spec, table, label, className, edit, hint }: { spec: XYSpec;
         {plot === null ? null : (
           <ChartSvg plot={plot} ink={SCREEN_INK} clipId={clipId} label={label}>
             <HoverMarks plot={plot} active={active} />
+            {cited === undefined ? null : <circle cx={cited.px} cy={cited.py} r={8} fill="none" stroke={SCREEN_INK.title} strokeWidth={2} pointerEvents="none"><title>The cell the answer cited</title></circle>}
             <rect
               x={plot.area.left}
               y={plot.area.top}
@@ -614,19 +626,19 @@ function RowsTable({ columns, rows }: { columns: DataColumn[]; rows: number[] })
 
 // A plate heatmap that fills its container's width. Hover or arrow keys read a well; the
 // numbers are the plate as a grid.
-function PlateFigure({ spec, table, label, className, edit, hint }: { spec: HeatmapSpec; table: DataTable; label: string; className?: string; edit?: FigureEdit; hint?: ReactNode }) {
+function PlateFigure({ spec, table, label, className, edit, hint }: { spec: ScaledSpec; table: DataTable; label: string; className?: string; edit?: FigureEdit; hint?: ReactNode }) {
   const [box, width] = useWidth();
   const [active, setActive] = useState<number | null>(null);
   const [showTable, setShowTable] = useState(false);
   const gradientId = useId();
-  const height = width === null ? 320 : plateHeight(spec, width);
+  const height = width === null ? 320 : scaledHeight(spec, table, width);
   const editable = edit !== undefined;
   const plot = useMemo(
-    () => (width === null ? null : plotPlate(spec, table, { width, height: plateHeight(spec, width) }, { placeholders: editable })),
+    () => (width === null ? null : plotScaled(spec, table, { width, height: scaledHeight(spec, table, width) }, { placeholders: editable })),
     [spec, table, width, editable],
   );
   const labels = useMemo(() => (plot === null || !editable ? [] : plateLabels(plot)), [plot, editable]);
-  const read = readLabel(spec, table);
+  const read = spec.type === "heatmap" ? readLabel(spec, table) : null;
   const notes = [...(read === null ? [] : [`${read}.`]), ...(plot?.notes ?? []), rowsNote(table)].filter((n): n is string => n !== null);
 
   function point(event: PointerEvent<SVGRectElement>) {
@@ -660,7 +672,7 @@ function PlateFigure({ spec, table, label, className, edit, hint }: { spec: Heat
       <Frame
         box={box}
         height={height}
-        label={`${label}. Use the arrow keys to read wells.`}
+        label={`${label}. Use the arrow keys to read ${spec.type === "grid" ? "squares" : "wells"}.`}
         onKeyDown={step}
         onFocus={() => setActive((cur) => cur ?? 0)}
         onBlur={() => setActive(null)}
@@ -668,7 +680,11 @@ function PlateFigure({ spec, table, label, className, edit, hint }: { spec: Heat
         {plot === null ? null : (
           <PlateSvg plot={plot} ink={SCREEN_INK} gradientId={gradientId} label={label}>
             {well === undefined ? null : (
-              <circle cx={well.cx} cy={well.cy} r={plot.radius + 2.5} fill="none" stroke={SCREEN_INK.title} strokeWidth={1.5} pointerEvents="none" />
+              plot.shape === "square" ? (
+                <rect x={well.cx - plot.pitch / 2 - 1} y={well.cy - plot.pitch / 2 - 1} width={plot.pitch + 2} height={plot.pitch + 2} rx={3} fill="none" stroke={SCREEN_INK.title} strokeWidth={1.5} pointerEvents="none" />
+              ) : (
+                <circle cx={well.cx} cy={well.cy} r={plot.radius + 2.5} fill="none" stroke={SCREEN_INK.title} strokeWidth={1.5} pointerEvents="none" />
+              )
             )}
             <rect
               x={plot.plate.left}
@@ -690,7 +706,7 @@ function PlateFigure({ spec, table, label, className, edit, hint }: { spec: Heat
   );
 }
 
-function WellReadout({ plot, well, spec }: { plot: PlatePlot; well: PlateWell; spec: HeatmapSpec }) {
+function WellReadout({ plot, well, spec }: { plot: PlatePlot; well: PlateWell; spec: ScaledSpec }) {
   const unit = spec.value.unit.trim();
   const onLeft = well.cx > plot.plate.left + plot.plate.width / 2;
   const below = well.cy < plot.plate.top + plot.pitch * 2;
@@ -708,7 +724,7 @@ function WellReadout({ plot, well, spec }: { plot: PlatePlot; well: PlateWell; s
         {well.label === null ? null : ` · ${well.label}`}
       </p>
       <p className="mt-0.5 text-label-small text-content-primary tabular-nums">
-        {well.value === null ? (well.missing ? "Not in the table" : "No number") : `${formatValue(well.value)}${unit ? ` ${unit}` : ""}`}
+        {well.value === null ? (well.missing ? (spec.type === "grid" ? "No row has this pair" : "Not in the table") : "No number") : `${formatValue(well.value)}${unit ? ` ${unit}` : ""}`}
       </p>
     </div>
   );
@@ -726,7 +742,7 @@ function PlateTable({ plot }: { plot: PlatePlot }) {
             </th>
             {rows[0]?.map((w) => (
               <th key={w.column} scope="col" className="px-3 py-2 font-medium whitespace-nowrap text-content-secondary">
-                {w.column + 1}
+                {plot.columnNames[w.column]}
               </th>
             ))}
           </tr>
@@ -735,7 +751,7 @@ function PlateTable({ plot }: { plot: PlatePlot }) {
           {rows.map((wells, r) => (
             <tr key={r} className="border-t border-border-opaque">
               <th scope="row" className="px-3 py-1.5 font-medium text-content-secondary">
-                {rowLetter(r)}
+                {plot.rowNames[r]}
               </th>
               {wells.map((w) => (
                 <td key={w.name} title={w.label ?? undefined} className="px-3 py-1.5 whitespace-nowrap text-content-primary">

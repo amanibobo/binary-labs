@@ -4,6 +4,7 @@ import { AppShell } from "@/components/app-shell";
 import { ChartBuilder } from "@/components/charts/chart-builder";
 import { ConfigMissing } from "@/components/config-missing";
 import { loadChartFile } from "@/lib/chart-store";
+import { CitedCell } from "@/lib/charts";
 import { LocationId, ProtocolId } from "@/lib/ids";
 import { loadProtocols } from "@/lib/lab-data";
 import { loadShell } from "@/lib/shell-data";
@@ -16,6 +17,7 @@ export default async function NewChartPage({ searchParams }: PageProps<"/charts/
   const location = LocationId.safeParse(params.file);
   if (!location.success) notFound();
   const protocol = ProtocolId.safeParse(params.protocol);
+  const cited = CitedCell.safeParse({ sheet: params.sheet, column: params.column, row: params.row });
   const viewer = await requireMember();
   if (viewer.kind === "config_missing") return <ConfigMissing missing={viewer.missing} />;
   const { supabase, lab } = viewer;
@@ -36,7 +38,7 @@ export default async function NewChartPage({ searchParams }: PageProps<"/charts/
       ) : (
         <ChartBuilder
           file={found.file}
-          mode={{ kind: "create", protocolId: protocol.success ? protocol.data : null }}
+          mode={{ kind: "create", protocolId: protocol.success ? protocol.data : null, cited: cited.success ? cited.data : null }}
           protocols={protocols.map((p) => ({ id: p.id, title: p.title }))}
         />
       )}

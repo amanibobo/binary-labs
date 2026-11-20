@@ -3,12 +3,14 @@ import type { ReactElement } from "react";
 import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
 import { analyze } from "@/lib/analysis";
-import { isHeatmap, isXY, type ChartSpec } from "@/lib/charts";
+import { isGrid, isHeatmap, isXY, type ChartSpec } from "@/lib/charts";
 import { plotChart } from "@/lib/chart-geometry";
 import { chartNumbers, numbersCsv } from "@/lib/chart-numbers";
 import { cellText, columnLabel, findColumn, type DataColumn, type DataTable } from "@/lib/data-tables";
 import { formatValue } from "@/lib/numbers";
-import { plotPlate } from "@/lib/plate-geometry";
+import { axisText } from "@/lib/chart-guide";
+import { gridCells } from "@/lib/grids";
+import { plotGrid, plotPlate } from "@/lib/plate-geometry";
 import { plotSummary } from "@/lib/summary-geometry";
 import { ChartSvg, EXPORT_INK, PlateSvg } from "./chart-svg";
 import { SummarySvg } from "./summary-svg";
@@ -31,7 +33,7 @@ export type ChartFile = { markup: string; width: number; height: number; mm: { w
 
 const MM_PER_INCH = 25.4;
 
-function render(element: ReactElement): string {
+export function render(element: ReactElement): string {
   const host = document.createElement("div");
   const root = createRoot(host);
   flushSync(() => root.render(element));
@@ -41,7 +43,7 @@ function render(element: ReactElement): string {
 }
 
 // The figure at an export size, before it's turned into markup.
-export function exportFigure(spec: ChartSpec, table: DataTable, title: string, size: ExportSize = "slides", tables: readonly DataTable[] = [table]): { element: ReactElement; width: number; height: number; mm: ChartFile["mm"] } {
+export function exportFigure(spec: ChartSpec, table: DataTable, title: string, size: ExportSize = "slides", tables: readonly DataTable[] = [table], muted?: ReadonlySet<string>): { element: ReactElement; width: number; height: number; mm: ChartFile["mm"] } {
   const box = EXPORT_SIZES[size];
   const frame = { width: box.width, height: box.height };
   const sized = (element: ReactElement, width: number, height: number) => ({
@@ -50,12 +52,12 @@ export function exportFigure(spec: ChartSpec, table: DataTable, title: string, s
     height,
     mm: box.mm === null ? null : { width: box.mm, height: Math.round(((box.mm * height) / width) * 10) / 10 },
   });
-  if (isHeatmap(spec)) {
-    const plot = plotPlate(spec, table, frame, { title });
+  if (isHeatmap(spec) || isGrid(spec)) {
+    const plot = isGrid(spec) ? plotGrid(spec, table, frame, { title }) : plotPlate(spec, table, frame, { title });
     return sized(<PlateSvg plot={plot} ink={EXPORT_INK} gradientId="scale" label={title} />, plot.width, plot.height);
   }
   if (isXY(spec)) {
-    const plot = plotChart(spec, table, frame, { title });
+    const plot = plotChart(spec, table, frame, { title, muted });
     return sized(<ChartSvg plot={plot} ink={EXPORT_INK} clipId="plot" label={title} />, plot.width, plot.height);
   }
   // The test, the fit and what the bars show go on the figure itself, under the chart.
@@ -72,8 +74,8 @@ export function figureMarkup(figure: ReturnType<typeof exportFigure>, toMarkup: 
   return { markup: `<?xml version="1.0" encoding="UTF-8"?>\n${markup}`, width: figure.width, height: figure.height, mm };
 }
 
-export function chartMarkup(spec: ChartSpec, table: DataTable, title: string, size: ExportSize = "slides", tables: readonly DataTable[] = [table]): ChartFile {
-  return figureMarkup(exportFigure(spec, table, title, size, tables), render);
+export function chartMarkup(spec: ChartSpec, table: DataTable, title: string, size: ExportSize = "slides", tables: readonly DataTable[] = [table], muted?: ReadonlySet<string>): ChartFile {
+  return figureMarkup(exportFigure(spec, table, title, size, tables, muted), render);
 }
 
 // A PDF page's size in points for the figure.
@@ -144,6 +146,12 @@ export async function downloadPdf(file: ChartFile, title: string): Promise<void>
 // test, the fit and the samples; for any other, the rows it draws.
 export function chartCsv(spec: ChartSpec, table: DataTable, title: string, provenance: readonly string[], tables: readonly DataTable[] = [table]): string {
   const heading = [title, ...provenance];
+  if (isGrid(spec)) {
+    const data = gridCells(spec, table);
+    const [down, across] = [findColumn(table, spec.rows), findColumn(table, spec.columns)];
+    const rows = (data?.cells ?? []).map((c) => [data?.rowNames[c.row] ?? "", data?.columnNames[c.column] ?? "", c.value, c.rows.length]);
+    return numbersCsv([{ title: table.name, columns: [down?.name ?? "Rows", across?.name ?? "Columns", `Mean ${axisText(spec.value.title, spec.value.unit)}`.trim(), "n"], rows }], heading);
+  }
   if (isHeatmap(spec)) return numbersCsv([{ title: table.name, columns: ["Well", "Value"], rows: plotPlate(spec, table, EXPORT_SIZE).wells.map((w) => [w.name, w.value]) }], heading);
   if (isXY(spec)) {
     const ids = [spec.x.column, ...spec.series.flatMap((s) => [s.x, s.column, s.error])];

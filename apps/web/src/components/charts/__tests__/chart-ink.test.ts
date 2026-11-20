@@ -21,5 +21,7 @@ describe("chart colors", () => {
     expect(EXPORT_INK.tick).toBe(light.get("content-tertiary"));
     expect(EXPORT_INK.label).toBe(light.get("content-secondary"));
     expect(EXPORT_INK.title).toBe(light.get("content-primary"));
+    expect(EXPORT_INK.flag).toBe(light.get("chart-flag"));
+    expect(EXPORT_INK.series.muted).toBe(light.get("content-tertiary"));
   });
 });

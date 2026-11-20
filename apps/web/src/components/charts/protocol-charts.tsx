@@ -6,7 +6,8 @@ import { chartHref, chartTrouble, type SavedChart } from "@/lib/charts";
 import type { LocationId } from "@/lib/ids";
 import { useLabApi } from "../lab-api";
 import { Skeleton } from "../ui/skeleton";
-import { tableKey, fileHref } from "./chart-builder";
+import { fileHref } from "./chart-builder";
+import { tableKey } from "./table-key";
 import { ChartFigure } from "./chart-figure";
 
 export type ProtocolChart = { chart: SavedChart; file: { name: string; locationId: LocationId } | null };

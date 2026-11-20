@@ -17,6 +17,7 @@ import { formatValue } from "./numbers";
 import { ChartId, ColumnId, ProtocolId, ProtocolVersionId, Sha256, UserId, type LocationId } from "./ids";
 import { PLATE_SHAPE, plateLayout, PlateSize, PlateSource, startingSource, type PlateLayout } from "./plates";
 import { Source } from "./replicates";
+import { categories, GRID_MAX, startingGridColumns } from "./grids";
 
 // decisions.md, "data sheet to chart". A chart names a file by content, one of its tables, and
 // this spec; db/migrations/0020_charts_and_video_steps.sql checks the same structure in
@@ -49,7 +50,7 @@ export type Stroke = z.infer<typeof Stroke>;
 // summarize repeats (decisions.md, "charts round 1"): groups as bars or boxes with every repeat,
 // a scatter of means with a fitted line (a standard curve), a line with a shaded spread, a
 // dose-response curve and a histogram.
-export const CHART_TYPES = ["line", "scatter", "bar", "heatmap", "groups", "curve", "band", "dose", "histogram"] as const;
+export const CHART_TYPES = ["line", "scatter", "bar", "heatmap", "grid", "groups", "curve", "band", "dose", "histogram"] as const;
 export const ChartType = z.enum(CHART_TYPES);
 export type ChartType = z.infer<typeof ChartType>;
 
@@ -68,6 +69,9 @@ export const MAX_SERIES = { line: 12, scatter: 3, bar: 6 } satisfies Record<XYTy
 const SERIES_MAX = Math.max(...Object.values(MAX_SERIES));
 // Past this a bar chart's labels can't be read; a line chart reads the same data.
 export const MAX_BARS = 60;
+
+// Runs a chart draws beside its own file.
+export const MAX_OTHER_RUNS = 11;
 
 const AxisText = z.string().trim().max(80);
 const Unit = z.string().trim().max(24);
@@ -96,6 +100,12 @@ const XYShape = z.object({
   y: z.object({ title: AxisText, unit: Unit, scale: z.enum(["linear", "log"]), min: Bound, max: Bound }),
   series: z.array(Series).min(1, "Pick a column to plot.").max(SERIES_MAX, `A chart takes up to ${SERIES_MAX} series.`),
   legend: LegendPosition,
+  // Other files drawn with the same columns (lib/runs.ts), beside the chart's own; never bars.
+  runs: z
+    .array(Sha256)
+    .max(MAX_OTHER_RUNS, `A chart takes up to ${MAX_OTHER_RUNS} other runs.`)
+    .refine((r) => new Set(r).size === r.length, "Each run goes on once.")
+    .optional(),
 });
 export type XYSpec = z.infer<typeof XYShape>;
 
@@ -107,6 +117,18 @@ const HeatmapShape = z.object({
   value: z.object({ title: AxisText, unit: Unit, min: Bound, max: Bound }),
 });
 export type HeatmapSpec = z.infer<typeof HeatmapShape>;
+
+// A heatmap of any two columns that sort the rows (lib/grids.ts): `rows` down the side,
+// `columns` across, each square the mean of `measure` over the rows with that pair.
+const GridShape = z.object({
+  version: z.literal(1),
+  type: z.literal("grid"),
+  rows: ColumnId,
+  columns: ColumnId,
+  measure: ColumnId,
+  value: z.object({ title: AxisText, unit: Unit, min: Bound, max: Bound }),
+});
+export type GridSpec = z.infer<typeof GridShape>;
 
 // How much repeats vary, as error bars or a band: the standard deviation, the standard error of
 // the mean, or the 95% confidence interval of the mean (t-based).
@@ -195,7 +217,7 @@ export type HistogramSpec = z.infer<typeof HistogramShape>;
 
 export type SummarySpec = GroupsSpec | CurveSpec | BandSpec | DoseSpec;
 
-export const ChartSpec = z.union([XYShape, HeatmapShape, GroupsShape, CurveShape, BandShape, DoseShape, HistogramShape]).superRefine((spec, ctx) => {
+export const ChartSpec = z.union([XYShape, HeatmapShape, GridShape, GroupsShape, CurveShape, BandShape, DoseShape, HistogramShape]).superRefine((spec, ctx) => {
   const problem = specProblem(spec);
   if (problem !== null) ctx.addIssue({ code: "custom", message: problem });
 });
@@ -203,6 +225,17 @@ export type ChartSpec = z.infer<typeof ChartSpec>;
 
 export function isHeatmap(spec: ChartSpec): spec is HeatmapSpec {
   return spec.type === "heatmap";
+}
+
+export function isGrid(spec: ChartSpec): spec is GridSpec {
+  return spec.type === "grid";
+}
+
+// The charts colored along a scale: a plate and a heatmap of two columns.
+export type ScaledSpec = HeatmapSpec | GridSpec;
+
+export function isScaled(spec: ChartSpec): spec is ScaledSpec {
+  return spec.type === "heatmap" || spec.type === "grid";
 }
 
 export function isXY(spec: ChartSpec): spec is XYSpec {
@@ -226,7 +259,8 @@ const sameStyle = (a: Series, b: Series) => a.color === b.color && a.stroke === 
 // What the spec alone rules out; checkSpec below also needs the table.
 export function specProblem(spec: ChartSpec): string | null {
   switch (spec.type) {
-    case "heatmap": {
+    case "heatmap":
+    case "grid": {
       const { min, max } = spec.value;
       if (min !== null && max !== null && min >= max) return "The color scale has to start below where it ends.";
       return null;
@@ -254,6 +288,7 @@ export function specProblem(spec: ChartSpec): string | null {
 }
 
 function xyProblem(spec: XYSpec): string | null {
+  if (spec.type === "bar" && (spec.runs?.length ?? 0) > 0) return "Bars can't draw other runs. A line or scatter chart can.";
   if (spec.series.length > MAX_SERIES[spec.type]) {
     return spec.type === "scatter"
       ? "A scatter chart takes up to three series."
@@ -288,6 +323,8 @@ export function checkSpec(spec: ChartSpec, table: DataTable, tables: readonly Da
   switch (spec.type) {
     case "heatmap":
       return checkHeatmap(spec, table);
+    case "grid":
+      return checkGrid(spec, table);
     case "line":
     case "scatter":
     case "bar":
@@ -437,6 +474,22 @@ function checkHeatmap(spec: HeatmapSpec, table: DataTable): string | null {
   }
 }
 
+function checkGrid(spec: GridSpec, table: DataTable): string | null {
+  for (const [id, side] of [[spec.rows, "down the side"], [spec.columns, "across the top"]] as const) {
+    const c = findColumn(table, id);
+    if (c === undefined) return missing(id, table);
+    const kinds = categories(c).names.length;
+    if (kinds < 2) return `${columnLabel(c)} has only one kind of row, so there's nothing to set ${side}.`;
+    if (kinds > GRID_MAX) return `${columnLabel(c)} has ${kinds} different values, too many for a heatmap (up to ${GRID_MAX}).`;
+  }
+  if (spec.rows === spec.columns) return "Pick two different columns for the side and the top.";
+  const m = findColumn(table, spec.measure);
+  if (m === undefined) return missing(spec.measure, table);
+  if (m.kind !== "number") return `${columnLabel(m)} holds ${HOLDS[m.kind]}, so it can't color the squares.`;
+  if (spec.measure === spec.rows || spec.measure === spec.columns) return `${columnLabel(m)} already sorts the rows, so it can't color the squares too.`;
+  return null;
+}
+
 // The style a new series gets: the first hue nobody has, solid, then the hues again dashed.
 export function nextStyle(series: readonly Series[], type: XYType): { color: SeriesColor; stroke: Stroke } {
   const strokes: readonly Stroke[] = type === "line" ? STROKES : ["solid"];
@@ -508,6 +561,7 @@ export function withType(spec: ChartSpec, type: XYType | "heatmap", table: DataT
     x: type === "bar" ? { ...base.x, scale: "linear" } : base.x,
     y: type === "bar" ? { ...base.y, scale: "linear" } : base.y,
     series,
+    runs: type === "bar" ? undefined : base.runs,
   };
 }
 
@@ -552,6 +606,12 @@ export function brokenColumns(spec: ChartSpec, table: DataTable): { id: ColumnId
     want(spec.column, spec.x.title || "the values", (c) => c.kind === "number");
     return out;
   }
+  if (spec.type === "grid") {
+    want(spec.rows, "the side", () => true);
+    want(spec.columns, "the top", () => true);
+    want(spec.measure, spec.value.title || "the values", (c) => c.kind === "number");
+    return out;
+  }
   if (isSummary(spec)) {
     for (const id of sourceColumns(spec.source)) want(id, findColumn(table, id)?.name ?? `column ${id}`, () => checkSource(spec.source, table) === null);
     return out;
@@ -581,6 +641,7 @@ export function chartTrouble(chart: { sheet: string; spec: ChartSpec }, tables: 
 // columns that went are cleared, and a lost x is the table's first. Null when nothing is left.
 export function repairSpec(spec: ChartSpec, table: DataTable): ChartSpec | null {
   if (spec.type === "heatmap") return checkSpec(spec, table) === null ? spec : startingHeatmap(table);
+  if (spec.type === "grid") return checkSpec(spec, table) === null ? spec : startingGrid(table);
   if (!isXY(spec)) return checkSpec(spec, table) === null ? spec : null;
   const ok = (id: ColumnId | null, kinds: readonly DataColumn["kind"][]) => {
     if (id === null) return false;
@@ -597,6 +658,13 @@ export function repairSpec(spec: ChartSpec, table: DataTable): ChartSpec | null 
   if (series.length === 0) return start;
   const mended = { ...spec, x, series };
   return checkSpec(mended, table) === null ? mended : start;
+}
+
+export function startingGrid(table: DataTable): GridSpec | null {
+  const picked = startingGridColumns(table);
+  if (picked === null) return null;
+  const measure = findColumn(table, picked.measure);
+  return { version: 1, type: "grid", ...picked, value: { title: measure?.name ?? "", unit: measure?.kind === "number" ? (measure.unit ?? "") : "", min: null, max: null } };
 }
 
 export function plateShape(spec: HeatmapSpec): { rows: number; columns: number } {
@@ -732,10 +800,29 @@ export function chartHref(id: ChartId): string {
   return `/charts/${id}`;
 }
 
-export function newChartHref(file: LocationId, protocolId?: ProtocolId): string {
+// A cell an answer cited (lib/answers.ts CellRef): its table, its column as the answer named it
+// ("A595 (AU)"), and its row counted from 1, as the model was shown.
+export const CitedCell = z.object({ sheet: z.string().min(1).max(200), column: z.string().min(1).max(300), row: z.coerce.number().int().positive().max(1_000_000) });
+export type CitedCell = z.infer<typeof CitedCell>;
+
+export function newChartHref(file: LocationId, protocolId?: ProtocolId, cell?: CitedCell): string {
   const params = new URLSearchParams({ file });
   if (protocolId !== undefined) params.set("protocol", protocolId);
+  if (cell !== undefined) {
+    params.set("sheet", cell.sheet);
+    params.set("column", cell.column);
+    params.set("row", String(cell.row));
+  }
   return `/charts/new?${params}`;
+}
+
+// The cited cell in the file's tables: the column the answer named, by name and unit or by
+// letter, and the row as an index into the table. Null when the file was read differently since.
+export function findCitedCell(tables: readonly DataTable[], cell: CitedCell): { table: DataTable; column: DataColumn; row: number } | null {
+  const table = tables.find((t) => t.name === cell.sheet);
+  const column = table?.columns.find((c) => columnLabel(c) === cell.column) ?? table?.columns.find((c) => c.id === cell.column);
+  if (table === undefined || column === undefined || cell.row > table.rows) return null;
+  return { table, column, row: cell.row - 1 };
 }
 
 // A file's name without its extension, as a new chart's first title.

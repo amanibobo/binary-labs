@@ -24,6 +24,7 @@ import { LayoutsWire, LayoutWire, type SavedLayout, type SaveLayoutRequest } fro
 import type { SaveChecksRequest } from "@/lib/checks";
 import { FileChecksWire, FlagAnswerWire, FlagMarksWire, type FileChecks, type FlagAnswer, type ReviewRequest } from "@/lib/flags";
 import { TableState } from "@/lib/data-tables";
+import { RunChoicesWire, RunInfos, type RunChoices, type RunInfo } from "@/lib/runs";
 import { HubFiles, LocalView, type HubQuery, type LocalQuery } from "@/lib/map";
 import {
   ChartSaveOutcomeWire,
@@ -128,6 +129,8 @@ export type LabApi = {
   dataTable: (sha: Sha256, signal: AbortSignal) => Promise<TableState>;
   requestDataTable: (sha: Sha256) => Promise<void>;
   fileCharts: (sha: Sha256, signal: AbortSignal) => Promise<SavedChart[]>;
+  runs: (shas: readonly Sha256[], signal: AbortSignal) => Promise<RunInfo[]>;
+  runChoices: (sha: Sha256, signal: AbortSignal) => Promise<RunChoices>;
   // These reject with an Error whose message can be shown; a stale save resolves as { kind: "stale" }.
   createChart: (req: CreateChartRequest) => Promise<SavedChart>;
   saveChart: (id: ChartId, req: SaveChartRequest) => Promise<ChartSaveOutcome>;
@@ -332,6 +335,8 @@ export const httpLabApi: LabApi = {
   dataTable: async (sha, signal) => TableState.parse(await getJson(`/api/tables/${sha}`, signal)),
   requestDataTable: async (sha) => void (await postJson(`/api/tables/${sha}`, {})),
   fileCharts: async (sha, signal) => ChartsWire.parse(await getJson(`/api/charts?${new URLSearchParams({ sha256: sha })}`, signal)),
+  runs: async (shas, signal) => RunInfos.parse(await getJson(`/api/runs?${new URLSearchParams(shas.map((s) => ["sha256", s]))}`, signal)),
+  runChoices: async (sha, signal) => RunChoicesWire.parse(await getJson(`/api/runs?${new URLSearchParams({ near: sha })}`, signal)),
   createChart: async (req) => ChartWire.parse(await postJson("/api/charts", req)),
   saveChart: async (id, req) => {
     const { status, json } = await sendJson(`/api/charts/${id}`, "POST", req);

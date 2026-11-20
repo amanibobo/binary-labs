@@ -16,7 +16,7 @@ import { protocolHits, purification, purificationTheirs } from "./protocols";
 import { fixtureUploadTalkThrough, fixtureApplyTalkThrough, talkThrough as fixtureTalkThrough } from "./talk-throughs";
 import { createFixtureUploads } from "./uploads";
 import { createFixtureVideoUploads, FIXTURE_VIDEO, fixtureVideoSources, pageVideos } from "./videos";
-import { chartsOf, fixtureTable, savedCharts, savedLayouts } from "./charts";
+import { chartsOf, fixtureRun, fixtureRunChoices, fixtureTable, savedCharts, savedLayouts } from "./charts";
 import { LayoutId } from "@/lib/ids";
 import { SaveLayoutRequest, type SavedLayout } from "@/lib/layouts";
 import { fixtureHubFiles, fixtureLab, fixtureLocal, type LabSize } from "./map";
@@ -190,6 +190,14 @@ export function FixtureLabApi({
       return tables === "waiting" ? { state: "waiting" } : (flagTable(sha) ?? fixtureTable(sha));
     },
     requestDataTable: async () => wait(100),
+    runs: async (shas, signal) => {
+      await wait(60, signal);
+      return shas.map(fixtureRun);
+    },
+    runChoices: async (sha, signal) => {
+      await wait(80, signal);
+      return fixtureRunChoices(sha);
+    },
     fileCharts: async (sha, signal) => {
       await wait(80, signal);
       return chartsOf(sha);

@@ -1,14 +1,14 @@
 import type { ReactNode } from "react";
 import { PALETTE, type SeriesColor, type Stroke } from "@/lib/charts";
-import { LABEL_FONT, TICK_FONT, TITLE_FONT, type Plot } from "@/lib/chart-geometry";
+import { LABEL_FONT, TICK_FONT, TITLE_FONT, type DrawColor, type Plot } from "@/lib/chart-geometry";
 import { exportFill, mixOklab, screenFill, type PlatePlot } from "@/lib/plate-geometry";
 
 // The colors a chart is drawn in. On screen they're the theme's CSS variables, so a chart
 // follows light and dark; an exported file carries the light hex values, as a printed figure.
 export type ChartInk = {
-  series: Record<SeriesColor, string>;
+  series: Record<DrawColor, string>;
   // Each hue mixed most of the way to the surface: a bar behind its own dots.
-  soft: Record<SeriesColor, string>;
+  soft: Record<DrawColor, string>;
   surface: string;
   grid: string;
   axis: string;
@@ -18,13 +18,15 @@ export type ChartInk = {
   font: string;
   // A page background behind an exported chart; on screen the page is the background.
   background: string | null;
+  // A flagged value on a run-history chart.
+  flag: string;
   // A plate well's color at a place on the scale, 0 to 1.
   ramp: (t: number) => string;
   // The ramp's stops for the scale's bar, low to high.
   rampStops: readonly string[];
 };
 
-function byColor(color: (slot: SeriesColor) => string): Record<SeriesColor, string> {
+function byColor(color: (slot: SeriesColor) => string, muted: string): Record<DrawColor, string> {
   return {
     blue: color("blue"),
     orange: color("orange"),
@@ -32,12 +34,13 @@ function byColor(color: (slot: SeriesColor) => string): Record<SeriesColor, stri
     violet: color("violet"),
     magenta: color("magenta"),
     green: color("green"),
+    muted,
   };
 }
 
 export const SCREEN_INK: ChartInk = {
-  series: byColor((slot) => `var(--chart-${slot})`),
-  soft: byColor((slot) => `color-mix(in oklab, var(--chart-${slot}) 28%, var(--background-primary))`),
+  series: byColor((slot) => `var(--chart-${slot})`, "var(--content-tertiary)"),
+  soft: byColor((slot) => `color-mix(in oklab, var(--chart-${slot}) 28%, var(--background-primary))`, "color-mix(in oklab, var(--content-tertiary) 28%, var(--background-primary))"),
   surface: "var(--background-primary)",
   grid: "var(--border-opaque)",
   axis: "var(--border-raised)",
@@ -46,14 +49,15 @@ export const SCREEN_INK: ChartInk = {
   title: "var(--content-primary)",
   font: "inherit",
   background: null,
+  flag: "var(--chart-flag)",
   ramp: screenFill,
   rampStops: [0, 1, 2, 3, 4].map((i) => `var(--chart-seq-${i})`),
 };
 
 // The light tokens from globals.css; chart-ink.test.ts checks they still match.
 export const EXPORT_INK: ChartInk = {
-  series: byColor((slot) => PALETTE[slot].light),
-  soft: byColor((slot) => mixOklab(PALETTE[slot].light, "#ffffff", 0.72)),
+  series: byColor((slot) => PALETTE[slot].light, "#66666c"),
+  soft: byColor((slot) => mixOklab(PALETTE[slot].light, "#ffffff", 0.72), mixOklab("#66666c", "#ffffff", 0.72)),
   surface: "#ffffff",
   grid: "#e6e6e8",
   axis: "#dadadd",
@@ -62,6 +66,7 @@ export const EXPORT_INK: ChartInk = {
   title: "#18181a",
   font: "Geist, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif",
   background: "#ffffff",
+  flag: "#b26f00",
   ramp: exportFill,
   rampStops: [0, 0.25, 0.5, 0.75, 1].map(exportFill),
 };
@@ -303,11 +308,17 @@ export function PlateSvg({
         </text>
       )}
       <g fontSize={TICK_FONT} fill={ink.tick}>
-        {plot.columnLabels.map((l) => (
-          <text key={`c${l.text}`} x={l.x} y={l.y} textAnchor="middle">
-            {l.text}
-          </text>
-        ))}
+        {plot.columnLabels.map((l, i) =>
+          l.slant ? (
+            <text key={`c${i}`} x={l.x} y={l.y} textAnchor="start" transform={`rotate(-45 ${l.x} ${l.y})`}>
+              {l.text}
+            </text>
+          ) : (
+            <text key={`c${i}`} x={l.x} y={l.y} textAnchor="middle">
+              {l.text}
+            </text>
+          ),
+        )}
         {plot.rowLabels.map((l) => (
           <text key={`r${l.text}`} x={l.x} y={l.y} textAnchor="end" dominantBaseline="middle">
             {l.text}
@@ -315,13 +326,21 @@ export function PlateSvg({
         ))}
       </g>
       <g>
-        {plot.wells.map((w) =>
-          w.t === null ? (
+        {plot.wells.map((w) => {
+          if (plot.shape === "square") {
+            const side = plot.pitch - 2;
+            return w.t === null ? (
+              <rect key={w.name} x={w.cx - side / 2 + 0.5} y={w.cy - side / 2 + 0.5} width={side - 1} height={side - 1} rx={2} fill="none" stroke={ink.axis} strokeWidth={1} />
+            ) : (
+              <rect key={w.name} x={w.cx - side / 2} y={w.cy - side / 2} width={side} height={side} rx={2} fill={ink.ramp(w.t)} />
+            );
+          }
+          return w.t === null ? (
             <circle key={w.name} cx={w.cx} cy={w.cy} r={plot.radius - 0.5} fill="none" stroke={ink.axis} strokeWidth={1} />
           ) : (
             <circle key={w.name} cx={w.cx} cy={w.cy} r={plot.radius} fill={ink.ramp(w.t)} />
-          ),
-        )}
+          );
+        })}
       </g>
       {scale === null ? null : (
         <g fontSize={TICK_FONT}>
