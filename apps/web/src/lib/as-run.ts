@@ -145,8 +145,68 @@ function keyed(body: string): Keyed[] {
 
 const shown = (line: ProtocolLine) => plainText(line.text);
 
-// The changes, in the plan's order. Within a run of changed lines, the plan's lines and what
-// replaced them are paired in order; what's left over was left out or added.
+// How a run of changed lines lines up: a line of the plan that became an added line, a line of
+// the plan that went, or a line that's new.
+type Step = { kind: "pair"; was: Keyed; now: Keyed } | { kind: "gone"; was: Keyed } | { kind: "new"; now: Keyed };
+
+const wordsOf = (k: Keyed) => new Set(shown(k.line).toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean));
+
+// The share of words two lines have in common.
+function likeness(a: Keyed, b: Keyed): number {
+  const x = wordsOf(a);
+  const y = wordsOf(b);
+  const shared = [...x].filter((w) => y.has(w)).length;
+  return shared === 0 ? 0 : shared / (x.size + y.size - shared);
+}
+const ALIKE = 0.3;
+
+function inOrder(removed: readonly Keyed[], added: readonly Keyed[]): Step[] {
+  const pairs = Math.min(removed.length, added.length);
+  return [
+    ...removed.slice(0, pairs).map((was, k): Step => ({ kind: "pair", was, now: added[k] ?? was })),
+    ...removed.slice(pairs).map((was): Step => ({ kind: "gone", was })),
+    ...added.slice(pairs).map((now): Step => ({ kind: "new", now })),
+  ];
+}
+
+// Pairs each removed line with the added line it most likely became, keeping both in order,
+// so a step edited beside a step added reads as one change and one addition. With nothing
+// alike and as many lines back as went, they're paired in order: each was rewritten.
+function align(removed: readonly Keyed[], added: readonly Keyed[]): Step[] {
+  if (removed.length * added.length > 10_000) return inOrder(removed, added);
+  const like = removed.map((r) => added.map((a) => likeness(r, a)));
+  const best = Array.from({ length: removed.length + 1 }, () => new Array<number>(added.length + 1).fill(0));
+  const at = (i: number, j: number) => best[i]?.[j] ?? 0;
+  const paired = (i: number, j: number) => {
+    const s = like[i]?.[j] ?? 0;
+    return s >= ALIKE ? s + at(i + 1, j + 1) : -1;
+  };
+  for (let i = removed.length - 1; i >= 0; i -= 1) {
+    const row = best[i];
+    for (let j = added.length - 1; j >= 0; j -= 1) if (row !== undefined) row[j] = Math.max(at(i + 1, j), at(i, j + 1), paired(i, j));
+  }
+  const steps: Step[] = [];
+  let i = 0;
+  let j = 0;
+  while (i < removed.length || j < added.length) {
+    const was = removed[i];
+    const now = added[j];
+    if (was !== undefined && now !== undefined && paired(i, j) >= 0 && at(i, j) === paired(i, j)) {
+      steps.push({ kind: "pair", was, now });
+      i += 1;
+      j += 1;
+    } else if (was !== undefined && (now === undefined || at(i, j) === at(i + 1, j))) {
+      steps.push({ kind: "gone", was });
+      i += 1;
+    } else if (now !== undefined) {
+      steps.push({ kind: "new", now });
+      j += 1;
+    }
+  }
+  return steps.some((s) => s.kind === "pair") || removed.length !== added.length ? steps : inOrder(removed, added);
+}
+
+// The changes, in the plan's order.
 export function planChanges(plan: string, asRun: string): PlanChange[] | null {
   const before = keyed(plan);
   const after = keyed(asRun);
@@ -159,18 +219,25 @@ export function planChanges(plan: string, asRun: string): PlanChange[] | null {
   let removed: Keyed[] = [];
   let added: Keyed[] = [];
   const flush = () => {
-    const pairs = Math.min(removed.length, added.length);
-    for (let k = 0; k < pairs; k += 1) {
-      const was = removed[k];
-      const now = added[k];
-      if (was !== undefined && now !== undefined) changes.push({ kind: "changed", at: was.place, was: shown(was.line), now: shown(now.line) });
+    let pending: string[] = [];
+    const addPending = () => {
+      if (pending.length > 0) changes.push({ kind: "added", after: last, lines: pending });
+      pending = [];
+    };
+    for (const step of align(removed, added)) {
+      if (step.kind === "new") {
+        pending.push(shown(step.now.line));
+        continue;
+      }
+      addPending();
+      changes.push(
+        step.kind === "pair"
+          ? { kind: "changed", at: step.was.place, was: shown(step.was.line), now: shown(step.now.line) }
+          : { kind: "left_out", at: step.was.place, text: shown(step.was.line) },
+      );
+      last = step.was.place;
     }
-    for (const gone of removed.slice(pairs)) changes.push({ kind: "left_out", at: gone.place, text: shown(gone.line) });
-    const pairedLast = removed[pairs - 1];
-    const extra = added.slice(pairs);
-    if (extra.length > 0) changes.push({ kind: "added", after: pairedLast?.place ?? last, lines: extra.map((k) => shown(k.line)) });
-    const tail = removed.at(-1);
-    if (tail !== undefined) last = tail.place;
+    addPending();
     removed = [];
     added = [];
   };

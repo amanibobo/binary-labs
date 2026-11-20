@@ -80,6 +80,25 @@ describe("planChanges", () => {
     expect(titles(purificationBody.replace("Run this for every BM3 batch.", "Run this for most batches."))).toEqual(["Changed near the top"]);
   });
 
+  it("pairs a changed step with what it became, not with a step added beside it", () => {
+    const body = editSteps((steps) => [
+      ...steps.slice(0, 2),
+      "Rest the lysate on ice for 10 min.",
+      "Spin the lysate at 10,000 g for 20 min at 4 °C. Keep the supernatant.",
+      ...steps.slice(3),
+    ]);
+    expect(planChanges(purificationBody, body)).toEqual([
+      { kind: "added", after: { kind: "step", number: 2 }, lines: ["Rest the lysate on ice for 10 min."] },
+      {
+        kind: "changed",
+        at: { kind: "step", number: 3 },
+        was: "Spin the lysate at 15,000 g for 30 min at 4 °C. Keep the supernatant.",
+        now: "Spin the lysate at 10,000 g for 20 min at 4 °C. Keep the supernatant.",
+      },
+    ]);
+    expect(titles(editSteps((steps) => steps.map((s, i) => (i === 2 ? "Centrifuge it." : s))))).toEqual(["Step 3 changed"]);
+  });
+
   it("lists several changes in the plan's order", () => {
     const body = editSteps((steps) => [steps[0] ?? "", "Sonicate for 6 min.", ...steps.slice(2, 5)]);
     expect(titles(body)).toEqual(["Step 2 changed", "Step 6 left out"]);

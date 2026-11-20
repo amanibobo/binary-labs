@@ -103,7 +103,7 @@ function EditableLine(props: {
       <label htmlFor={id} className={cn("pt-1.5 text-label-small text-content-tertiary", props.label === null && "sr-only")}>
         {name}
       </label>
-      <div className="min-w-0">
+      <div className="min-w-0 sm:col-start-2">
         <textarea
           id={id}
           rows={1}
