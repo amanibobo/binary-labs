@@ -105,6 +105,16 @@ export function NeedsLookIcon(props: IconProps) {
   );
 }
 
+// A flask with something in it: one attempt at an experiment.
+export function RunIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path {...line} d="M9.5 3.5h5M10.5 3.5v5.3l-4.8 8.4A1.9 1.9 0 0 0 7.3 20h9.4a1.9 1.9 0 0 0 1.6-2.8l-4.8-8.4V3.5" />
+      <path {...line} d="M7.8 14.5h8.4" />
+    </Svg>
+  );
+}
+
 // A clipboard of steps: protocols and tutorials.
 export function ProtocolIcon(props: IconProps) {
   return (

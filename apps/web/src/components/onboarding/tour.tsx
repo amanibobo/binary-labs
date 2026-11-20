@@ -6,7 +6,7 @@ import { useEffect, useState, useSyncExternalStore, type KeyboardEvent, type Rea
 import { cn } from "@/lib/cn";
 import { START_POINTER, stepCount, type TourStep, type TourStepId } from "@/lib/onboarding";
 import { CalendarIcon } from "../icons/calendar";
-import { BrowseIcon, FlagIcon, InfoIcon, MapIcon, NeedsLookIcon, ProtocolIcon, SearchOutlineIcon, SettingsIcon, UploadIcon } from "../icons/drawn";
+import { BrowseIcon, FlagIcon, InfoIcon, MapIcon, NeedsLookIcon, ProtocolIcon, RunIcon, SearchOutlineIcon, SettingsIcon, UploadIcon } from "../icons/drawn";
 import type { IconProps } from "../icons/svg";
 import { buttonVariants } from "../ui/button";
 import { Clip } from "./clip";
@@ -98,6 +98,7 @@ function Dim({ spot }: { spot: Spot }) {
 const TAB_ICONS = {
   search: SearchOutlineIcon,
   browse: BrowseIcon,
+  runs: RunIcon,
   protocols: ProtocolIcon,
   map: MapIcon,
   calendar: CalendarIcon,

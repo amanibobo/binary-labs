@@ -2,14 +2,17 @@ import { z } from "zod";
 import { MAX_SERIES, nextStyle, type Series, type XYSpec } from "./charts";
 import { mainTable, type DataColumn, type DataTable, type DataTables } from "./data-tables";
 import { LabelOutcome } from "./domain";
-import { ColumnId, LocationId, Sha256 } from "./ids";
+import { ColumnId, LocationId, RunId, Sha256 } from "./ids";
+import { RunStatus, type FileRun } from "./run-record";
 
 // Charts across several files (decisions.md, "charts round 2"): a line or scatter chart names
 // other files of the same kind (`spec.runs`), and each is drawn with the same columns, found by
 // header and unit as checks find them. A run labeled failed is drawn gray and dashed, never
 // hidden. Pure, so the builder, the figure and the export draw the same chart.
 
-// A file as a run: what the legend calls it, when it ran, and how it went.
+// A file as a run: what the legend calls it, when it ran, and how it went. `outcome` is what
+// the file's label says. `run` is the run record a person made from the file, when there is
+// one, and then its status is how the run went (decisions.md, "the run record: foundation").
 export const RunInfo = z.object({
   sha256: Sha256,
   locationId: LocationId.nullable(),
@@ -17,6 +20,7 @@ export const RunInfo = z.object({
   date: z.string().nullable(),
   outcome: LabelOutcome.nullable(),
   experiment: z.string().nullable(),
+  run: z.object({ id: RunId, status: RunStatus.nullable() }).nullable(),
 });
 export type RunInfo = z.infer<typeof RunInfo>;
 export const RunInfos = z.array(RunInfo);
@@ -43,7 +47,9 @@ export function assembleRuns(
   locations: z.infer<typeof LocationRunRows>,
   labels: z.infer<typeof LabelRunRows>,
   experiments: z.infer<typeof ExperimentRows>,
+  fileRuns: readonly FileRun[],
 ): RunInfo[] {
+  const runOf = new Map(fileRuns.map((r) => [r.sha256, { id: r.runId, status: r.status }]));
   const named = new Map(labels.map((l) => [l.sha256, l]));
   const experimentName = new Map(experiments.map((e) => [e.id, e.name]));
   // Locations come newest first; the first place of each file names it.
@@ -62,13 +68,20 @@ export function assembleRuns(
         date: label?.date ?? p.modified_at.slice(0, 10),
         outcome: label?.outcome ?? null,
         experiment: experimentId === null ? null : (experimentName.get(experimentId) ?? null),
+        run: runOf.get(sha) ?? null,
       },
     ];
   });
 }
 
+// How it went, in one word or none: the run record's status when the file belongs to a run,
+// else what the file's label says.
+export function howItWent(run: RunInfo): string | null {
+  return run.run === null ? run.outcome : run.run.status;
+}
+
 export function isFailed(run: RunInfo | undefined): boolean {
-  return run?.outcome === "failed";
+  return run !== undefined && howItWent(run) === "failed";
 }
 
 // A run's short name, for a legend: its label's title, or its file name without the extension.

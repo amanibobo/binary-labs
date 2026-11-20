@@ -22,6 +22,7 @@ import { CheckMark } from "./file-label";
 import { FollowUpQuestion } from "./follow-up";
 import { InlineEdit } from "./inline-edit";
 import { useLabels, useLabLists } from "./labels-context";
+import { FileRunLine } from "../runs/make-run";
 import { RepeatField, RepeatLines } from "./repeats";
 
 const FIELD_NAMES: Record<TagRef["kind"], string> = {
@@ -186,6 +187,7 @@ function ReadLabels({ hit, label, onEdit }: { hit: FileHit; label: Label; onEdit
       ) : null}
       {label.conditions.length > 0 ? <ConditionsLine conditions={label.conditions} /> : null}
       <RepeatLines hit={hit} label={label} />
+      <FileRunLine sha256={hit.sha256} />
       {label.followUp === null ? null : <FollowUpQuestion hit={hit} followUp={label.followUp} />}
       {check ? null : (
         <button type="button" onClick={onEdit} className={cn(quietAction, "justify-self-start")}>

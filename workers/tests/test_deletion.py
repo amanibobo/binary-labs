@@ -77,7 +77,53 @@ def everything_in(rt, conn, lab, tag):
             (lab.id, shas[0], f"Renamed {tag}"),
         )
     add_dropbox(conn, lab.id)
+    add_run(conn, lab, shas[0], tag)
     return shas
+
+
+def add_run(conn, lab, sha, tag):
+    """A failed run with a confirmed cause, a debrief, and a folder built while it was shared."""
+    with committed_as_user(conn, lab.user_id):
+        (run,) = conn.execute(
+            "select (create_run(%s, %s, %s) ->> 'id')::uuid",
+            (lab.id, [sha], Jsonb({"title": f"Run {tag}", "status": "failed"})),
+        ).fetchone()
+    (person,) = conn.execute(
+        "insert into people (lab_id, display_name) values (%s, %s) returning id",
+        (lab.id, f"PI {tag}"),
+    ).fetchone()
+    conn.execute(
+        "update runs set suspected_cause = 'old lysis buffer', confirmed_cause = 'buffer pH was 9',"
+        " confirmed_by = %s, confirm_method = 'control', confirmed_at = now(), share = true"
+        " where id = %s",
+        (person, run),
+    )
+    (debrief,) = conn.execute(
+        "insert into run_debriefs (run_id, lab_id) values (%s, %s) returning id", (run, lab.id)
+    ).fetchone()
+    conn.execute(
+        "insert into run_debrief_answers (debrief_id, lab_id, question, text, typed)"
+        " values (%s, %s, 1, %s, true)",
+        (debrief, lab.id, f"debrief only {tag} gave"),
+    )
+    conn.execute(
+        "update labs set sharing_agreed_at = now(), sharing_agreement = 'v1' where id = %s",
+        (lab.id,),
+    )
+    (grant,) = conn.execute(
+        "insert into run_log (lab_id, run_id, via, action) values (%s, %s, 'person',"
+        " 'export.allowed') returning id",
+        (lab.id, run),
+    ).fetchone()
+    (task,) = conn.execute(
+        "insert into task_exports (lab_id, run_id, grant_id, purpose) values (%s, %s, %s, 'task')"
+        " returning id",
+        (lab.id, run, grant),
+    ).fetchone()
+    conn.execute(
+        "insert into task_model_runs (task_id, lab_id, model) values (%s, %s, 'model-a')",
+        (task, lab.id),
+    )
 
 
 @pytest.fixture
@@ -237,6 +283,8 @@ def test_the_job_leaves_nothing_of_the_lab_but_the_deletion_record(rt, conn, lab
 
     assert counts is not None
     assert counts["file_locations"] == 3 and counts["protocols"] == 1 and counts["corrections"] == 1
+    assert counts["runs"] == 1 and counts["run_files"] == 1 and counts["run_debrief_answers"] == 1
+    assert counts["task_exports"] == 1 and counts["task_model_runs"] == 1 and counts["run_log"] >= 3
     assert counts["blobs"] == len(only_a) and counts["extractions"] == len(only_a)
     # One preview and the three files' own bytes, kept under the lab's prefix.
     assert counts["preview_files"] == 4 and counts["jobs"] == 1

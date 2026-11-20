@@ -9,8 +9,8 @@ import { describeRuns, startChart } from "../chart-guide";
 import { plotChart } from "../chart-geometry";
 import { ChartSpec, isXY, withType, type XYSpec } from "../charts";
 import { DataTables, mainTable, type DataTable } from "../data-tables";
-import { Sha256 } from "../ids";
-import { combineRuns, type RunInfo } from "../runs";
+import { RunId, Sha256 } from "../ids";
+import { combineRuns, howItWent, isFailed, type RunInfo } from "../runs";
 
 const doc = (json: unknown) => DataTables.parse(json);
 const main = (json: unknown): DataTable => {
@@ -25,7 +25,9 @@ const info = (n: number, outcome: RunInfo["outcome"] = "worked"): RunInfo => ({
   date: `2026-11-0${n}`,
   outcome,
   experiment: "E. coli growth",
+  run: null,
 });
+const RUN = RunId.parse("7d1c2c39-5a4e-4c55-9d7b-0c3c1a7d0001");
 const run1 = main(run1Json);
 const line = (): XYSpec => {
   const spec = startChart({ table: run1, tables: [run1], layout: null }, "line");
@@ -88,5 +90,33 @@ describe("runs on one chart", () => {
     const runsOf = (c: ChartSpec) => (isXY(c) ? c.runs : "not an x/y chart");
     expect(runsOf(withType(s, "scatter", run1, null))).toHaveLength(2);
     expect(runsOf(withType(s, "bar", run1, null))).toBeUndefined();
+  });
+});
+
+describe("how a run went", () => {
+  it("is what the file's label says while the file is in no run", () => {
+    expect(isFailed(info(1, "failed"))).toBe(true);
+    expect(isFailed(info(1, "worked"))).toBe(false);
+    expect(isFailed(undefined)).toBe(false);
+    expect(howItWent(info(1, "unclear"))).toBe("unclear");
+  });
+
+  it("is the run's status once the file belongs to a run, whatever the label says", () => {
+    expect(isFailed({ ...info(1, "worked"), run: { id: RUN, status: "failed" } })).toBe(true);
+    expect(isFailed({ ...info(1, "failed"), run: { id: RUN, status: "worked" } })).toBe(false);
+    expect(isFailed({ ...info(1, "failed"), run: { id: RUN, status: "odd" } })).toBe(false);
+    // A run nobody has marked hasn't failed, even if its file's label says so.
+    expect(isFailed({ ...info(1, "failed"), run: { id: RUN, status: null } })).toBe(false);
+    expect(howItWent({ ...info(1, "failed"), run: { id: RUN, status: null } })).toBeNull();
+  });
+
+  it("draws a file gray and dashed by its run's status", () => {
+    const spec: XYSpec = { ...line(), runs: [info(2).sha256, info(3).sha256] };
+    const c = combineRuns(spec, { run: info(1), table: run1 }, [
+      { run: { ...info(2, "worked"), run: { id: RUN, status: "failed" } }, doc: doc(run2Json) },
+      { run: { ...info(3, "failed"), run: { id: RUN, status: "worked" } }, doc: doc(run3Json) },
+    ]);
+    expect(c.spec.series.map((s) => s.name)).toEqual(["growth_flask_run1", "growth_flask_run2 (failed)", "growth_flask_run3"]);
+    expect(c.muted.size).toBe(1);
   });
 });

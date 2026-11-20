@@ -2,9 +2,9 @@ import type { ReactNode } from "react";
 import type { FolderPath } from "@/lib/folders";
 import type { IconProps } from "./icons/svg";
 import { CalendarIcon } from "./icons/calendar";
-import { BrowseIcon, FlagIcon, MapIcon, NeedsLookIcon, ProtocolIcon, SearchOutlineIcon, SettingsIcon, UploadIcon } from "./icons/drawn";
+import { BrowseIcon, FlagIcon, MapIcon, NeedsLookIcon, ProtocolIcon, RunIcon, SearchOutlineIcon, SettingsIcon, UploadIcon } from "./icons/drawn";
 
-export type Section = "search" | "browse" | "protocols" | "map" | "calendar" | "needs-look" | "flags" | "upload" | "lab";
+export type Section = "search" | "browse" | "runs" | "protocols" | "map" | "calendar" | "needs-look" | "flags" | "upload" | "lab";
 
 export type ShellLocation = { section: Section; folder?: FolderPath };
 
@@ -14,6 +14,7 @@ export type NavItem = { section: Section; href: string; label: string; Icon: (pr
 export const NAV = [
   { section: "search", href: "/", label: "Search", Icon: SearchOutlineIcon },
   { section: "browse", href: "/browse", label: "Browse", Icon: BrowseIcon },
+  { section: "runs", href: "/runs", label: "Runs", Icon: RunIcon },
   { section: "protocols", href: "/protocols", label: "Protocols", Icon: ProtocolIcon },
   { section: "map", href: "/map", label: "Map", Icon: MapIcon },
   { section: "calendar", href: "/calendar", label: "Calendar", Icon: CalendarIcon },

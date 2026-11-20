@@ -14,6 +14,7 @@ const run = (n: number, observed: number | null, extra: Partial<HistoryRun> = {}
     date: `2026-10-${String(10 + n * 2).padStart(2, "0")}`,
     outcome: "worked",
     experiment: "P450 purification",
+    run: null,
   },
   observed,
   result: observed === null ? "couldnt" : "passed",

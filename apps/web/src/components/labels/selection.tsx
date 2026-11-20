@@ -6,6 +6,7 @@ import { cn } from "@/lib/cn";
 import { formatDay } from "@/lib/format";
 import type { Sha256 } from "@/lib/ids";
 import { OUTCOME_CHOICES } from "@/lib/row-summary";
+import { MakeRunFromPicked } from "../runs/make-run";
 import { buttonVariants } from "../ui/button";
 import { useLabels, useLabLists, type LabeledFile } from "./labels-context";
 
@@ -156,6 +157,7 @@ export function BulkBar({ selection }: { selection: Selection }) {
           {plan !== null && changing > 0 ? " You can undo it." : null}
         </p>
       ) : null}
+      <MakeRunFromPicked shas={files.map((f) => f.sha256)} />
     </section>
   );
 }

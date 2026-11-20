@@ -123,7 +123,7 @@ function Readout({ plot, run, index }: { plot: HistoryPlot; run: HistoryRun; ind
       className="pointer-events-none absolute z-10 min-w-40 rounded-control border border-border-opaque bg-background-raised px-3 py-2 shadow-deep-below"
       style={{ top: plot.area.top, ...(onLeft ? { right: plot.width - x + 14 } : { left: x + 14 }) }}
     >
-      <p className="text-paragraph-xsmall text-content-tertiary">{[runDay(run.run), isFailed(run.run) ? "labeled failed" : null].filter(Boolean).join(" · ")}</p>
+      <p className="text-paragraph-xsmall text-content-tertiary">{[runDay(run.run), isFailed(run.run) ? (run.run.run === null ? "labeled failed" : "marked failed") : null].filter(Boolean).join(" · ")}</p>
       <p className="text-label-small text-content-primary">{runName(run.run)}</p>
       <p className="mt-0.5 text-paragraph-small text-content-primary tabular-nums">{run.observed === null ? "No value" : valueText(run.observed, run.unit)}</p>
       <p className="text-paragraph-xsmall text-content-secondary">
