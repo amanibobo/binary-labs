@@ -177,11 +177,11 @@ export async function inviteMember(_prev: InviteState, form: FormData): Promise<
   }
 }
 
-// The database checks the admin role and keeps an admin in the lab (BL801); removing someone
+// The database checks the admin role and keeps an admin in the lab (BL811); removing someone
 // deletes only their membership (0031_ask_and_settings.sql).
 function memberFailure(error: { code?: string }, verb: "remove" | "change"): string {
-  if (error.code === "BL801") return verb === "remove" ? "The lab needs an admin. Make someone else an admin first." : "The lab needs an admin. Make someone else an admin before changing this role.";
-  if (error.code === "BL802") return "That person isn't in the lab any more.";
+  if (error.code === "BL811") return verb === "remove" ? "The lab needs an admin. Make someone else an admin first." : "The lab needs an admin. Make someone else an admin before changing this role.";
+  if (error.code === "BL812") return "That person isn't in the lab any more.";
   return verb === "remove" ? "We couldn't remove them. Try again." : "We couldn't change that role. Try again.";
 }
 
@@ -191,7 +191,7 @@ export async function removeMember(rawUserId: string): Promise<ActionResult> {
   if (!target.success) return { kind: "error", message: "That person isn't in the lab any more." };
   const { error } = await supabase.rpc("remove_member", { p_lab_id: lab.id, p_user_id: target.data });
   if (error !== null) {
-    if (error.code !== "BL801" && error.code !== "BL802") logError("member.remove_failed", { labId: lab.id, error });
+    if (error.code !== "BL811" && error.code !== "BL812") logError("member.remove_failed", { labId: lab.id, error });
     return { kind: "error", message: memberFailure(error, "remove") };
   }
   if (target.data === user.id) {
@@ -211,7 +211,7 @@ export async function changeMemberRole(rawUserId: string, rawRole: string): Prom
   if (!target.success || !role.success) return { kind: "error", message: "That person isn't in the lab any more." };
   const { error } = await supabase.rpc("set_member_role", { p_lab_id: lab.id, p_user_id: target.data, p_role: role.data });
   if (error !== null) {
-    if (error.code !== "BL801" && error.code !== "BL802") logError("member.role_failed", { labId: lab.id, error });
+    if (error.code !== "BL811" && error.code !== "BL812") logError("member.role_failed", { labId: lab.id, error });
     return { kind: "error", message: memberFailure(error, "change") };
   }
   // Stepping down as admin changes what every page shows you.

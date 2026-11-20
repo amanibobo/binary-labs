@@ -56,7 +56,7 @@ describe("roles", () => {
   });
 
   it("keeps the last admin from stepping down, but not one of two", async () => {
-    expect(await code(() => call(dee, "set_member_role($1, $2, 'member')", [lab, dee]))).toBe("BL801");
+    expect(await code(() => call(dee, "set_member_role($1, $2, 'member')", [lab, dee]))).toBe("BL811");
     expect((await roles())[dee]).toBe("admin");
     await call(dee, "set_member_role($1, $2, 'admin')", [lab, eli]);
     await call(dee, "set_member_role($1, $2, 'member')", [lab, dee]);
@@ -68,7 +68,7 @@ describe("roles", () => {
   it("refuses members and other labs' admins", async () => {
     expect(await code(() => call(fay, "set_member_role($1, $2, 'admin')", [lab, fay]))).toBe("42501");
     expect(await code(() => call(gus, "set_member_role($1, $2, 'admin')", [lab, gus]))).toBe("42501");
-    expect(await code(() => call(dee, "set_member_role($1, $2, 'admin')", [lab, gus]))).toBe("BL802");
+    expect(await code(() => call(dee, "set_member_role($1, $2, 'admin')", [lab, gus]))).toBe("BL812");
   });
 });
 
@@ -87,7 +87,7 @@ describe("removing a member", () => {
   });
 
   it("keeps the last admin, and goes only through remove_member", async () => {
-    expect(await code(() => call(dee, "remove_member($1, $2)", [lab, dee]))).toBe("BL801");
+    expect(await code(() => call(dee, "remove_member($1, $2)", [lab, dee]))).toBe("BL811");
     expect(await code(() => call(eli, "remove_member($1, $2)", [lab, dee]))).toBe("42501");
     expect(await code(() => asRole(db, as(dee), () => db.query("delete from members where lab_id = $1 and user_id = $2", [lab, eli])))).toBe("42501");
     expect((await roles())[eli]).toBe("member");
