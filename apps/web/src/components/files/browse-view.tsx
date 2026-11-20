@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useId, useState } from "react";
 import { settingsHref } from "@/app/settings/sections";
 import type { FileHit } from "@/lib/domain";
+import type { LabLists } from "@/lib/label-edit";
+import { collapseNotes } from "@/lib/notes";
 import { cn } from "@/lib/cn";
 import { folderAncestors, folderHref, folderName, type FolderNode } from "@/lib/folders";
 import { countLine, formatSize, KIND_LABELS, openTarget } from "@/lib/format";
@@ -20,6 +22,8 @@ import { KindIcon } from "./kind-icon";
 import { PreviewPanel } from "./preview-panel";
 import { When } from "@/components/ui/when";
 import { FlagMark } from "../flags/flag-marks";
+import { LabelsProvider, LabListsProvider, useLabelPolling, useLabels } from "../labels/labels-context";
+import { BulkBar, SelectBox, SelectToggle, useSelection, type Selection } from "../labels/selection";
 
 export function BrowseView({
   labName,
@@ -27,53 +31,68 @@ export function BrowseView({
   initialFiles,
   source,
   isAdmin,
+  lists,
 }: {
   labName: string;
   folder: FolderNode;
   initialFiles: FileHit[];
   source: SourceState;
   isAdmin: boolean;
+  lists: LabLists;
 }) {
   const crumbs = folderAncestors(folder.path).map((path) => ({ label: path === "" ? labName : folderName(path), href: folderHref(path) }));
   const filesId = useId();
   return (
-    <>
-      <div className="border-b border-border-opaque">
-        <div className="mx-auto flex h-14 w-full max-w-6xl items-center px-4 sm:px-6">
-          <Breadcrumbs items={crumbs} />
+    <LabListsProvider value={lists}>
+      <LabelsProvider>
+        <div className="border-b border-border-opaque">
+          <div className="mx-auto flex h-14 w-full max-w-6xl items-center px-4 sm:px-6">
+            <Breadcrumbs items={crumbs} />
+          </div>
         </div>
+        <h1 className="sr-only">{folder.path === "" ? labName : folder.name}</h1>
+        <div className="mx-auto w-full max-w-6xl px-4 pt-8 pb-24 sm:px-6 sm:pt-10">
+          <ActiveScan initial={source} />
+          {folder.path === "" && folder.totalFiles === 0 ? (
+            <EmptyLab source={source} isAdmin={isAdmin} />
+          ) : (
+            <>
+              {folder.children.length > 0 ? (
+                <section aria-labelledby={`${filesId}-folders`} className="mb-12">
+                  <h2 id={`${filesId}-folders`} className="mb-5 text-heading-medium">
+                    Folders
+                  </h2>
+                  <ul className="grid grid-cols-2 gap-2 sm:grid-cols-[repeat(auto-fill,minmax(230px,1fr))] sm:gap-4">
+                    {folder.children.map((child) => (
+                      <li key={child.path}>
+                        <FolderCard folder={child} />
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ) : null}
+              <FilesSection folder={folder} initialFiles={initialFiles} headingId={`${filesId}-files`} />
+            </>
+          )}
+        </div>
+      </LabelsProvider>
+    </LabListsProvider>
+  );
+}
+
+function FilesSection({ folder, initialFiles, headingId }: { folder: FolderNode; initialFiles: FileHit[]; headingId: string }) {
+  const selection = useSelection();
+  return (
+    <section aria-labelledby={headingId}>
+      <div className="mb-5 flex items-baseline justify-between gap-4">
+        <h2 id={headingId} className="text-heading-medium">
+          Files
+        </h2>
+        {folder.directFiles > 0 ? <SelectToggle selection={selection} /> : null}
       </div>
-      <h1 className="sr-only">{folder.path === "" ? labName : folder.name}</h1>
-      <div className="mx-auto w-full max-w-6xl px-4 pt-8 pb-24 sm:px-6 sm:pt-10">
-        <ActiveScan initial={source} />
-        {folder.path === "" && folder.totalFiles === 0 ? (
-          <EmptyLab source={source} isAdmin={isAdmin} />
-        ) : (
-          <>
-            {folder.children.length > 0 ? (
-              <section aria-labelledby={`${filesId}-folders`} className="mb-12">
-                <h2 id={`${filesId}-folders`} className="mb-5 text-heading-medium">
-                  Folders
-                </h2>
-                <ul className="grid grid-cols-2 gap-2 sm:grid-cols-[repeat(auto-fill,minmax(230px,1fr))] sm:gap-4">
-                  {folder.children.map((child) => (
-                    <li key={child.path}>
-                      <FolderCard folder={child} />
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            ) : null}
-            <section aria-labelledby={`${filesId}-files`}>
-              <h2 id={`${filesId}-files`} className="mb-5 text-heading-medium">
-                Files
-              </h2>
-              <FilesTable folder={folder} initialFiles={initialFiles} />
-            </section>
-          </>
-        )}
-      </div>
-    </>
+      <FilesTable folder={folder} initialFiles={initialFiles} selection={selection} />
+      <BulkBar selection={selection} />
+    </section>
   );
 }
 
@@ -92,7 +111,7 @@ function FolderCard({ folder }: { folder: FolderNode }) {
   );
 }
 
-function FilesTable({ folder, initialFiles }: { folder: FolderNode; initialFiles: FileHit[] }) {
+function FilesTable({ folder, initialFiles, selection }: { folder: FolderNode; initialFiles: FileHit[]; selection: Selection }) {
   const api = useLabApi();
   const [expanded, setExpanded] = useState<string | null>(null);
   const files = useInfiniteQuery({
@@ -106,9 +125,12 @@ function FilesTable({ folder, initialFiles }: { folder: FolderNode; initialFiles
     },
     staleTime: 60_000,
   });
-  const rows = files.data.pages.flat();
+  const loaded = files.data.pages.flat();
+  // A note is one row, its first page, like in Search; the pages it holds stay out of the list.
+  const rows = collapseNotes(loaded, []);
+  useLabelPolling(rows);
 
-  if (rows.length === 0) {
+  if (loaded.length === 0) {
     return (
       <p className="text-paragraph-medium text-content-tertiary">
         {folder.children.length > 0 ? "No files directly in this folder. Open a folder above." : "No files in this folder."}
@@ -143,47 +165,56 @@ function FilesTable({ folder, initialFiles }: { folder: FolderNode; initialFiles
               hit={hit}
               expanded={expanded === hit.locations[0].id}
               onToggle={() => setExpanded((cur) => (cur === hit.locations[0].id ? null : hit.locations[0].id))}
+              selection={selection}
             />
           ))}
         </tbody>
       </DataTable>
       {files.hasNextPage ? (
         <Button variant="secondary" className="mt-4" disabled={files.isFetchingNextPage} onClick={() => void files.fetchNextPage()}>
-          {files.isFetchingNextPage ? "Loading more files" : `Show more files (${rows.length} of ${folder.directFiles})`}
+          {files.isFetchingNextPage ? "Loading more files" : `Show more files (${loaded.length} of ${folder.directFiles})`}
         </Button>
       ) : null}
     </>
   );
 }
 
-function FileRow({ hit, expanded, onToggle }: { hit: FileHit; expanded: boolean; onToggle: () => void }) {
+function FileRow({ hit, expanded, onToggle, selection }: { hit: FileHit; expanded: boolean; onToggle: () => void; selection: Selection }) {
   const panelId = useId();
   const location = hit.locations[0];
   const open = openTarget(location);
+  const label = useLabels().labelOf(hit);
+  const note = label?.note ?? null;
+  // A note reads as what it is ("HeLa drug A notebook, 12 pages"), not as its first page's file.
+  const name = note === null ? location.originalName : (label?.cleanName ?? location.originalName);
+  const kind = note === null ? KIND_LABELS[hit.fileKind] : `Note, ${note.pages.length} pages`;
   return (
     <>
       <tr className={cn(dataRow, dataRowInteractive, "group")}>
         <DataCell className="py-0">
-          <button
-            type="button"
-            aria-expanded={expanded}
-            aria-controls={panelId}
-            onClick={onToggle}
-            className="flex min-h-14 w-full min-w-0 items-center gap-3 text-left after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:rounded-sm focus-visible:after:outline-2 focus-visible:after:-outline-offset-2 focus-visible:after:outline-border-accent"
-          >
-            <KindIcon kind={hit.fileKind} className="size-5" />
-            <span className="min-w-0">
-              <span className="flex min-w-0 items-center gap-2">
-                <span className="truncate font-mono text-label-small text-content-primary">{location.originalName}</span>
-                <FlagMark sha={hit.sha256} className="shrink-0 max-sm:h-6" />
+          <span className="flex min-w-0 items-center gap-3">
+            <SelectBox selection={selection} file={hit} name={name} />
+            <button
+              type="button"
+              aria-expanded={expanded}
+              aria-controls={panelId}
+              onClick={onToggle}
+              className="flex min-h-14 w-full min-w-0 items-center gap-3 text-left after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:rounded-sm focus-visible:after:outline-2 focus-visible:after:-outline-offset-2 focus-visible:after:outline-border-accent"
+            >
+              <KindIcon kind={hit.fileKind} className="size-5" />
+              <span className="min-w-0">
+                <span className="flex min-w-0 items-center gap-2">
+                  <span className={cn("truncate text-label-small text-content-primary", note === null && "font-mono")}>{name}</span>
+                  <FlagMark sha={hit.sha256} className="shrink-0 max-sm:h-6" />
+                </span>
+                <span className="mt-0.5 block text-paragraph-xsmall text-content-tertiary sm:hidden">
+                  {kind} · <When iso={location.modifiedAt} />
+                </span>
               </span>
-              <span className="mt-0.5 block text-paragraph-xsmall text-content-tertiary sm:hidden">
-                {KIND_LABELS[hit.fileKind]} · <When iso={location.modifiedAt} />
-              </span>
-            </span>
-          </button>
+            </button>
+          </span>
         </DataCell>
-        <DataCell className="text-paragraph-small text-content-secondary max-md:hidden">{KIND_LABELS[hit.fileKind]}</DataCell>
+        <DataCell className="text-paragraph-small text-content-secondary max-md:hidden">{kind}</DataCell>
         <DataCell className="text-paragraph-small text-content-secondary tabular-nums max-sm:hidden"><When iso={location.modifiedAt} /></DataCell>
         <DataCell className="text-right text-paragraph-small text-content-secondary tabular-nums max-md:hidden">{formatSize(hit.size)}</DataCell>
         <DataCell className="py-0 pr-2 sm:pr-3">
@@ -209,7 +240,7 @@ function FileRow({ hit, expanded, onToggle }: { hit: FileHit; expanded: boolean;
         <tr className="bg-background-secondary">
           <td colSpan={5} className="p-0">
             <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} className="overflow-hidden">
-              <PreviewPanel id={panelId} hit={hit} query="" className="px-4 pt-2 pb-6 sm:pr-5 sm:pl-13" />
+              <PreviewPanel id={panelId} hit={hit} query="" note={note} className="px-4 pt-2 pb-6 sm:pr-5 sm:pl-13" />
             </motion.div>
           </td>
         </tr>

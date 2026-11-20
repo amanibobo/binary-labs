@@ -142,6 +142,26 @@ export function FixtureLabApi({
       await wait(150);
       return labels.undo(id);
     },
+    correctLabels: async (shas, change) => {
+      await wait(200);
+      return labels.correctMany(shas, change);
+    },
+    undoLabelBatch: async (id) => {
+      await wait(150);
+      return labels.undoBatch(id);
+    },
+    skipQuestion: async (sha, skipped) => {
+      await wait(120);
+      return labels.skip(sha, skipped);
+    },
+    linkRepeat: async (sha, repeatOf) => {
+      await wait(150);
+      return labels.link(sha, repeatOf);
+    },
+    repeatCandidates: async (sha, query, signal) => {
+      await wait(100, signal);
+      return labels.candidates(sha, query);
+    },
     changeNote: async () => {
       await wait(150);
     },

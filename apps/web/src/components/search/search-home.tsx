@@ -18,6 +18,7 @@ import { RecentQuestions, useAsk, type AskHome } from "../ask/ask-home";
 import { GettingStartedCard } from "../onboarding/getting-started";
 import { useOnboarding } from "../onboarding/onboarding-context";
 import { LabelsProvider, LabListsProvider, useLabelPolling } from "../labels/labels-context";
+import { BulkBar, SelectToggle, useSelection, type Selection } from "../labels/selection";
 import { ActiveScan } from "../scan-status";
 import { buttonVariants } from "../ui/button";
 import { Skeleton } from "../ui/skeleton";
@@ -48,6 +49,7 @@ export function SearchHome({
   const [filters, setFilters] = useState<SearchFilters>({});
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(urlOpen);
+  const selection = useSelection();
   const inputId = useId();
   const input = useRef<HTMLInputElement>(null);
   const results = useRef<HTMLElement>(null);
@@ -165,7 +167,15 @@ export function SearchHome({
               />
             ) : null}
             {searching ? (
-              <SearchResults search={search} query={search.settledQuery} expanded={expanded} onToggle={toggle} headingId={headingId} filtered={hasFilters(filters)} />
+              <SearchResults
+                search={search}
+                query={search.settledQuery}
+                expanded={expanded}
+                onToggle={toggle}
+                headingId={headingId}
+                filtered={hasFilters(filters)}
+                selection={selection}
+              />
             ) : (
               <RecentFiles
                 recent={recent.filter((hit) => matchesFilters(hit, filters))}
@@ -175,8 +185,10 @@ export function SearchHome({
                 expanded={expanded}
                 onToggle={toggle}
                 headingId={headingId}
+                selection={selection}
               />
             )}
+            <BulkBar selection={selection} />
           </section>
         </div>
       </LabelsProvider>
@@ -212,6 +224,7 @@ function SearchResults({
   onToggle,
   headingId,
   filtered,
+  selection,
 }: {
   search: ReturnType<typeof useFileSearch>;
   query: string;
@@ -219,6 +232,7 @@ function SearchResults({
   onToggle: (sha: Sha256) => void;
   headingId: string;
   filtered: boolean;
+  selection: Selection;
 }) {
   const { data, isError, isPlaceholderData, refetch } = search;
   useLabelPolling(data?.results ?? []);
@@ -244,7 +258,10 @@ function SearchResults({
         <h2 id={headingId} className="text-label-small text-content-tertiary" aria-live="polite">
           {count === 0 ? `No ${noun[1]}` : count === 1 ? `1 ${noun[0]}` : `${count} ${noun[1]}`}
         </h2>
-        {data.kind === "keyword" ? <p className="text-paragraph-xsmall text-content-tertiary">Showing exact word matches only right now.</p> : <KeysHint />}
+        <span className="flex items-baseline gap-3">
+          {data.kind === "keyword" ? <p className="text-paragraph-xsmall text-content-tertiary">Showing exact word matches only right now.</p> : <KeysHint />}
+          {count > 0 ? <SelectToggle selection={selection} /> : null}
+        </span>
       </div>
       {count === 0 ? (
         <p className="px-3 pt-2 text-paragraph-medium text-content-secondary">
@@ -253,7 +270,14 @@ function SearchResults({
       ) : (
         <ul data-tour="results" className="space-y-1">
           {data.results.map((hit) => (
-            <FileResult key={hit.sha256} hit={hit} query={query} expanded={expanded === hit.sha256} onToggle={() => onToggle(hit.sha256)} />
+            <FileResult
+              key={hit.sha256}
+              hit={hit}
+              query={query}
+              expanded={expanded === hit.sha256}
+              onToggle={() => onToggle(hit.sha256)}
+              selection={selection}
+            />
           ))}
         </ul>
       )}
@@ -265,7 +289,7 @@ function SearchResults({
 function KeysHint() {
   return (
     <p className="text-paragraph-xsmall text-content-tertiary max-md:hidden pointer-coarse:hidden" aria-hidden>
-      ↑ ↓ to move, Enter opens, E edits labels, C charts a data sheet
+      ↑ ↓ to move, Enter opens, E edits labels, C charts a data sheet, X picks
     </p>
   );
 }
@@ -309,6 +333,7 @@ function RecentFiles({
   expanded,
   onToggle,
   headingId,
+  selection,
 }: {
   recent: FileHit[];
   source: SourceState;
@@ -317,6 +342,7 @@ function RecentFiles({
   expanded: string | null;
   onToggle: (sha: Sha256) => void;
   headingId: string;
+  selection: Selection;
 }) {
   useLabelPolling(recent);
   if (recent.length === 0) {
@@ -335,11 +361,21 @@ function RecentFiles({
         <h2 id={headingId} className="text-label-small text-content-tertiary">
           Recent files
         </h2>
-        <KeysHint />
+        <span className="flex items-baseline gap-3">
+          <KeysHint />
+          <SelectToggle selection={selection} />
+        </span>
       </div>
       <ul data-tour="results" className="space-y-1">
         {recent.map((hit) => (
-          <FileResult key={hit.sha256} hit={hit} query="" expanded={expanded === hit.sha256} onToggle={() => onToggle(hit.sha256)} />
+          <FileResult
+            key={hit.sha256}
+            hit={hit}
+            query=""
+            expanded={expanded === hit.sha256}
+            onToggle={() => onToggle(hit.sha256)}
+            selection={selection}
+          />
         ))}
       </ul>
     </>

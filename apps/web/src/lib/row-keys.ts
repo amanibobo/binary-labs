@@ -25,10 +25,11 @@ export function rowStep({ key, index, count }: { key: RowKey; index: number; cou
   }
 }
 
-// Letters on a file row: E edits its labels and C makes a chart from a data sheet. They never
-// fire while someone types in a field, with Ctrl, Alt or Cmd held (the browser's shortcuts stay
-// its own), or while a key repeats.
-export type RowShortcut = "edit" | "chart";
+// Letters on a file row: E edits its labels, C makes a chart from a data sheet and X picks the
+// row to change with others (where rows can be picked). They never fire while someone types in
+// a field, with Ctrl, Alt or Cmd held (the browser's shortcuts stay its own), or while a key
+// repeats.
+export type RowShortcut = "edit" | "chart" | "select";
 
 export function rowShortcut({
   key,
@@ -36,12 +37,14 @@ export function rowShortcut({
   repeat,
   typing,
   sheet,
+  selectable = false,
 }: {
   key: string;
   modified: boolean;
   repeat: boolean;
   typing: boolean;
   sheet: boolean;
+  selectable?: boolean;
 }): RowShortcut | null {
   if (modified || repeat || typing) return null;
   switch (key.toLowerCase()) {
@@ -49,6 +52,8 @@ export function rowShortcut({
       return "edit";
     case "c":
       return sheet ? "chart" : null;
+    case "x":
+      return selectable ? "select" : null;
     default:
       return null;
   }

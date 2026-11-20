@@ -211,6 +211,10 @@ describe("notes", () => {
     const cover = hit(p1?.sha256 ?? sha("0"), { ...plate3, note: n });
     expect(collapseNotes([page2, lone, page3], [cover]).map((h) => h.sha256)).toEqual([p1?.sha256, sha("f")]);
     expect(collapseNotes([page2, lone], []).map((h) => h.sha256)).toEqual([p2?.sha256, sha("f")]);
+    // Without its first page, a note still shows once, as the first page the list holds.
+    expect(collapseNotes([page2, lone, page3], []).map((h) => h.sha256)).toEqual([p2?.sha256, sha("f")]);
+    // A cover the list holds itself stands for the note, where its first page appeared.
+    expect(collapseNotes([page3, lone, cover], []).map((h) => h.sha256)).toEqual([p1?.sha256, sha("f")]);
   });
 
   it("lose a page with the rest moving up, and split when one is left", () => {

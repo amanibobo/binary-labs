@@ -3,7 +3,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { createContext, use, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
-import type { FileHit, FileLabel, Label, NoteInfo } from "@/lib/domain";
+import { planBulk, undoLine, type BatchId, type BulkChange, type BulkPlan } from "@/lib/bulk-labels";
+import type { FileHit, FileLabel, FileRef, Label, NoteInfo } from "@/lib/domain";
 import type { Sha256 } from "@/lib/ids";
 import { MAX_POLLED_SHAS } from "@/lib/labels";
 import {
@@ -42,6 +43,12 @@ type Labels = {
   merge: (labels: readonly FileLabel[]) => void;
   // After a note is kept, split or loses a page, the row shows it before the next load.
   setNote: (hit: LabeledFile, note: NoteInfo | null) => void;
+  // One change to many files at once, undone together from its toast. Returns what it changed.
+  editMany: (hits: readonly LabeledFile[], change: BulkChange, title: string) => BulkPlan;
+  // Stops asking a voice note's question; the toast's Undo asks it again.
+  skipQuestion: (hit: LabeledFile) => void;
+  // Links a repeat run to the run it repeats, or unlinks it (null); the toast undoes it.
+  linkRepeat: (hit: LabeledFile, repeatOf: FileRef | null) => void;
 };
 
 // What labels need of a file: its hash and the label it was loaded with. A search hit is one;
@@ -115,6 +122,36 @@ export function LabelsProvider({ children }: { children: ReactNode }) {
     });
   }
 
+  function undoMany(batchId: BatchId, entries: readonly UndoEntry[]) {
+    const targets = entries.flatMap((e) => {
+      const target = undoTarget(e, showing(e.sha256, null));
+      return target === null ? [] : [{ entry: e, target }];
+    });
+    for (const { entry, target } of targets) write(entry.sha256, target, null);
+    void (async () => {
+      try {
+        const result = await api.undoLabelBatch(batchId);
+        for (const u of result.undone) write(u.sha256, u.label, null);
+        // Files changed since keep what the server has; put back what this undo assumed.
+        const undone = new Set(result.undone.map((u) => u.sha256));
+        for (const { entry, target } of targets) {
+          if (!undone.has(entry.sha256) && sameLabel(showing(entry.sha256, null), target)) write(entry.sha256, entry.after, null);
+        }
+        toast(undoLine(result));
+      } catch (error) {
+        for (const { entry, target } of targets) if (sameLabel(showing(entry.sha256, null), target)) write(entry.sha256, entry.after, null);
+        toast.error(error instanceof Error ? error.message : "We couldn't undo that.");
+      }
+    })();
+  }
+
+  // The other runs a link touches show it too: their labels come back from the server.
+  async function refresh(shas: readonly Sha256[]) {
+    if (shas.length === 0) return;
+    const found = await api.fileLabels(shas, new AbortController().signal).catch(() => []);
+    for (const { sha256, label } of found) write(sha256, label, null);
+  }
+
   const labels: Labels = {
     labelOf: (hit) => learned.get(hit.sha256) ?? hit.label,
     edit: (hit, edit, message) => {
@@ -144,6 +181,91 @@ export function LabelsProvider({ children }: { children: ReactNode }) {
     setNote: (hit, note) => {
       const before = showing(hit.sha256, hit.label);
       if (before !== null) write(hit.sha256, { ...before, note }, hit.label);
+    },
+    editMany: (hits, change, title) => {
+      const items = hits.map((hit) => ({ sha256: hit.sha256, label: showing(hit.sha256, hit.label) }));
+      const plan = planBulk(items, change);
+      if (plan.changes.length === 0) return plan;
+      const fallback = new Map(hits.map((h) => [h.sha256, h.label]));
+      const optimistic = plan.changes.map((c) => ({ ...c, optimistic: optimisticLabel(c.before, c.draft) }));
+      for (const c of optimistic) write(c.sha256, c.optimistic, fallback.get(c.sha256) ?? null);
+      const revert = () => {
+        for (const c of optimistic) {
+          const back = revertTarget({ showing: showing(c.sha256, null), optimistic: c.optimistic, before: c.before });
+          if (back !== null) write(c.sha256, back, null);
+        }
+      };
+      void (async () => {
+        try {
+          const saved = await api.correctLabels(
+            optimistic.map((c) => c.sha256),
+            change,
+          );
+          const bySha = new Map(saved.changed.map((c) => [c.sha256, c]));
+          const entries: UndoEntry[] = [];
+          for (const c of optimistic) {
+            const got = bySha.get(c.sha256);
+            if (got === undefined) {
+              // The server found it already changed; show what it has.
+              const back = revertTarget({ showing: showing(c.sha256, null), optimistic: c.optimistic, before: c.before });
+              if (back !== null) write(c.sha256, back, null);
+              continue;
+            }
+            if (sameLabel(showing(c.sha256, null), c.optimistic)) write(c.sha256, got.label, null);
+            entries.push({ correctionId: got.correctionId, sha256: c.sha256, before: c.before, after: got.label });
+          }
+          const batchId = saved.batchId;
+          const count = entries.length === 1 ? "1 file" : `${entries.length} files`;
+          if (batchId === null) toast("Nothing needed changing");
+          else toast(`${title} on ${count}`, { action: { label: "Undo", onClick: () => undoMany(batchId, entries) } });
+        } catch (error) {
+          revert();
+          toast.error(error instanceof Error ? error.message : "We couldn't save that. Try again.");
+        }
+      })();
+      return plan;
+    },
+    skipQuestion: (hit) => {
+      const before = showing(hit.sha256, hit.label);
+      if (before === null || before.followUp === null) return;
+      const optimistic = { ...before, followUp: null };
+      write(hit.sha256, optimistic, hit.label);
+      const ask = (skipped: boolean, message: string) =>
+        enqueue(hit.sha256, async () => {
+          try {
+            const label = await api.skipQuestion(hit.sha256, skipped);
+            write(hit.sha256, label, null);
+            if (skipped) toast(message, { action: { label: "Undo", onClick: () => ask(false, "") } });
+          } catch (error) {
+            if (skipped && sameLabel(showing(hit.sha256, null), optimistic)) write(hit.sha256, before, null);
+            toast.error(error instanceof Error ? error.message : "We couldn't save that. Try again.");
+          }
+        });
+      ask(true, "Question skipped");
+    },
+    linkRepeat: (hit, repeatOf) => {
+      const before = showing(hit.sha256, hit.label);
+      if (before === null || before.repeatOf?.sha256 === repeatOf?.sha256) return;
+      const previous = before.repeatOf;
+      write(hit.sha256, { ...before, repeatOf }, hit.label);
+      // `from` is what the file was linked to before; both runs' labels change.
+      const link = (to: FileRef | null, from: FileRef | null, offerUndo: boolean) =>
+        enqueue(hit.sha256, async () => {
+          try {
+            const label = await api.linkRepeat(hit.sha256, to?.sha256 ?? null);
+            write(hit.sha256, label, null);
+            await refresh([to?.sha256, from?.sha256].filter((s): s is Sha256 => s !== undefined));
+            if (offerUndo) {
+              const message = to === null ? "Link removed" : `Linked to “${to.name}”`;
+              toast(message, { action: { label: "Undo", onClick: () => link(from, to, false) } });
+            }
+          } catch (error) {
+            const now = showing(hit.sha256, null);
+            if (now !== null && now.repeatOf?.sha256 === to?.sha256) write(hit.sha256, { ...now, repeatOf: from }, null);
+            toast.error(error instanceof Error ? error.message : "We couldn't save that. Try again.");
+          }
+        });
+      link(repeatOf, previous, true);
     },
     merge: (polled) => {
       for (const { sha256, label } of polled) {

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { IsoDate, LabelOutcome, LabelRow, LabelWire, type ExperimentRef, type Label, type PersonRef } from "./domain";
 import { CorrectionId, ExperimentId, PersonId, Sha256, type LabId } from "./ids";
-import { draftOf, type LabelDraft } from "./label-edit";
+import { DATE_HINT, draftOf, parseDate, type LabelDraft, type LabLists } from "./label-edit";
 import { OUTCOME_CHOICES } from "./row-summary";
 
 // One change to many files' labels at once: a field and the value every chosen file gets.
@@ -48,6 +48,59 @@ export function bulkDraft(label: Label | null, change: BulkChange): BulkStep {
       return set({ ...current, tags: current.tags.filter((t) => t !== change.value) }, !current.tags.includes(change.value));
     default: {
       const _exhaustive: never = change;
+      return _exhaustive;
+    }
+  }
+}
+
+export const BULK_FIELDS: readonly { field: BulkField; text: string }[] = [
+  { field: "experiment", text: "Experiment" },
+  { field: "person", text: "Person" },
+  { field: "outcome", text: "Outcome" },
+  { field: "date", text: "Date" },
+  { field: "instrument", text: "Instrument" },
+  { field: "add_tag", text: "Add a tag" },
+  { field: "remove_tag", text: "Remove a tag" },
+];
+
+// The value control's raw text. For experiment, person and outcome it's a choice: CLEAR for
+// "nothing", an id or outcome otherwise, "" for none picked yet.
+export const CLEAR = "-";
+
+export type ChangeInput = { kind: "ok"; change: BulkChange } | { kind: "incomplete" } | { kind: "invalid"; message: string };
+
+// What the person picked or typed, as a change.
+export function changeFrom(field: BulkField, raw: string, lists: LabLists): ChangeInput {
+  const text = raw.trim().replace(/\s+/g, " ");
+  if (text === "") return { kind: "incomplete" };
+  const cleared = text === CLEAR;
+  switch (field) {
+    case "experiment": {
+      if (cleared) return { kind: "ok", change: { field, value: null } };
+      const found = lists.experiments.find((e) => e.id === text);
+      return found === undefined ? { kind: "incomplete" } : { kind: "ok", change: { field, value: { id: found.id, name: found.name } } };
+    }
+    case "person": {
+      if (cleared) return { kind: "ok", change: { field, value: null } };
+      const found = lists.people.find((p) => p.id === text);
+      return found === undefined ? { kind: "incomplete" } : { kind: "ok", change: { field, value: { id: found.id, name: found.name } } };
+    }
+    case "outcome": {
+      if (cleared) return { kind: "ok", change: { field, value: null } };
+      const parsed = LabelOutcome.safeParse(text);
+      return parsed.success ? { kind: "ok", change: { field, value: parsed.data } } : { kind: "incomplete" };
+    }
+    case "date": {
+      const parsed = parseDate(text);
+      return parsed.kind === "date" ? { kind: "ok", change: { field, value: parsed.date } } : { kind: "invalid", message: DATE_HINT };
+    }
+    case "instrument":
+      return text.length > 120 ? { kind: "invalid", message: "Keep the instrument under 120 characters." } : { kind: "ok", change: { field, value: text } };
+    case "add_tag":
+    case "remove_tag":
+      return text.length > 200 ? { kind: "invalid", message: "Keep a tag under 200 characters." } : { kind: "ok", change: { field, value: text } };
+    default: {
+      const _exhaustive: never = field;
       return _exhaustive;
     }
   }

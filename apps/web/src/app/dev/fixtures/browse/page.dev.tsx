@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { BrowseView } from "@/components/files/browse-view";
-import { doneSource, fixtureShell, folderFixtureFiles } from "@/fixtures/data";
+import { doneSource, experiments, fixtureShell, folderFixtureFiles, people } from "@/fixtures/data";
 import { FixtureLabApi } from "@/fixtures/fixture-api";
 import { requireFixtures, type FixtureProps } from "@/fixtures/gate";
 import { buildFolderTree, FolderPath } from "@/lib/folders";
@@ -22,6 +22,7 @@ export default async function BrowseFixture({ searchParams }: FixtureProps) {
           initialFiles={folderFixtureFiles(path.data, 0)}
           source={doneSource}
           isAdmin
+          lists={{ experiments, people }}
         />
       </AppShell>
     </FixtureLabApi>
