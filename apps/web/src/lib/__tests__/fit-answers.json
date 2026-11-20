@@ -1,0 +1,15 @@
+{
+  "workedExample": {
+    "fixture": "viability_drugA",
+    "plateRows": ["B", "C", "D"],
+    "blankColumn": "1",
+    "doses": { "3": 100, "4": 20, "5": 4, "6": 0.8, "7": 0.16 },
+    "blank": 0.0543,
+    "ic50": 2.35,
+    "ciLow": 2.14,
+    "ciHigh": 2.59,
+    "hill": -1.24,
+    "top": 1.05,
+    "bottom": 0.145
+  }
+}

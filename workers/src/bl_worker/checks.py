@@ -15,6 +15,8 @@ from collections.abc import Callable, Iterable, Iterator, Sequence
 from dataclasses import dataclass
 from typing import Any, Literal
 
+from bl_worker import fits
+
 Outcome = Literal["passed", "flagged", "couldnt"]
 
 MIN_POINTS = 3
@@ -324,8 +326,14 @@ def _number_column(c: Column) -> Result | None:
 # The four kinds of check ------------------------------------------------------------------
 
 
+CurveFit = Literal["line", "log_line", "4pl"]
+CurveMeasure = Literal["r2", "midpoint", "outside"]
+
+
 def curve_fit(check: dict[str, Any], file: FileTables) -> Result:
-    """R² of a straight line through the standards, by least squares."""
+    """A standard or dose-response curve: the R² of its fit (a straight line, a straight line on
+    log concentration, or a 4PL), the 4PL's IC50 or EC50, or how many samples read outside the
+    standards. Checks saved before fits had a choice carry neither key: a line's R²."""
     picked = _columns(
         file,
         check["sheet"],
@@ -341,24 +349,148 @@ def curve_fit(check: dict[str, Any], file: FileTables) -> Result:
     for c in (x, y):
         if (bad := _number_column(c)) is not None:
             return bad
+    fit: CurveFit = check.get("fit", "line")
+    measure: CurveMeasure = check.get("measure", "r2")
     pairs = _pairs(x, y, table.rows)
+    if measure == "outside":
+        return _samples_outside(check, file, table, x, y, pairs)
+    if fit != "line":
+        below = next((p for p in pairs if p[1] < 0), None)
+        if below is not None:
+            return couldnt(
+                f"“{x.label}” is below zero in row {below[0] + 1}, and a log scale has no place"
+                " for it."
+            )
+        # Zero is the blank or the untreated control, which a log scale leaves out.
+        pairs = [(i, math.log10(a), b) for i, a, b in pairs if a > 0]
+    if fit == "4pl":
+        return _dose_curve(check, file, table, x, y, pairs, measure)
     if len(pairs) < MIN_POINTS:
         return couldnt(
             f"Only {len(pairs)} standards have both a concentration and a reading; a fit needs"
             f" {MIN_POINTS}."
         )
-    n = len(pairs)
-    mx = sum(p[1] for p in pairs) / n
-    my = sum(p[2] for p in pairs) / n
-    sxx = sum((p[1] - mx) ** 2 for p in pairs)
-    syy = sum((p[2] - my) ** 2 for p in pairs)
-    sxy = sum((p[1] - mx) * (p[2] - my) for p in pairs)
+    xs, ys = [p[1] for p in pairs], [p[2] for p in pairs]
     # Flat to within rounding: subtracting the mean leaves crumbs of float error, not variation.
-    if sxx <= 1e-12 * sum(p[1] ** 2 for p in pairs) or syy <= 1e-12 * sum(p[2] ** 2 for p in pairs):
+    mx, my = sum(xs) / len(xs), sum(ys) / len(ys)
+    if sum((v - mx) ** 2 for v in xs) <= 1e-12 * sum(v * v for v in xs) or sum(
+        (v - my) ** 2 for v in ys
+    ) <= 1e-12 * sum(v * v for v in ys):
         return couldnt("The standards don't vary, so there's no line to fit.")
-    r2 = round(sxy * sxy / (sxx * syy), 4)
+    line = fits.fit_line(xs, ys)
+    assert line is not None
     source = Cells(file.sha256, table.name, (x.id, y.id), tuple(p[0] for p in pairs))
-    return judged(check, r2, check["unit"], source)
+    return judged(check, round(line.r2, 4), check["unit"], source)
+
+
+def _dose_curve(
+    check: dict[str, Any],
+    file: FileTables,
+    table: Table,
+    x: Column,
+    y: Column,
+    pairs: list[tuple[int, float, float]],
+    measure: CurveMeasure,
+) -> Result:
+    """The 4PL fitted to every row, as the dose-response chart fits every well. Its refusals
+    are the chart's, so a check never reports an IC50 the chart wouldn't."""
+    found = fits.fit_dose([p[1] for p in pairs], [p[2] for p in pairs])
+    term = "IC50" if measure == "midpoint" else "curve"
+    if isinstance(found, fits.DoseRefusal):
+        match found.kind:
+            case "too-few":
+                return couldnt(
+                    f"A four-parameter curve needs at least 5 concentrations above zero, and"
+                    f" “{x.label}” has {found.doses}."
+                )
+            case "no-fit":
+                return couldnt("The curve couldn't be fitted to these readings.")
+            case "flat":
+                return couldnt(
+                    f"“{y.label}” hardly changes with the dose (a curve fits no better than a flat"
+                    f" line), so there's no {term} to check."
+                )
+            case "step":
+                lo, hi = found.between or (0.0, 0.0)
+                return couldnt(
+                    f"The readings jump between {tidy(10**lo, 3):g} and {tidy(10**hi, 3):g} with no"
+                    f" dose in between, so the {term} can't be measured."
+                )
+    source = Cells(file.sha256, table.name, (x.id, y.id), tuple(p[0] for p in pairs))
+    if measure == "r2":
+        return judged(check, round(found.r2, 4), check["unit"], source)
+    lo, hi = 10 ** min(p[1] for p in pairs), 10 ** max(p[1] for p in pairs)
+    mid = 10 ** found.params[2]
+    tested = f"{tidy(lo, 3):g} to {tidy(hi, 3):g}{f' {x.unit}' if x.unit else ''}"
+    name = "EC50" if found.params[3] > 0 else "IC50"
+    if mid < lo or mid > hi:
+        return couldnt(
+            f"The {name} falls {'below' if mid < lo else 'above'} the doses tested"
+            f" ({tested}), so it isn't measured."
+        )
+    ci = found.log_mid_ci
+    if ci is None or 10 ** ci[0] < lo or 10 ** ci[1] > hi:
+        return couldnt(
+            f"The {name}'s 95% range runs past the doses tested ({tested}), so it isn't"
+            " pinned down."
+        )
+    return judged(check, tidy(mid), check["unit"] or x.unit, source)
+
+
+def _samples_table(
+    file: FileTables, table: Table, x: Column, y: Column
+) -> tuple[Table, Column, list[tuple[int, float]]] | None:
+    """The samples read against a curve: rows of the curve's own table with a reading and no
+    concentration, or else another table's column named like the reading, or its first
+    reading column."""
+    own = [
+        (i, v)
+        for i in range(table.rows)
+        if (v := _number(y.values[i])) is not None and x.values[i] is None
+    ]
+    if own:
+        return table, y, own
+    for t in file.tables:
+        if t is table or t.truncated:
+            continue
+        numbers = t.number_columns()
+        col = next((c for c in numbers if _key(c.name) == _key(y.name)), None)
+        col = col or next((c for c in numbers if _is_signal(c)), None)
+        if col is None:
+            continue
+        found = [(i, v) for i in range(t.rows) if (v := _number(col.values[i])) is not None]
+        if found:
+            return t, col, found
+    return None
+
+
+def _samples_outside(
+    check: dict[str, Any],
+    file: FileTables,
+    table: Table,
+    x: Column,
+    y: Column,
+    pairs: list[tuple[int, float, float]],
+) -> Result:
+    """How many samples read below the lowest standard or above the highest, where a number
+    read off the curve is a guess."""
+    if len(pairs) < MIN_POINTS:
+        return couldnt(
+            f"Only {len(pairs)} standards have both a concentration and a reading; a fit needs"
+            f" {MIN_POINTS}."
+        )
+    found = _samples_table(file, table, x, y)
+    if found is None:
+        return couldnt(
+            "No samples to compare: every row with a reading has a concentration, and no other"
+            " table has readings."
+        )
+    t, col, samples = found
+    lo, hi = min(p[2] for p in pairs), max(p[2] for p in pairs)
+    outside = [i for i, v in samples if v < lo or v > hi]
+    rows = tuple(outside) or tuple(i for i, _ in samples)
+    source = Cells(file.sha256, t.name, (col.id,), rows)
+    return judged(check, float(len(outside)), check["unit"], source)
 
 
 def peak(check: dict[str, Any], file: FileTables) -> Result:
@@ -451,10 +583,41 @@ def _control_rows(table: Table, pattern: str, label: Column | None) -> tuple[lis
     return rows, matched
 
 
-def _find_controls(
-    check: dict[str, Any], file: FileTables
-) -> tuple[Table, Column, list[int], set[str]] | None:
+@dataclass(frozen=True)
+class _Controls:
+    """The control readings found in one table, by their row's name or their column's."""
+
+    table: Table
+    columns: tuple[str, ...]
+    unit: str | None
+    readings: list[tuple[int, float]]
+    rows: frozenset[int]
+
+
+_NOT_A_READING = re.compile(r"\btime\b|^\s*t\s*°|\btemp", re.IGNORECASE)
+
+
+def _control_columns(table: Table, pattern: str) -> list[Column]:
+    """Number columns whose header has the pattern in it, such as a kinetic read's "Blank 1"."""
+    want = _key(pattern)
+    return [c for c in table.number_columns() if want in _key(c.label)]
+
+
+def _find_controls(check: dict[str, Any], file: FileTables) -> _Controls | None:
     for t in _tables(file, check["sheet"]):
+        if check.get("by", "row") == "column":
+            cols = _control_columns(t, check["pattern"])
+            if cols:
+                readings = [
+                    (i, v)
+                    for c in cols
+                    for i in range(t.rows)
+                    if (v := _number(c.values[i])) is not None
+                ]
+                unit = next((c.unit for c in cols if c.unit), None)
+                rows = frozenset(i for i, _ in readings)
+                return _Controls(t, tuple(c.id for c in cols), unit, readings, rows)
+            continue
         col = resolve(t, check["column"])
         if col is None or col.kind != "number":
             continue
@@ -465,26 +628,52 @@ def _find_controls(
                 continue
         rows, matched = _control_rows(t, check["pattern"], label)
         if rows:
-            return t, col, rows, matched
+            readings = [(i, v) for i in rows if (v := _number(col.values[i])) is not None]
+            ids = tuple(sorted(matched | {col.id}, key=lambda c: (len(c), c)))
+            return _Controls(t, ids, col.unit, readings, frozenset(rows))
     return None
+
+
+def _subject(check: dict[str, Any], file: FileTables) -> tuple[Table, list[Column]] | Result:
+    """The readings a control check vouches for. By row, the named column; by column, the
+    table's other reading columns, leaving out time and temperature."""
+    tables = _tables(file, check["sheet"])
+    if check["sheet"] is not None and not tables:
+        return _missing_table(check["sheet"])
+    if check.get("by", "row") == "column":
+        for t in tables:
+            skip = {c.id for c in _control_columns(t, check["pattern"])}
+            cols = [
+                c
+                for c in t.number_columns()
+                if c.id not in skip and not _NOT_A_READING.search(c.name)
+            ]
+            if cols or skip:
+                return t, cols
+        return couldnt("This file has no columns of readings to check.")
+    subject = next((t for t in tables if resolve(t, check["column"]) is not None), None)
+    if subject is None:
+        return _no_column(check["column"])
+    col = resolve(subject, check["column"])
+    assert col is not None
+    if (bad := _number_column(col)) is not None:
+        return bad
+    return subject, [col]
 
 
 def control(
     check: dict[str, Any], file: FileTables, same_day: Callable[[], Iterable[FileTables]]
 ) -> Result:
-    """The day's controls (rows whose name has the pattern in it, such as "blank") must sit in
-    the range. They're read from this file, or else from another file of the same experiment and
-    day. `each` judges every control, so the worst one is the value; `mean` judges their mean."""
-    tables = _tables(file, check["sheet"])
-    if check["sheet"] is not None and not tables:
-        return _missing_table(check["sheet"])
-    subject = next((t for t in tables if resolve(t, check["column"]) is not None), None)
-    if subject is None:
-        return _no_column(check["column"])
-    subject_col = resolve(subject, check["column"])
-    assert subject_col is not None
-    if (bad := _number_column(subject_col)) is not None:
-        return bad
+    """The day's controls must sit in the range: rows whose name has the pattern in it, such as
+    "blank", or with `by: column`, columns whose header has it, such as a kinetic read's blank
+    wells. They're read from this file, or else from another file of the same experiment and
+    day. `each` judges every control, so the worst one is the value; `mean` judges their mean.
+    A check saved before controls could be columns has no `by` and means rows."""
+    by_column = check.get("by", "row") == "column"
+    picked = _subject(check, file)
+    if isinstance(picked, Result):
+        return picked
+    subject, subject_cols = picked
     if subject.truncated:
         return _truncated(subject)
 
@@ -496,38 +685,43 @@ def control(
             if found is not None:
                 control_file = other
                 break
+    where = "columns" if by_column else "rows"
     if found is None:
         return couldnt(
-            f"No rows named like “{check['pattern']}” in this file or in another file from the"
-            " same experiment and day."
+            f"No {where} named like “{check['pattern']}” in this file or in another file from"
+            " the same experiment and day."
         )
-    table, col, rows, matched = found
-    readings = [(i, v) for i in rows if (v := _number(col.values[i])) is not None]
-    if not readings:
-        return couldnt(f"The “{check['pattern']}” rows have no numbers in “{col.label}”.")
+    if not found.readings:
+        return couldnt(f"The “{check['pattern']}” {where} have no numbers in them.")
+    values = [v for _, v in found.readings]
     r = check["range"]
     if check["use"] == "mean":
-        observed = tidy(sum(v for _, v in readings) / len(readings))
+        observed = tidy(sum(values) / len(values))
     else:
-        outside = [v for _, v in readings if not holds(r, tidy(v))]
-        pool = outside or [v for _, v in readings]
-        observed = tidy(max(pool, key=lambda v: distance(r, v)))
+        outside = [v for v in values if not holds(r, tidy(v))]
+        observed = tidy(max(outside or values, key=lambda v: distance(r, v)))
     control_cells = Cells(
-        control_file.sha256,
-        table.name,
-        tuple(sorted(matched | {col.id}, key=lambda c: (len(c), c))),
-        tuple(i for i, _ in readings),
+        control_file.sha256, found.table.name, found.columns, tuple(sorted(found.rows))
     )
-    # What the controls vouch for: this file's other readings in the same column.
-    own = control_file is file and table.name == subject.name
-    skip = set(rows) if own else set()
+    unit = check["unit"] or found.unit
+    # A flag names at most 64 columns; a wider plate is vouched for as a whole, and the flag
+    # cites the controls alone.
+    if not subject_cols or len(subject_cols) > 64:
+        return judged(check, observed, unit, control_cells, control_cells)
+    own = control_file is file and found.table.name == subject.name
+    skip = found.rows if own and not by_column else frozenset()
     judged_rows = tuple(
         i
         for i in range(subject.rows)
-        if i not in skip and _number(subject_col.values[i]) is not None
+        if i not in skip and any(_number(c.values[i]) is not None for c in subject_cols)
     )
-    source = Cells(file.sha256, subject.name, (subject_col.id,), judged_rows or control_cells.rows)
-    return judged(check, observed, check["unit"] or col.unit, source, control_cells)
+    source = Cells(
+        file.sha256,
+        subject.name,
+        tuple(c.id for c in subject_cols),
+        judged_rows or control_cells.rows,
+    )
+    return judged(check, observed, unit, source, control_cells)
 
 
 def evaluate(
