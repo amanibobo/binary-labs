@@ -653,7 +653,7 @@ describe("deleting", () => {
     const second = await create(dee, doomed, [sha(72)], { retryOf: first.id });
     await owner(
       `update runs set suspected_cause = 'x', confirmed_cause = 'y', confirmed_by = $2, confirm_method = 'repeat', confirm_run = $3,
-        confirm_sha256 = $4, confirmed_at = now(), taxonomy_version = 1, cause_category = 'cause.reagent', share = true where id = $1`,
+        confirm_sha256 = $4, confirmed_at = now(), confirmer_attested_at = now(), taxonomy_version = 1, cause_category = 'cause.reagent', share = true where id = $1`,
       [first.id, pi, second.id, sha(72)],
     );
     const debrief = (await owner("insert into run_debriefs (run_id, lab_id, started_by) values ($1, $2, $3) returning id", [first.id, doomed, dee])).rows[0]?.id;

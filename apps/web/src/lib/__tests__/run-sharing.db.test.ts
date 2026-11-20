@@ -336,6 +336,22 @@ describe("the export gate", () => {
     expect(await codeOf(build(lab, id, g2))).toBe("BL951");
     expect(await count("task_exports where run_id = $1", [id])).toBe(0);
   });
+  it("a grant made while the cause was attested builds nothing once the cause changes unattested", async () => {
+    const id = await sharedRun();
+    const person = z.object({ id: z.string() }).parse((await owner("select id from people where lab_id = $1 limit 1", [lab])).rows[0]).id;
+    await owner("update runs set share = false where id = $1", [id]);
+    await owner(
+      `update runs set status = 'failed', status_at = now(), confirmed_cause = 'a', confirmed_by = $2, confirm_method = 'pi_opinion',
+         confirmed_at = now(), confirmer_attested_at = now() where id = $1`,
+      [id, person],
+    );
+    await owner("update runs set share = true where id = $1", [id]);
+    const g = await allowed(ada, id);
+    await owner("update runs set confirmed_cause = 'b', confirmer_attested_at = null where id = $1", [id]);
+    await owner("update runs set share = true where id = $1", [id]);
+    expect(await codeOf(build(lab, id, g))).toBe("BL951");
+    expect(await count("task_exports where run_id = $1", [id])).toBe(0);
+  });
 });
 
 describe("switching off after a folder was built", () => {
