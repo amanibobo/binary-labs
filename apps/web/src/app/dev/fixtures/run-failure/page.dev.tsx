@@ -8,8 +8,10 @@ import { RunListFilter } from "@/lib/run-record";
 
 // The failure record (decisions.md, "the run record: the failure record"): ?view=yours (the
 // first try, its cause confirmed by Ade naming Priya, who is looking and hasn't said yes) or
-// list (the runs list, filtered by the address as /runs is: ?technique=, ?step=, ?cause=).
-const View = z.enum(["yours", "list"]).catch("yours");
+// unlinked (the same cause naming Jordan, who has no account, seen from Jordan's own account,
+// which can say "This is me"), or list (the runs list, filtered by the address as /runs is:
+// ?technique=, ?step=, ?cause=).
+const View = z.enum(["yours", "unlinked", "list"]).catch("yours");
 
 export default async function RunFailureFixture({ searchParams }: FixtureProps) {
   requireFixtures();

@@ -102,6 +102,23 @@ describe("the failure record's store", () => {
     expect(withdrawn.kind === "ok" && withdrawn.value.failure).toMatchObject({ confirmedCause: null, confirmerAttestedAt: null, suspectedCause: "Blocking too short" });
   });
 
+  it("links an unlinked confirmer with This is me, and refuses a second person", async () => {
+    const hal = "00000000-0000-4000-8000-0000000f7003";
+    await db.query("insert into auth.users (id, email) values ($1, 'hal@failstore.test')", [hal]);
+    await db.query("insert into members (lab_id, user_id, role) values ($1, $2, 'member')", [lab, hal]);
+    const halRow = PersonId.parse((await db.query("insert into people (lab_id, display_name) values ($1, 'Hal Brook') returning id", [lab])).rows[0]?.id);
+    const store = await import("../run-failure-store");
+    await store.confirmCause(memberDb(fay), run, { cause: "Hal saw it", personId: halRow, evidence: { method: "pi_opinion" }, note: null, confirmedAt: null });
+    const claimed = await store.claimConfirmer(memberDb(hal), run, halRow);
+    expect(claimed.kind === "ok" && claimed.value.id).toBe(run);
+    expect((await store.loadConfirmerChoices(memberDb(hal), run)).find((c) => c.id === halRow)).toMatchObject({ you: true, account: true });
+    const attested = await store.attestCause(memberDb(hal), run);
+    expect(attested.kind === "ok" && attested.value.failure.confirmerAttestedAt).not.toBeNull();
+    const again = await store.claimConfirmer(memberDb(hal), run, gusRow);
+    if (again.kind !== "error") throw new Error("a second person was claimed");
+    expect(await store.failureError(again.error, { event: "test", labId: lab }).json()).toEqual({ error: "That person is already linked to another account. An admin can unlink them in Settings, People." });
+  });
+
   it("turns each failure code into its own plain answer", async () => {
     const store = await import("../run-failure-store");
     const refused = await store.confirmCause(memberDb(fay), run, {

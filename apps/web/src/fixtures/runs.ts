@@ -251,7 +251,7 @@ export function createFixtureRuns(): RunsApi {
       await wait(120);
       const run = store.get(runId);
       const keeps = status === "failed" || status === "odd";
-      const hasCause = run.failure.suspectedCause !== null || run.failure.confirmedCause !== null;
+      const hasCause = run.failure.suspectedCause !== null || run.failure.confirmedCause !== null || run.failure.taxonomyVersion !== null;
       if (!keeps && hasCause && !clearCauses) return { kind: "has_causes" };
       return {
         kind: "saved",

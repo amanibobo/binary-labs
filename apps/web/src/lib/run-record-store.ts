@@ -89,7 +89,8 @@ export const removeRunFile = (supabase: RunDb, id: RunId, sha256: Sha256) =>
 export const linkRetry = (supabase: RunDb, id: RunId, retryOf: RunId | null) =>
   writeRun(supabase.rpc("link_retry", { p_run_id: id, p_retry_of: retryOf }));
 
-// BL906 is the database asking first: the run has a cause that this change would remove.
+// BL906 is the database asking first: the run has a cause or a failure type that this change
+// would remove.
 export async function setRunStatus(supabase: RunDb, id: RunId, status: RunStatus | null, clearCauses: boolean): Promise<Written<StatusOutcome>> {
   const written = await writeRun(supabase.rpc("set_run_status", { p_run_id: id, p_status: status, p_clear_causes: clearCauses }));
   if (written.kind === "ok") return { kind: "ok", value: { kind: "saved", run: written.value } };

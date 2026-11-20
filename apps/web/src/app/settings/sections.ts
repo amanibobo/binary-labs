@@ -16,7 +16,7 @@ export const SECTION_COPY = {
   dropbox: { title: "Dropbox", helper: "Binary reads one Dropbox folder and never changes a file in it." },
   instruments: { title: "Instruments", helper: "Instrument PCs that send their new files here by themselves." },
   experiments: { title: "Experiments", helper: "Files are labeled with these. Add the short names people use in file names." },
-  people: { title: "People", helper: "Files are labeled with these. Add the initials people use in file names." },
+  people: { title: "People", helper: "Files and runs name these. Add the initials people use in file names, and link each person to their Binary account." },
   sharing: { title: "Sharing", helper: "Whether the lab's runs can be shared outside the lab. Off until an admin agrees." },
   "failure-types": { title: "Failure types", helper: "The fixed list a failed run is sorted by, so runs from different labs line up." },
   account: { title: "Account", helper: "The email you sign in with." },

@@ -3,13 +3,13 @@ import { badRequest, ok } from "@/lib/protocol-routes";
 import { readJson } from "@/lib/route-auth";
 import type { RunId } from "@/lib/ids";
 import { CauseRequest } from "@/lib/run-failure";
-import { attestCause, confirmCause, failureError, loadConfirmerChoices, setSuspectedCause, withdrawCause } from "@/lib/run-failure-store";
+import { attestCause, claimConfirmer, confirmCause, failureError, loadConfirmerChoices, setSuspectedCause, withdrawCause } from "@/lib/run-failure-store";
 import type { RunDb } from "@/lib/run-record-store";
 import { runAccess } from "@/lib/run-routes";
 
 // GET is who can be named as the confirmer: the lab's People, with the caller's own row marked.
 // POST writes the suspected cause, confirms the cause, takes the confirmation back, or is the
-// named confirmer's own "Yes, I confirmed this".
+// named confirmer's own "Yes, I confirmed this", or "This is me" on a confirmer with no account.
 export async function GET(_request: NextRequest, ctx: RouteContext<"/api/run-records/[id]/cause">) {
   const access = await runAccess(ctx.params);
   if (access.kind === "denied") return access.response;
@@ -37,6 +37,8 @@ function write(supabase: RunDb, id: RunId, req: CauseRequest) {
       return withdrawCause(supabase, id);
     case "attest":
       return attestCause(supabase, id);
+    case "claim":
+      return claimConfirmer(supabase, id, req.personId);
     default: {
       const _exhaustive: never = req;
       return _exhaustive;

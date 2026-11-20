@@ -7,12 +7,13 @@ import { AiCapInput } from "@/lib/ai-spend";
 import { audit } from "@/lib/audit";
 import { folderPath } from "@/lib/dropbox";
 import { holdTokens, revokeHeldTokens, sourceAccessToken } from "@/lib/dropbox-session";
-import { InstrumentId, UserId } from "@/lib/ids";
+import { InstrumentId, PersonId, UserId, type LabId } from "@/lib/ids";
 import { newPairingCode } from "@/lib/instrument-upload";
 import { displayCode, InstrumentName } from "@/lib/instruments";
 import { loadSourceState } from "@/lib/lab-data";
 import { deletionFailure } from "@/lib/lab-deletion";
 import { logError } from "@/lib/log";
+import { peopleFailure } from "@/lib/people-accounts";
 import { requestOrigin } from "@/lib/origin";
 import { createServiceSupabase, unwrap } from "@/lib/supabase/server";
 import { loadViewer, type Member } from "@/lib/viewer";
@@ -299,6 +300,46 @@ export async function removeListEntry(rawKind: LabListKind, rawId: string): Prom
   }
   revalidatePath(settingsHref(rawKind));
   return { kind: "ok" };
+}
+
+// Linking People to accounts (0042): "This is me" is any member's, for themselves; linking
+// someone else and unlinking are an admin's. The database checks both and writes the audit row.
+function personSettled(error: { code?: string } | null, labId: LabId, event: string): ActionResult {
+  if (error === null) {
+    revalidatePath(settingsHref("people"));
+    revalidatePath(settingsHref("members"));
+    return { kind: "ok" };
+  }
+  const failure = peopleFailure(error);
+  if (failure.status === 500) logError(event, { labId, error });
+  return { kind: "error", message: failure.message };
+}
+const GONE: ActionResult = { kind: "error", message: peopleFailure({ code: "BL981" }).message };
+
+export async function claimPerson(rawPersonId: string): Promise<ActionResult> {
+  const { supabase, lab } = await requireLabMember();
+  const person = PersonId.safeParse(rawPersonId);
+  if (!person.success) return GONE;
+  const { error } = await supabase.rpc("claim_person", { p_person_id: person.data });
+  return personSettled(error, lab.id, "person.claim_failed");
+}
+
+export async function linkPerson(rawPersonId: string, rawUserId: string): Promise<ActionResult> {
+  const { supabase, lab } = await requireAdmin();
+  const person = PersonId.safeParse(rawPersonId);
+  const target = UserId.safeParse(rawUserId);
+  if (!person.success) return GONE;
+  if (!target.success) return { kind: "error", message: peopleFailure({ code: "BL984" }).message };
+  const { error } = await supabase.rpc("link_person", { p_person_id: person.data, p_user_id: target.data });
+  return personSettled(error, lab.id, "person.link_failed");
+}
+
+export async function unlinkPerson(rawPersonId: string): Promise<ActionResult> {
+  const { supabase, lab } = await requireAdmin();
+  const person = PersonId.safeParse(rawPersonId);
+  if (!person.success) return GONE;
+  const { error } = await supabase.rpc("unlink_person", { p_person_id: person.data });
+  return personSettled(error, lab.id, "person.unlink_failed");
 }
 
 // A pairing code is shown once, to the admin who asked for it; only its hash is stored.

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useId, useTransition } from "react";
+import { useActionState, useId, useTransition, type ReactNode } from "react";
 import { toast } from "sonner";
 import Link from "next/link";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -10,7 +10,9 @@ import { localMapHref, MapNodeId } from "@/lib/map";
 import { Input, Label } from "@/components/ui/field";
 import { addListEntry, removeListEntry, type LabListKind, type ListAddState } from "./actions";
 
-export type LabListEntry = { id: string; name: string; aliases: readonly string[] };
+// `detail` is a line under the aliases and `actions` sit before Map; People uses both for the
+// account a person is linked to.
+export type LabListEntry = { id: string; name: string; aliases: readonly string[]; detail?: string; actions?: ReactNode };
 
 const COPY: Record<LabListKind, { empty: string; nameLabel: string; namePlaceholder: string; aliasLabel: string; aliasPlaceholder: string }> = {
   experiments: {
@@ -38,13 +40,15 @@ export function LabListSection({ kind, entries, isAdmin }: { kind: LabListKind; 
       ) : (
         <ul>
           {entries.map((entry) => (
-            <li key={entry.id} className={cn(dataRow, "flex min-h-14 items-center gap-4 px-5 py-2 sm:min-h-16 sm:px-6")}>
-              <span className="min-w-0 flex-1">
+            <li key={entry.id} className={cn(dataRow, "flex min-h-14 flex-wrap items-center gap-x-4 gap-y-1 px-5 py-2 sm:min-h-16 sm:flex-nowrap sm:px-6")}>
+              <span className={cn("min-w-0 flex-1", entry.actions !== undefined && "max-sm:basis-full")}>
                 <span className="block truncate text-paragraph-medium text-content-primary">{entry.name}</span>
                 {entry.aliases.length === 0 ? null : (
                   <span className="block truncate text-paragraph-small text-content-tertiary">{entry.aliases.join(", ")}</span>
                 )}
+                {entry.detail === undefined ? null : <span className="block truncate text-paragraph-small text-content-tertiary">{entry.detail}</span>}
               </span>
+              {entry.actions}
               <Link
                 href={localMapHref(MapNodeId.parse(`${kind === "experiments" ? "experiment" : "person"}:${entry.id}`))}
                 className={buttonVariants({ variant: "tertiary", size: "compact" })}
