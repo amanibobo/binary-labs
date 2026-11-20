@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { cn } from "@/lib/cn";
-import type { Graph, MapNode, MapNodeId } from "@/lib/map";
+import { MAX_ZOOM, MIN_ZOOM, type Graph, type MapNode, type MapNodeId, type SavedCamera } from "@/lib/map";
 import { bounds, createLayout, hold, isSettled, nodeAt, release, tick, type Layout } from "@/lib/map-layout";
 
 // The lab map drawn on a canvas (decisions.md, "the lab map": SVG dropped to 12 frames a
@@ -22,11 +22,14 @@ type Props = {
   label: string;
   describedBy: string;
   className?: string;
+  // Where the camera starts (null fits the map), and where it is each time someone moves it
+  // (null again once they press 0 to fit). Only the lab map remembers its camera.
+  camera?: { initial: SavedCamera | null; onChange: (camera: SavedCamera | null) => void };
 };
 
 type Colors = { kind: Record<MapNode["kind"], string>; edge: string; strong: string; text: string; muted: string; surface: string; ring: string; font: string };
 
-const KIND_ORDER = ["protocol", "experiment", "person", "instrument", "file", "more"] as const;
+const KIND_ORDER = ["protocol", "experiment", "person", "instrument", "tag", "file", "more"] as const;
 
 function readColors(el: HTMLElement): Colors {
   const css = getComputedStyle(el);
@@ -37,6 +40,7 @@ function readColors(el: HTMLElement): Colors {
       experiment: v("--map-experiment"),
       person: v("--map-person"),
       instrument: v("--map-instrument"),
+      tag: v("--map-tag"),
       file: v("--map-file"),
       more: v("--map-file"),
     },
@@ -68,16 +72,18 @@ type CanvasState = {
   pointers: Map<number, { x: number; y: number }>;
   // Keeps fitting the map to the screen until someone pans or zooms.
   autoFit: boolean;
+  // A remembered camera: keeps its hub where it was on screen while the layout settles, until
+  // someone pans or zooms.
+  follow: SavedCamera | null;
   raf: number;
   reduced: boolean;
   zoomedAt: number;
 };
 
-const MIN_K = 0.04;
-const MAX_K = 8;
-const clampK = (k: number) => Math.min(MAX_K, Math.max(MIN_K, k));
+const clampK = (k: number) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, k));
+const isHubNode = (node: MapNode | undefined) => node !== undefined && node.kind !== "file" && node.kind !== "more";
 
-export function MapCanvas({ graph, active, onActiveChange, onActivate, centerOn, label, describedBy, className }: Props) {
+export function MapCanvas({ graph, active, onActiveChange, onActivate, centerOn, label, describedBy, className, camera }: Props) {
   const wrap = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const previous = useRef<Layout | null>(null);
@@ -95,6 +101,7 @@ export function MapCanvas({ graph, active, onActiveChange, onActivate, centerOn,
     return out;
   }, [layout]);
   const edgeKinds = useMemo(() => graph.edges.map((e) => e.kind), [graph]);
+  const hubIndices = useMemo(() => nodes.flatMap((node, i) => (isHubNode(node) ? [i] : [])), [nodes]);
 
   // Everything the draw loop reads lives in one ref, so a frame never waits on React.
   const state = useRef<CanvasState>({
@@ -105,14 +112,16 @@ export function MapCanvas({ graph, active, onActiveChange, onActivate, centerOn,
     active: -1,
     gesture: { kind: "none" },
     pointers: new Map<number, { x: number; y: number }>(),
-    autoFit: true,
+    autoFit: camera?.initial == null,
+    follow: camera?.initial ?? null,
     raf: 0,
     reduced: false,
     zoomedAt: 0,
   });
-  const latest = useRef({ graph, layout, nodes, neighbors, edgeKinds, onActiveChange, onActivate });
+  const onCamera = camera?.onChange;
+  const latest = useRef({ graph, layout, nodes, neighbors, edgeKinds, hubIndices, onActiveChange, onActivate, onCamera });
   useEffect(() => {
-    latest.current = { graph, layout, nodes, neighbors, edgeKinds, onActiveChange, onActivate };
+    latest.current = { graph, layout, nodes, neighbors, edgeKinds, hubIndices, onActiveChange, onActivate, onCamera };
   });
 
   useEffect(() => {
@@ -137,6 +146,52 @@ export function MapCanvas({ graph, active, onActiveChange, onActivate, centerOn,
     s.cam = { k, x: s.size.w / 2 - ((b.minX + b.maxX) / 2) * k, y: s.size.h / 2 - ((b.minY + b.maxY) / 2) * k };
   }
 
+  // Fits the map, or keeps a remembered camera's hub in place; while that hub isn't drawn yet
+  // (its files still loading), the map fits.
+  function place() {
+    const s = state.current;
+    const f = s.follow;
+    if (f === null) {
+      if (s.autoFit) fit();
+      return;
+    }
+    const L = latest.current.layout;
+    const i = L.index.get(f.anchor);
+    if (i === undefined) return fit();
+    s.cam = { k: f.k, x: s.size.w / 2 - (L.x[i] + f.dx) * f.k, y: s.size.h / 2 - (L.y[i] + f.dy) * f.k };
+  }
+
+  // Someone moved the camera: stop fitting and following, and say where it is now, by the hub
+  // nearest the middle of the screen.
+  function takeOver() {
+    const s = state.current;
+    s.autoFit = false;
+    s.follow = null;
+  }
+
+  function report() {
+    const s = state.current;
+    const { onCamera: send, layout: L, hubIndices: hubs } = latest.current;
+    if (send === undefined) return;
+    if (s.autoFit) return send(null);
+    if (s.follow !== null) return send(s.follow);
+    const cx = (s.size.w / 2 - s.cam.x) / s.cam.k;
+    const cy = (s.size.h / 2 - s.cam.y) / s.cam.k;
+    let best = -1;
+    let bestD = Infinity;
+    for (const i of hubs) {
+      const d = (L.x[i] - cx) ** 2 + (L.y[i] - cy) ** 2;
+      if (d < bestD) {
+        bestD = d;
+        best = i;
+      }
+    }
+    const anchor = best >= 0 ? L.ids[best] : undefined;
+    if (anchor === undefined) return send(null);
+    const round = (v: number) => Math.round(v * 10) / 10;
+    send({ anchor, k: Math.round(s.cam.k * 1000) / 1000, dx: round(cx - L.x[best]), dy: round(cy - L.y[best]) });
+  }
+
   function frame() {
     const s = state.current;
     s.raf = 0;
@@ -149,7 +204,7 @@ export function MapCanvas({ graph, active, onActiveChange, onActivate, centerOn,
       // Small maps settle in a couple of seconds; big ones take what a frame allows.
       do tick(L);
       while (!isSettled(L) && performance.now() - start < 6 && L.ids.length < 2000);
-      if (s.autoFit) fit();
+      place();
       schedule();
     }
     draw();
@@ -210,8 +265,12 @@ export function MapCanvas({ graph, active, onActiveChange, onActivate, centerOn,
           if (node?.kind !== kind) continue;
           if (dim && near.has(i) !== pass) continue;
           const r = drawR(i);
-          ctx.moveTo(L.x[i] + r, L.y[i]);
-          ctx.arc(L.x[i], L.y[i], r, 0, Math.PI * 2);
+          // Tags are squares, so they read apart from every round dot without a hue of their own.
+          if (kind === "tag") ctx.rect(L.x[i] - r * 0.85, L.y[i] - r * 0.85, r * 1.7, r * 1.7);
+          else {
+            ctx.moveTo(L.x[i] + r, L.y[i]);
+            ctx.arc(L.x[i], L.y[i], r, 0, Math.PI * 2);
+          }
           any = true;
         }
         if (!any) continue;
@@ -266,6 +325,8 @@ export function MapCanvas({ graph, active, onActiveChange, onActivate, centerOn,
       const screenR = L.radius[i] * k;
       if (i === lit || i === center) order.push({ i, p: 0 });
       else if (near.has(i)) order.push({ i, p: 1 });
+      // A tag's name gives way to every hub's.
+      else if (node.kind === "tag" && (screenR >= 5 || k >= 0.6)) order.push({ i, p: 3 + 0.5 / (1 + screenR) });
       else if (hub && (screenR >= 5 || k >= 0.6)) order.push({ i, p: 2 + 1 / (1 + screenR) });
       else if (node.kind === "more") order.push({ i, p: 3 });
       else if (!hub && fileAlpha > 0) order.push({ i, p: 4 });
@@ -303,7 +364,7 @@ export function MapCanvas({ graph, active, onActiveChange, onActivate, centerOn,
     if (s.reduced) {
       const start = performance.now();
       while (!isSettled(layout) && performance.now() - start < 1500) tick(layout);
-      if (s.autoFit) fit();
+      place();
     }
     schedule();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once per layout
@@ -314,9 +375,10 @@ export function MapCanvas({ graph, active, onActiveChange, onActivate, centerOn,
     const s = state.current;
     const i = layout.index.get(centerOn);
     if (i === undefined) return;
-    s.autoFit = false;
+    takeOver();
     const k = Math.max(s.cam.k, 0.9);
     s.cam = { k, x: s.size.w / 2 - layout.x[i] * k, y: s.size.h / 2 - layout.y[i] * k };
+    report();
     schedule();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only when asked to center
   }, [centerOn]);
@@ -336,7 +398,7 @@ export function MapCanvas({ graph, active, onActiveChange, onActivate, centerOn,
       el.height = Math.round(h * dpr);
       el.style.width = `${w}px`;
       el.style.height = `${h}px`;
-      if (s.autoFit) fit();
+      place();
       schedule();
     };
     resize();
@@ -373,9 +435,10 @@ export function MapCanvas({ graph, active, onActiveChange, onActivate, centerOn,
     const s = state.current;
     const k = clampK(s.cam.k * factor);
     const f = k / s.cam.k;
-    s.autoFit = false;
+    takeOver();
     s.zoomedAt = performance.now();
     s.cam = { k, x: px - (px - s.cam.x) * f, y: py - (py - s.cam.y) * f };
+    report();
     schedule();
   }
 
@@ -440,23 +503,25 @@ export function MapCanvas({ graph, active, onActiveChange, onActivate, centerOn,
         const f = k / g.cam.k;
         const cx = (a.x + b.x) / 2;
         const cy = (a.y + b.y) / 2;
-        s.autoFit = false;
+        takeOver();
         s.cam = { k, x: cx - (g.cx - g.cam.x) * f, y: cy - (g.cy - g.cam.y) * f };
+        report();
         schedule();
         return;
       }
       case "pan": {
         if (Math.hypot(p.x - g.sx, p.y - g.sy) > 4) g.moved = true;
         if (!g.moved) return;
-        s.autoFit = false;
+        takeOver();
         s.cam = { ...g.cam, x: g.cam.x + p.x - g.sx, y: g.cam.y + p.y - g.sy };
+        report();
         schedule();
         return;
       }
       case "node": {
         if (Math.hypot(p.x - g.sx, p.y - g.sy) > 4) g.moved = true;
         if (!g.moved) return;
-        s.autoFit = false;
+        takeOver();
         const w = toWorld(p.x, p.y);
         hold(latest.current.layout, g.node, w.x, w.y);
         schedule();
@@ -524,8 +589,9 @@ export function MapCanvas({ graph, active, onActiveChange, onActivate, centerOn,
         const sx = L.x[best] * s.cam.k + s.cam.x;
         const sy = L.y[best] * s.cam.k + s.cam.y;
         if (sx < 40 || sx > s.size.w - 40 || sy < 40 || sy > s.size.h - 40) {
-          s.autoFit = false;
+          takeOver();
           s.cam = { ...s.cam, x: s.size.w / 2 - L.x[best] * s.cam.k, y: s.size.h / 2 - L.y[best] * s.cam.k };
+          report();
         }
         schedule();
       }
@@ -540,7 +606,9 @@ export function MapCanvas({ graph, active, onActiveChange, onActivate, centerOn,
       zoomAt(s.size.w / 2, s.size.h / 2, 0.8);
     } else if (e.key === "0") {
       s.autoFit = true;
+      s.follow = null;
       fit();
+      report();
       schedule();
     } else if (e.key === "Escape") {
       latest.current.onActiveChange(null);

@@ -25,7 +25,7 @@ function lab(files: number, experiments = 50, people = 15): Graph {
     byHub.set(e, entry);
   }
   const open = [...byHub].map(([hub, v]) => HubFiles.parse({ hub, total: v.nodes.length, ...v }));
-  return globalGraph({ view, open, filters: { kinds: ALL_KINDS, similar: false } });
+  return globalGraph({ view, open, filters: { kinds: ALL_KINDS, similar: false, tags: false } });
 }
 
 function graphOf(nodes: MapNode[], edges: MapEdge[]): Graph {

@@ -6,18 +6,24 @@ import { ProtocolId, Sha256 } from "./ids";
 // The lab map (decisions.md, "the lab map"): what lab_map, lab_map_hub and lab_map_local in
 // db/migrations/0021_lab_map.sql return, parsed once here, and the graph the map draws from
 // them. Node ids are the database's: file:<sha256>, protocol:<uuid>, experiment:<uuid>,
-// person:<uuid> and instrument:<lowercased name>.
+// person:<uuid>, instrument:<lowercased name> and tag:<lowercased tag> (migration 0032).
 
-export const HUB_KINDS = ["protocol", "experiment", "person", "instrument"] as const;
+export const HUB_KINDS = ["protocol", "experiment", "person", "instrument", "tag"] as const;
 export const HubKind = z.enum(HUB_KINDS);
 export type HubKind = z.infer<typeof HubKind>;
 
 export const NODE_KINDS = [...HUB_KINDS, "file"] as const;
 export type NodeKind = (typeof NODE_KINDS)[number];
 
+// The type filters. Tags have a switch of their own, off by default, since turning them on
+// asks the server for them.
+export const FILTER_KINDS = ["protocol", "experiment", "person", "instrument", "file"] as const satisfies readonly NodeKind[];
+export const FilterKind = z.enum(FILTER_KINDS);
+export type FilterKind = z.infer<typeof FilterKind>;
+
 export const MapNodeId = z
   .string()
-  .regex(/^(more:)?(file:[0-9a-f]{64}|(protocol|experiment|person):[0-9a-f-]{36}|instrument:.{1,120})$/, "expected a map node id")
+  .regex(/^(more:)?(file:[0-9a-f]{64}|(protocol|experiment|person):[0-9a-f-]{36}|(instrument|tag):.{1,120})$/, "expected a map node id")
   .brand<"MapNodeId">();
 export type MapNodeId = z.infer<typeof MapNodeId>;
 
@@ -62,7 +68,8 @@ const EdgeWire = z
     return { source: e.source, target: e.target, kind: e.kind, weight: e.weight ?? 1 };
   });
 
-// lab_map: the hubs and how they connect.
+// lab_map: the hubs and how they connect (with similar on, dotted lines between hubs whose
+// files read alike; with tags on, the tags two or more files carry).
 export const HubView = z.object({
   files: z.number().int().nonnegative(),
   linked: z.number().int().nonnegative(),
@@ -101,6 +108,7 @@ export const HubQuery = z.object({
   id: HubId,
   similar: z.boolean(),
   with: z.array(HubId).max(200),
+  tags: z.boolean(),
 });
 export type HubQuery = z.infer<typeof HubQuery>;
 
@@ -108,10 +116,14 @@ export const LocalQuery = z.object({
   around: MapNodeId.refine((id) => !id.startsWith("more:"), "expected a node id"),
   depth: z.union([z.literal(1), z.literal(2)]),
   similar: z.boolean(),
+  tags: z.boolean(),
 });
 export type LocalQuery = z.infer<typeof LocalQuery>;
 
-// Query strings: ?similar=1, ?depth=2.
+export const HubsQuery = z.object({ similar: z.boolean(), tags: z.boolean() });
+export type HubsQuery = z.infer<typeof HubsQuery>;
+
+// Query strings: ?similar=1, ?tags=1, ?depth=2.
 export const flag = (v: string | null | undefined) => v === "1";
 export const depthOf = (v: string | null | undefined): Depth => (v === "2" ? 2 : 1);
 
@@ -123,6 +135,7 @@ export const KIND_NAMES = {
   experiment: { one: "Experiment", many: "Experiments" },
   person: { one: "Person", many: "People" },
   instrument: { one: "Instrument", many: "Instruments" },
+  tag: { one: "Tag", many: "Tags" },
   file: { one: "File", many: "Files" },
 } satisfies Record<NodeKind, { one: string; many: string }>;
 
@@ -134,6 +147,7 @@ export function kindOf(id: MapNodeId): NodeKind | "more" {
     case "experiment":
     case "person":
     case "instrument":
+    case "tag":
     case "more":
       return prefix;
     default:
@@ -150,9 +164,20 @@ export type Graph = {
   center: MapNodeId | null;
 };
 
-export type Filters = { kinds: ReadonlySet<NodeKind>; similar: boolean };
+export type Filters = { kinds: ReadonlySet<FilterKind>; similar: boolean; tags: boolean };
 
-export const ALL_KINDS: ReadonlySet<NodeKind> = new Set(NODE_KINDS);
+export const ALL_KINDS: ReadonlySet<FilterKind> = new Set(FILTER_KINDS);
+
+function shown(node: MapNode, filters: Filters): boolean {
+  switch (node.kind) {
+    case "tag":
+      return filters.tags;
+    case "more":
+      return filters.kinds.has("file");
+    default:
+      return filters.kinds.has(node.kind);
+  }
+}
 
 const plural = (n: number, one: string, many: string) => `${n.toLocaleString("en-US")} ${n === 1 ? one : many}`;
 export const filesText = (n: number) => plural(n, "file", "files");
@@ -169,8 +194,7 @@ const edgeKey = (e: MapEdge) => `${e.source}|${e.target}|${e.kind === "similar" 
 // no link at all is dropped too, unless it's the center.
 function assemble(nodes: Map<MapNodeId, MapNode>, edges: Iterable<MapEdge>, filters: Filters, center: MapNodeId | null): Graph {
   for (const [id, node] of nodes) {
-    const kind = node.kind === "more" ? "file" : node.kind;
-    if (!filters.kinds.has(kind) && id !== center) nodes.delete(id);
+    if (!shown(node, filters) && id !== center) nodes.delete(id);
   }
   const seen = new Map<string, MapEdge>();
   for (const e of edges) {
@@ -287,6 +311,7 @@ export function describe(node: MapNode): string {
     case "experiment":
     case "person":
     case "instrument":
+    case "tag":
       return `${KIND_NAMES[node.kind].one} · ${filesText(node.files)}`;
     default: {
       const _exhaustive: never = node;
@@ -302,7 +327,7 @@ export function nodeName(node: MapNode): string {
 const search = (q: string, open?: Sha256) => `/?${new URLSearchParams(open === undefined ? { q } : { q, open })}`;
 
 // Where a node opens, the way the rest of the app opens it: a file's row in search, a
-// protocol's page, and the files of an experiment, person or instrument as a search.
+// protocol's page, and the files of an experiment, person, instrument or tag as a search.
 export function openHref(node: MapNode): string {
   switch (node.kind) {
     case "file":
@@ -312,6 +337,7 @@ export function openHref(node: MapNode): string {
     case "experiment":
     case "person":
     case "instrument":
+    case "tag":
       return search(node.name);
     case "more":
       return search(node.hubName);
@@ -331,6 +357,7 @@ export function openLabel(node: MapNode): string {
     case "experiment":
     case "person":
     case "instrument":
+    case "tag":
     case "more":
       return "Search its files";
     default: {
@@ -356,7 +383,7 @@ export type ListSection = { kind: NodeKind; title: string; items: { node: MapNod
 
 export function listSections(graph: Graph): ListSection[] {
   const adj = adjacency(graph);
-  const order: NodeKind[] = ["protocol", "experiment", "person", "instrument", "file"];
+  const order: NodeKind[] = ["protocol", "experiment", "person", "instrument", "tag", "file"];
   return order
     .map((kind): ListSection => {
       const items = [...graph.nodes.values()]
@@ -372,4 +399,77 @@ export function listSections(graph: Graph): ListSection[] {
       return { kind, title: KIND_NAMES[kind].many, items };
     })
     .filter((s) => s.items.length > 0);
+}
+
+// --- A member's own view of the map (map_views, migration 0032) -----------------------
+
+// How far in the map zooms, and so how far a saved camera may.
+export const MIN_ZOOM = 0.04;
+export const MAX_ZOOM = 8;
+
+// Where the camera was: the hub nearest the middle of the screen, the middle's offset from it
+// in map units, and the zoom. A hub, not a point, because the layout settles a little
+// differently each visit; the hub is where it was in the lab, and the view follows it.
+export const SavedCamera = z.object({
+  anchor: HubId,
+  k: z.number().min(MIN_ZOOM).max(MAX_ZOOM),
+  dx: z.number().min(-100_000).max(100_000),
+  dy: z.number().min(-100_000).max(100_000),
+});
+export type SavedCamera = z.infer<typeof SavedCamera>;
+
+// What the map opens with. A null camera fits the map to the screen.
+export type SavedMapView = {
+  camera: SavedCamera | null;
+  open: readonly MapNodeId[];
+  hidden: readonly FilterKind[];
+  similar: boolean;
+  tags: boolean;
+};
+
+export const DEFAULT_MAP_VIEW: SavedMapView = { camera: null, open: [], hidden: [], similar: false, tags: false };
+
+// A save. `place` is the lab map's camera and open hubs; a map around one thing saves only the
+// switches and filters, so it never moves where the lab map opens (place: null keeps it).
+export const MapViewSave = z.object({
+  hidden: z.array(FilterKind).max(FILTER_KINDS.length),
+  similar: z.boolean(),
+  tags: z.boolean(),
+  place: z.object({ camera: SavedCamera.nullable(), open: z.array(HubId).max(200) }).nullable(),
+});
+export type MapViewSave = z.infer<typeof MapViewSave>;
+
+// A row as the database holds it. Parsed leniently: a hub id that no longer parses, or a
+// camera from an older shape, is dropped rather than failing the page.
+export const MapViewRow = z.object({
+  camera: z.unknown(),
+  open_hubs: z.array(z.string()),
+  hidden_kinds: z.array(z.string()),
+  show_similar: z.boolean(),
+  show_tags: z.boolean(),
+});
+
+export function savedViewOf(row: unknown): SavedMapView {
+  const r = MapViewRow.safeParse(row);
+  if (!r.success) return DEFAULT_MAP_VIEW;
+  const camera = SavedCamera.safeParse(r.data.camera);
+  return {
+    camera: camera.success ? camera.data : null,
+    open: r.data.open_hubs.flatMap((id) => {
+      const hub = HubId.safeParse(id);
+      return hub.success ? [hub.data] : [];
+    }),
+    hidden: r.data.hidden_kinds.flatMap((k) => {
+      const kind = FilterKind.safeParse(k);
+      return kind.success ? [kind.data] : [];
+    }),
+    similar: r.data.show_similar,
+    tags: r.data.show_tags,
+  };
+}
+
+// The hubs a saved view opens that the lab still has (a tag only while tags are on).
+export function openStill(saved: SavedMapView, view: HubView): MapNodeId[] {
+  const hubs = new Set(view.hubs.map((h) => h.id));
+  return saved.open.filter((id) => hubs.has(id));
 }
