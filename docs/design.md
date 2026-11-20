@@ -65,7 +65,7 @@ pending ──process──▶ failed (index_error set; retried on next rescan)
 - **Returns one row per sha256:** score, `keyword_rank`, `vector_rank` (either can be null; that's the "why it matched"), the best matching chunk text as the snippet (never chunk 0, the name and path, since migration 0012), and the live locations as JSON.
 - **Labels and notes (0025):** `labels.tsv` reads the name, instrument and tags, and `label_extra_words`: the outcome as words ("failed run"), the kind of note, the summary and every condition's what, value and unit, so "100 µM", "plate 3" and "drift" find a file. The pages of a live note fold into one row, its first page (which carries the note's label): keyword documents and vector hits are owned by that page, so words from two pages count together, the score is the best page's, the snippet comes from the best-matching page, and `matched_page` says which page that was.
 
-The web app calls the worker's `POST /embed` with a 250 ms timeout. On error or timeout it calls `search_files` with a null embedding and returns `{ kind: "keyword", reason }`. Otherwise it returns `{ kind: "hybrid" }`.
+The web app calls the worker's `POST /embed` with a 1 s timeout (250 ms until it went online; decisions.md, 2026-11-20). On error or timeout it calls `search_files` with a null embedding and returns `{ kind: "keyword", reason }`. Otherwise it returns `{ kind: "hybrid" }`.
 
 ### Search rows
 

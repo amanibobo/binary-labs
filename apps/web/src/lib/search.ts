@@ -11,7 +11,8 @@ import {
 import type { EmbedConfig } from "@/env";
 import type { LabId } from "./ids";
 
-export const EMBED_TIMEOUT_MS = 250;
+// Hosted, a warm query spends about 270 ms inside Modal before Vercel's own hop (decisions.md, 2026-11-20).
+export const EMBED_TIMEOUT_MS = 1000;
 
 export type EmbedOutcome = { kind: "ok"; embedding: number[] } | { kind: "failed"; reason: KeywordReason };
 

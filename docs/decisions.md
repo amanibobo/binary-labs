@@ -1035,3 +1035,11 @@ Measured: `people-accounts.db.test.ts` runs 17 tests against the real migrations
 Not verified: the routes and server actions behind a real Supabase session (the SQL, the store and the fixture pages are tested; no hosted project was touched); an invite through Supabase's admin API firing the join link (the trigger is tested on a plain insert into `members`, which is what `inviteMember` does); the migration's clean-up of old yeses on unlinked rows, which runs once and has no test; a cold read by a student.
 
 Not built: a member undoing their own "This is me" (an admin unlinks); merging the People row an upload made from an email ("priya.n") into the real one; linking by email or by an alias (joining compares the account's name with display names only); the run page's "This is me" for an admin who wants to link someone else from there (they go to Settings, People). This entry builds "a way to link a People row to an account" and "a failure type on its own is cleared without asking" from the failure record's "Not built" line.
+
+## 2026-11-20 — Online for the demo, and search's embed budget
+
+The app is on Vercel's free plan at https://binary-app-seven.vercel.app, with the search model on Modal (`https://amanibobo1--binary-embed.us-east.modal.run`). The worker still runs on the founder's laptop against hosted Supabase, so uploads are only read while it's awake. This is a demo setup for the cofounder, in the demo lab; deploy.md is still the plan for a real lab.
+
+Search's query embedding gets 1 s, not 250 ms. Measured from a laptop, a warm `/embed` call took 310 to 350 ms to first byte, about 270 ms of it inside Modal after the TLS handshake; from Vercel's iad1 every query timed out at 250 ms and search fell back to exact words. Ask already allowed 1 s. A cold GPU still runs past it, so the first search after a quiet spell is words only, as before.
+
+The first Modal deploy also failed twice before serving: the image lacked `httpx` (embed.py imports it for the remote client), and the model was cached under the pinned revision while QwenEmbedder loads by name, which offline resolves `refs/main`. The image now writes `refs/main` to the pin.

@@ -52,7 +52,7 @@ let badShapeUrl = "";
 
 beforeAll(async () => {
   slowUrl = await serve((_req, res) => {
-    setTimeout(() => res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ embedding: vector })), 600);
+    setTimeout(() => res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ embedding: vector })), 1500);
   });
   failingUrl = await serve((_req, res) => res.writeHead(500).end("boom"));
   fastUrl = await serve((_req, res) =>
@@ -84,13 +84,13 @@ async function runAgainst(url: string) {
 }
 
 describe("search fallback", () => {
-  it("returns the keyword variant when the embedder is slower than 250 ms", async () => {
+  it("returns the keyword variant when the embedder is slower than 1 s", async () => {
     const { response, calls, elapsedMs } = await runAgainst(slowUrl);
     expect(response.kind).toBe("keyword");
     if (response.kind === "keyword") expect(response.reason).toBe("embed_timeout");
     expect(calls).toHaveLength(1);
     expect(calls[0]?.p_query_embedding).toBeNull();
-    expect(elapsedMs).toBeLessThan(500);
+    expect(elapsedMs).toBeLessThan(1400);
   });
 
   it("returns the keyword variant when the embedder answers 500", async () => {
