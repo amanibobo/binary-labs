@@ -54,7 +54,7 @@ export function TaskView({ run, initial, people, me }: { run: RunRecord; initial
     setTask(next);
     setPreview(null);
   };
-  const reasons = [...task.gaps, ...task.blocks];
+  const reasons = [...task.blocks, ...task.gaps];
   const causeReady = !task.gaps.includes("no_confirmed_cause") && !task.blocks.includes("not_attested");
 
   return (
