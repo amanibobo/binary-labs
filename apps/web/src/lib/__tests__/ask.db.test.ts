@@ -365,3 +365,142 @@ describe("label suggestions", () => {
     expect(await sqlError(() => asRole(db, member(ana), () => db.query("select settle_suggestion($1, null, false, $2::jsonb)", [id, JSON.stringify([{ sha256: gel, correction_id: 1 }])])))).toBe("42501");
   });
 });
+
+describe("label suggestions edited before approval", () => {
+  let batch4: ExperimentId;
+
+  const draftOne = async (): Promise<SuggestionId> =>
+    pgAnswerWriter(db).recordSuggestion({
+      p_lab_id: labA,
+      p_user_id: ben,
+      p_kind: "labels",
+      p_question_id: null,
+      p_summary: "The gel looks like batch 3.",
+      p_sources: [],
+      p_protocol_id: null,
+      p_base_version_id: null,
+      p_title: null,
+      p_body: null,
+      p_note: null,
+      p_labels: [{ sha256: gel, clean_name: null, date: null, experiment_id: batch3, person_id: null, reason: "Its caption says batch 3." }],
+      p_model: "fake",
+      p_call: null,
+    });
+
+  const approveWith = (id: SuggestionId, shas: Sha256[], edits: unknown[]) =>
+    asRole(db, member(ben), () => rows(db, "approve_label_suggestion($1, $2, $3::jsonb)", [id, shas, JSON.stringify(edits)]));
+
+  beforeAll(async () => {
+    batch4 = ExperimentId.parse((await db.query("insert into experiments (lab_id, name) values ($1, 'P450 batch 4') returning id", [labA])).rows[0]?.id);
+  });
+
+  it("saves the member's values instead of the proposal, as their correction, and marks it edited", async () => {
+    const id = await draftOne();
+    await approveWith(id, [gel], [{ sha256: gel, clean_name: "Batch 4 gel", date: "2026-10-20", experiment_id: batch4, person_id: null }]);
+    const label = (await db.query("select clean_name, to_char(date, 'YYYY-MM-DD') as date, experiment_id from labels where lab_id = $1 and sha256 = $2", [labA, gel])).rows[0];
+    expect(label).toEqual({ clean_name: "Batch 4 gel", date: "2026-10-20", experiment_id: batch4 });
+    expect((await db.query("select state, edited, decided_by from suggestions where id = $1", [id])).rows[0]).toEqual({ state: "approved", edited: true, decided_by: ben });
+    const by = (await db.query("select c.user_id from corrections c join suggestion_labels sl on sl.correction_id = c.id where sl.suggestion_id = $1", [id])).rows;
+    expect(by).toEqual([{ user_id: ben }]);
+  });
+
+  it("approving without edits applies the proposal and isn't marked edited", async () => {
+    const id = await draftOne();
+    await approveWith(id, [gel], []);
+    expect((await db.query("select experiment_id from labels where lab_id = $1 and sha256 = $2", [labA, gel])).rows[0]).toEqual({ experiment_id: batch3 });
+    expect((await db.query("select edited from suggestions where id = $1", [id])).rows[0]).toEqual({ edited: false });
+  });
+
+  it("refuses an edit for a file that wasn't chosen, or another lab's experiment, and stays open", async () => {
+    const id = await draftOne();
+    expect(await sqlError(() => approveWith(id, [gel], [{ sha256: notes, clean_name: "X", date: null, experiment_id: null, person_id: null }]))).toBe("BL602");
+    const other = ExperimentId.parse((await db.query("insert into experiments (lab_id, name) values ($1, 'Their batch') returning id", [labB])).rows[0]?.id);
+    expect(await sqlError(() => approveWith(id, [gel], [{ sha256: gel, clean_name: null, date: null, experiment_id: other, person_id: null }]))).toBe("23503");
+    expect((await db.query("select state from suggestions where id = $1", [id])).rows[0]).toEqual({ state: "open" });
+  });
+});
+
+describe("protocol edits drawn from talk-throughs and flags", () => {
+  const audio = Sha256.parse("4f".repeat(32));
+  const sheet = Sha256.parse("5f".repeat(32));
+  const CHECK = "00000000-0000-4000-8000-0000000c4ec1";
+  let bradford: ProtocolId;
+
+  beforeAll(async () => {
+    const created = z
+      .array(z.object({ protocol_id: ProtocolId, version_id: ProtocolVersionId }))
+      .parse(await asRole(db, member(ana), () => rows(db, "create_protocol($1, 'protocol', 'Bradford assay', $2)", [labA, "1. Make standards.\n2. Read at 595 nm."])));
+    bradford = created[0]?.protocol_id ?? ProtocolId.parse("00000000-0000-4000-8000-000000000000");
+    const curve = { id: CHECK, name: "Standard curve", kind: "curve_fit", sheet: null, unit: null, range: { kind: "at_least", min: 0.98 }, x: null, y: null };
+    const saved = z
+      .array(z.object({ version_id: ProtocolVersionId }))
+      .parse(await asRole(db, member(ana), () => rows(db, "save_checks($1, $2, $3::jsonb, null)", [bradford, created[0]?.version_id, JSON.stringify([curve])])));
+    const withChecks = saved[0]?.version_id;
+
+    await addFile(labA, audio, "/Uploads/Talk-throughs/Talk-through 2026-11-03.weba", "");
+    await db.query("update blobs set file_kind = 'audio' where sha256 = $1", [audio]);
+    await db.query("insert into extractions (sha256, extractor, extractor_version, kind, content) values ($1, 'fake', 1, 'transcript', $2)", [
+      audio,
+      "Make the standards, then I always let the plate sit five minutes before reading at 595.",
+    ]);
+    const location = z.string().parse((await db.query("select id from file_locations where sha256 = $1", [audio])).rows[0]?.id);
+    await db.query("insert into talk_throughs (lab_id, location_id, kind, protocol_id, base_version_id) values ($1, $2, 'protocol', $3, $4)", [labA, location, bradford, withChecks]);
+
+    await addFile(labA, sheet, "/Bradford/Bradford_2026-11-04.xlsx", "Bradford standards");
+    await db.query("insert into data_tables (lab_id, sha256, state, parser_version, storage_key) values ($1, $2, 'ready', 1, $3)", [labA, sheet, `${labA}/tables/${sheet}.json`]);
+    await db.query(
+      `insert into flags (lab_id, sha256, protocol_id, protocol_version_id, check_id, kind, observed, expected, source_sheet, source_columns, source_rows, evidence, review, review_note, reviewed_by, reviewed_at)
+       values ($1, $2, $3, $4, $5, 'curve_fit', 0.91, '{"kind":"at_least","min":0.98}', 'Standards', '{A,E}', '{[0,6)}', $6, 'known_issue', 'Read too soon after adding dye.', $7, now())`,
+      [labA, sheet, bradford, withChecks, CHECK, "c".repeat(64), ana],
+    );
+  });
+
+  it("shows the model the protocol's talk-throughs and flags, and cites them as files", async () => {
+    const [version] = z
+      .array(z.object({ version_id: ProtocolVersionId, version: z.number(), title: z.string(), body: z.string(), current_version_id: ProtocolVersionId }))
+      .length(1)
+      .parse(await asRole(db, member(ben), () => rows(db, "protocol_version($1, null)", [bradford])));
+    if (version === undefined) throw new Error("no protocol");
+    const protocol: ProtocolVersion = {
+      protocolId: bradford,
+      kind: "protocol",
+      archived: false,
+      currentVersionId: version.current_version_id,
+      currentVersion: version.version,
+      id: version.version_id,
+      version: version.version,
+      title: version.title,
+      body: version.body,
+      note: null,
+      author: ana,
+      createdAt: "2026-11-05T00:00:00Z",
+    };
+    const model = fakeJsonModel(() => ({
+      changed: true,
+      summary: "Adds the five minute wait the talk-through does before reading.",
+      note: "Wait before reading",
+      title: "Bradford assay",
+      body: "1. Make standards.\n2. Wait 5 min.\n3. Read at 595 nm.",
+      sources: ["F1", "F2"],
+    }));
+    const drafted = await suggestProtocolEdit(
+      { labId: labA, userId: ben, reads: pgAskReads(db, { labId: labA, userId: ben }), writer: pgAnswerWriter(db), model, embed: noEmbed },
+      { protocol, questionId: null, question: null },
+    );
+    const user = model.calls[0]?.user ?? "";
+    expect(user).toContain("A talk-through of this protocol, recorded");
+    expect(user).toContain("let the plate sit five minutes");
+    expect(user).toContain('Standard curve fit check "Standard curve" read 0.91; it expects at least 0.98. A member answered "Known issue": Read too soon after adding dye.');
+    if (drafted.kind !== "created") throw new Error(`expected a draft, got ${drafted.kind}`);
+    const saved = z
+      .object({ sources: z.array(z.object({ sha256: z.string() })) })
+      .parse((await db.query("select sources from suggestions where id = $1", [drafted.id])).rows[0]);
+    expect(saved.sources.map((s) => s.sha256).sort()).toEqual([audio, sheet].sort());
+  });
+
+  it("keeps a protocol's record inside its lab", async () => {
+    expect(await asRole(db, member(cara), () => rows(db, "protocol_evidence($1)", [bradford]))).toEqual([]);
+    const own = z.array(z.object({ kind: z.string() })).parse(await asRole(db, member(ben), () => rows(db, "protocol_evidence($1)", [bradford])));
+    expect(own.map((r) => r.kind)).toEqual(["flag", "talk_through"]);
+  });
+});

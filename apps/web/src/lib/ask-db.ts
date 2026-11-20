@@ -2,10 +2,10 @@ import "server-only";
 import { z } from "zod";
 import { embedConfig } from "@/env";
 import { AnswerSource, Answer, AskStep, RECENT_QUESTIONS_LOADED, RecentQuestionRows, SavedAnswer, Verdict, type AskHome, type RecentQuestion } from "./answers";
-import { BudgetRows, CachedOutput, ContextRows, ProtocolContextRows, QUESTION_EMBED_TIMEOUT_MS, type AnswerWriter, type AskReads } from "./ask";
+import { BudgetRows, CachedOutput, ContextRows, EvidenceRows, ProtocolContextRows, QUESTION_EMBED_TIMEOUT_MS, type AnswerWriter, type AskReads } from "./ask";
 import { readTables } from "./chart-store";
 import { FileLabelRows, type Label } from "./domain";
-import { QuestionId, Sha256, SuggestionId, type LabId, type ProtocolId, type UserId } from "./ids";
+import { ExperimentId, PersonId, QuestionId, Sha256, SuggestionId, type LabId, type ProtocolId, type UserId } from "./ids";
 import { logError } from "./log";
 import { anthropicJsonModel, type JsonModel } from "./json-model";
 import { loadProtocolVersion } from "./lab-data";
@@ -64,6 +64,7 @@ export function memberAskReads(supabase: Supabase, labId: LabId): AskReads {
       }
     },
     budget: async () => BudgetRows.parse(unwrap(await supabase.rpc("ai_budget", { p_lab_id: labId }))),
+    protocolEvidence: async (protocolId) => EvidenceRows.parse(unwrap(await supabase.rpc("protocol_evidence", { p_protocol_id: protocolId }))),
   };
 }
 
@@ -131,8 +132,26 @@ function factsOf(label: Label | null): LabelFacts {
     cleanName: label?.cleanName ?? null,
     date: label?.date ?? null,
     experiment: label?.experiment?.name ?? null,
+    experimentId: label?.experiment?.id ?? null,
     person: label?.person?.name ?? null,
+    personId: label?.person?.id ?? null,
   };
+}
+
+const CorrectionFacts = z.object({
+  clean_name: z.string().nullable().default(null),
+  date: z.string().nullable().default(null),
+  experiment_id: ExperimentId.nullable().default(null),
+  person_id: PersonId.nullable().default(null),
+});
+const CorrectionRows = z.array(z.object({ id: z.number(), before: CorrectionFacts.nullable(), after: CorrectionFacts }));
+type Facts = { clean_name: string | null; date: string | null; experiment_id: ExperimentId | null; person_id: PersonId | null };
+
+// What an approval actually changed: the member may have edited the proposal first, so a
+// decided change reads its correction, field by field, rather than the proposal.
+function appliedFacts(before: Facts | null, after: Facts): Facts {
+  const changed = <K extends keyof Facts>(k: K): Facts[K] | null => (before !== null && before[k] === after[k] ? null : after[k]);
+  return { clean_name: changed("clean_name"), date: changed("date"), experiment_id: changed("experiment_id"), person_id: changed("person_id") };
 }
 
 export async function loadSuggestion(supabase: Supabase, labId: LabId, id: SuggestionId): Promise<Suggestion | null> {
@@ -185,31 +204,42 @@ export async function loadSuggestion(supabase: Supabase, labId: LabId, id: Sugge
       ),
     );
   const shas = items.map((i) => i.sha256);
-  const [labels, experiments, people, paths] = await Promise.all([
+  const correctionIds = items.flatMap((i) => (i.correction_id === null ? [] : [i.correction_id]));
+  const [labels, experiments, people, paths, corrections] = await Promise.all([
     loadFileLabels(supabase, labId, shas),
-    supabase.from("experiments").select("id, name").eq("lab_id", labId),
-    supabase.from("people").select("id, name:display_name").eq("lab_id", labId),
+    supabase.from("experiments").select("id, name").eq("lab_id", labId).order("name"),
+    supabase.from("people").select("id, name:display_name").eq("lab_id", labId).order("display_name"),
     supabase.from("file_locations").select("sha256, path").eq("lab_id", labId).is("deleted_at", null).in("sha256", shas),
+    correctionIds.length === 0
+      ? Promise.resolve({ data: [], error: null })
+      : supabase.from("corrections").select("id, before, after").eq("lab_id", labId).in("id", correctionIds),
   ]);
-  const experimentName = new Map(NamedRows.parse(unwrap(experiments)).map((e) => [e.id, e.name]));
-  const personName = new Map(NamedRows.parse(unwrap(people)).map((p) => [p.id, p.name]));
+  const experimentList = NamedRows.parse(unwrap(experiments)).map((e) => ({ id: ExperimentId.parse(e.id), name: e.name }));
+  const peopleList = NamedRows.parse(unwrap(people)).map((p) => ({ id: PersonId.parse(p.id), name: p.name }));
+  const experimentName = new Map<string, string>(experimentList.map((e) => [e.id, e.name]));
+  const personName = new Map<string, string>(peopleList.map((p) => [p.id, p.name]));
   const pathOf = new Map(z.array(z.object({ sha256: z.string(), path: z.string() })).parse(unwrap(paths)).map((p) => [p.sha256, p.path]));
-  const changes = items.map(
-    (i): LabelChange => ({
+  const correctionOf = new Map(CorrectionRows.parse(unwrap(corrections)).map((c) => [c.id, c]));
+  const changes = items.map((i): LabelChange => {
+    const correction = i.correction_id === null ? undefined : correctionOf.get(i.correction_id);
+    const facts: Facts = correction === undefined ? i : appliedFacts(correction.before, correction.after);
+    return {
       sha256: i.sha256,
       path: pathOf.get(i.sha256) ?? "",
       current: factsOf(labels.get(i.sha256) ?? null),
       proposed: {
-        cleanName: i.clean_name,
-        date: i.date,
-        experiment: i.experiment_id === null ? null : (experimentName.get(i.experiment_id) ?? null),
-        person: i.person_id === null ? null : (personName.get(i.person_id) ?? null),
+        cleanName: facts.clean_name,
+        date: facts.date,
+        experiment: facts.experiment_id === null ? null : (experimentName.get(facts.experiment_id) ?? null),
+        experimentId: facts.experiment_id,
+        person: facts.person_id === null ? null : (personName.get(facts.person_id) ?? null),
+        personId: facts.person_id,
       },
       reason: i.reason,
       applied: i.correction_id !== null,
-    }),
-  );
-  return { ...common, kind: "labels", changes };
+    };
+  });
+  return { ...common, kind: "labels", changes, lists: { experiments: experimentList, people: peopleList } };
 }
 
 // The Search home's part. It never fails the page, since search works without it.

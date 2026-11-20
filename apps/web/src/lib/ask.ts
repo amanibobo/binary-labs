@@ -17,7 +17,9 @@ import {
   type SourceKey,
   type TableExcerpt,
 } from "./answers";
+import { CheckKind, CheckRange } from "./checks";
 import { columnLabel, type DataTables } from "./data-tables";
+import { Review } from "./flags";
 import { FileKind, FileLocation, LabelRow, type Label } from "./domain";
 import { ProtocolId, ProtocolVersionId, Sha256, type LabId, type QuestionId, type SuggestionId, type UserId } from "./ids";
 import { ProtocolKind } from "./protocols";
@@ -67,8 +69,43 @@ export const BudgetRows = z
   .length(1)
   .transform(([r]): Budget => ({ capUsd: r?.cap_usd ?? 0, spentUsd: r?.spent_usd ?? 0, resetsAt: r?.resets_at ?? "" }));
 
+// A protocol's own record (migration 0031): its talk-throughs' transcripts and the flags its
+// checks raised, each on its file.
+export const EvidenceRows = z.array(
+  z.discriminatedUnion("kind", [
+    z.object({
+      kind: z.literal("talk_through"),
+      sha256: Sha256,
+      file_kind: FileKind,
+      locations: z.tuple([FileLocation], FileLocation),
+      label: LabelRow.nullable(),
+      at: z.string(),
+      transcript: z.string(),
+    }),
+    z.object({
+      kind: z.literal("flag"),
+      sha256: Sha256,
+      file_kind: FileKind,
+      locations: z.tuple([FileLocation], FileLocation),
+      label: LabelRow.nullable(),
+      at: z.string(),
+      flag: z.object({
+        check: z.string(),
+        kind: CheckKind,
+        observed: z.number(),
+        expected: CheckRange,
+        unit: z.string().nullable(),
+        review: Review.nullable(),
+        note: z.string().nullable(),
+      }),
+    }),
+  ]),
+);
+export type EvidenceRow = z.infer<typeof EvidenceRows>[number];
+
 // Reads as the asking member, so RLS keeps every one of them inside their lab.
 export type AskReads = {
+  protocolEvidence(protocolId: ProtocolId): Promise<EvidenceRow[]>;
   context(args: { query: string; embedding: number[] | null; files: number }): Promise<ContextRow[]>;
   protocols(args: { query: string; limit: number }): Promise<ProtocolContextRow[]>;
   // A parsed table by its storage key, read only under the lab's prefix.
@@ -296,12 +333,23 @@ export class StepLog {
   }
 }
 
+export function mergeRows(first: readonly ContextRow[], found: readonly ContextRow[]): ContextRow[] {
+  const bySha = new Map(found.map((r) => [r.sha256, r]));
+  const merged = first.map((r) => {
+    const also = bySha.get(r.sha256);
+    return also === undefined ? r : { ...also, excerpts: [...r.excerpts, ...also.excerpts] };
+  });
+  const seen = new Set(first.map((r) => r.sha256));
+  return [...merged, ...found.filter((r) => !seen.has(r.sha256))];
+}
+
 export async function gatherSources({
   reads,
   embed,
   query,
   files = FILES_PER_QUESTION,
   protocols = PROTOCOLS_PER_QUESTION,
+  first = [],
   log = new StepLog(),
 }: {
   reads: AskReads;
@@ -309,6 +357,9 @@ export async function gatherSources({
   query: string;
   files?: number;
   protocols?: number;
+  // Files to show ahead of the search's, such as a protocol's own record. A file the search
+  // also finds is shown once, with both its passages.
+  first?: readonly ContextRow[];
   log?: StepLog;
 }): Promise<BuiltSources> {
   // One search: the question's embedding, then files by words and meaning beside the
@@ -317,11 +368,12 @@ export async function gatherSources({
   log.put({ kind: "search", id: search, query, found: null });
   const outcome = await embed(query);
   const embedding = outcome.kind === "ok" ? outcome.embedding : null;
-  const [rows, protocolRows] = await Promise.all([
+  const [found, protocolRows] = await Promise.all([
     reads.context({ query, embedding, files }),
     protocols > 0 ? reads.protocols({ query, limit: protocols }) : Promise.resolve([]),
   ]);
-  log.put({ kind: "search", id: search, query, found: { files: rows.length, protocols: protocolRows.length, byMeaning: embedding !== null } });
+  log.put({ kind: "search", id: search, query, found: { files: found.length, protocols: protocolRows.length, byMeaning: embedding !== null } });
+  const rows = mergeRows(first, found);
   rows.forEach((row, i) => log.put({ kind: "file", id: log.nextId(), source: fileKey(i), name: fileName(row), fileKind: row.file_kind }));
   protocolRows.forEach((p, i) => log.put({ kind: "protocol", id: log.nextId(), source: protocolKey(i), title: p.title, version: p.version }));
 

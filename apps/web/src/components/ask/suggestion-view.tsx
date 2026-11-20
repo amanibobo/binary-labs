@@ -9,11 +9,14 @@ import { formatDay } from "@/lib/format";
 import type { Sha256, UserId } from "@/lib/ids";
 import { authorName, NOTE_MAX, protocolHref, TITLE_MAX, type AuthorNames } from "@/lib/protocols";
 import {
+  draftOf,
+  editOf,
   foldDiff,
   suggestionHref,
   lineDiff,
   type ApproveRequest,
   type LabelChange,
+  type LabelDraft,
   type LabelFacts,
   type LabelSuggestion,
   type ProtocolEditSuggestion,
@@ -275,9 +278,64 @@ function ChangeRow({ change, checked, onToggle, open }: { change: LabelChange; c
   );
 }
 
+function EditRow({
+  change,
+  draft,
+  lists,
+  onChange,
+}: {
+  change: LabelChange;
+  draft: LabelDraft;
+  lists: LabelSuggestion["lists"];
+  onChange: (draft: LabelDraft) => void;
+}) {
+  const id = useId();
+  const set = (patch: Partial<LabelDraft>) => onChange({ ...draft, ...patch });
+  const select = "min-h-11 w-full rounded-control border border-border-opaque bg-background-secondary px-3 text-paragraph-small text-content-primary sm:min-h-8";
+  return (
+    <li className="py-4">
+      <span className="block truncate font-mono text-paragraph-xsmall text-content-tertiary">{change.path}</span>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <div className="space-y-1.5 sm:col-span-2">
+          <Label htmlFor={`${id}-name`}>Name</Label>
+          <Input id={`${id}-name`} size="compact" value={draft.cleanName} maxLength={TITLE_MAX} onChange={(e) => set({ cleanName: e.target.value })} />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor={`${id}-experiment`}>Experiment</Label>
+          <select id={`${id}-experiment`} value={draft.experimentId} onChange={(e) => set({ experimentId: e.target.value })} className={select}>
+            {change.current.experimentId === null ? <option value="">None</option> : null}
+            {lists.experiments.map((e) => (
+              <option key={e.id} value={e.id}>
+                {e.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor={`${id}-person`}>Person</Label>
+          <select id={`${id}-person`} value={draft.personId} onChange={(e) => set({ personId: e.target.value })} className={select}>
+            {change.current.personId === null ? <option value="">None</option> : null}
+            {lists.people.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor={`${id}-date`}>Date</Label>
+          <Input id={`${id}-date`} size="compact" type="date" value={draft.date} onChange={(e) => set({ date: e.target.value })} />
+        </div>
+      </div>
+    </li>
+  );
+}
+
 function LabelChanges({ suggestion }: { suggestion: LabelSuggestion }) {
   const { busy, approve, dismiss } = useDecide();
   const [chosen, setChosen] = useState<ReadonlySet<Sha256>>(() => new Set(suggestion.changes.map((c) => c.sha256)));
+  const [editing, setEditing] = useState(false);
+  const [drafts, setDrafts] = useState<ReadonlyMap<Sha256, LabelDraft>>(() => new Map(suggestion.changes.map((c) => [c.sha256, draftOf(c)])));
   const open = suggestion.decision.state === "open";
   const toggle = (sha: Sha256) =>
     setChosen((prev) => {
@@ -287,6 +345,46 @@ function LabelChanges({ suggestion }: { suggestion: LabelSuggestion }) {
       return next;
     });
   const count = chosen.size;
+  const kept = suggestion.changes.filter((c) => chosen.has(c.sha256));
+
+  if (editing && open) {
+    const edits = kept.flatMap((c) => {
+      const draft = drafts.get(c.sha256);
+      const edit = draft === undefined ? null : editOf(c, draft);
+      return edit === null ? [] : [edit];
+    });
+    return (
+      <form
+        className="mt-8"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void approve(suggestion, { kind: "labels", shas: kept.map((c) => c.sha256), edits }, count === 1 ? "Changed 1 label." : `Changed ${count} labels.`);
+        }}
+      >
+        <h2 className="text-label-small text-content-tertiary">Each label as it will be saved</h2>
+        <ul className="mt-1 divide-y divide-border-opaque">
+          {kept.map((change) => (
+            <EditRow
+              key={change.sha256}
+              change={change}
+              draft={drafts.get(change.sha256) ?? draftOf(change)}
+              lists={suggestion.lists}
+              onChange={(draft) => setDrafts((prev) => new Map(prev).set(change.sha256, draft))}
+            />
+          ))}
+        </ul>
+        <div className="mt-6 flex flex-wrap gap-2">
+          <Button type="submit" disabled={busy || count === 0}>
+            {edits.length === 0 ? "Approve" : "Approve with my edits"}
+          </Button>
+          <Button type="button" variant="tertiary" onClick={() => setEditing(false)}>
+            Cancel
+          </Button>
+        </div>
+      </form>
+    );
+  }
+
   return (
     <section className="mt-8">
       <h2 className="text-label-small text-content-tertiary">
@@ -304,6 +402,9 @@ function LabelChanges({ suggestion }: { suggestion: LabelSuggestion }) {
             onClick={() => void approve(suggestion, { kind: "labels", shas: [...chosen] }, count === 1 ? "Changed 1 label." : `Changed ${count} labels.`)}
           >
             {count === suggestion.changes.length ? "Approve all" : count === 1 ? "Approve 1 file" : `Approve ${count} files`}
+          </Button>
+          <Button variant="secondary" disabled={busy || count === 0} onClick={() => setEditing(true)}>
+            Edit first
           </Button>
           <Button variant="tertiary" disabled={busy} onClick={() => void dismiss(suggestion)}>
             Dismiss
