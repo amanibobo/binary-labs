@@ -12,8 +12,8 @@ import type { RunDb } from "../run-record-store";
 vi.mock("server-only", () => ({}));
 
 const db = new Client({ connectionString: process.env.TEST_DATABASE_URL ?? "postgresql://localhost/binary_labs_web_test" });
-const eve = "00000000-0000-4000-8000-0000000e1001";
-const mal = "00000000-0000-4000-8000-0000000e1002";
+const eve = "00000000-0000-4000-8000-0000000b2101";
+const mal = "00000000-0000-4000-8000-0000000b2102";
 const sha = (n: number) => Sha256.parse(`d${n.toString(16).padStart(63, "0")}`);
 
 function memberDb(userId: string): RunDb {

@@ -11,9 +11,9 @@ import { EditedFilesJson } from "../run-originals";
 // members of the lab, as a member of another lab, signed out, and as the worker's connection.
 
 const db = new Client({ connectionString: process.env.TEST_DATABASE_URL ?? "postgresql://localhost/binary_labs_web_test" });
-const ada = "00000000-0000-4000-8000-0000000e0001";
-const ben = "00000000-0000-4000-8000-0000000e0002";
-const cy = "00000000-0000-4000-8000-0000000e0003";
+const ada = "00000000-0000-4000-8000-0000000b2001";
+const ben = "00000000-0000-4000-8000-0000000b2002";
+const cy = "00000000-0000-4000-8000-0000000b2003";
 const sha = (n: number) => Sha256.parse(`e${n.toString(16).padStart(63, "0")}`);
 
 async function asRole<T>(role: "authenticated" | "anon", userId: string | null, fn: () => Promise<T>): Promise<T> {
