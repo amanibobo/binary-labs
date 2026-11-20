@@ -73,6 +73,36 @@ export const bradfordChecks: CheckSpec[] = CheckSpecs.parse([
   },
 ]);
 
+// A dose-response protocol's checks: the IC50 off a 4PL, and a kinetic read's blank wells,
+// one column each.
+export const viabilityChecks: CheckSpec[] = CheckSpecs.parse([
+  {
+    id: "0f8f2c1e-0005-4a4e-8c55-0c3c1a7a0005",
+    name: "Drug A IC50",
+    kind: "curve_fit",
+    sheet: null,
+    unit: "µM",
+    range: { kind: "between", min: 1, max: 5 },
+    x: null,
+    y: null,
+    fit: "4pl",
+    measure: "midpoint",
+  },
+  {
+    id: "0f8f2c1e-0006-4a4e-8c55-0c3c1a7a0006",
+    name: "Blank wells",
+    kind: "control",
+    by: "column",
+    sheet: null,
+    unit: null,
+    range: { kind: "at_most", max: 0.1 },
+    pattern: "blank",
+    labelColumn: null,
+    column: null,
+    use: "each",
+  },
+]);
+
 export const bradfordUsefulness: UsefulnessByCheck = {
   [usefulnessKey(PROTOCOL, CURVE)]: { flags: 6, useful: 4, wrong: 0, knownIssue: 1 },
   [usefulnessKey(PROTOCOL, BLANKS)]: { flags: 3, useful: 1, wrong: 1, knownIssue: 0 },

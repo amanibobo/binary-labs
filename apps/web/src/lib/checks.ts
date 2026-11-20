@@ -339,6 +339,39 @@ const DEFAULTS: Record<CheckKind, Pick<CheckDraft, "name" | "unit" | "range">> =
   control: { name: "Blanks", unit: "", range: { kind: "at_most", a: "0.1", b: "" } },
 };
 
+// The editor's words for a curve's choices, and what each starts with.
+export const FIT_CHOICES = {
+  line: { label: "A straight line", hint: "Bradford, BCA and most absorbance standards." },
+  log_line: { label: "A straight line on a log scale", hint: "Standards in tenfold steps, such as a qPCR standard." },
+  "4pl": { label: "A dose-response curve (4PL)", hint: "An S-shaped curve over doses. Rows at dose 0 are left out." },
+} satisfies Record<CurveFit, { label: string; hint: string }>;
+
+const MEASURE_STARTS = {
+  r2: { label: "How well it fits (R²)", name: "Standard curve fit", range: { kind: "at_least", a: "0.98", b: "" } },
+  midpoint: { label: "The IC50 or EC50", name: "IC50", range: { kind: "between", a: "", b: "" } },
+  outside: { label: "Samples outside the standards", name: "Samples within the standards", range: { kind: "at_most", a: "0", b: "" } },
+} satisfies Record<CurveMeasure, { label: string; name: string; range: CheckDraft["range"] }>;
+
+export const measureLabel = (m: CurveMeasure) => MEASURE_STARTS[m].label;
+
+// Picking what a curve check reads starts its name and range afresh, unless they were typed.
+export function withMeasure(d: CheckDraft, measure: CurveMeasure): CheckDraft {
+  const was = MEASURE_STARTS[d.measure];
+  const next = MEASURE_STARTS[measure];
+  const typedRange = d.range.a !== was.range.a || d.range.b !== was.range.b || d.range.kind !== was.range.kind;
+  return {
+    ...d,
+    measure,
+    name: d.name === was.name ? next.name : d.name,
+    range: typedRange ? d.range : next.range,
+  };
+}
+
+// A fit that can't give the current measure falls back to its R².
+export function withFit(d: CheckDraft, fit: CurveFit): CheckDraft {
+  return measureFits(d.measure, fit) ? { ...d, fit } : withMeasure({ ...d, fit }, "r2");
+}
+
 export function newDraft(kind: CheckKind, id: CheckId): CheckDraft {
   return {
     id,

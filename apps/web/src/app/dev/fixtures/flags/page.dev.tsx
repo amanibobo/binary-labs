@@ -7,19 +7,22 @@ import { ProtocolView } from "@/components/protocols/protocol-view";
 import { BRADFORD, fixtureHit } from "@/fixtures/charts";
 import { doneSource, fixtureShell } from "@/fixtures/data";
 import { FixtureLabApi } from "@/fixtures/fixture-api";
-import { bradfordAssay, bradfordChecks, bradfordUsefulness, CURVE, fixtureFlags, flagById } from "@/fixtures/flags";
+import { bradfordAssay, bradfordChecks, bradfordUsefulness, CURVE, fixtureFlags, flagById, viabilityChecks } from "@/fixtures/flags";
 import { requireFixtures, type FixtureProps } from "@/fixtures/gate";
+import type { Flag } from "@/lib/flags";
 import { authors } from "@/fixtures/protocols";
 
 // Checks and flags: ?view=list|empty (the Flags queue), flag (a curve fit flag), control (a
 // blank out of range), answered, wrong (answering wrong, which offers to edit the range),
 // checks (the check editor), checks-wrong (the editor opened on the check from a wrong flag),
-// checks-empty and protocol (a protocol page with its checks and flags).
+// checks-curves (an IC50 and blank columns), checks-empty and protocol (a protocol page with
+// its checks and flags).
 const View = z
-  .enum(["list", "empty", "flag", "control", "answered", "wrong", "checks", "checks-wrong", "checks-empty", "protocol"])
+  .enum(["list", "empty", "flag", "control", "answered", "wrong", "checks", "checks-wrong", "checks-curves", "checks-empty", "protocol"])
   .catch("list");
 
 const [curveFlag, controlFlag, answeredFlag] = fixtureFlags;
+const checkOf = (flag: Flag | undefined) => bradfordChecks.find((c) => c.id === flag?.checkId) ?? null;
 
 export default async function FlagsFixture({ searchParams }: FixtureProps) {
   requireFixtures();
@@ -41,15 +44,17 @@ function Screen({ view }: { view: z.infer<typeof View> }) {
     case "empty":
       return <FlagsView flags={[]} />;
     case "flag":
-      return <FlagView flag={curveFlag ?? flagById("")} authors={authors} />;
+      return <FlagView flag={curveFlag ?? flagById("")} check={checkOf(curveFlag)} authors={authors} />;
     case "control":
-      return <FlagView flag={controlFlag ?? flagById("")} authors={authors} />;
+      return <FlagView flag={controlFlag ?? flagById("")} check={checkOf(controlFlag)} authors={authors} />;
     case "answered":
-      return <FlagView flag={answeredFlag ?? flagById("")} authors={authors} />;
+      return <FlagView flag={answeredFlag ?? flagById("")} check={checkOf(answeredFlag)} authors={authors} />;
     case "wrong":
-      return <FlagView flag={curveFlag ?? flagById("")} authors={authors} initialReview="wrong" />;
+      return <FlagView flag={curveFlag ?? flagById("")} check={checkOf(curveFlag)} authors={authors} initialReview="wrong" />;
     case "checks":
       return <CheckEditor page={bradfordAssay} checks={bradfordChecks} usefulness={bradfordUsefulness} focus={null} />;
+    case "checks-curves":
+      return <CheckEditor page={bradfordAssay} checks={viabilityChecks} usefulness={null} focus={viabilityChecks[0]?.id ?? null} />;
     case "checks-wrong":
       return <CheckEditor page={bradfordAssay} checks={bradfordChecks} usefulness={bradfordUsefulness} focus={CURVE} />;
     case "checks-empty":

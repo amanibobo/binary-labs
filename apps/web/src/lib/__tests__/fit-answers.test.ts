@@ -34,7 +34,7 @@ describe("the worked example's fit", () => {
     if (c === undefined) throw new Error(`no column ${name}`);
     return c;
   };
-  const letters = named("Column A").values;
+  const letters: readonly unknown[] = named("Column A").values;
   const read = (column: string, letter: string) => {
     const v = named(column).values[letters.indexOf(letter)];
     if (typeof v !== "number") throw new Error(`${letter}${column} isn't a number`);

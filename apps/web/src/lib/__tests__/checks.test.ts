@@ -13,6 +13,8 @@ import {
   toDraft,
   usefulText,
   valueTerm,
+  withFit,
+  withMeasure,
   type CheckDraft,
 } from "../checks";
 import { CheckId } from "../ids";
@@ -185,5 +187,15 @@ describe("curve fits and controls by column", () => {
     expect(byColumn.kind === "ok" && byColumn.check).toMatchObject({ by: "column", column: null, labelColumn: null });
     expect(parseDraft({ ...newDraft("control", id), column: "" })).toMatchObject({ kind: "invalid", field: "column" });
     expect(parseDraft({ ...newDraft("control", id), by: "column", column: "" }).kind).toBe("ok");
+  });
+
+  it("starts an IC50 or a samples check with its own name and range, keeping what was typed", () => {
+    const fresh = withMeasure(withFit(newDraft("curve_fit", id), "4pl"), "midpoint");
+    expect(fresh).toMatchObject({ fit: "4pl", measure: "midpoint", name: "IC50", range: { kind: "between", a: "", b: "" } });
+    const typed = withMeasure({ ...newDraft("curve_fit", id), name: "BSA curve", range: { kind: "at_least", a: "0.99", b: "" } }, "outside");
+    expect(typed).toMatchObject({ measure: "outside", name: "BSA curve", range: { kind: "at_least", a: "0.99" } });
+    expect(withMeasure(newDraft("curve_fit", id), "outside")).toMatchObject({ name: "Samples within the standards", range: { kind: "at_most", a: "0" } });
+    // A line can't give an IC50, so leaving the 4PL goes back to the R² and its range.
+    expect(withFit({ ...newDraft("curve_fit", id), ...fresh }, "log_line")).toMatchObject({ fit: "log_line", measure: "r2", name: "Standard curve fit", range: { a: "0.98" } });
   });
 });
