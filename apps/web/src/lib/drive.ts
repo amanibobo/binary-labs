@@ -123,6 +123,8 @@ export type FileVersion = {
   sourceKind: SourceKind;
   // The person who uploaded it or the instrument that sent it; Dropbox doesn't say who.
   who: string | null;
+  // Whether this version's own bytes are in our store, to open unchanged.
+  kept: boolean;
 };
 
 export const FileHistoryRows = z.array(
@@ -142,6 +144,7 @@ export const FileHistoryRows = z.array(
       label: LabelRow.nullable(),
       source_kind: SourceKind,
       who: z.string().nullable(),
+      kept: z.boolean(),
     })
     .transform(
       (r): FileVersion => ({
@@ -159,6 +162,7 @@ export const FileHistoryRows = z.array(
         label: r.label,
         sourceKind: r.source_kind,
         who: r.who,
+        kept: r.kept,
       }),
     ),
 );
@@ -241,19 +245,8 @@ export function changeLine(change: VersionChange): string {
   return parts.join(" · ");
 }
 
-// Files Binary holds can be opened as they were; a Dropbox file's older bytes stay in Dropbox.
-export function versionFileHref(version: Pick<FileVersion, "id" | "sourceKind">): string | null {
-  switch (version.sourceKind) {
-    case "upload":
-    case "instrument":
-    case "import":
-      return `/api/drive/versions/${version.id}`;
-    case "dropbox":
-    case "local":
-      return null;
-    default: {
-      const _exhaustive: never = version.sourceKind;
-      return _exhaustive;
-    }
-  }
+// A version whose bytes Binary kept opens as it was, from our store. One read before
+// originals were kept, and changed since, has only its preview and text.
+export function versionFileHref(version: Pick<FileVersion, "id" | "kept">): string | null {
+  return version.kept ? `/api/drive/versions/${version.id}` : null;
 }

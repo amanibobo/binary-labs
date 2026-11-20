@@ -21,7 +21,7 @@ export function DriveBar({ crumbs }: { crumbs: readonly { label: string; href: s
     <div className="border-b border-border-opaque">
       <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
         <Breadcrumbs items={crumbs} />
-        <FilesViewSwitch current="drive" className="max-sm:hidden" />
+        <FilesViewSwitch current="drive" />
       </div>
     </div>
   );
