@@ -101,7 +101,7 @@ describe("exporting protocols before deleting", () => {
       ["protocol", "Lysis", 2, "Thaw on ice for 30 min."],
       ["tutorial", "Using the plate reader", 1, "Turn it on."],
     ]);
-    const md = protocolsMarkdown({ labName: "Okafor Lab", exportedAt: new Date("2026-11-04T12:00:00Z"), pages });
+    const md = protocolsMarkdown({ labName: "Okafor Lab", demo: false, exportedAt: new Date("2026-11-04T12:00:00Z"), pages });
     expect(md).toContain("Thaw on ice for 30 min.");
     expect(md).not.toContain("Retired.");
 

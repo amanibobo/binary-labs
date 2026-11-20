@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { LabId } from "./ids";
 import { KIND_NAMES, ProtocolKind } from "./protocols";
+import { SAMPLE_NOTE, sampleTitle } from "./sample";
 
 // decisions.md, "deleting a lab and disconnecting Dropbox". The request hides the lab
 // at once; the worker removes the rest within minutes and fills in the counts.
@@ -89,10 +90,12 @@ function countLine(pages: readonly ExportedPage[]): string {
 // One Markdown file with the current version of every live page, for keeping before a lab is deleted.
 export function protocolsMarkdown({
   labName,
+  demo,
   exportedAt,
   pages,
 }: {
   labName: string;
+  demo: boolean;
   exportedAt: Date;
   pages: readonly ExportedPage[];
 }): string {
@@ -104,7 +107,8 @@ export function protocolsMarkdown({
   const sections = pages.map(
     (p) => `# ${p.title}\n\n${KIND_NAMES[p.kind]}, version ${p.version}, saved ${day.format(new Date(p.updatedAt))}\n\n${p.body.trim()}\n`,
   );
-  return [`# ${labName} protocols\n\n${intro}\n`, ...sections].join("\n---\n\n");
+  const head = `# ${sampleTitle(`${labName} protocols`, demo)}\n\n${demo ? `${SAMPLE_NOTE} ` : ""}${intro}\n`;
+  return [head, ...sections].join("\n---\n\n");
 }
 
 export function exportFileName(labName: string): string {

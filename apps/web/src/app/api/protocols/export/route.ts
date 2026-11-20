@@ -3,6 +3,7 @@ import { audit } from "@/lib/audit";
 import { exportFileName, ProtocolExportRows, protocolsMarkdown } from "@/lib/lab-deletion";
 import { logError } from "@/lib/log";
 import { routeAccess } from "@/lib/route-auth";
+import { sampleTitle } from "@/lib/sample";
 import { unwrap } from "@/lib/supabase/server";
 
 // Every current protocol and tutorial as one Markdown file, offered before a lab is deleted.
@@ -14,10 +15,10 @@ export async function GET() {
   try {
     const pages = ProtocolExportRows.parse(unwrap(await supabase.rpc("protocol_export", { p_lab_id: lab.id })));
     await audit(supabase, { labId: lab.id, actor: user.id, action: "protocol.export", target: null });
-    return new NextResponse(protocolsMarkdown({ labName: lab.name, exportedAt: new Date(), pages }), {
+    return new NextResponse(protocolsMarkdown({ labName: lab.name, demo: lab.demo, exportedAt: new Date(), pages }), {
       headers: {
         "content-type": "text/markdown; charset=utf-8",
-        "content-disposition": `attachment; filename="${exportFileName(lab.name)}"`,
+        "content-disposition": `attachment; filename="${exportFileName(sampleTitle(lab.name, lab.demo))}"`,
         "cache-control": "private, no-store",
       },
     });
