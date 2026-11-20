@@ -123,10 +123,9 @@ function GlobalMap({ initialView, saved }: { initialView: HubView; saved: SavedM
     place: { camera: camera.current, open: [...open] },
   });
   const remember = useRemember(api, { hidden: [...saved.hidden], similar: saved.similar, tags: saved.tags, place: { camera: saved.camera, open: [...saved.open] } });
-  const saveNow = saveOf();
-  const saveKey = JSON.stringify(saveNow);
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- saveKey is the whole view
-  useEffect(() => remember(saveNow), [saveKey]);
+  const saveKey = JSON.stringify([hiddenOf(filters), filters.similar, filters.tags, open]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- saveKey is the view apart from the camera, which saves when it moves
+  useEffect(() => remember(saveOf()), [saveKey]);
 
   const asLoaded = filters.similar === saved.similar && filters.tags === saved.tags;
   const hubs = useQuery({
