@@ -265,7 +265,7 @@ function SearchResults({
 function KeysHint() {
   return (
     <p className="text-paragraph-xsmall text-content-tertiary max-md:hidden pointer-coarse:hidden" aria-hidden>
-      ↑ ↓ to move, Enter opens, Esc closes
+      ↑ ↓ to move, Enter opens, E edits labels, C charts a data sheet
     </p>
   );
 }

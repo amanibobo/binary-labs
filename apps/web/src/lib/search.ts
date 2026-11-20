@@ -5,6 +5,7 @@ import {
   type FileHit,
   type KeywordReason,
   type FileSearchResponse,
+  type LabelOutcome,
   type SearchParams,
 } from "./domain";
 import type { EmbedConfig } from "@/env";
@@ -59,6 +60,8 @@ export type SearchFilesArgs = {
   p_modified_from: string | null;
   p_modified_to: string | null;
   p_limit: number;
+  p_outcomes: LabelOutcome[] | null;
+  p_check_only: boolean;
 };
 
 export type SearchFilesRpc = (args: SearchFilesArgs) => Promise<unknown>;
@@ -92,6 +95,8 @@ export function searchFilesArgs({
     // The "to" date is inclusive in the UI; search_files treats it as exclusive.
     p_modified_to: params.to === undefined ? null : dayAfter(params.to),
     p_limit: 20,
+    p_outcomes: params.outcome === undefined ? null : [params.outcome],
+    p_check_only: params.check === true,
   };
 }
 

@@ -44,10 +44,20 @@ const PLACEHOLDERS: Record<TagRef["kind"], string> = {
 // already shows the name and date. "Edit labels" opens every field to click and type over, and
 // Done or Escape closes it. When Binary is unsure, one line says so with All look right and
 // Edit, and offers its two other titles to pick from.
-export function LabelsSection({ hit, className }: { hit: FileHit; className?: string }) {
+// The row owns whether Edit labels is open, so its E key can open it.
+export function LabelsSection({
+  hit,
+  editing,
+  onEditingChange: setEditing,
+  className,
+}: {
+  hit: FileHit;
+  editing: boolean;
+  onEditingChange: (editing: boolean) => void;
+  className?: string;
+}) {
   const labels = useLabels();
   const label = labels.labelOf(hit);
-  const [editing, setEditing] = useState(false);
   const headingId = useId();
 
   if (label === null) {
@@ -93,7 +103,7 @@ function NeedsLookLabels({ hit, className }: { hit: FileHit; className?: string 
         </Link>
         . Give it a name and similar files will follow.
       </p>
-      <dl className={fieldGrid}>
+      <dl data-label-fields className={fieldGrid}>
         <Field name="Name">
           <EditableValue
             field="Name"
@@ -263,7 +273,7 @@ function EditLabels({ hit, label, onDone }: { hit: FileHit; label: Label; onDone
           </>
         ) : null}
       </p>
-      <dl className={fieldGrid}>
+      <dl data-label-fields className={fieldGrid}>
         <Field name="Name" guessed={guessed}>
           <EditableValue
             field="Name"

@@ -3,6 +3,7 @@
 import { createContext, use } from "react";
 import { z } from "zod";
 import { CorrectionWire, FileLabelsWire, SearchResponse, type Correction, type FileHit, type FileLabel, type SearchParams } from "@/lib/domain";
+import { searchQueryString } from "@/lib/filters";
 import { correctRequest } from "@/lib/labels";
 import type { NoteRequest } from "@/lib/notes";
 import type { LabelDraft } from "@/lib/label-edit";
@@ -273,13 +274,8 @@ const FolderList = z.object({
   folders: z.array(z.object({ name: z.string(), path: z.string() })),
 });
 
-function searchQuery(params: SearchParams): string {
-  const entries = Object.entries(params).filter((e): e is [string, string] => typeof e[1] === "string" && e[1] !== "");
-  return new URLSearchParams(entries).toString();
-}
-
 export const httpLabApi: LabApi = {
-  search: async (params, signal) => SearchResponse.parse(await getJson(`/api/search?${searchQuery(params)}`, signal)),
+  search: async (params, signal) => SearchResponse.parse(await getJson(`/api/search?${searchQueryString(params)}`, signal)),
   sourceState: async (signal) => SourceStateWire.parse(await getJson("/api/progress", signal)),
   folders: async (path, signal) =>
     FolderList.parse(await getJson(`/api/dropbox/folders?${new URLSearchParams({ path })}`, signal)),

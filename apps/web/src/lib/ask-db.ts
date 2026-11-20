@@ -1,7 +1,21 @@
 import "server-only";
 import { z } from "zod";
 import { embedConfig } from "@/env";
-import { AnswerSource, Answer, AskStep, RECENT_QUESTIONS_LOADED, RecentQuestionRows, SavedAnswer, Verdict, type AskHome, type RecentQuestion } from "./answers";
+import {
+  AnswerSource,
+  Answer,
+  AskStep,
+  QUESTIONS_PAGE_SIZE,
+  questionsPage,
+  RECENT_QUESTIONS_LOADED,
+  RecentQuestionRows,
+  SavedAnswer,
+  Verdict,
+  type AskHome,
+  type QuestionsPage,
+  type QuestionsQuery,
+  type RecentQuestion,
+} from "./answers";
 import { BudgetRows, CachedOutput, ContextRows, ProtocolContextRows, QUESTION_EMBED_TIMEOUT_MS, type AnswerWriter, type AskReads } from "./ask";
 import { readTables } from "./chart-store";
 import { FileLabelRows, type Label } from "./domain";
@@ -102,6 +116,21 @@ export async function loadSavedAnswer(supabase: Supabase, labId: LabId, id: Ques
 
 export async function loadRecentQuestions(supabase: Supabase, labId: LabId, limit = 6): Promise<RecentQuestion[]> {
   return RecentQuestionRows.parse(unwrap(await supabase.rpc("recent_questions", { p_lab_id: labId, p_limit: limit })));
+}
+
+export async function loadQuestionsPage(supabase: Supabase, labId: LabId, query: QuestionsQuery): Promise<QuestionsPage> {
+  const rows = RecentQuestionRows.parse(
+    unwrap(
+      await supabase.rpc("search_questions", {
+        p_lab_id: labId,
+        p_query: query.q ?? null,
+        p_before_at: query.before?.at ?? null,
+        p_before_id: query.before?.id ?? null,
+        p_limit: QUESTIONS_PAGE_SIZE + 1,
+      }),
+    ),
+  );
+  return questionsPage(rows);
 }
 
 export async function loadFileLabels(supabase: Supabase, labId: LabId, shas: readonly Sha256[]): Promise<Map<Sha256, Label>> {

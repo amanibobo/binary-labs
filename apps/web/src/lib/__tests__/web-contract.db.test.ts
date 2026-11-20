@@ -58,7 +58,7 @@ async function rpcJson(sql: string, params: unknown[]): Promise<unknown> {
 async function search(userId: string, labId: LabId, params: SearchParams, embedding: number[] | null = null) {
   const a = searchFilesArgs({ labId, params, embedding });
   const raw = await asUser(userId, () =>
-    rpcJson("search_files($1, $2, $3::vector, $4::file_kind[], $5, $6::timestamptz, $7::timestamptz, $8)", [
+    rpcJson("search_files($1, $2, $3::vector, $4::file_kind[], $5, $6::timestamptz, $7::timestamptz, $8, $9::label_outcome[], $10)", [
       a.p_lab_id,
       a.p_query,
       a.p_query_embedding,
@@ -67,6 +67,8 @@ async function search(userId: string, labId: LabId, params: SearchParams, embedd
       a.p_modified_from,
       a.p_modified_to,
       a.p_limit,
+      a.p_outcomes,
+      a.p_check_only,
     ]),
   );
   return SearchFilesRows.parse(raw);
@@ -221,6 +223,77 @@ describe("search_files through the web app's args and parser", () => {
     expect(await search(alice, labA, { q: "zymogram" })).toEqual([]);
     expect(await search(bob, labA, { q: "P450" })).toEqual([]);
     expect(await search(alice, labB, { q: "P450" })).toEqual([]);
+  });
+});
+
+describe("search_files' outcome and Check this filters", () => {
+  const shas = async (params: SearchParams) => (await search(carol, labA, params)).map((h) => h.sha256).toSorted();
+
+  it("keeps files by their label's outcome and by Check this, alone or together", async () => {
+    await db.query("update labels set outcome = 'failed' where lab_id = $1 and sha256 = $2", [labA, sha("a")]);
+    await db.query(
+      `insert into labels (lab_id, sha256, status, clean_name, outcome, tags, confidence, source)
+       values ($1, $2, 'accepted', 'P450 purification', 'worked', '{}', 0.95, 'rules')`,
+      [labA, sha("b")],
+    );
+    try {
+      expect(await shas({ q: "lab" })).toEqual([sha("a"), sha("b")]);
+      expect(await shas({ q: "lab", outcome: "failed" })).toEqual([sha("a")]);
+      expect(await shas({ q: "lab", outcome: "worked" })).toEqual([sha("b")]);
+      expect(await shas({ q: "lab", outcome: "repeat" })).toEqual([]);
+      expect(await shas({ q: "lab", check: true })).toEqual([sha("a")]);
+      expect(await shas({ q: "lab", check: true, outcome: "worked" })).toEqual([]);
+      // Meaning matches pass through the same filter: the purification PDF is nearest, and left out.
+      const nearB = Array.from({ length: 1024 }, (_, j) => (j === 1 ? 1 : 0));
+      expect((await search(carol, labA, { q: "purification steps" }, nearB))[0]?.sha256).toBe(sha("b"));
+      expect((await search(carol, labA, { q: "purification steps", check: true }, nearB)).map((h) => h.sha256)).toEqual([sha("a")]);
+    } finally {
+      await db.query("update labels set outcome = null where lab_id = $1 and sha256 = $2", [labA, sha("a")]);
+      await db.query("delete from labels where lab_id = $1 and sha256 = $2", [labA, sha("b")]);
+    }
+  });
+
+  it("never matches an outcome on a file in Needs a look", async () => {
+    await db.query("update labels set outcome = 'failed', status = 'needs_look', clean_name = null where lab_id = $1 and sha256 = $2", [labA, sha("a")]);
+    try {
+      expect(await shas({ q: "img", outcome: "failed" })).toEqual([]);
+      expect(await shas({ q: "img" })).toEqual([sha("a")]);
+    } finally {
+      await db.query("update labels set outcome = null, status = 'check', clean_name = 'Batch 3 gel, lane 6' where lab_id = $1 and sha256 = $2", [
+        labA,
+        sha("a"),
+      ]);
+    }
+  });
+
+  it("judges a note's pages by its first page's label, so a word on page 2 finds the note", async () => {
+    const [p1, p2] = [sha("9"), sha("0")];
+    await db.query("insert into blobs (sha256, size, mime, file_kind) values ($1, 10, 'image/jpeg', 'image'), ($2, 10, 'image/jpeg', 'image')", [p1, p2]);
+    for (const [i, s] of [p1, p2].entries()) {
+      await db.query(
+        `insert into file_locations (lab_id, source_id, external_id, path, original_name, size, modified_at, source_rev, sha256, index_state)
+         values ($1, $2, $3, $4, $5, 10, now(), 'rev', $6, 'indexed')`,
+        [labA, sourceA, `filter-note:${i}`, `/Lab/Notebook/drug_${i + 1}.jpg`, `drug_${i + 1}.jpg`, s],
+      );
+    }
+    await db.query("insert into chunks (lab_id, sha256, ord, text) values ($1, $2, 1, 'Plate edges fogged, reading discarded.')", [labA, p2]);
+    await db.query(
+      `insert into labels (lab_id, sha256, status, clean_name, outcome, tags, confidence, source) values
+         ($1, $2, 'accepted', 'Drug A run notes', 'failed', '{}', 0.9, 'model'),
+         ($1, $3, 'accepted', 'Drug A run notes, page 2', 'worked', '{}', 0.9, 'model')`,
+      [labA, p1, p2],
+    );
+    const noteId = z.string().parse((await asUser(carol, () => db.query("select join_note($1, $2) as id", [labA, [p1, p2]]))).rows[0]?.id);
+    try {
+      const failed = await search(carol, labA, { q: "fogged", outcome: "failed" });
+      expect(failed.map((h) => [h.sha256, h.matchedPage])).toEqual([[p1, 2]]);
+      expect(await search(carol, labA, { q: "fogged", outcome: "worked" })).toEqual([]);
+    } finally {
+      await db.query("delete from notes where id = $1", [noteId]);
+      await db.query("delete from labels where lab_id = $1 and sha256 = any ($2)", [labA, [p1, p2]]);
+      await db.query("delete from chunks where lab_id = $1 and sha256 = $2", [labA, p2]);
+      await db.query("delete from file_locations where lab_id = $1 and external_id like 'filter-note:%'", [labA]);
+    }
   });
 });
 

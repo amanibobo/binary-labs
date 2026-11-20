@@ -34,6 +34,15 @@ export function outcomeWord(label: Label | null): { text: string; problem: boole
   return { text: OUTCOME_WORDS[label.outcome], problem: label.outcome === "failed" };
 }
 
+// The same outcomes as Search's filter names them, where each stands alone in a menu or a chip.
+export const OUTCOME_FILTER_NAMES: Record<LabelOutcome, string> = {
+  worked: "Worked",
+  failed: "Failed",
+  repeat: "A repeat",
+  final: "Final",
+  unclear: "Outcome unclear",
+};
+
 // The choices in Labels, in the order a run goes, and None for protocols, papers and anything
 // that isn't a run. "A repeat" is a re-run of an earlier one, not one that needs repeating.
 export const OUTCOME_CHOICES: readonly { value: LabelOutcome | null; text: string }[] = [

@@ -2,7 +2,7 @@
 
 import { createContext, use } from "react";
 import { z } from "zod";
-import { AskEvent, RecentQuestion, SavedAnswer, type Verdict } from "@/lib/answers";
+import { AskEvent, QuestionsPage, questionsSearchParams, SavedAnswer, type QuestionsQuery, type Verdict } from "@/lib/answers";
 import type { QuestionId, SuggestionId } from "@/lib/ids";
 import { ApproveOutcome, SuggestOutcome, type ApproveRequest, type SuggestRequest } from "@/lib/suggestions";
 
@@ -12,7 +12,7 @@ export type AskApi = {
   // Calls onEvent for each line the route streams; rejects with a message to show.
   ask: (question: string, onEvent: (event: AskEvent) => void, signal: AbortSignal) => Promise<void>;
   answer: (id: QuestionId, signal: AbortSignal) => Promise<SavedAnswer>;
-  recent: (signal: AbortSignal) => Promise<RecentQuestion[]>;
+  questions: (query: QuestionsQuery, signal: AbortSignal) => Promise<QuestionsPage>;
   feedback: (id: QuestionId, verdict: Verdict) => Promise<void>;
   // These reject with an Error whose message can be shown.
   suggest: (req: SuggestRequest) => Promise<SuggestOutcome>;
@@ -71,7 +71,7 @@ export const httpAskApi: AskApi = {
     await readLines(res, onEvent);
   },
   answer: async (id, signal) => SavedAnswer.parse(await getJson(`/api/ask/${id}`, signal)),
-  recent: async (signal) => z.array(RecentQuestion).parse(await getJson("/api/ask", signal)),
+  questions: async (query, signal) => QuestionsPage.parse(await getJson(`/api/ask?${questionsSearchParams(query)}`, signal)),
   feedback: async (id, verdict) => {
     const { status, json } = await send(`/api/ask/${id}`, { verdict });
     if (status !== 200) throw failure(json, "We couldn't save that. Try again.");

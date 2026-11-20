@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { AskRequest, type AskEvent } from "@/lib/answers";
+import { AskRequest, parseQuestionsQuery, type AskEvent } from "@/lib/answers";
 import { askLab, UNAVAILABLE_MESSAGE } from "@/lib/ask";
-import { askSetup, loadRecentQuestions, memberAskReads, questionEmbedder, serviceAnswerWriter } from "@/lib/ask-db";
+import { askSetup, loadQuestionsPage, memberAskReads, questionEmbedder, serviceAnswerWriter } from "@/lib/ask-db";
 import { logError } from "@/lib/log";
 import { readJson, routeAccess } from "@/lib/route-auth";
 
@@ -50,14 +50,17 @@ export async function POST(request: NextRequest) {
   return new Response(stream, { headers: { ...NO_STORE, "content-type": "application/x-ndjson; charset=utf-8" } });
 }
 
-export async function GET() {
+// The lab's questions for the Questions page, newest first, a page at a time.
+export async function GET(request: NextRequest) {
   const access = await routeAccess({ admin: false });
   if (access.kind === "denied") return access.response;
   const { supabase, lab } = access.member;
+  const query = parseQuestionsQuery(request.nextUrl.searchParams);
+  if (query === null) return NextResponse.json({ error: "invalid question search" }, { status: 400 });
   try {
-    return NextResponse.json(await loadRecentQuestions(supabase, lab.id), { headers: NO_STORE });
+    return NextResponse.json(await loadQuestionsPage(supabase, lab.id, query), { headers: NO_STORE });
   } catch (error) {
-    logError("ask.recent_failed", { labId: lab.id, error });
-    return NextResponse.json({ error: "We couldn't load recent questions." }, { status: 500 });
+    logError("ask.questions_failed", { labId: lab.id, error });
+    return NextResponse.json({ error: "We couldn't load the lab's questions." }, { status: 500 });
   }
 }

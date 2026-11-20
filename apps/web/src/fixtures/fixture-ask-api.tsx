@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { AskApiProvider, type AskApi } from "@/components/ask/ask-api";
-import type { AnswerSource, AskEvent } from "@/lib/answers";
+import { QUESTIONS_PAGE_SIZE, questionsPage, type AnswerSource, type AskEvent, type QuestionsQuery, type RecentQuestion } from "@/lib/answers";
 import { answerSentences, answerSources, closestSources, doneOf, protocolEdit, recentQuestions, retrievalSteps, savedAnswer, writeStep } from "./answers";
 import { purification } from "./protocols";
 
@@ -79,6 +79,14 @@ function timeline(answer: FixtureAnswer, question: string): Beat[] {
   }
 }
 
+// Every word in the question, the way search_questions asks for all of them.
+function fixtureQuestions(all: readonly RecentQuestion[], query: QuestionsQuery) {
+  const words = (query.q ?? "").toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length >= 2);
+  const matching = all.filter((q) => words.every((w) => q.question.toLowerCase().includes(w)));
+  const start = query.before === undefined ? 0 : matching.findIndex((q) => q.id === query.before?.id) + 1;
+  return questionsPage(matching.slice(start, start + QUESTIONS_PAGE_SIZE + 1));
+}
+
 export function FixtureAskApi({ answer, children }: { answer: FixtureAnswer; children: ReactNode }) {
   const api: AskApi = {
     ask: async (question, onEvent, signal) => {
@@ -89,7 +97,10 @@ export function FixtureAskApi({ answer, children }: { answer: FixtureAnswer; chi
       }
     },
     answer: async () => savedAnswer,
-    recent: async () => recentQuestions,
+    questions: async (query, signal) => {
+      await wait(120, signal);
+      return fixtureQuestions(recentQuestions, query);
+    },
     feedback: async () => undefined,
     suggest: async () => ({ kind: "created", id: protocolEdit.id }),
     approve: async () => ({ kind: "approved", protocolId: purification.protocolId, version: purification.version + 1, applied: 1 }),

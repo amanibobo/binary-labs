@@ -387,6 +387,9 @@ export type HelpGroupId = (typeof HELP_GROUPS)[number]["id"];
 
 export type HelpAnswerId =
   | "ask"
+  | "old-questions"
+  | "filter"
+  | "keys"
   | "open-file"
   | "fix-label"
   | "needs-look"
@@ -417,6 +420,27 @@ export const HELP_ANSWERS: readonly HelpAnswer[] = [
     clip: "ask",
   },
   {
+    id: "old-questions",
+    group: "find",
+    question: "Find a question asked before",
+    answer: "On Search, choose Show all questions under Recent questions and type a word from the question or its answer. Click one to read its answer again.",
+    clip: null,
+  },
+  {
+    id: "filter",
+    group: "find",
+    question: "Find failed runs or labels to check",
+    answer: "Choose Filters in the search box and pick an outcome, like Failed or A repeat, or Check this only for labels Binary guessed. Each filter shows as a chip; click its × to remove it.",
+    clip: null,
+  },
+  {
+    id: "keys",
+    group: "find",
+    question: "Use the keyboard in Search",
+    answer: "Press ↓ from the search box to move through the files, Enter to open one and Esc to close it. On a file, E edits its labels and C makes a chart from a data sheet.",
+    clip: null,
+  },
+  {
     id: "open-file",
     group: "find",
     question: "Open the real file",
@@ -427,7 +451,7 @@ export const HELP_ANSWERS: readonly HelpAnswer[] = [
     id: "fix-label",
     group: "find",
     question: "Fix a label",
-    answer: "Click a file to open it, then click the name, experiment, person or a tag under Labels, type, and press Enter. Similar files learn from what you fix.",
+    answer: "Click a file to open it, choose Edit labels (or press E on the file), click the value to change, type and press Enter. Similar files learn from what you fix.",
     clip: "fix",
   },
   {
