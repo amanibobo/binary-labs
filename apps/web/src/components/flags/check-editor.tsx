@@ -7,9 +7,14 @@ import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import {
   CHECK_KINDS,
+  CURVE_FITS,
+  CURVE_MEASURES,
+  FIT_CHOICES,
   KIND_HELP,
   KIND_NAMES,
   MAX_CHECKS,
+  measureFits,
+  measureLabel,
   newDraft,
   parseDraft,
   RANGE_KINDS,
@@ -17,6 +22,8 @@ import {
   ruleText,
   toDraft,
   usefulText,
+  withFit,
+  withMeasure,
   type CheckDraft,
   type CheckKind,
   type CheckSpec,
@@ -398,10 +405,51 @@ function KindFields({
   err: (field: DraftField) => string | null;
 }) {
   switch (draft.kind) {
-    case "curve_fit":
+    case "curve_fit": {
+      const dose = draft.fit === "4pl";
       return (
         <>
-          <Field label="Concentration column" hint="Blank: found by its name or unit, such as µg/mL.">
+          <Field label="Fit" hint={FIT_CHOICES[draft.fit].hint}>
+            {(id, describedBy) => (
+              <select
+                id={id}
+                className={selectClass}
+                value={draft.fit}
+                aria-describedby={describedBy}
+                onChange={(e) => {
+                  const fit = CURVE_FITS.find((f) => f === e.target.value);
+                  if (fit !== undefined) onChange(withFit(draft, fit));
+                }}
+              >
+                {CURVE_FITS.map((f) => (
+                  <option key={f} value={f}>
+                    {FIT_CHOICES[f].label}
+                  </option>
+                ))}
+              </select>
+            )}
+          </Field>
+          <Field label="Check" hint={draft.measure === "midpoint" ? "The dose that gives half the full effect." : draft.measure === "outside" ? "Their readings, against the lowest and highest standard." : undefined}>
+            {(id, describedBy) => (
+              <select
+                id={id}
+                className={selectClass}
+                value={draft.measure}
+                aria-describedby={describedBy}
+                onChange={(e) => {
+                  const measure = CURVE_MEASURES.find((m) => m === e.target.value);
+                  if (measure !== undefined) onChange(withMeasure(draft, measure));
+                }}
+              >
+                {CURVE_MEASURES.filter((m) => measureFits(m, draft.fit)).map((m) => (
+                  <option key={m} value={m}>
+                    {measureLabel(m)}
+                  </option>
+                ))}
+              </select>
+            )}
+          </Field>
+          <Field label={dose ? "Dose column" : "Concentration column"} hint={dose ? "Blank: found by its name or unit, such as dose or µM." : "Blank: found by its name or unit, such as µg/mL."}>
             {text("x", "Work it out")}
           </Field>
           <Field label="Reading column" hint="Blank: the mean of the readings, or the first one.">
@@ -409,6 +457,7 @@ function KindFields({
           </Field>
         </>
       );
+    }
     case "peak":
       return (
         <>
@@ -454,15 +503,37 @@ function KindFields({
     case "control":
       return (
         <>
-          <Field label="Control rows are called" hint="Any row whose name has this in it." error={err("pattern")}>
-            {text("pattern", "blank")}
+          <Field label="The controls are" hint={draft.by === "column" ? "Such as blank wells read over time, one column each." : "Such as blank wells listed one to a row."}>
+            {(id, describedBy) => (
+              <select
+                id={id}
+                className={selectClass}
+                value={draft.by}
+                aria-describedby={describedBy}
+                onChange={(e) => onChange({ by: e.target.value === "column" ? "column" : "row" })}
+              >
+                <option value="row">Rows</option>
+                <option value="column">Columns</option>
+              </select>
+            )}
           </Field>
-          <Field label="Column to read" error={err("column")}>
-            {text("column", "A595")}
-          </Field>
-          <Field label="Names in column" hint="Blank: any text column.">
-            {text("labelColumn", "Any text column")}
-          </Field>
+          {draft.by === "column" ? (
+            <Field label="Control columns are called" hint="Any column whose header has this in it, such as Blank 1." error={err("pattern")}>
+              {text("pattern", "blank")}
+            </Field>
+          ) : (
+            <>
+              <Field label="Control rows are called" hint="Any row whose name has this in it." error={err("pattern")}>
+                {text("pattern", "blank")}
+              </Field>
+              <Field label="Column to read" error={err("column")}>
+                {text("column", "A595")}
+              </Field>
+              <Field label="Names in column" hint="Blank: any text column.">
+                {text("labelColumn", "Any text column")}
+              </Field>
+            </>
+          )}
           <Field label="Judge">
             {(id) => (
               <select

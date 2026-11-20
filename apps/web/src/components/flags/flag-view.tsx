@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useId, useState, type ReactNode } from "react";
 import { toast } from "sonner";
-import { rangeText } from "@/lib/checks";
+import { rangeText, valueTerm, type CheckSpec } from "@/lib/checks";
 import type { ChartSpec } from "@/lib/charts";
 import { newChartHref } from "@/lib/charts";
 import { cn } from "@/lib/cn";
@@ -31,9 +31,19 @@ const KIND_READ = {
   control: "Control",
 } as const;
 
+type Drawing = "curve_fit" | "peak" | null;
+
+// The standards or trace drawn as they were read, on linear axes. A log or dose-response fit's
+// rows at zero have no place on a log axis, so those show the table alone.
+function drawing(kind: Flag["kind"], check: CheckSpec | null): Drawing {
+  if (kind === "peak") return "peak";
+  if (kind !== "curve_fit") return null;
+  return check === null || (check.kind === "curve_fit" && check.fit === "line" && check.measure === "r2") ? "curve_fit" : null;
+}
+
 // One flag: what was read and what was expected, the protocol version that held the rule, the
 // cells it came from with the rows used marked, and the answer people gave it.
-export function FlagView({ flag, authors, initialReview }: { flag: Flag; authors: AuthorNames; initialReview?: Review }) {
+export function FlagView({ flag, check, authors, initialReview }: { flag: Flag; check: CheckSpec | null; authors: AuthorNames; initialReview?: Review }) {
   return (
     <>
       <div className="border-b border-border-opaque">
@@ -54,7 +64,7 @@ export function FlagView({ flag, authors, initialReview }: { flag: Flag; authors
         ) : null}
 
         <dl className="mt-8 grid gap-px overflow-hidden rounded-card border border-border-opaque bg-border-opaque sm:grid-cols-3">
-          <Fact term={KIND_READ[flag.kind]} warn>
+          <Fact term={check === null ? KIND_READ[flag.kind] : valueTerm(check)} warn>
             <span className="inline-flex items-center gap-2">
               <FlagIcon className="size-5 shrink-0" />
               <Value v={flag.observed} unit={flag.unit} />
@@ -73,15 +83,15 @@ export function FlagView({ flag, authors, initialReview }: { flag: Flag; authors
         <ReviewSection flag={flag} authors={authors} initialReview={initialReview} />
 
         {flag.control === null ? (
-          <Source title="Where it was read" cells={flag.source} kind={flag.kind} />
+          <Source title="Where it was read" cells={flag.source} drawing={drawing(flag.kind, check)} />
         ) : (
           <>
             <Source
               title={flag.control.sha256 === flag.source.sha256 ? "The controls" : "The day's controls, from another file"}
               cells={flag.control}
-              kind="control"
+              drawing={null}
             />
-            <Source title="The readings they vouch for" cells={flag.source} kind="control" quiet />
+            <Source title="The readings they vouch for" cells={flag.source} drawing={null} quiet />
           </>
         )}
       </div>
@@ -103,7 +113,7 @@ function sourceLine(cells: Cells): string {
   return `${cells.sheet}, ${columns}, ${rowsText(cells.rows)}`;
 }
 
-function Source({ title, cells, kind, quiet = false }: { title: string; cells: Cells; kind: Flag["kind"]; quiet?: boolean }) {
+function Source({ title, cells, drawing, quiet = false }: { title: string; cells: Cells; drawing: Drawing; quiet?: boolean }) {
   const api = useLabApi();
   const headingId = useId();
   const table = useQuery({
@@ -140,9 +150,9 @@ function Source({ title, cells, kind, quiet = false }: { title: string; cells: C
         table.isPending && cells.file !== null ? <p className="mt-4 text-paragraph-small text-content-tertiary">Loading the table…</p> : null
       ) : (
         <div className="mt-5 grid gap-6">
-          {kind === "curve_fit" || kind === "peak" ? (
+          {drawing !== null ? (
             <div className="max-w-2xl">
-              <SourceChart cells={cells} table={found} kind={kind} />
+              <SourceChart cells={cells} table={found} kind={drawing} />
             </div>
           ) : null}
           <FlagTable table={found} columns={cells.columns} rows={cells.rows} quiet={quiet} caption={`${sourceLine(cells)}, the rows read marked`} />
