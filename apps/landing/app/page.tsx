@@ -73,8 +73,8 @@ export default function Home() {
           </h2>
           <Highlights className="mt-6 space-y-5 text-[15px] leading-[1.7] text-black/80">
             <p>
-              A lab&rsquo;s best work is already done. It sits in a shared folder as <Mono>IMG_4821.jpg</Mono>,{" "}
-              <Mono>final_v2_REAL.xlsx</Mono> and a protocol only one postdoc remembers how to run.
+              A lab&rsquo;s best work is already done. It sits in a shared folder under names like <Mono>IMG_4821.jpg</Mono> and{" "}
+              <Mono>final_v2_REAL.xlsx</Mono>, beside a protocol only one postdoc remembers how to run.
             </p>
             <p>
               Every year people leave and <Mark tone="blue">take the know-how with them</Mark>. The new student starts from zero, and
@@ -85,12 +85,18 @@ export default function Home() {
               3&rdquo; and get the gel, the file it came from and the folder it lives in, <Ink tone="blue">in seconds</Ink>.
             </p>
             <p>
-              So we <Ink tone="green">read and never write</Ink>. Binary gets read-only access to one folder and moves nothing.
-              Your files are <Mark tone="green">never used to train models</Mark>, and one request deletes everything we hold.
+              So we <Ink tone="green">read and never write</Ink>. Binary gets read-only access to one folder and moves nothing,
+              and one request deletes everything we hold.
             </p>
             <p>
-              We start small. Finding things first, then capture and teaching at the bench, then the instruments.{" "}
-              <Mark tone="blue">Each step ships only after a real lab uses the last one.</Mark>
+              Failed experiments teach as much as the ones that worked, and they are the first to be forgotten. Binary keeps a
+              record of each run: what went wrong, why, and who confirmed it. If your lab agrees, we share those records with
+              names removed, so AI models can learn from and be tested on real lab work.{" "}
+              <Mark tone="green">Only the runs you turn on are shared.</Mark>
+            </p>
+            <p>
+              We start with one lab. <Mark tone="blue">Nothing is shared until a lawyer has reviewed the agreement</Mark> and the
+              lab has signed it.
             </p>
           </Highlights>
         </section>
