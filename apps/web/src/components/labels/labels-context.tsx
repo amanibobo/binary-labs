@@ -197,27 +197,26 @@ export function LabelsProvider({ children }: { children: ReactNode }) {
       };
       void (async () => {
         try {
-          const saved = await api.correctLabels(
-            optimistic.map((c) => c.sha256),
-            change,
-          );
+          const saved = await api.correctLabels(optimistic.map((c) => c.sha256), change);
           const bySha = new Map(saved.changed.map((c) => [c.sha256, c]));
           const entries: UndoEntry[] = [];
+          const untouched: Sha256[] = [];
           for (const c of optimistic) {
             const got = bySha.get(c.sha256);
             if (got === undefined) {
-              // The server found it already changed; show what it has.
-              const back = revertTarget({ showing: showing(c.sha256, null), optimistic: c.optimistic, before: c.before });
-              if (back !== null) write(c.sha256, back, null);
+              // The server found nothing to change on it: someone got there first.
+              untouched.push(c.sha256);
               continue;
             }
             if (sameLabel(showing(c.sha256, null), c.optimistic)) write(c.sha256, got.label, null);
             entries.push({ correctionId: got.correctionId, sha256: c.sha256, before: c.before, after: got.label });
           }
+          await refresh(untouched);
           const batchId = saved.batchId;
           const count = entries.length === 1 ? "1 file" : `${entries.length} files`;
           if (batchId === null) toast("Nothing needed changing");
-          else toast(`${title} on ${count}`, { action: { label: "Undo", onClick: () => undoMany(batchId, entries) } });
+          // Longer than a one-file toast: there's more to read and more to take back.
+          else toast(`${title} on ${count}`, { duration: 10_000, action: { label: "Undo", onClick: () => undoMany(batchId, entries) } });
         } catch (error) {
           revert();
           toast.error(error instanceof Error ? error.message : "We couldn't save that. Try again.");
