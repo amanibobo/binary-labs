@@ -212,7 +212,8 @@ describe("set_run_status", () => {
     expect(odd.statusAt).not.toBeNull();
     expect(await setStatus(ada, run.id, null)).toMatchObject({ status: null, statusAt: null });
     const log = await logOf(run.id);
-    expect(log.filter((l) => l.action === "run.edit").map((l) => [l.actor, (l.before as { status: unknown }).status, (l.after as { status: unknown }).status])).toEqual([
+    const status = (side: unknown) => z.object({ status: z.string().nullable() }).parse(side).status;
+    expect(log.filter((l) => l.action === "run.edit").map((l) => [l.actor, status(l.before), status(l.after)])).toEqual([
       [ben, null, "odd"],
       [ada, "odd", null],
     ]);

@@ -127,7 +127,7 @@ const unmarked: RunRecord = {
 
 export const fixtureRuns: readonly RunRecord[] = [unmarked, retry, firstTry];
 
-export const fixtureSuggestions: RunSuggestion[] = [searchHits[6], searchHits[7]].flatMap((hit, i) =>
+export const fixtureSuggestions: RunSuggestion[] = [recentFiles[1], searchHits[2]].flatMap((hit, i) =>
   hit === undefined
     ? []
     : [RunSuggestion.parse({ key: `file:${hit.sha256}`, shas: [hit.sha256], title: hit.label?.cleanName ?? hit.locations[0].originalName, date: i === 0 ? "2026-11-06" : "2026-10-30", fileSays: i === 0 ? "failed" : "worked" })],

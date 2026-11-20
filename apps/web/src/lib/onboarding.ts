@@ -13,6 +13,7 @@ export type ClipId =
   | "ask"
   | "search"
   | "browse"
+  | "runs"
   | "protocols"
   | "map"
   | "calendar"
@@ -238,7 +239,7 @@ export function progressText(summary: ChecklistSummary): string {
 // ---- Tour
 
 // One step per tab, in the sidebar's order, ending on Help where the tour can be taken again.
-export const TOUR_STEP_IDS = ["search", "browse", "protocols", "map", "calendar", "needs-look", "flags", "upload", "settings", "help"] as const;
+export const TOUR_STEP_IDS = ["search", "browse", "runs", "protocols", "map", "calendar", "needs-look", "flags", "upload", "settings", "help"] as const;
 export type TourStepId = (typeof TOUR_STEP_IDS)[number];
 
 export type TourStep = {
@@ -275,6 +276,13 @@ const TOUR: Record<TourStepId, StepCopy> = {
     what: "The lab's folders, the way they're organized in Dropbox.",
     when: "Use it when you know which folder a file is in.",
     clip: "browse",
+  },
+  runs: {
+    anchors: inSidebar("runs"),
+    title: "Runs",
+    what: "Each attempt at an experiment, and how it went.",
+    when: "Pick its files in Search, then choose Make a run.",
+    clip: "runs",
   },
   protocols: {
     anchors: inSidebar("protocols"),
@@ -394,6 +402,7 @@ export type HelpAnswerId =
   | "fix-label"
   | "many-labels"
   | "repeat"
+  | "make-run"
   | "needs-look"
   | "older-version"
   | "map"
@@ -475,6 +484,13 @@ export const HELP_ANSWERS: readonly HelpAnswer[] = [
     question: "Link a repeat to its run",
     answer: "Open the repeat, choose Edit labels and mark it A repeat, then Pick the run it repeats. Each run then links to the other.",
     clip: null,
+  },
+  {
+    id: "make-run",
+    group: "find",
+    question: "Record how an experiment went",
+    answer: "Choose Select in Search or Browse, tick the files from one attempt, then Make a run from these files. On the run's page, say if it worked, failed or was odd; each file opens exactly as it was first read.",
+    clip: "runs",
   },
   {
     id: "needs-look",
@@ -585,7 +601,7 @@ export const HELP_ANSWERS: readonly HelpAnswer[] = [
     id: "runs",
     group: "charts",
     question: "Put several runs on one chart",
-    answer: "On a line or scatter chart, choose Add runs and pick other files, or add all of the experiment. Each is drawn with the same columns; a run labeled failed is gray and dashed.",
+    answer: "On a line or scatter chart, choose Add runs and pick other files, or add all of the experiment. Each is drawn with the same columns; a failed run is gray and dashed.",
     clip: null,
   },
   {

@@ -78,7 +78,7 @@ describe("checklist", () => {
 describe("tour", () => {
   // Saved progress is a step number, so the order is part of the contract: change it on purpose.
   it("keeps one step per tab, in the sidebar's order, ending on Help", () => {
-    const ids = ["search", "browse", "protocols", "map", "calendar", "needs-look", "flags", "upload", "settings", "help"];
+    const ids = ["search", "browse", "runs", "protocols", "map", "calendar", "needs-look", "flags", "upload", "settings", "help"];
     expect(tourSteps("member").map((s) => s.id)).toEqual(ids);
     expect(tourSteps("admin").map((s) => s.id)).toEqual(ids);
   });
@@ -112,9 +112,9 @@ describe("tour", () => {
         }
       }
     }
-    // About a minute: 10 steps of a few seconds' reading each.
+    // About a minute: 11 steps of a few seconds' reading each, 22 words a step.
     const words = tourSteps("member").reduce((n, s) => n + `${s.what} ${s.when}`.split(/\s+/).length, 0);
-    expect(words).toBeLessThanOrEqual(220);
+    expect(words).toBeLessThanOrEqual(242);
   });
 
   it("points to Protocols after the tour, in one line", () => {
@@ -136,7 +136,7 @@ describe("how do I", () => {
 
   it("covers the newer parts of the app", () => {
     const ids = HELP_ANSWERS.map((a) => a.id);
-    for (const id of ["ask", "old-questions", "filter", "keys", "many-labels", "repeat", "map", "calendar", "flag", "chart", "wells", "standard-curve", "ic50", "test", "export", "invite"] as const) {
+    for (const id of ["ask", "old-questions", "filter", "keys", "many-labels", "repeat", "make-run", "map", "calendar", "flag", "chart", "wells", "standard-curve", "ic50", "test", "export", "invite"] as const) {
       expect(ids).toContain(id);
     }
   });

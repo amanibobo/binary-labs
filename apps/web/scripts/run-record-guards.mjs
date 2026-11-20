@@ -71,12 +71,12 @@ try {
     if (original.split(from).length !== 2) throw new Error(`"${name}": its text is in the migration ${original.split(from).length - 1} times, expected once`);
     writeFileSync(migration, original.replace(from, to));
     const result = runTests();
-    console.log(`${{ failed: "caught   ", passed: "MISSED   ", broken: "BROKE SQL" }[result]} ${name}`);
+    process.stdout.write(`${{ failed: "caught   ", passed: "MISSED   ", broken: "BROKE SQL" }[result]} ${name}\n`);
     if (result === "failed") held += 1;
     else slipped.push(name);
   }
 } finally {
   writeFileSync(migration, original);
 }
-console.log(`\n${held} of ${held + slipped.length} broken guards made the tests fail.`);
+process.stdout.write(`\n${held} of ${held + slipped.length} broken guards made the tests fail.\n`);
 if (slipped.length > 0) process.exit(1);

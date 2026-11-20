@@ -310,6 +310,21 @@ const CLIPS = [
     },
   },
   {
+    id: "runs",
+    // The lab's runs, then one that failed: how it went, and its files.
+    path: "/dev/fixtures/run-records?view=list",
+    rewrites: [["^/runs/[0-9a-f-]+$", "/dev/fixtures/run-records?view=failed"]],
+    crop: (page) => column(page, page.getByRole("heading", { level: 1, name: "Runs" }), { above: 40, height: 520 }),
+    async run(page) {
+      await page.waitForTimeout(700);
+      await clickAt(page, page.getByRole("link", { name: /^BM3 expression, first try/ }));
+      await page.getByRole("heading", { level: 1, name: "BM3 expression, first try" }).waitFor();
+      await page.waitForTimeout(1300);
+      await clickAt(page, page.getByRole("radio", { name: /^Odd/ }));
+      await page.waitForTimeout(1700);
+    },
+  },
+  {
     id: "protocols",
     // The list, then one protocol's page scrolled to its steps.
     path: "/dev/fixtures/protocols?view=list",

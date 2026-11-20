@@ -13,6 +13,7 @@ export const CLIP_SIZES = {
   "settings": { width: 720, height: 450 },
   "ask": { width: 720, height: 418 },
   "browse": { width: 720, height: 416 },
+  "runs": { width: 720, height: 436 },
   "protocols": { width: 720, height: 436 },
   "map": { width: 720, height: 520 },
   "calendar": { width: 720, height: 500 },

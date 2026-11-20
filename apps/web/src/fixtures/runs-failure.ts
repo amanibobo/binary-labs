@@ -3,6 +3,4 @@ import type { FixtureRunStore } from "./runs";
 
 // Slice A's fixture twin: its methods over the page's own copy of the runs. Not built yet, so
 // it answers as the real one does until then.
-export function fixtureFailureApi(_store: FixtureRunStore): FailureApi {
-  return httpFailureApi;
-}
+export const fixtureFailureApi: (store: FixtureRunStore) => FailureApi = () => httpFailureApi;

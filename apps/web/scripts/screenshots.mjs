@@ -475,7 +475,7 @@ function chartShots() {
 function onboardingShots() {
   const s = (query) => `/dev/fixtures/search?${query}`;
   const all = (shot) => ["dark", "light"].flatMap((scheme) => [1440, 390].map((width) => ({ ...shot, width, scheme, full: false })));
-  const STEPS = 10;
+  const STEPS = 11;
   // Every step spotlights its tab (or, on a phone, the menu); a step centered on the screen
   // means its anchor wasn't found, so the shot fails rather than shows it.
   const spotlit = (page) =>

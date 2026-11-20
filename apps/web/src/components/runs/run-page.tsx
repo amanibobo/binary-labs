@@ -182,7 +182,7 @@ function Status({ run, disabled, write }: { run: RunRecord; disabled: boolean; w
               name={name}
               checked={run.status === choice.status}
               onChange={() => void choose(choice.status, false)}
-              className="mt-1 size-4 accent-[var(--content-primary)]"
+              className="mt-1 size-4 shrink-0 accent-[var(--content-primary)]"
             />
             <span>
               <span className="block text-label-medium text-content-primary">{choice.label}</span>

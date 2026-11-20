@@ -4,6 +4,7 @@ import type { RunRecord } from "@/lib/run-record";
 // What the run page hands each of its sections: the run as it stands, and the way to hand
 // back the run a write returned so the whole page shows it.
 export type RunSectionProps = { run: RunRecord; onChange: (run: RunRecord) => void };
+export type RunSectionSlot = (props: RunSectionProps) => ReactNode;
 
 // A section of the run page: a heading, an optional line under it, then its content.
 export function RunSection({ title, note, children }: { title: string; note?: ReactNode; children: ReactNode }) {

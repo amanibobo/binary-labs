@@ -223,23 +223,17 @@ export const StatusOutcomeWire = z.discriminatedUnion("kind", [
 ]) satisfies z.ZodType<StatusOutcome, unknown>;
 
 // The fields of create_run and edit_run as the database names them; a key left out is left alone.
-const FIELD_COLUMNS = {
-  title: "title",
-  startedOn: "started_on",
-  endedOn: "ended_on",
-  experimentId: "experiment_id",
-  personId: "person_id",
-  status: "status",
-  retryOf: "retry_of",
-} as const satisfies Record<keyof NewRunFields, string>;
-
 export function fieldArgs(fields: NewRunFields): Record<string, string | null> {
-  const out: Record<string, string | null> = {};
-  for (const key of Object.keys(FIELD_COLUMNS) as (keyof NewRunFields)[]) {
-    const value = fields[key];
-    if (value !== undefined) out[FIELD_COLUMNS[key]] = value;
-  }
-  return out;
+  const columns = [
+    ["title", fields.title],
+    ["started_on", fields.startedOn],
+    ["ended_on", fields.endedOn],
+    ["experiment_id", fields.experimentId],
+    ["person_id", fields.personId],
+    ["status", fields.status],
+    ["retry_of", fields.retryOf],
+  ] as const;
+  return Object.fromEntries(columns.flatMap(([column, value]) => (value === undefined ? [] : [[column, value]])));
 }
 
 export function filterArgs(filter: RunListFilter): Record<string, string> {
