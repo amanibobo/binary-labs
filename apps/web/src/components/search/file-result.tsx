@@ -1,11 +1,13 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
-import { useId, useState, type KeyboardEvent } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import type { FileHit } from "@/lib/domain";
 import { excerpt } from "@/lib/highlight";
 import { folderOf, formatDay, matchLine, openTarget, otherPlacesLine } from "@/lib/format";
-import { isRowKey, rowStep } from "@/lib/row-keys";
+import { newChartHref } from "@/lib/charts";
+import { isRowKey, isTypingTarget, rowShortcut, rowStep } from "@/lib/row-keys";
 import { pageCount, rowSummary } from "@/lib/row-summary";
 import { cn } from "@/lib/cn";
 import { FileThumb } from "../files/file-thumb";
@@ -24,7 +26,8 @@ import { Highlighted } from "./highlighted";
 // and one line of the label (experiment and person, and the tags behind their count). The
 // whole row toggles the opened view, where the labels edit; that toggle sits underneath as a
 // stretched button, so the tag count above it takes its own clicks. Open shows on hover and
-// focus; touch opens the row and uses the button inside it. Arrow keys move between rows.
+// focus; touch opens the row and uses the button inside it. Arrow keys move between rows, E
+// opens the labels to edit and C makes a chart from a data sheet.
 export function FileResult({
   hit,
   query,
@@ -52,16 +55,56 @@ export function FileResult({
   const showSnippet = query !== "" && !expanded && hit.snippet !== null && hit.fileKind !== "image";
   const notes = [pageCount(label), matchLine(hit.matchedBy), otherPlacesLine(others.length)].filter((part) => part !== null);
   const check = summary.kind === "labeled" && summary.check;
+  const sheet = hit.fileKind === "spreadsheet";
+  const router = useRouter();
+  const row = useRef<HTMLLIElement>(null);
+  // Edit labels is open in the opened row; closing the row puts it back at rest.
+  const [editing, setEditing] = useState(false);
+  // Counts presses of E; each one focuses the first value to change.
+  const [editRequests, setEditRequests] = useState(0);
+  if (!expanded && editing) setEditing(false);
+
+  useEffect(() => {
+    if (editRequests > 0) row.current?.querySelector<HTMLElement>("[data-label-fields] button")?.focus();
+  }, [editRequests]);
 
   return (
     <li
+      ref={row}
       className={cn("group relative rounded-xl transition-colors duration-150 ease-out", expanded && "bg-background-secondary")}
       onKeyDown={(e) => {
+        if (e.defaultPrevented) return;
         // Escape inside the opened row closes it; a field being edited keeps its own Escape.
-        if (e.key === "Escape" && expanded && !e.defaultPrevented) {
+        if (e.key === "Escape" && expanded) {
           e.preventDefault();
           onToggle();
           e.currentTarget.querySelector<HTMLElement>("[data-row-toggle]")?.focus();
+          return;
+        }
+        // Menus inside the row render elsewhere in the page; their keys stay theirs.
+        if (!(e.target instanceof Node) || !e.currentTarget.contains(e.target)) return;
+        const shortcut = rowShortcut({
+          key: e.key,
+          modified: e.ctrlKey || e.metaKey || e.altKey,
+          repeat: e.repeat || e.nativeEvent.isComposing,
+          typing: isTypingTarget(e.target),
+          sheet,
+        });
+        if (shortcut === null) return;
+        e.preventDefault();
+        switch (shortcut) {
+          case "edit":
+            if (!expanded) onToggle();
+            setEditing(true);
+            setEditRequests((n) => n + 1);
+            break;
+          case "chart":
+            router.push(newChartHref(primary.id));
+            break;
+          default: {
+            const _exhaustive: never = shortcut;
+            return _exhaustive;
+          }
         }
       }}
     >
@@ -69,7 +112,7 @@ export function FileResult({
         <button
           type="button"
           data-row-toggle
-          aria-keyshortcuts="ArrowUp ArrowDown Home End"
+          aria-keyshortcuts={sheet ? "ArrowUp ArrowDown Home End E C" : "ArrowUp ArrowDown Home End E"}
           aria-expanded={expanded}
           aria-controls={panelId}
           onClick={onToggle}
@@ -149,7 +192,7 @@ export function FileResult({
               hit={hit}
               query={query}
               note={label?.note ?? null}
-              labels={<LabelsSection hit={hit} />}
+              labels={<LabelsSection hit={hit} editing={editing} onEditingChange={setEditing} />}
               className="px-3 pt-1 pb-5 sm:pl-[84px]"
             />
           </motion.div>
