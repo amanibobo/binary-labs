@@ -72,3 +72,11 @@ export type QuestionId = z.infer<typeof QuestionId>;
 // suggestions.id: one change the AI proposed, waiting for a member to approve or dismiss it.
 export const SuggestionId = z.uuid().brand<"SuggestionId">();
 export type SuggestionId = z.infer<typeof SuggestionId>;
+
+// runs.id: one attempt at an experiment, with its files as evidence.
+export const RunId = z.uuid().brand<"RunId">();
+export type RunId = z.infer<typeof RunId>;
+
+// run_debriefs.id: one spoken or typed debrief of a run.
+export const DebriefId = z.uuid().brand<"DebriefId">();
+export type DebriefId = z.infer<typeof DebriefId>;

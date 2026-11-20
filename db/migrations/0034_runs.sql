@@ -159,9 +159,8 @@ create table runs (
   foreign key (experiment_id, lab_id) references experiments (id, lab_id) on delete set null (experiment_id),
   foreign key (person_id, lab_id) references people (id, lab_id) on delete set null (person_id),
   foreign key (retry_of, lab_id) references runs (id, lab_id) on delete set null (retry_of),
-  -- A named confirmer can't be deleted from under a confirmed cause. Checked when the
-  -- statement ends, so deleting the whole lab (which takes the run too) still goes through.
-  foreign key (confirmed_by, lab_id) references people (id, lab_id),
+  -- A named confirmer can't be deleted from under a confirmed cause.
+  foreign key (confirmed_by, lab_id) references people (id, lab_id) on delete restrict,
   foreign key (confirm_run, lab_id) references runs (id, lab_id) on delete set null (confirm_run),
   foreign key (planned_version_id, lab_id) references protocol_versions (id, lab_id)
     on delete set null (planned_version_id),
@@ -431,10 +430,6 @@ begin
   if tg_op = 'INSERT' then
     insert into run_log (lab_id, run_id, actor, via, action, after)
     values (new.lab_id, new.id, auth.uid(), run_via(), 'run.create', jsonb_strip_nulls(to_jsonb(new) - 'updated_at'));
-    return null;
-  end if;
-  -- The lab itself is going, and this is one of its rows letting go of another.
-  if not exists (select 1 from labs where id = new.lab_id) then
     return null;
   end if;
   v_old := to_jsonb(old) - 'updated_at';
