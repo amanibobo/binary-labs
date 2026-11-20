@@ -33,6 +33,7 @@ import { OriginalsSection } from "./originals-section";
 import { PlanSection } from "./plan-section";
 import { runFileHref, runHref, useRunsApi } from "./runs-api";
 import { RunSection } from "./section";
+import { ModelCheckSection } from "./model-check/model-check-section";
 import { SharingSection } from "./sharing-section";
 
 const quietAction =
@@ -84,6 +85,7 @@ export function RunView({ initial }: { initial: RunRecord }) {
 
       <Retries run={run} disabled={busy} write={write} />
       <SharingSection {...section} />
+      <ModelCheckSection {...section} />
 
       <p className="mt-10 text-paragraph-xsmall text-content-tertiary">
         Added <When iso={run.createdAt} />

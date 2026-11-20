@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/cn";
+import { taskHref } from "@/lib/task-export";
 import { blockWords, folderCount, RUN_SHARE_DRAFT_NOTE, RUN_SHARE_MEANING, SENT_COPIES_LINE, sharingLogLine, type RunSharing, type SharingLogEntry } from "./api/sharing";
 import { Button } from "../ui/button";
 import { dataRow, dataSurface } from "../ui/data-table";
@@ -104,6 +105,13 @@ export function SharingSection({ run, onChange }: RunSectionProps) {
           onCancel={() => setConfirming(false)}
         />
       )}
+      {sharing.data?.share === true && run.failure.confirmedCause !== null ? (
+        <p className="mt-4 text-paragraph-small">
+          <Link href={taskHref(run.id)} className="text-content-primary underline underline-offset-4">
+            Make a task from this run
+          </Link>
+        </p>
+      ) : null}
       {log.data === undefined || log.data.length === 0 ? null : (
         <div className="mt-5">
           <h3 className="mb-2 text-label-small text-content-secondary">Sharing history</h3>
