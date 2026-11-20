@@ -55,7 +55,7 @@ export function TaskView({ run, initial, people, me }: { run: RunRecord; initial
     setPreview(null);
   };
   const reasons = [...task.gaps, ...task.blocks];
-  const causeReady = !task.gaps.includes("no_confirmed_cause") && !task.gaps.includes("not_attested");
+  const causeReady = !task.gaps.includes("no_confirmed_cause") && !task.blocks.includes("not_attested");
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 pt-6 pb-24 sm:px-8 sm:pt-10">

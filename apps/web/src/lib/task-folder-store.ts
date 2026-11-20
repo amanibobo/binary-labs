@@ -4,6 +4,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
+import { askExportGate } from "./export-gate";
 import type { LabId, RunId, Sha256 } from "./ids";
 import type { RunDb, Written } from "./run-record-store";
 import { fromRow } from "./run-record";
@@ -23,7 +24,6 @@ import {
   type TaskSource,
 } from "./task-export";
 import { buildTaskFolder, planEvidence, previewOf, type TaskFolder } from "./task-folder";
-import type { GateAnswer } from "./task-folder-gate";
 import { writeZip, type ZipEntry } from "./task-folder-zip";
 import { uploadKey } from "./uploads";
 
@@ -38,9 +38,7 @@ export type FolderStore = {
   put: (key: string, file: { path: string; size: number }, contentType: string) => Promise<void>;
   remove: (key: string) => Promise<void>;
 };
-// The gate for one caller (lib/task-folder-gate.ts with the member's client bound).
-export type Claim = (runId: RunId, purpose: string) => Promise<GateAnswer>;
-export type FolderDeps = { db: RunDb; store: FolderStore; claim: Claim };
+export type FolderDeps = { db: RunDb; store: FolderStore };
 
 const exportPrefix = (labId: LabId, exportId: string) => `${labId}/exports/${exportId}`;
 const zipKey = (prefix: string) => `${prefix}/task.zip`;
@@ -97,7 +95,7 @@ const Recorded = fromRow(
   z.discriminatedUnion("kind", [z.object({ kind: z.literal("built"), id: z.uuid(), prefix: z.string() }), z.object({ kind: z.literal("blocked"), reasons: z.array(z.string()) })]),
 );
 
-export type Built = { kind: "built"; id: string } | { kind: "blocked"; reasons: ExportReason[] } | { kind: "leaks"; paths: string[] };
+export type Built = { kind: "built"; id: string } | { kind: "blocked"; reasons: ExportReason[] } | { kind: "leaks"; paths: string[] } | { kind: "no_run" };
 
 // Records the attempt with the database, which refuses and logs it unless the run may leave.
 async function record(db: RunDb, runId: RunId, exportId: string, grantId: number | null, manifest: unknown): Promise<Written<z.infer<typeof Recorded>>> {
@@ -105,20 +103,21 @@ async function record(db: RunDb, runId: RunId, exportId: string, grantId: number
   return error !== null ? { kind: "error", error } : { kind: "ok", value: Recorded.parse(data) };
 }
 
-export async function buildTask({ db, store, claim }: FolderDeps, labId: LabId, runId: RunId): Promise<Written<Built>> {
+export async function buildTask({ db, store }: FolderDeps, labId: LabId, runId: RunId): Promise<Written<Built>> {
   const exportId = randomUUID();
-  const answer = await claim(runId, "task_folder");
-  if (answer.kind === "blocked") {
-    // The database writes down the refused attempt and says why in its own words.
-    const refused = await record(db, runId, exportId, null, {});
-    if (refused.kind === "error") return refused;
-    const reasons = refused.value.kind === "blocked" ? refused.value.reasons.filter((r) => r !== "no_grant") : [];
-    return { kind: "ok", value: { kind: "blocked", reasons: reasonsOf(reasons.length > 0 ? reasons : answer.reasons) } };
-  }
+  // The gate logs its own answer, yes or no.
+  const gate = await askExportGate(db, runId, "task folder");
+  if (gate.kind === "blocked") return { kind: "ok", value: gate.blocks.includes("no_such_run") ? { kind: "no_run" } : { kind: "blocked", reasons: reasonsOf(gate.blocks) } };
 
   const made = await assemble(db, store, labId, runId);
   if (made.kind === "error") return made;
   const { source, folder } = made.value;
+  if (source.gaps.length > 0) {
+    // Consent is given but the task isn't whole. The database writes the refusal down.
+    const refused = await record(db, runId, exportId, gate.grantId, {});
+    if (refused.kind === "error") return refused;
+    return { kind: "ok", value: { kind: "blocked", reasons: reasonsOf(refused.value.kind === "blocked" ? refused.value.reasons : source.gaps) } };
+  }
   if (folder.leaks.length > 0) return { kind: "ok", value: { kind: "leaks", paths: folder.leaks } };
 
   const builtAt = new Date();
@@ -163,7 +162,7 @@ export async function buildTask({ db, store, claim }: FolderDeps, labId: LabId, 
     await store.put(zipKey(prefix), { path: zipPath, size: zip.bytes }, "application/zip");
     await store.put(manifestKey(prefix), { path: manifestPath, size: manifestBytes.length }, "application/json");
 
-    const recorded = await record(db, runId, exportId, answer.grant.logId, kept);
+    const recorded = await record(db, runId, exportId, gate.grantId, kept);
     if (recorded.kind === "ok" && recorded.value.kind === "built") return { kind: "ok", value: { kind: "built", id: exportId } };
     await removeFolder(store, prefix);
     return recorded.kind === "error" ? recorded : { kind: "ok", value: { kind: "blocked", reasons: reasonsOf(recorded.value.kind === "blocked" ? recorded.value.reasons : []) } };
@@ -200,9 +199,9 @@ export type Opened =
 
 // Hands over a built folder's zip. The gate is asked again, a withdrawn folder is refused,
 // and the stored bytes are checked against the manifest before any of them is sent.
-export async function openTask({ db, store, claim }: FolderDeps, runId: RunId, exportId: string): Promise<Opened> {
-  const answer = await claim(runId, "task_download");
-  if (answer.kind === "blocked") return { kind: "blocked", reasons: reasonsOf(answer.reasons) };
+export async function openTask({ db, store }: FolderDeps, runId: RunId, exportId: string): Promise<Opened> {
+  const gate = await askExportGate(db, runId, "task folder download");
+  if (gate.kind === "blocked") return gate.blocks.includes("no_such_run") ? { kind: "missing" } : { kind: "blocked", reasons: reasonsOf(gate.blocks) };
   const [row] = FolderRows.parse(unwrap(await db.rpc("task_export_file", { p_run_id: runId, p_export_id: exportId })));
   if (row === undefined) return { kind: "missing" };
   if (row.withdrawn_at !== null || row.storage_prefix === null) return { kind: "withdrawn" };

@@ -16,7 +16,6 @@ create function task_export_gaps(p_run_id uuid) returns text[]
 language sql stable security definer set search_path = public as $$
   select array_remove(array[
     case when r.confirmed_cause is null then 'no_confirmed_cause' end,
-    case when r.confirmed_cause is not null and r.confirmer_attested_at is null then 'not_attested' end,
     case when not exists (select 1 from run_rubrics q where q.run_id = r.id and jsonb_array_length(q.rubric) > 0)
       then 'no_task' end,
     case when not exists (
@@ -270,7 +269,7 @@ begin
   end if;
   insert into run_log (lab_id, run_id, actor, via, action, after)
   values (r.lab_id, r.id, auth.uid(), run_via(), 'export.blocked',
-    jsonb_build_object('reasons', v_reasons, 'purpose', p_purpose, 'stage', 'build'));
+    jsonb_build_object('blocks', v_reasons, 'purpose', p_purpose, 'stage', 'build'));
   insert into audit_log (lab_id, actor, action, target) values (r.lab_id, auth.uid(), 'run.export_blocked', r.id::text);
   return jsonb_build_object('kind', 'blocked', 'reasons', v_reasons);
 end

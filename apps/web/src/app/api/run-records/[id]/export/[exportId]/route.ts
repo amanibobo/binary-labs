@@ -4,7 +4,6 @@ import { z } from "zod";
 import { logError } from "@/lib/log";
 import { runAccess } from "@/lib/run-routes";
 import { REASON_LINES } from "@/lib/task-export";
-import { claimExport } from "@/lib/task-folder-gate";
 import { objectStore } from "@/lib/task-folder-routes";
 import { openTask } from "@/lib/task-folder-store";
 
@@ -19,7 +18,7 @@ export async function GET(_request: NextRequest, ctx: RouteContext<"/api/run-rec
   const { supabase, lab } = access.member;
   const exportId = z.uuid().safeParse((await ctx.params).exportId);
   if (!exportId.success) return refuse(404, "That folder doesn't exist.");
-  const opened = await openTask({ db: supabase, store: objectStore, claim: (runId, purpose) => claimExport(supabase, runId, purpose) }, access.id, exportId.data);
+  const opened = await openTask({ db: supabase, store: objectStore }, access.id, exportId.data);
   switch (opened.kind) {
     case "blocked":
       return refuse(403, opened.reasons.map((r) => REASON_LINES[r]).join(" "));

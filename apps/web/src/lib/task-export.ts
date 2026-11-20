@@ -9,11 +9,11 @@ import { ConfirmMethod, fromRow, RunFileRole, RunFix, RunStatus } from "./run-re
 
 // ---- Why a run can't become a folder yet.
 
-// run_export_blocks (0034): consent. A grant the gate didn't give is "no_grant".
-export const SHARE_BLOCKS = ["run_off", "lab_off", "demo_lab"] as const;
+// run_export_blocks (0034, 0041): consent. A grant the database refused is "no_grant".
+export const SHARE_BLOCKS = ["run_off", "lab_off", "demo_lab", "not_attested"] as const;
 // task_export_gaps (0039): what the task still lacks.
-export const TASK_GAPS = ["no_confirmed_cause", "not_attested", "no_task", "no_review", "no_protocol", "file_not_kept", "excluded_experiment"] as const;
-export const ExportReason = z.enum([...SHARE_BLOCKS, ...TASK_GAPS, "no_grant", "gate_not_built"]);
+export const TASK_GAPS = ["no_confirmed_cause", "no_task", "no_review", "no_protocol", "file_not_kept", "excluded_experiment"] as const;
+export const ExportReason = z.enum([...SHARE_BLOCKS, ...TASK_GAPS, "no_grant"]);
 export type ExportReason = z.infer<typeof ExportReason>;
 
 // One line each, and what to do about it. A first-year student reads these.
@@ -29,7 +29,6 @@ export const REASON_LINES = {
   lab_off: "The lab hasn't agreed to share anything yet. An admin does that in Settings.",
   demo_lab: "This is a demo lab. Its data is made up, so nothing leaves it.",
   no_grant: "Binary couldn't confirm that this run may be shared just now. Try again.",
-  gate_not_built: "Sharing isn't switched on in this version of Binary yet, so nothing can leave the lab.",
 } as const satisfies Record<ExportReason, string>;
 
 // ---- What a lab leaves out.

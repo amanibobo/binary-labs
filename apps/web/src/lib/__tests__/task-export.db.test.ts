@@ -5,16 +5,15 @@ import { Client } from "pg";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { CreateLabResult } from "../domain";
+import { askExportGate } from "../export-gate";
 import { LabId, PersonId, RunId, Sha256 } from "../ids";
 import type { RunDb } from "../run-record-store";
 import { RunTaskJson, TaskManifestJson } from "../task-export";
-import type { GateAnswer } from "../task-folder-gate";
-import type { Claim, FolderStore } from "../task-folder-store";
+import type { FolderStore } from "../task-folder-store";
 
 // De-identification and the task folder against the real migrations (0034 and 0039): the
 // second scientist's task, the build, the download, and every way the database refuses.
-// The gate is the sharing slice's; here a grant is made the way its function will make one,
-// by the owner writing an 'export.allowed' row to run_log.
+// The gate is the real one (0037): every build and download here asks it as the member.
 
 vi.mock("server-only", () => ({}));
 
@@ -165,14 +164,18 @@ const task = { question: "Why did Priya Nair's BM3 expression give no band?", ru
 const saveTask = (userId: string, runId: RunId, reviewer: PersonId | null, over: Record<string, unknown> = {}) =>
   memberDb(userId).rpc("save_run_task", { p_run_id: runId, p_question: task.question, p_rubric: task.rubric, p_reviewer_id: reviewer, p_notes: task.notes, p_agrees: task.agrees, ...over });
 
-// The gate, as the sharing slice's function will answer when both switches are on.
-const grants: Claim = async (runId) => {
-  const row = await owner("insert into run_log (lab_id, run_id, via, action, after) select lab_id, id, 'person', 'export.allowed', '{}' from runs where id = $1 returning id", [runId]);
-  return { kind: "granted", grant: { runId, logId: Number(row.rows[0]?.id) } } satisfies GateAnswer;
+// A grant from the real gate (0037), as the member.
+const grantFor = async (userId: string, runId: RunId): Promise<number> => {
+  const gate = await askExportGate(memberDb(userId), runId, "test");
+  if (gate.kind !== "allowed") throw new Error(`the gate said no: ${gate.blocks.join(", ")}`);
+  return gate.grantId;
 };
-const refuses: Claim = async () => ({ kind: "blocked", reasons: ["gate_not_built"] });
+// Every refusal in the run's log: the gate's own rows, and the build's (stage "build").
 const blockedLog = async (runId: RunId) =>
-  z.array(z.object({ after: z.object({ reasons: z.array(z.string()), stage: z.string() }), actor: z.string().nullable() })).parse((await owner("select after, actor from run_log where run_id = $1 and action = 'export.blocked' order by id", [runId])).rows);
+  z
+    .array(z.object({ after: z.object({ blocks: z.array(z.string()), stage: z.string().optional() }), actor: z.string().nullable() }))
+    .parse((await owner("select after, actor from run_log where run_id = $1 and action = 'export.blocked' order by id", [runId])).rows)
+    .map((row) => ({ blocks: row.after.blocks, by: row.after.stage ?? "gate", actor: row.actor }));
 
 beforeAll(async () => {
   await db.connect();
@@ -276,7 +279,7 @@ describe("what a lab leaves out", () => {
     await saveTask(ben, run, jordan);
     await memberDb(ada).rpc("set_export_exclusion", { p_lab_id: lab, p_kind: "experiment", p_value: experiment, p_on: true });
     const store = await import("../task-folder-store");
-    const built = await store.buildTask({ db: memberDb(ada), store: originals, claim: grants }, lab, run);
+    const built = await store.buildTask({ db: memberDb(ada), store: originals }, lab, run);
     expect(built).toEqual({ kind: "ok", value: { kind: "blocked", reasons: ["excluded_experiment"] } });
     await memberDb(ada).rpc("set_export_exclusion", { p_lab_id: lab, p_kind: "experiment", p_value: experiment, p_on: false });
   });
@@ -288,7 +291,7 @@ describe("building the folder", () => {
     const run = await seedRun();
     await saveTask(ben, run, ade);
     const before = originals.objects.size;
-    const built = await store.buildTask({ db: memberDb(ada), store: originals, claim: grants }, lab, run);
+    const built = await store.buildTask({ db: memberDb(ada), store: originals }, lab, run);
     if (built.kind !== "ok" || built.value.kind !== "built") throw new Error(`not built: ${JSON.stringify(built)}`);
     const id = built.value.id;
     const prefix = `${lab}/exports/${id}`;
@@ -386,7 +389,7 @@ describe("building the folder", () => {
       expect(preview.value.excluded).toEqual(["debrief", "evidence.image", "protocol_as_written", "suspected_cause"]);
       expect(preview.value.reasons).toEqual([]);
 
-      const built = await store.buildTask({ db: memberDb(ada), store: originals, claim: grants }, lab, run);
+      const built = await store.buildTask({ db: memberDb(ada), store: originals }, lab, run);
       if (built.kind !== "ok" || built.value.kind !== "built") throw new Error("not built");
       const manifest = TaskManifestJson.parse((await owner("select manifest from task_exports where id = $1", [built.value.id])).rows[0]?.manifest);
       expect(manifest.leftOut).toEqual([{ kind: "image", role: "evidence", reason: "kind_excluded" }, { kind: "text", role: "evidence", reason: "folder_excluded" }]);
@@ -403,7 +406,7 @@ describe("building the folder", () => {
     // Someone whose name is a word the folder itself uses: the check can't tell them apart.
     await owner("insert into people (lab_id, display_name) values ($1, 'Evidence Okoro')", [lab]);
     try {
-      const built = await store.buildTask({ db: memberDb(ada), store: originals, claim: grants }, lab, run);
+      const built = await store.buildTask({ db: memberDb(ada), store: originals }, lab, run);
       expect(built).toMatchObject({ kind: "ok", value: { kind: "leaks" } });
       expect(built.kind === "ok" && built.value.kind === "leaks" ? built.value.paths : []).toContain("context.md");
       expect(await count("task_exports where run_id = $1", [run])).toBe(0);
@@ -419,7 +422,7 @@ describe("building the folder", () => {
     const key = `${lab}/files/${png}`;
     originals.objects.set(key, Buffer.from([1, 2, 3]));
     try {
-      await expect(store.buildTask({ db: memberDb(ada), store: originals, claim: grants }, lab, run)).rejects.toThrow("doesn't match");
+      await expect(store.buildTask({ db: memberDb(ada), store: originals }, lab, run)).rejects.toThrow("doesn't match");
       expect(await count("task_exports where run_id = $1", [run])).toBe(0);
     } finally {
       originals.objects.set(key, Buffer.from(PNG));
@@ -428,21 +431,25 @@ describe("building the folder", () => {
 });
 
 describe("the database refuses, and writes it down", () => {
-  const attempt = async (run: RunId, claim: Claim = grants, userId = ada, labId = lab) => {
+  const attempt = async (run: RunId, userId = ada, labId = lab) => {
     const store = await import("../task-folder-store");
     const before = [...originals.objects.keys()].filter((k) => k.includes("/exports/")).length;
-    const built = await store.buildTask({ db: memberDb(userId), store: originals, claim }, labId, run);
+    const built = await store.buildTask({ db: memberDb(userId), store: originals }, labId, run);
     expect([...originals.objects.keys()].filter((k) => k.includes("/exports/")).length, "nothing is left in the store").toBe(before);
     expect(await count("task_exports where run_id = $1", [run])).toBe(0);
     return built.kind === "ok" && built.value.kind === "blocked" ? built.value.reasons : built;
   };
+  const record =(run: RunId, grant: number | null, id: string) => memberDb(ada).rpc("build_task_export", { p_run_id: run, p_export_id: id, p_grant_id: grant, p_purpose: "task_folder", p_manifest: {} });
+  const nextId = (() => {
+    let n = 0;
+    return () => `10000000-0000-4000-8000-${String(++n).padStart(12, "0")}`;
+  })();
 
   it("a run whose own switch is off", async () => {
     const run = await seedRun({ share: false });
     await saveTask(ben, run, ade);
     expect(await attempt(run)).toEqual(["run_off"]);
-    expect(await blockedLog(run)).toEqual([{ after: { reasons: ["run_off"], stage: "build" }, actor: ada }]);
-    expect(await count("audit_log where lab_id = $1 and action = 'run.export_blocked' and target = $2", [lab, run])).toBe(1);
+    expect(await blockedLog(run)).toEqual([{ blocks: ["run_off"], by: "gate", actor: ada }]);
   });
 
   it("a lab that hasn't agreed", async () => {
@@ -451,7 +458,7 @@ describe("the database refuses, and writes it down", () => {
     await owner("update labs set sharing_agreed_at = null, sharing_agreement = null where id = $1", [lab]);
     try {
       expect(await attempt(run)).toEqual(["lab_off"]);
-      expect((await blockedLog(run)).map((l) => l.after.reasons)).toEqual([["lab_off"]]);
+      expect((await blockedLog(run)).map((l) => l.blocks)).toEqual([["lab_off"]]);
     } finally {
       await owner("update labs set sharing_agreed_at = now(), sharing_agreement = 'draft-1' where id = $1", [lab]);
     }
@@ -463,15 +470,49 @@ describe("the database refuses, and writes it down", () => {
     await owner("update runs set confirmer_attested_at = null where id = $1", [run]);
     await owner("update runs set share = true where id = $1", [run]);
     expect(await attempt(run)).toEqual(["not_attested"]);
-    expect((await blockedLog(run)).map((l) => l.after.reasons)).toEqual([["not_attested"]]);
+    expect((await blockedLog(run)).map((l) => l.blocks)).toEqual([["not_attested"]]);
   });
 
   it("a demo lab, whose data is made up", async () => {
     const run = await seedRun({ labId: demoLab, user: cy, files: [shaOf(new TextEncoder().encode("demo\n"))] });
     await owner("update runs set share = true where id = $1", [run]);
-    const reasons = await attempt(run, grants, cy, demoLab);
-    expect(reasons).toEqual(expect.arrayContaining(["demo_lab", "no_confirmed_cause"]));
-    expect((await blockedLog(run))[0]?.after.reasons).toContain("demo_lab");
+    expect(await attempt(run, cy, demoLab)).toEqual(["demo_lab"]);
+    expect((await blockedLog(run)).map((l) => l.blocks)).toEqual([["demo_lab"]]);
+  });
+
+  // The gate said yes and something changed before the folder was recorded: the database
+  // decides again, by itself.
+  it.each([
+    ["the run's switch went off", "run_off", (run: RunId) => owner("update runs set share = false where id = $1", [run]), () => Promise.resolve()],
+    [
+      "the lab took its agreement back",
+      "lab_off",
+      () => owner("update labs set sharing_agreed_at = null, sharing_agreement = null where id = $1", [lab]),
+      () => owner("update labs set sharing_agreed_at = now(), sharing_agreement = 'draft-1' where id = $1", [lab]),
+    ],
+    ["the lab became a demo lab", "demo_lab", () => owner("update labs set plan = 'demo' where id = $1", [lab]), () => owner("update labs set plan = 'pilot' where id = $1", [lab])],
+  ] as const)("a grant in hand doesn't help once %s", async (_what, block, change, undo) => {
+    const run = await seedRun();
+    await saveTask(ben, run, ade);
+    const grant = await grantFor(ada, run);
+    await change(run);
+    try {
+      expect((await record(run, grant, nextId())).data).toEqual({ kind: "blocked", reasons: [block] });
+      expect(await blockedLog(run)).toEqual([{ blocks: [block], by: "build", actor: ada }]);
+      expect(await count("task_exports where run_id = $1", [run])).toBe(0);
+      expect(await count("audit_log where lab_id = $1 and action = 'run.export_blocked' and target = $2", [lab, run])).toBe(1);
+    } finally {
+      await undo();
+    }
+  });
+
+  it("a cause un-attested after the grant was made", async () => {
+    const run = await seedRun();
+    await saveTask(ben, run, ade);
+    const grant = await grantFor(ada, run);
+    await owner("update runs set confirmer_attested_at = null where id = $1", [run]);
+    await owner("update runs set share = true where id = $1", [run]);
+    expect((await record(run, grant, nextId())).data).toEqual({ kind: "blocked", reasons: ["not_attested"] });
   });
 
   it("a run with no task written, no review or no protocol", async () => {
@@ -479,6 +520,37 @@ describe("the database refuses, and writes it down", () => {
     await owner("update runs set planned_version_id = null, as_run_body = null, as_run_at = null where id = $1", [run]);
     await owner("update runs set share = true where id = $1", [run]);
     expect(await attempt(run)).toEqual(["no_task", "no_review", "no_protocol"]);
+    expect(await blockedLog(run)).toEqual([{ blocks: ["no_task", "no_review", "no_protocol"], by: "build", actor: ada }]);
+    expect(await count("audit_log where lab_id = $1 and action = 'run.export_blocked' and target = $2", [lab, run])).toBe(1);
+  });
+
+  it("a run whose cause nobody has confirmed", async () => {
+    const run = await seedRun();
+    await saveTask(ben, run, ade);
+    await owner("update runs set confirmed_cause = null, confirmed_by = null, confirm_method = null, confirmed_at = null, confirmer_attested_at = null where id = $1", [run]);
+    await owner("update runs set share = true where id = $1", [run]);
+    expect(await attempt(run)).toEqual(["no_confirmed_cause"]);
+  });
+
+  it("a run whose sharing goes off while its folder is being written: what was written is removed", async () => {
+    const store = await import("../task-folder-store");
+    const run = await seedRun();
+    await saveTask(ben, run, ade);
+    let puts = 0;
+    const before = [...originals.objects.keys()];
+    const racing: FolderStore = {
+      ...originals,
+      put: async (key, file, type) => {
+        await originals.put(key, file, type);
+        if (++puts === 1) await owner("update runs set share = false where id = $1", [run]);
+      },
+    };
+    const built = await store.buildTask({ db: memberDb(ada), store: racing }, lab, run);
+    expect(built).toEqual({ kind: "ok", value: { kind: "blocked", reasons: ["run_off"] } });
+    expect(puts).toBe(2);
+    expect([...originals.objects.keys()]).toEqual(before);
+    expect(await count("task_exports where run_id = $1", [run])).toBe(0);
+    expect(await blockedLog(run)).toEqual([{ blocks: ["run_off"], by: "build", actor: ada }]);
   });
 
   it("a run one of whose files Binary hasn't kept", async () => {
@@ -492,34 +564,20 @@ describe("the database refuses, and writes it down", () => {
     }
   });
 
-  it("a gate that says no: the attempt is still written down, with the database's reasons", async () => {
-    const shared = await seedRun();
-    await saveTask(ben, shared, ade);
-    expect(await attempt(shared, refuses)).toEqual(["gate_not_built"]);
-    expect((await blockedLog(shared)).map((l) => l.after.reasons)).toEqual([["no_grant"]]);
-    const off = await seedRun({ share: false });
-    await saveTask(ben, off, ade);
-    expect(await attempt(off, refuses)).toEqual(["run_off"]);
-  });
-
   it("a grant used before, another run's grant, and one that isn't a grant", async () => {
     const run = await seedRun();
     await saveTask(ben, run, ade);
     const other = await seedRun();
-    const record = (grant: number | null, id: string) => memberDb(ada).rpc("build_task_export", { p_run_id: run, p_export_id: id, p_grant_id: grant, p_purpose: "task_folder", p_manifest: {} });
-    const granted = await grants(run, "x");
-    if (granted.kind !== "granted") throw new Error("no grant");
-    const first = "10000000-0000-4000-8000-000000000001";
-    expect((await record(granted.grant.logId, first)).data).toMatchObject({ kind: "built", id: first, prefix: `${lab}/exports/${first}` });
-    expect((await record(granted.grant.logId, "10000000-0000-4000-8000-000000000002")).data).toEqual({ kind: "blocked", reasons: ["no_grant"] });
-    const theirs = await grants(other, "x");
-    if (theirs.kind !== "granted") throw new Error("no grant");
-    expect((await record(theirs.grant.logId, "10000000-0000-4000-8000-000000000003")).data).toEqual({ kind: "blocked", reasons: ["no_grant"] });
+    const grant = await grantFor(ada, run);
+    const first = nextId();
+    expect((await record(run, grant, first)).data).toMatchObject({ kind: "built", id: first, prefix: `${lab}/exports/${first}` });
+    expect((await record(run, grant, nextId())).data).toEqual({ kind: "blocked", reasons: ["no_grant"] });
+    expect((await record(run, await grantFor(ada, other), nextId())).data).toEqual({ kind: "blocked", reasons: ["no_grant"] });
     const edit = Number((await owner("select id from run_log where run_id = $1 and action = 'run.create'", [run])).rows[0]?.id);
-    expect((await record(edit, "10000000-0000-4000-8000-000000000004")).data).toEqual({ kind: "blocked", reasons: ["no_grant"] });
-    expect((await record(null, "10000000-0000-4000-8000-000000000005")).data).toEqual({ kind: "blocked", reasons: ["no_grant"] });
+    expect((await record(run, edit, nextId())).data).toEqual({ kind: "blocked", reasons: ["no_grant"] });
+    expect((await record(run, null, nextId())).data).toEqual({ kind: "blocked", reasons: ["no_grant"] });
     expect(await count("task_exports where run_id = $1", [run])).toBe(1);
-    expect((await blockedLog(run)).length).toBe(4);
+    expect((await blockedLog(run)).map((l) => [l.blocks, l.by])).toEqual(Array.from({ length: 4 }, () => [["no_grant"], "build"]));
   });
 });
 
@@ -528,7 +586,7 @@ describe("downloading", () => {
     const store = await import("../task-folder-store");
     const run = await seedRun();
     await saveTask(ben, run, ade);
-    const deps = { db: memberDb(ben), store: originals, claim: grants };
+    const deps = { db: memberDb(ben), store: originals };
     const built = await store.buildTask(deps, lab, run);
     if (built.kind !== "ok" || built.value.kind !== "built") throw new Error("not built");
     const id = built.value.id;
@@ -543,7 +601,10 @@ describe("downloading", () => {
     expect(Buffer.concat(chunks).equals(zip)).toBe(true);
     expect(opened).toMatchObject({ bytes: zip.length, name: `task-${id}.zip` });
 
-    expect(await store.openTask({ ...deps, claim: refuses }, run, id)).toEqual({ kind: "blocked", reasons: ["gate_not_built"] });
+    const asks = () => count("run_log where run_id = $1 and action = 'export.allowed' and after ->> 'purpose' = 'task folder download'", [run]);
+    expect(await asks()).toBe(1);
+    expect((await memberDb(cy).rpc("task_export_file", { p_run_id: run, p_export_id: id })).data).toEqual([]);
+    expect((await memberDb(ben).rpc("task_export_file", { p_run_id: run, p_export_id: id })).data).toMatchObject([{ storage_prefix: `${lab}/exports/${id}` }]);
     expect(await store.openTask({ ...deps, db: memberDb(cy) }, run, id)).toEqual({ kind: "missing" });
     expect(await store.openTask(deps, run, "20000000-0000-4000-8000-000000000001")).toEqual({ kind: "missing" });
 
@@ -553,6 +614,9 @@ describe("downloading", () => {
 
     // Any change to a shared run turns its sharing off, which withdraws the folder (0034).
     await memberDb(ada).rpc("edit_run", { p_run_id: run, p_fields: { title: "Renamed after sharing" } });
+    expect(await store.openTask(deps, run, id)).toEqual({ kind: "blocked", reasons: ["run_off"] });
+    // Shared again, the run can build a new folder; the old one stays withdrawn.
+    await owner("update runs set share = true where id = $1", [run]);
     expect(await store.openTask(deps, run, id)).toEqual({ kind: "withdrawn" });
 
     // Its files leave the store the next time the task is read, and only then.
@@ -560,7 +624,7 @@ describe("downloading", () => {
     const task = await store.loadRunTask(memberDb(ben), run);
     if (task === null) throw new Error("no task");
     expect(task.exports).toMatchObject([{ id, hasFiles: true }]);
-    expect(task.blocks).toEqual(["run_off"]);
+    expect(task.blocks).toEqual([]);
     const after = await store.removeWithdrawn(memberDb(ben), originals, task);
     expect(after.exports).toMatchObject([{ id, hasFiles: false }]);
     expect([...originals.objects.keys()].filter((k) => k.includes(id))).toEqual([]);
@@ -573,7 +637,7 @@ describe("downloading", () => {
     const store = await import("../task-folder-store");
     const run = await seedRun();
     await saveTask(ben, run, ade);
-    const built = await store.buildTask({ db: memberDb(ada), store: originals, claim: grants }, lab, run);
+    const built = await store.buildTask({ db: memberDb(ada), store: originals }, lab, run);
     if (built.kind !== "ok" || built.value.kind !== "built") throw new Error("not built");
     expect(await codeOf(memberDb(ada).rpc("forget_task_export_files", { p_run_id: run, p_export_id: built.value.id }))).toBe("BL965");
     expect(await codeOf(memberDb(ada).rpc("forget_task_export_files", { p_run_id: run, p_export_id: "20000000-0000-4000-8000-000000000002" }))).toBe("BL964");
