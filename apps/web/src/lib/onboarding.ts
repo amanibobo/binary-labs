@@ -402,6 +402,8 @@ export type HelpAnswerId =
   | "standard-curve"
   | "ic50"
   | "test"
+  | "runs"
+  | "run-history"
   | "export"
   | "invite";
 
@@ -519,6 +521,20 @@ export const HELP_ANSWERS: readonly HelpAnswer[] = [
     group: "charts",
     question: "Check if a difference is real",
     answer: "Pick Compare groups and Binary chooses a test and says why, under Could the difference be chance? It gives the answer in plain words first, then the p value.",
+    clip: null,
+  },
+  {
+    id: "runs",
+    group: "charts",
+    question: "Put several runs on one chart",
+    answer: "On a line or scatter chart, choose Add runs and pick other files, or add all of the experiment. Each is drawn with the same columns; a run labeled failed is gray and dashed.",
+    clip: null,
+  },
+  {
+    id: "run-history",
+    group: "charts",
+    question: "See a check across runs",
+    answer: "On a protocol page, choose Across runs beside a check. Each run is a point against the allowed range; flagged runs are amber and failed runs a gray ring.",
     clip: null,
   },
   {
