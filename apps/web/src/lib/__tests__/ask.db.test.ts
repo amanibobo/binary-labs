@@ -490,7 +490,7 @@ describe("protocol edits drawn from talk-throughs and flags", () => {
     const user = model.calls[0]?.user ?? "";
     expect(user).toContain("A talk-through of this protocol, recorded");
     expect(user).toContain("let the plate sit five minutes");
-    expect(user).toContain('Standard curve fit check "Standard curve" read 0.91; it expects at least 0.98. A member answered "Known issue": Read too soon after adding dye.');
+    expect(user).toContain('Curve fit check "Standard curve" read 0.91; it expects at least 0.98. A member answered "Known issue": Read too soon after adding dye.');
     if (drafted.kind !== "created") throw new Error(`expected a draft, got ${drafted.kind}`);
     const saved = z
       .object({ sources: z.array(z.object({ sha256: z.string() })) })
