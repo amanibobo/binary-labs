@@ -74,6 +74,15 @@ alter table calendar_feeds enable row level security;
 create policy calendar_feeds_select on calendar_feeds for select
   using (user_id = auth.uid() and is_lab_member(lab_id));
 
+-- How many occurrences a series has. Counting under RLS checks membership once per row, which
+-- made a month of a daily series 3 ms an entry; the series' own lab is checked once instead.
+create function calendar_series_size(p_series_id uuid) returns int
+language sql stable security definer set search_path = public as $$
+  select count(*)::int from calendar_entries o
+  where o.series_id = p_series_id
+    and exists (select 1 from calendar_series s where s.id = p_series_id and (auth.uid() is null or is_lab_member(s.lab_id)))
+$$;
+
 -- One entry as the web app reads it, now with its repeat and the reader's reminders.
 create or replace function calendar_entry_json(e calendar_entries) returns jsonb
 language sql stable security invoker set search_path = public as $$
@@ -103,7 +112,7 @@ language sql stable security invoker set search_path = public as $$
       select jsonb_build_object(
         'series_id', s.id, 'every', s.every, 'step', s.step, 'weekdays', to_jsonb(s.weekdays),
         'first_on', s.first_on, 'until_on', s.until_on, 'occurrence_on', e.occurrence_on,
-        'count', (select count(*) from calendar_entries o where o.series_id = s.id)
+        'count', calendar_series_size(s.id)
       )
       from calendar_series s where s.id = e.series_id
     ),
@@ -527,7 +536,7 @@ $$;
 
 revoke all on calendar_series, calendar_reminders, calendar_feeds from anon, authenticated;
 revoke all on function
-  calendar_repeat_days(text, int, smallint[], date, date), calendar_place(calendar_entries, date, text),
+  calendar_series_size(uuid), calendar_repeat_days(text, int, smallint[], date, date), calendar_place(calendar_entries, date, text),
   calendar_lock_entry(uuid), calendar_repeat(uuid, timestamptz, jsonb, text),
   calendar_save_series(uuid, timestamptz, jsonb), calendar_delete_series(uuid),
   calendar_set_reminders(uuid, int[], boolean), calendar_due_reminders(uuid, text),
@@ -538,7 +547,7 @@ grant select (lab_id, user_id, created_at) on calendar_feeds to authenticated;
 -- An occurrence deleted on its own can be put back in its series (Undo).
 grant insert (series_id, occurrence_on) on calendar_entries to authenticated;
 grant execute on function
-  calendar_repeat_days(text, int, smallint[], date, date), calendar_place(calendar_entries, date, text),
+  calendar_series_size(uuid), calendar_repeat_days(text, int, smallint[], date, date), calendar_place(calendar_entries, date, text),
   calendar_repeat(uuid, timestamptz, jsonb, text), calendar_save_series(uuid, timestamptz, jsonb),
   calendar_delete_series(uuid), calendar_set_reminders(uuid, int[], boolean), calendar_due_reminders(uuid, text),
   calendar_reminder_shown(uuid, int, timestamptz), calendar_feed_reset(uuid, text)
