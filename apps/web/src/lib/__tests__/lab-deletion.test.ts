@@ -9,7 +9,7 @@ const pages: ExportedPage[] = [
 
 describe("the protocols download", () => {
   it("is one Markdown file with every page's title, kind, version and body, separated by rules", () => {
-    expect(protocolsMarkdown({ labName: "Okafor Lab", exportedAt: new Date("2026-11-04T12:00:00Z"), pages })).toBe(
+    expect(protocolsMarkdown({ labName: "Okafor Lab", demo: false, exportedAt: new Date("2026-11-04T12:00:00Z"), pages })).toBe(
       [
         "# Okafor Lab protocols\n\nExported from Binary on Nov 4, 2026: 2 protocols and 1 tutorial, the current version of each.\n",
         "# Lysis buffer\n\nProtocol, version 3, saved Nov 2, 2026\n\n1. Thaw on ice.\n",
@@ -20,8 +20,15 @@ describe("the protocols download", () => {
   });
 
   it("says so when the lab has no pages", () => {
-    expect(protocolsMarkdown({ labName: "Okafor Lab", exportedAt: new Date("2026-11-04T12:00:00Z"), pages: [] })).toBe(
+    expect(protocolsMarkdown({ labName: "Okafor Lab", demo: false, exportedAt: new Date("2026-11-04T12:00:00Z"), pages: [] })).toBe(
       "# Okafor Lab protocols\n\nExported from Binary on Nov 4, 2026. The lab has no protocols or tutorials yet.\n",
+    );
+  });
+
+  it("from a demo lab, says at the top that it's sample data", () => {
+    const md = protocolsMarkdown({ labName: "Okafor Lab (demo)", demo: true, exportedAt: new Date("2026-11-04T12:00:00Z"), pages });
+    expect(md.split("\n---\n\n")[0]).toBe(
+      "# Sample data: Okafor Lab (demo) protocols\n\nSample data from a demo lab. Every name and number in it is made up. Exported from Binary on Nov 4, 2026: 2 protocols and 1 tutorial, the current version of each.\n",
     );
   });
 
