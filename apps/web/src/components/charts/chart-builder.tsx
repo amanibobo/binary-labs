@@ -5,10 +5,10 @@ import { DropdownMenu } from "radix-ui";
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/cn";
-import { labelText, rename, type LabelTarget } from "@/lib/chart-edits";
-import { chartWarnings, describeChart, describeRuns, startChart, suggestionsFor, switchKind } from "@/lib/chart-guide";
-import { chartHref, chartTrouble, checkSpec, isSummary, isXY, repairSpec, specProblem, titleFromName, type ChartSpec, type GridSpec, type HeatmapSpec, type SavedChart, type XYSpec } from "@/lib/charts";
-import { mainTable, type DataTable, type DataTables } from "@/lib/data-tables";
+import { addSeries, labelText, rename, type LabelTarget } from "@/lib/chart-edits";
+import { chartWarnings, describeChart, describeRuns, startChart, startFor, suggestionsFor, switchKind } from "@/lib/chart-guide";
+import { chartHref, chartTrouble, checkSpec, findCitedCell, isSummary, isXY, repairSpec, specProblem, titleFromName, type CitedCell, type ChartSpec, type GridSpec, type HeatmapSpec, type SavedChart, type XYSpec } from "@/lib/charts";
+import { mainTable, type DataColumn, type DataTable, type DataTables } from "@/lib/data-tables";
 import type { LocationId, ProtocolId, Sha256 } from "@/lib/ids";
 import { describeLayout, layoutChoices, layoutFromFile, type SavedLayout } from "@/lib/layouts";
 import { plateLayout } from "@/lib/plates";
@@ -27,6 +27,7 @@ import { chartCsv, chartMarkup, downloadPdf, downloadPng, downloadSvg, EXPORT_SI
 import { ChartFigure, type FigureEdit } from "./chart-figure";
 import { ChartPanel, SeriesEditor, type PanelEdit } from "./chart-panel";
 import { ChartQuestion } from "./chart-question";
+import { CitedCellView } from "./cited-cell";
 import { fileChartsKey } from "./file-charts";
 import { LayoutPainter } from "./layout-painter";
 import { RunsPanel, useRuns } from "./runs-panel";
@@ -38,7 +39,8 @@ export const tableKey = (sha: Sha256) => ["data-table", sha] as const;
 
 export type ChartFile = { locationId: LocationId | null; sha256: Sha256; name: string };
 export type ProtocolChoice = { id: ProtocolId; title: string };
-export type BuilderMode = { kind: "create"; protocolId: ProtocolId | null } | { kind: "edit"; chart: SavedChart; provenance?: Provenance };
+// A new chart opened from an answer's citation of a cell starts on that cell's sheet and marks it.
+export type BuilderMode = { kind: "create"; protocolId: ProtocolId | null; cited?: CitedCell | null } | { kind: "edit"; chart: SavedChart; provenance?: Provenance };
 
 export function fileHref(file: ChartFile): string {
   return `/?${new URLSearchParams({ q: file.name, open: file.sha256 })}`;
@@ -106,7 +108,8 @@ export function ChartBuilder({ file, mode, protocols }: { file: ChartFile; mode:
     );
   }
   const saved = mode.kind === "edit" ? (state.tables.tables.find((t) => t.name === mode.chart.sheet) ?? null) : null;
-  const first = saved ?? mainTable(state.tables);
+  const citedTable = mode.kind === "create" && mode.cited != null ? (state.tables.tables.find((t) => t.name === mode.cited?.sheet) ?? null) : null;
+  const first = saved ?? citedTable ?? mainTable(state.tables);
   if (first === null) {
     return (
       <Shell crumbs={crumbs}>
@@ -163,6 +166,16 @@ function startingLayout(doc: DataTables, table: DataTable, spec: ChartSpec | nul
   return found === null ? null : { ...found, layoutId: null };
 }
 
+// A chart opened on a cited cell is a chart of that column as the sheet has it, line or bars, so
+// the cell is a point on it; a column the chart can't draw keeps the suggested chart.
+function drawingCell(spec: ChartSpec | null, table: DataTable, cell: { table: DataTable; column: DataColumn } | null): ChartSpec | null {
+  if (cell === null || cell.table !== table || cell.column.kind !== "number") return spec;
+  const raw = startFor(table, "line") ?? startFor(table, "bar");
+  if (raw === null || !isXY(raw) || raw.x.column === cell.column.id) return spec;
+  const only = addSeries({ ...raw, series: [] }, table, cell.column);
+  return only.series.length === 0 ? spec : only;
+}
+
 function withLayout(spec: ChartSpec | null, map: PlateMap): ChartSpec | null {
   if (spec === null || !isSummary(spec) || spec.source.kind !== "plate") return spec;
   return { ...spec, source: { ...spec.source, layout: map.layout, layoutId: map.layoutId } };
@@ -185,8 +198,10 @@ function Builder({
   const router = useRouter();
   const queryClient = useQueryClient();
   const [saved, setSaved] = useState<SavedChart | null>(mode.kind === "edit" ? mode.chart : null);
-  // A new chart starts on its question; a saved one opens drawn.
-  const [asking, setAsking] = useState(mode.kind === "create");
+  const cited = mode.kind === "create" ? (mode.cited ?? null) : null;
+  const citedAt = useMemo(() => (cited === null ? null : findCitedCell(doc.tables, cited)), [cited, doc.tables]);
+  // A new chart starts on its question, unless it opened on a cited cell; a saved one opens drawn.
+  const [asking, setAsking] = useState(mode.kind === "create" && cited === null);
   const [painting, setPainting] = useState(false);
   const history = useHistory<Doc>(() => {
     const spec = mode.kind === "edit" ? mode.chart.spec : null;
@@ -196,7 +211,7 @@ function Builder({
       draft:
         mode.kind === "edit"
           ? { sheet: mode.chart.sheet, title: mode.chart.title, spec: mode.chart.spec, protocolId: mode.chart.protocolId }
-          : { sheet: first.name, title: titleFromName(file.name), spec: startChart(data), protocolId: mode.protocolId },
+          : { sheet: first.name, title: titleFromName(file.name), spec: drawingCell(startChart(data), first, citedAt), protocolId: mode.protocolId },
       other: null,
       layout,
     };
@@ -465,6 +480,7 @@ function Builder({
               ))}
             </ul>
           )}
+          {cited === null ? null : <CitedCellView tables={doc.tables} cell={cited} />}
           {broken === null ? null : (
             <div role="alert" className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-3 rounded-control bg-background-secondary px-4 py-3">
               <p className="min-w-0 flex-1 text-paragraph-small text-content-secondary">{broken}</p>
@@ -483,6 +499,7 @@ function Builder({
                 spec={drawn.spec ?? spec}
                 table={drawn.table}
                 muted={drawn.muted}
+                mark={citedAt === null || citedAt.table.name !== draft.sheet || runs.combined !== null ? undefined : { column: citedAt.column.id, row: citedAt.row }}
                 tables={doc.tables}
                 label={draft.title || "Chart"}
                 edit={figureEdit}

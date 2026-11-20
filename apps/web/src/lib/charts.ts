@@ -800,10 +800,29 @@ export function chartHref(id: ChartId): string {
   return `/charts/${id}`;
 }
 
-export function newChartHref(file: LocationId, protocolId?: ProtocolId): string {
+// A cell an answer cited (lib/answers.ts CellRef): its table, its column as the answer named it
+// ("A595 (AU)"), and its row counted from 1, as the model was shown.
+export const CitedCell = z.object({ sheet: z.string().min(1).max(200), column: z.string().min(1).max(300), row: z.coerce.number().int().positive().max(1_000_000) });
+export type CitedCell = z.infer<typeof CitedCell>;
+
+export function newChartHref(file: LocationId, protocolId?: ProtocolId, cell?: CitedCell): string {
   const params = new URLSearchParams({ file });
   if (protocolId !== undefined) params.set("protocol", protocolId);
+  if (cell !== undefined) {
+    params.set("sheet", cell.sheet);
+    params.set("column", cell.column);
+    params.set("row", String(cell.row));
+  }
   return `/charts/new?${params}`;
+}
+
+// The cited cell in the file's tables: the column the answer named, by name and unit or by
+// letter, and the row as an index into the table. Null when the file was read differently since.
+export function findCitedCell(tables: readonly DataTable[], cell: CitedCell): { table: DataTable; column: DataColumn; row: number } | null {
+  const table = tables.find((t) => t.name === cell.sheet);
+  const column = table?.columns.find((c) => columnLabel(c) === cell.column) ?? table?.columns.find((c) => c.id === cell.column);
+  if (table === undefined || column === undefined || cell.row > table.rows) return null;
+  return { table, column, row: cell.row - 1 };
 }
 
 // A file's name without its extension, as a new chart's first title.

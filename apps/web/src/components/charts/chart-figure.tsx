@@ -26,6 +26,8 @@ export function chartHeight(width: number): number {
 }
 
 // What makes a chart editable in place (the builder; a protocol page's chart has none).
+export type CellMark = { column: ColumnId; row: number };
+
 export type FigureEdit = {
   rename: (target: LabelTarget, text: string) => void;
   // The text a label edits, which can differ from what's drawn ("A595 (AU)" is title and unit).
@@ -48,6 +50,7 @@ export function ChartFigure({
   edit,
   hint,
   muted,
+  mark,
 }: {
   spec: ChartSpec;
   table: DataTable;
@@ -60,9 +63,11 @@ export function ChartFigure({
   hint?: ReactNode;
   // Series of failed runs, drawn gray and dashed (lib/runs.ts).
   muted?: ReadonlySet<string>;
+  // A cell an answer cited, ringed where the chart draws it.
+  mark?: CellMark;
 }) {
   if (isScaled(spec)) return <PlateFigure spec={spec} table={table} label={label} className={className} edit={edit} hint={hint} />;
-  if (isXY(spec)) return <XYFigure spec={spec} table={table} label={label} className={className} edit={edit} hint={hint} muted={muted} />;
+  if (isXY(spec)) return <XYFigure spec={spec} table={table} label={label} className={className} edit={edit} hint={hint} muted={muted} mark={mark} />;
   return <SummaryFigure spec={spec} table={table} tables={tables ?? [table]} label={label} className={className} edit={edit} hint={hint} />;
 }
 
@@ -316,7 +321,7 @@ export function Frame({
 // What the hover layer points at: a place along x (line and bar), or one dot (scatter).
 type Active = { kind: "row"; stop: number } | { kind: "point"; series: number; index: number };
 
-function XYFigure({ spec, table, label, className, edit, hint, muted }: { spec: XYSpec; table: DataTable; label: string; className?: string; edit?: FigureEdit; hint?: ReactNode; muted?: ReadonlySet<string> }) {
+function XYFigure({ spec, table, label, className, edit, hint, muted, mark }: { spec: XYSpec; table: DataTable; label: string; className?: string; edit?: FigureEdit; hint?: ReactNode; muted?: ReadonlySet<string>; mark?: CellMark }) {
   const [box, width] = useWidth();
   const [active, setActive] = useState<Active | null>(null);
   const [showTable, setShowTable] = useState(false);
@@ -331,6 +336,7 @@ function XYFigure({ spec, table, label, className, edit, hint, muted }: { spec: 
   );
   const notes = [...(plot?.notes ?? []), ...columnNotes(spec, table), rowsNote(table)].filter((n): n is string => n !== null);
   const fixedNames = edit?.seriesFixed === true;
+  const cited = mark === undefined ? undefined : plot?.series.find((s) => s.column === mark.column)?.points.find((p) => p.row === mark.row);
   const labels = useMemo(() => (plot === null || !editable ? [] : xyLabels(plot, spec).filter((l) => !(fixedNames && l.target.kind === "series"))), [plot, spec, editable, fixedNames]);
 
   function at(event: PointerEvent<SVGRectElement>): { x: number; y: number } | null {
@@ -375,6 +381,7 @@ function XYFigure({ spec, table, label, className, edit, hint, muted }: { spec: 
         {plot === null ? null : (
           <ChartSvg plot={plot} ink={SCREEN_INK} clipId={clipId} label={label}>
             <HoverMarks plot={plot} active={active} />
+            {cited === undefined ? null : <circle cx={cited.px} cy={cited.py} r={8} fill="none" stroke={SCREEN_INK.title} strokeWidth={2} pointerEvents="none"><title>The cell the answer cited</title></circle>}
             <rect
               x={plot.area.left}
               y={plot.area.top}
