@@ -595,6 +595,7 @@ describe("grants", () => {
              has_function_privilege('anon', p.oid, 'execute') as anon
            from pg_proc p join pg_namespace n on n.oid = p.pronamespace
            where n.nspname = 'public' and p.oid >= (select min(oid) from pg_proc where proname = 'run_files_check')
+             and p.oid <= (select max(oid) from pg_proc where proname = 'run_file')
            order by 1`,
         )
       ).rows,
