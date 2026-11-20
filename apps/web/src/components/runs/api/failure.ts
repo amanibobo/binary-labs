@@ -1,36 +1,34 @@
-import type { PersonId, RunId, Sha256 } from "@/lib/ids";
-import type { ConfirmMethod, FailureTerm, RunRecord } from "@/lib/run-record";
-import { notBuilt } from "./http";
+import { z } from "zod";
+import type { RunId } from "@/lib/ids";
+import { ConfirmerChoice, FailureList, type CauseRequest, type ConfirmDraft, type FailureType } from "@/lib/run-failure";
+import { RunRecord } from "@/lib/run-record";
+import { getJson, send } from "./http";
 
-// Slice A, the failure record (brief item 1). The foundation typed this interface and left
-// the bodies; the slice fills them in and owns this file from then on.
-
-export type ConfirmInput = {
-  cause: string;
-  // The named confirmer: a person of the lab, who may have no account.
-  personId: PersonId;
-  method: ConfirmMethod;
-  note: string | null;
-  // What showed it: the repeat run, or the control file (one of this run's files).
-  evidence: { runId: RunId | null; sha256: Sha256 | null };
-};
-
-export type FailureType = { version: number; technique: string | null; failedStep: string | null; causeCategory: string | null };
+// Slice A, the failure record (brief item 1): the suspected and confirmed cause, the named
+// confirmer's own yes, and the failure type from the fixed list.
 
 export type FailureApi = {
   // The fixed list (failure_terms), newest version, in picker order.
-  failureTerms: (signal: AbortSignal) => Promise<FailureTerm[]>;
+  failureList: (signal: AbortSignal) => Promise<FailureList>;
+  // The lab's People, who can be named as the confirmer; `you` marks the viewer's own row.
+  confirmerChoices: (id: RunId, signal: AbortSignal) => Promise<ConfirmerChoice[]>;
   setSuspectedCause: (id: RunId, cause: string | null) => Promise<RunRecord>;
-  confirmCause: (id: RunId, input: ConfirmInput) => Promise<RunRecord>;
+  confirmCause: (id: RunId, draft: ConfirmDraft) => Promise<RunRecord>;
+  withdrawCause: (id: RunId) => Promise<RunRecord>;
   // Only the named confirmer's own account can say "Yes, I confirmed this".
   attestCause: (id: RunId) => Promise<RunRecord>;
   setFailureType: (id: RunId, type: FailureType | null) => Promise<RunRecord>;
 };
 
+const base = "/api/run-records";
+const cause = async (id: RunId, body: CauseRequest) => RunRecord.parse(await send(`${base}/${id}/cause`, "POST", body));
+
 export const httpFailureApi: FailureApi = {
-  failureTerms: notBuilt,
-  setSuspectedCause: notBuilt,
-  confirmCause: notBuilt,
-  attestCause: notBuilt,
-  setFailureType: notBuilt,
+  failureList: async (signal) => FailureList.parse(await getJson(`${base}/failure-terms`, {}, signal)),
+  confirmerChoices: async (id, signal) => z.object({ people: z.array(ConfirmerChoice) }).parse(await getJson(`${base}/${id}/cause`, {}, signal)).people,
+  setSuspectedCause: (id, text) => cause(id, { action: "suspect", cause: text }),
+  confirmCause: (id, draft) => cause(id, { action: "confirm", confirm: draft }),
+  withdrawCause: (id) => cause(id, { action: "withdraw" }),
+  attestCause: (id) => cause(id, { action: "attest" }),
+  setFailureType: async (id, type) => RunRecord.parse(await send(`${base}/${id}/failure-type`, "POST", { type })),
 };
