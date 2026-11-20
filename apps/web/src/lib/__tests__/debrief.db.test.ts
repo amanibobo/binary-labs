@@ -3,7 +3,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 import { DebriefJson, MaybeDebriefJson, type Debrief, type DebriefQuestion } from "../debrief";
 import { CreateLabResult } from "../domain";
-import { LabId, RunId, Sha256, type DebriefId } from "../ids";
+import { DebriefId, LabId, RunId, Sha256 } from "../ids";
 import { RunJson } from "../run-record";
 
 // The debrief's functions (0038) against the real migrations: as members of the lab, as a
@@ -195,7 +195,7 @@ describe("answers", () => {
     await call(ada, "discard_debrief($1)", [d.id]);
     expect(await codeOf(typed(ada, d.id, 1, "x"))).toBe("BL943");
     expect(await codeOf(call(ada, "discard_debrief($1)", [d.id]))).toBe("BL943");
-    expect(await codeOf(typed(ada, "00000000-0000-4000-8000-00000000dead" as DebriefId, 1, "x"))).toBe("BL942");
+    expect(await codeOf(typed(ada, DebriefId.parse("00000000-0000-4000-8000-00000000dead"), 1, "x"))).toBe("BL942");
     // A thrown-away debrief isn't the run's; a new start opens another.
     expect(await current(ada, run)).toBeNull();
     expect((await start(ada, run)).id).not.toBe(d.id);

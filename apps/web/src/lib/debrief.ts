@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { IsoDate } from "./domain";
 import { DebriefId, LocationId, RunId, UserId } from "./ids";
 import { RunFix, type DebriefFields } from "./run-record";
 
@@ -187,17 +188,93 @@ export const FIX_LABELS: Readonly<Record<RunFix, string>> = { yes: "It fixed it.
 
 // ---- What the browser sends.
 
-export const SaveAnswerTextRequest = z.object({
-  question: DebriefQuestion,
-  text: z.string().max(20_000, "Keep an answer under 20,000 characters."),
-  // A correction of a recording's transcript, rather than a typed answer.
-  correction: z.boolean(),
+// One answer's recording goes up through /api/uploads like any upload; these headers say
+// which debrief and question it answers.
+export const DEBRIEF_UPLOAD_PURPOSE = "run-debrief";
+export const DEBRIEF_HEADERS = { purpose: "x-upload-purpose", debrief: "x-debrief-id", question: "x-debrief-question" } as const;
+
+export type DebriefAnswerMeta = { debriefId: DebriefId; question: DebriefQuestion; name: string; uploadedOn: string };
+
+export function debriefAnswerHeaders(meta: DebriefAnswerMeta): Record<string, string> {
+  return {
+    [DEBRIEF_HEADERS.purpose]: DEBRIEF_UPLOAD_PURPOSE,
+    [DEBRIEF_HEADERS.debrief]: meta.debriefId,
+    [DEBRIEF_HEADERS.question]: String(meta.question),
+    "x-upload-name": encodeURIComponent(meta.name),
+    "x-upload-date": meta.uploadedOn,
+  };
+}
+
+export function isDebriefUpload(headers: Headers): boolean {
+  return headers.get(DEBRIEF_HEADERS.purpose) === DEBRIEF_UPLOAD_PURPOSE;
+}
+
+const DebriefAnswerHeaders = z.object({
+  debriefId: DebriefId,
+  question: z.coerce.number().pipe(DebriefQuestion),
+  name: z
+    .string()
+    .transform((s, ctx) => {
+      try {
+        return decodeURIComponent(s);
+      } catch {
+        ctx.addIssue({ code: "custom", message: "not URI-encoded" });
+        return z.NEVER;
+      }
+    })
+    .pipe(z.string().trim().min(1).max(200)),
+  uploadedOn: IsoDate,
 });
-export const SetFixRequest = z.object({ fix: RunFix.nullable() });
-export const ApproveDebriefRequest = z.object({ useAsSuspected: z.boolean() });
+
+export function parseDebriefAnswerHeaders(headers: Headers): DebriefAnswerMeta | null {
+  const read = (name: string) => headers.get(name) ?? undefined;
+  const parsed = DebriefAnswerHeaders.safeParse({
+    debriefId: read(DEBRIEF_HEADERS.debrief),
+    question: read(DEBRIEF_HEADERS.question),
+    name: read("x-upload-name"),
+    uploadedOn: read("x-upload-date"),
+  });
+  return parsed.success ? parsed.data : null;
+}
+
+// record_debrief_answer's arguments, by name, as supabase-js sends them.
+export function recordDebriefAnswerArgs(sha256: string, size: number, meta: DebriefAnswerMeta) {
+  return {
+    p_debrief_id: meta.debriefId,
+    p_question: meta.question,
+    p_sha256: sha256,
+    p_size: size,
+    p_name: meta.name,
+    p_uploaded_on: meta.uploadedOn,
+    p_modified_at: null,
+  };
+}
+export type RecordDebriefAnswerArgs = ReturnType<typeof recordDebriefAnswerArgs>;
+
+const pad = (n: number) => String(n).padStart(2, "0");
+
+export function debriefAnswerName(at: Date, question: DebriefQuestion, extension: string): string {
+  const day = `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}`;
+  return `Debrief ${day} ${pad(at.getHours())}.${pad(at.getMinutes())}.${pad(at.getSeconds())} question ${question}.${extension}`;
+}
+
+// A change to an open debrief: words for a question (typed, or a correction of a recording's
+// transcript), question 5's tap, or saving it to the run.
+export const DebriefChange = z.discriminatedUnion("action", [
+  z.object({
+    action: z.literal("text"),
+    question: DebriefQuestion,
+    text: z.string().max(20_000, "Keep an answer under 20,000 characters."),
+    correction: z.boolean(),
+  }),
+  z.object({ action: z.literal("fix"), fix: RunFix.nullable() }),
+  z.object({ action: z.literal("approve"), useAsSuspected: z.boolean() }),
+]);
+export type DebriefChange = z.infer<typeof DebriefChange>;
 
 // A database error from a debrief function, as the browser should see it.
-const FAILURES: Readonly<Record<string, { status: number; message: string }>> = {
+export type DebriefFailure = { status: 400 | 403 | 404 | 409 | 413; message: string } | { status: 500; message: string };
+const FAILURES: Readonly<Record<string, DebriefFailure>> = {
   "42501": { status: 403, message: "That run belongs to another lab." },
   BL907: { status: 404, message: "That run doesn't exist any more." },
   BL941: { status: 409, message: "Only a run that failed or was odd has these questions. Mark how it went first." },
@@ -209,6 +286,6 @@ const FAILURES: Readonly<Record<string, { status: number; message: string }>> = 
   BL201: { status: 413, message: "That recording is too large." },
   "22023": { status: 400, message: "That answer couldn't be saved. Check it and try again." },
 };
-export function debriefFailure(error: { code?: string }): { status: number; message: string } {
+export function debriefFailure(error: { code?: string }): DebriefFailure {
   return FAILURES[error.code ?? ""] ?? { status: 500, message: "We couldn't save that. Try again." };
 }

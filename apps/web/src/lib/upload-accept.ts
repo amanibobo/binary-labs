@@ -25,6 +25,7 @@ import {
   type RecordTalkThroughArgs,
   type TalkThroughReceipt,
 } from "./talk-throughs";
+import { debriefFailure, DebriefJson, parseDebriefAnswerHeaders, recordDebriefAnswerArgs, type Debrief, type RecordDebriefAnswerArgs } from "./debrief";
 
 // The upload routes without their HTTP shell. A bench upload or a talk-through's recording
 // goes straight to the store in one PUT (lib/staged-upload.ts), so a host's request-size cap
@@ -48,10 +49,12 @@ type RpcResult = { data: unknown; error: { code?: string; message: string } | nu
 // Calls the recording function as the signed-in member, so RLS and the membership check apply.
 export type RecordUpload = (args: RecordUploadArgs) => Promise<RpcResult>;
 export type RecordTalkThrough = (args: RecordTalkThroughArgs) => Promise<RpcResult>;
+export type RecordDebriefAnswer = (args: RecordDebriefAnswerArgs) => Promise<RpcResult>;
 
 type Refused = { status: 400 | 403 | 404 | 408 | 409 | 411 | 413 | 415 | 422; error: string };
 export type Accepted = { status: 200 | 201; receipt: UploadReceipt } | Refused;
 export type AcceptedTalkThrough = { status: 200 | 201; receipt: TalkThroughReceipt } | Refused;
+export type AcceptedDebriefAnswer = { status: 200; receipt: Debrief } | Refused;
 
 type Request = { headers: Headers; body: ReadableStream<Uint8Array> | null };
 
@@ -60,6 +63,7 @@ const TOO_LARGE = `Files can be up to ${UPLOAD_MAX_BYTES / 1024 / 1024} MB.`;
 const LIMITS = {
   file: { refused: refusedKind, maxBytes: UPLOAD_MAX_BYTES, tooLarge: TOO_LARGE },
   "talk-through": { refused: refusedRecording, maxBytes: AUDIO_MAX_BYTES, tooLarge: TOO_LONG },
+  "run-debrief": { refused: refusedRecording, maxBytes: AUDIO_MAX_BYTES, tooLarge: TOO_LONG },
 } as const satisfies Record<UploadPurpose, { refused: (mime: string) => string | null; maxBytes: number; tooLarge: string }>;
 
 // The PUT's target when the store is a local folder; R2 hands out a presigned URL instead.
@@ -178,5 +182,24 @@ export async function completeTalkThrough(
     }
     const recorded = RecordTalkThroughRows.parse(data);
     return { status: recorded.duplicate ? 200 : 201, receipt: { ...recorded, sha256: stored.sha256 } };
+  });
+}
+
+// One answer of a run's debrief is a recording stored the same way; its record call puts it on
+// its question and answers with the debrief as it now stands.
+export async function completeDebriefAnswer(
+  labId: string,
+  uploadId: UploadId,
+  request: { headers: Headers; claim: CompleteUploadRequest },
+  record: RecordDebriefAnswer,
+): Promise<AcceptedDebriefAnswer> {
+  const meta = parseDebriefAnswerHeaders(request.headers);
+  if (meta === null) return { status: 400, error: "The recording is missing its question or date." };
+  return verifyAndRecord(labId, uploadId, request.claim, LIMITS["run-debrief"], async (stored): Promise<AcceptedDebriefAnswer> => {
+    const { data, error } = await record(recordDebriefAnswerArgs(stored.sha256, stored.size, meta));
+    if (error === null) return { status: 200, receipt: DebriefJson.parse(data) };
+    const failure = debriefFailure(error);
+    if (failure.status === 500) throw new Error(`record_debrief_answer: ${error.message} (${error.code ?? "no code"})`);
+    return { status: failure.status, error: failure.message };
   });
 }

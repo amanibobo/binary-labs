@@ -12,8 +12,9 @@ export const UPLOAD_MAX_BYTES = 50 * 1024 * 1024;
 export const UploadId = z.uuid().brand<"UploadId">();
 export type UploadId = z.infer<typeof UploadId>;
 
-// A bench upload, or a talk-through's recording; each has its own cap and record call.
-export const UploadPurpose = z.enum(["file", "talk-through"]);
+// A bench upload, a talk-through's recording, or one answer of a run's debrief; each has its
+// own cap and record call.
+export const UploadPurpose = z.enum(["file", "talk-through", "run-debrief"]);
 export type UploadPurpose = z.infer<typeof UploadPurpose>;
 
 export const StartUploadRequest = z.object({

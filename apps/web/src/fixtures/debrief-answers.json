@@ -1,0 +1,8 @@
+{
+  "1": "I was trying to express P450 BM3 in BL21 cells and get enough soluble protein for the activity assay.",
+  "2": "I expected a strong band at about 118 kilodaltons after induction. The gel showed no band at all, the same as the uninduced lane.",
+  "3": "I think the IPTG stock was too old, so the cells were never switched on.",
+  "4": "I ran an SDS gel of the induced and uninduced samples and compared the two lanes.",
+  "5": "I made fresh IPTG and induced at 18 degrees overnight instead of 37.",
+  "6": "Jordan looked at the gel with me. Priya could check the IPTG stock date."
+}
