@@ -17,6 +17,9 @@ export const DEBRIEF_QUESTIONS = [
   { question: 6, ask: "Who else confirmed it, or could?", hint: "A name, or who in the lab would know." },
 ] as const;
 
+// An answer is meant to be short; a recording stops by itself at three minutes.
+export const ANSWER_MAX_MS = 3 * 60 * 1000;
+
 export type DebriefQuestion = (typeof DEBRIEF_QUESTIONS)[number]["question"];
 export const DebriefQuestion = z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5), z.literal(6)]);
 

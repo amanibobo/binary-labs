@@ -408,6 +408,7 @@ export type HelpAnswerId =
   | "map"
   | "learn"
   | "talk-through"
+  | "debrief"
   | "video"
   | "checks"
   | "calendar"
@@ -528,6 +529,13 @@ export const HELP_ANSWERS: readonly HelpAnswer[] = [
     question: "Record a talk-through",
     answer: "On a protocol, choose Record a talk-through and say the steps as you work. You review the written steps before they're saved.",
     clip: "talk-through",
+  },
+  {
+    id: "debrief",
+    group: "find",
+    question: "Say what went wrong in a run",
+    answer: "On a run marked failed or odd, choose Answer the questions and speak or type an answer to each of six. You check every word before Save to the run puts them there.",
+    clip: null,
   },
   {
     id: "video",
