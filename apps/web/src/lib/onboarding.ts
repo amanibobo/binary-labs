@@ -394,6 +394,7 @@ export type HelpAnswerId =
   | "learn"
   | "talk-through"
   | "video"
+  | "checks"
   | "calendar"
   | "flag"
   | "upload"
@@ -464,6 +465,13 @@ export const HELP_ANSWERS: readonly HelpAnswer[] = [
     question: "Add a video to a protocol",
     answer: "On a protocol, choose Add a video to record one with your phone, pick a file, or link a video already in the lab.",
     clip: "video",
+  },
+  {
+    id: "checks",
+    group: "protocols",
+    question: "Check results as they arrive",
+    answer: "On a protocol, choose Add a check, such as a standard curve's R², an IC50, samples outside the standards, or blanks named in a row or column. Files tied to the protocol are checked, and a result out of range is flagged.",
+    clip: null,
   },
   {
     id: "calendar",
