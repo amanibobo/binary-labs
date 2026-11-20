@@ -8,7 +8,7 @@ const base = process.env.BASE_URL ?? "http://localhost:3100";
 const out = process.env.OUT ?? "/tmp";
 const assert = (ok, what) => {
   if (!ok) throw new Error(`failed: ${what}`);
-  console.log(`ok: ${what}`);
+  process.stdout.write(`ok: ${what}\n`);
 };
 
 const browser = await chromium.launch({ headless: true, ...(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : { channel: "chromium" }) });
@@ -39,7 +39,7 @@ try {
   await page.waitForTimeout(6000);
   const saves = await page.evaluate(() => window.__saves);
   const last = saves.at(-1);
-  console.log(`${saves.length} saves, last: ${JSON.stringify(last)}`);
+  process.stdout.write(`${saves.length} saves, last: ${JSON.stringify(last)}\n`);
   assert(saves.length >= 1 && saves.length <= 4, "saves come a moment after changes, not on every frame");
   assert(last?.tags === true && last?.similar === false, "the switches are saved");
   assert(last?.place?.open?.some((id) => id.startsWith("experiment:")), "the opened hub is saved");
@@ -56,7 +56,7 @@ try {
   await back.waitForTimeout(6000);
   assert((await back.getByRole("switch", { name: "Tags" }).getAttribute("aria-checked")) === "true", "tags come back on");
   const shown = await back.evaluate(() => document.querySelector("[aria-label='Show on the map'] .sr-only")?.textContent ?? "");
-  console.log(`restored: ${shown}`);
+  process.stdout.write(`restored: ${shown}\n`);
   assert(/files/.test(shown) && /tags/.test(shown), "the opened hub's files and the tags are drawn again");
   assert((await back.evaluate(() => window.__saves.length)) === 0, "opening a remembered view saves nothing");
   await back.screenshot({ path: `${out}/map-back.png` });

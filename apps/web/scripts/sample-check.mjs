@@ -14,7 +14,7 @@ const MARK = "Sample data";
 const browser = await chromium.launch({ headless: true, channel: "chromium" });
 const failures = [];
 const check = (ok, what) => {
-  console.log(`${ok ? "ok  " : "FAIL"} ${what}`);
+  process.stdout.write(`${ok ? "ok  " : "FAIL"} ${what}\n`);
   if (!ok) failures.push(what);
 };
 
