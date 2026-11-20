@@ -137,8 +137,8 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 
 // The line at the top of a checked task.
 export function headline(t: Tally): string {
-  if (t.waiting > 0) return `Checking. ${t.answered} of ${t.answered + t.waiting} models have answered.`;
-  if (t.answered === 0) return "No model answered.";
+  if (t.waiting > 0) return `${t.answered} of ${t.answered + t.waiting} models have answered so far`;
+  if (t.answered === 0) return "No model answered";
   return `Solved by ${t.solved} of ${plural(t.answered, "model", "models")}`;
 }
 
