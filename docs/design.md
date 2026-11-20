@@ -393,6 +393,18 @@ a shared run changes ──trigger──▶ share = false ──▶ run_log 'run
 - **Web.** `lib/run-record.ts` (the shapes: `RunRecord` with `FailureFields`, `DebriefFields`, `PlanFields`; `fromRow` renames snake_case keys so each shape has one schema), `lib/run-record-store.ts` (the routes' core; it asks only for `rpc`), `lib/run-routes.ts`, routes under `app/api/run-records/` (`/`, `for-files`, `suggestions`, `[id]`, `[id]/status`, `[id]/files`, `[id]/files/[sha256]`, `[id]/retry`), pages `app/runs/` and `app/runs/[id]/`. `lib/serve-original.ts` is the kept-bytes delivery the drive's version route and the run's file route share. `components/runs/runs-api.tsx` is the client API in its own context, with each slice's methods in `components/runs/api/<slice>.ts`; `fixtures/runs.ts` and `fixtures/runs-<slice>.ts` are its fixture twin, mounted by `FixtureLabApi`. `components/runs/run-page.tsx` renders the run and one section component per slice.
 - **Charts.** `RunInfo.run` is `{ id, status }` when the file belongs to a run (`file_runs`); `howItWent` and `isFailed` in `lib/runs.ts` read it before the label's outcome.
 - **Proving the tests.** `apps/web/scripts/run-record-guards.mjs` breaks each guard in the migration in turn and expects `run-record.db.test.ts` to fail.
+- **The task folder** (migration 0039; decisions in "the run record: de-identification and the task folder").
+
+  ```
+  /runs/<id>/export ──▶ save_run_task (question, rubric, review) ──▶ run_rubrics, run_reviews
+  GET  …/export/preview ──▶ task_export_source ──▶ buildTaskFolder (scrub) ──▶ the record on screen
+  POST …/export ──▶ export_gate ──▶ task_export_source ──▶ buildTaskFolder ──▶ zip + manifest
+                    at <lab>/exports/<id>/ ──▶ build_task_export ──▶ task_exports (0034's trigger decides)
+  GET  …/export/<folder> ──▶ export_gate ──▶ task_export_file ──▶ hash check ──▶ bytes
+  sharing off ──trigger──▶ withdrawn_at ──▶ worker sweep_withdrawn_folders deletes the files
+  ```
+
+  Functions: `task_export_gaps(run)` (what the task lacks; owner only), `run_task_json(run)`, `save_run_task`, `task_export_source(run)` (everything the folder is built from, names included, plus every name the lab knows), `build_task_export(run, id, grant, purpose, manifest)` (answers built or blocked, logs a block), `task_export_file`, `forget_task_export_files`, `set_export_exclusion` (admin). Errors BL961 to BL966. Web: `lib/deidentify.ts` (the scrubber, pure), `lib/task-export.ts` (shapes and words), `lib/task-folder.ts` (the folder from its source, pure), `lib/task-folder-zip.ts`, `lib/task-folder-store.ts` (gate, store and database together; it asks for `rpc` and a three-method store), routes under `app/api/run-records/[id]/export/` (`/`, `task`, `preview`, `exclusions`, `[exportId]`), `components/runs/export/`, fixture `/dev/fixtures/run-export`. Worker: `task_exports.py`. `scripts/task-export-guards.mjs` breaks each guard and expects the tests to fail; `scripts/task-export-shots.mjs` walks the fixture page.
 
 ## Onboarding
 
