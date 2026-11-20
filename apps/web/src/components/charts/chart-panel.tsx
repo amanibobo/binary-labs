@@ -7,6 +7,7 @@ import { addSeries, editSeries, removeSeries, restyle, setBottom, setErrorBars, 
 import { formatValue } from "@/lib/chart-geometry";
 import { bottomChoices, columnKind, columnSample, kindsFor, kindSwitchProblem, measureChoices } from "@/lib/chart-guide";
 import {
+  isGrid,
   isHeatmap,
   isXY,
   LEGEND_POSITIONS,
@@ -15,7 +16,9 @@ import {
   SERIES_COLORS,
   type ChartSpec,
   type ChartType,
+  type GridSpec,
   type HeatmapSpec,
+  type ScaledSpec,
   type HistogramSpec,
   type SummarySpec,
   type LegendPosition,
@@ -27,6 +30,7 @@ import { axisColumns, columnLabel, findColumn, formatDate, isSpreadColumn, numbe
 import type { ColumnId, ProtocolId } from "@/lib/ids";
 import { plateLayout, rowLetter, wellName, type PlateLayout } from "@/lib/plates";
 import { protocolHref } from "@/lib/protocols";
+import { GRID_MAX, isCategoryColumn } from "@/lib/grids";
 import { CheckIcon, ChevronDownIcon, DeleteIcon, PlusIcon, SearchIcon } from "../icons/base-web";
 import { Button } from "../ui/button";
 import { Dialog, DialogContent } from "../ui/dialog";
@@ -44,6 +48,7 @@ import { SummaryData, SummaryOptions, type SummaryEdit } from "./summary-panel";
 export type PanelEdit = {
   xy: (f: (s: XYSpec) => XYSpec, group?: string) => void;
   plate: (f: (s: HeatmapSpec) => HeatmapSpec, group?: string) => void;
+  grid: (f: (s: GridSpec) => GridSpec, group?: string) => void;
   summary: SummaryEdit;
   kind: (kind: ChartKind) => void;
   // Opens the plate's wells to mark; null when the sheet isn't a plate.
@@ -82,6 +87,8 @@ export function ChartPanel({
       </Section>
       {isHeatmap(spec) ? (
         <PlateData spec={spec} table={table} edit={edit} />
+      ) : isGrid(spec) ? (
+        <GridData spec={spec} table={table} edit={edit} />
       ) : isXY(spec) ? (
         <XYData spec={spec} table={table} edit={edit} />
       ) : (
@@ -517,6 +524,56 @@ function WellRow({
   );
 }
 
+type GridSide = "rows" | "columns" | "measure";
+
+const GRID_SIDES = {
+  rows: { title: "Down the side", pick: "What goes down the side?", help: "Each kind of row in this column gets a row of squares.", change: "Change what goes down the side" },
+  columns: { title: "Across the top", pick: "What goes across the top?", help: "Each kind of row in this column gets a column of squares.", change: "Change what goes across the top" },
+  measure: { title: "Colors show", pick: "What should the colors show?", help: "Each square is the mean of this column over the rows with that pair.", change: "Change what the colors show" },
+} satisfies Record<GridSide, { title: string; pick: string; help: string; change: string }>;
+
+function GridData({ spec, table, edit }: { spec: GridSpec; table: DataTable; edit: PanelEdit }) {
+  const [picking, setPicking] = useState<GridSide | null>(null);
+  const choices = (side: GridSide) =>
+    side === "measure"
+      ? measureChoices(table).map((c) => (c.column.id === spec.rows || c.column.id === spec.columns ? { ...c, problem: "Already sorts the rows" } : c))
+      : table.columns.map((column) => ({
+          column,
+          problem: column.id === spec.measure ? "Already colors the squares" : column.id === spec[side === "rows" ? "columns" : "rows"] ? "Already on the other side" : isCategoryColumn(column) ? null : `Not ${GRID_MAX} kinds or fewer, each used more than once`,
+        }));
+  function pick(side: GridSide, column: DataColumn) {
+    edit.grid((s) =>
+      side === "measure"
+        ? { ...s, measure: column.id, value: { ...s.value, title: column.name, unit: column.unit ?? "", min: null, max: null } }
+        : { ...s, [side]: column.id },
+    );
+    setPicking(null);
+  }
+  return (
+    <div className="grid gap-6">
+      {(["rows", "columns", "measure"] as const).map((side) => {
+        const column = findColumn(table, spec[side]);
+        return (
+          <Section key={side} title={GRID_SIDES[side].title}>
+            {column === undefined ? null : <ColumnButton column={column} onClick={() => setPicking(side)} label={GRID_SIDES[side].change} />}
+          </Section>
+        );
+      })}
+      {picking === null ? null : (
+        <ColumnPicker
+          open
+          onClose={() => setPicking(null)}
+          title={GRID_SIDES[picking].pick}
+          help={GRID_SIDES[picking].help}
+          choices={choices(picking)}
+          selected={[spec[picking]]}
+          onPick={(column) => pick(picking, column)}
+        />
+      )}
+    </div>
+  );
+}
+
 function PlateData({ spec, table, edit }: { spec: HeatmapSpec; table: DataTable; edit: PanelEdit }) {
   const [picking, setPicking] = useState(false);
   const layout = plateLayout(table);
@@ -715,7 +772,7 @@ function MoreOptions({
       </button>
       {open ? (
         <div id={regionId} className="mt-4 grid gap-7">
-          {isHeatmap(spec) ? <PlateOptions spec={spec} edit={edit} /> : isXY(spec) ? <XYOptions spec={spec} table={table} edit={edit} /> : <SummaryAxes spec={spec} edit={edit.summary} />}
+          {isHeatmap(spec) ? <PlateOptions spec={spec} onValue={(f, group) => edit.plate((s) => ({ ...s, value: f(s.value) }), group)} /> : isGrid(spec) ? <PlateOptions spec={spec} onValue={(f, group) => edit.grid((s) => ({ ...s, value: f(s.value) }), group)} /> : isXY(spec) ? <XYOptions spec={spec} table={table} edit={edit} /> : <SummaryAxes spec={spec} edit={edit.summary} />}
           <Option title="Show on a protocol" help="Puts this chart on the protocol's page, under its videos.">
             {(id) => (
               <>
@@ -935,14 +992,17 @@ function PerSeries({ name, show, children }: { name: string; show: boolean; chil
   );
 }
 
-function PlateOptions({ spec, edit }: { spec: HeatmapSpec; edit: PanelEdit }) {
+type ScaleValue = ScaledSpec["value"];
+
+function PlateOptions({ spec, onValue }: { spec: ScaledSpec; onValue: (f: (v: ScaleValue) => ScaleValue, group: string) => void }) {
+  const where = spec.type === "grid" ? "squares" : "wells";
   return (
     <>
-      <Option title="Color scale title" help="Or click it under the plate to rename it.">
-        {(id) => <TitleAndUnit id={id} axis={spec.value} onChange={(value) => edit.plate((s) => ({ ...s, value: { ...s.value, ...value } }), "value-title")} />}
+      <Option title="Color scale title" help={`Or click it under the ${spec.type === "grid" ? "heatmap" : "plate"} to rename it.`}>
+        {(id) => <TitleAndUnit id={id} axis={spec.value} onChange={(value) => onValue((v) => ({ ...v, ...value }), "value-title")} />}
       </Option>
-      <Option title="Color range" help="The values the palest and the deepest color stand for. Leave blank to fit the wells.">
-        {(id) => <Range id={id} axis={spec.value} time={null} onChange={(value) => edit.plate((s) => ({ ...s, value: { ...s.value, ...value } }), "value-range")} />}
+      <Option title="Color range" help={`The values the palest and the deepest color stand for. Leave blank to fit the ${where}.`}>
+        {(id) => <Range id={id} axis={spec.value} time={null} onChange={(value) => onValue((v) => ({ ...v, ...value }), "value-range")} />}
       </Option>
     </>
   );

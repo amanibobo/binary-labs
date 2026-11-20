@@ -1,4 +1,4 @@
-import { MAX_SERIES, type SeriesColor, type Stroke, type XYSpec } from "./charts";
+import { MAX_SERIES, type Series, type SeriesColor, type Stroke, type XYSpec } from "./charts";
 import { findColumn, formatDate, type DataColumn, type DataTable } from "./data-tables";
 import { formatValue } from "./numbers";
 
@@ -16,7 +16,7 @@ export type Bar = { row: number; path: string; x: number; width: number; top: nu
 export type PlotSeries = {
   column: string;
   name: string;
-  color: SeriesColor;
+  color: DrawColor;
   stroke: Stroke;
   // Read along its own x column, so the hover layer finds its nearest point, not its row.
   ownX: boolean;
@@ -29,7 +29,9 @@ export type PlotSeries = {
   label: { x: number; y: number } | null;
 };
 export type AxisTitle = { text: string; x: number; y: number; placeholder: boolean };
-export type LegendItem = { name: string; color: SeriesColor; stroke: Stroke; x: number; y: number };
+export type LegendItem = { name: string; color: DrawColor; stroke: Stroke; x: number; y: number };
+// A series color, or the gray of a failed run.
+export type DrawColor = SeriesColor | "muted";
 // A place the hover layer snaps to along x. row is the table row when every series that shares
 // the chart's x has its value there; series with their own x find their nearest point.
 export type Stop = { row: number | null; px: number; label: string };
@@ -262,9 +264,11 @@ export function plotChart(
   spec: XYSpec,
   table: DataTable,
   size: { width: number; height: number },
-  options: { title?: string; placeholders?: boolean } = {},
+  options: { title?: string; placeholders?: boolean; muted?: ReadonlySet<string> } = {},
 ): Plot {
   const notes: string[] = [];
+  // A failed run (lib/runs.ts) is drawn gray and dashed, whatever its own style.
+  const drawStyle = (s: Series): { color: DrawColor; stroke: Stroke } => (options.muted?.has(s.column) ? { color: "muted", stroke: "dashed" } : { color: s.color, stroke: s.stroke });
   const isBar = spec.type === "bar";
   const xColumn = findColumn(table, spec.x.column);
   const seriesColumns = spec.series.slice(0, MAX_SERIES[spec.type]).map((s) => {
@@ -338,7 +342,7 @@ export function plotChart(
         x = start;
         line += 20;
       }
-      const { color, stroke } = seriesColumns[i].spec;
+      const { color, stroke } = drawStyle(seriesColumns[i].spec);
       legend.push({ name, color, stroke, x, y: line });
       x += w;
     }
@@ -412,7 +416,7 @@ export function plotChart(
   let xTicks: Tick[] = [];
   const stops: Stop[] = [];
   const series: PlotSeries[] = [];
-  const style = (s: (typeof seriesColumns)[number]) => ({ column: s.spec.column, name: s.spec.name, color: s.spec.color, stroke: s.spec.stroke, ownX: s.ownX });
+  const style = (s: (typeof seriesColumns)[number]) => ({ column: s.spec.column, name: s.spec.name, ...drawStyle(s.spec), ownX: s.ownX });
 
   if (isBar && xColumn !== undefined) {
     const rows = sharedRows;

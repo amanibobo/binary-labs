@@ -1,8 +1,8 @@
 import { useMemo } from "react";
-import { isHeatmap, isXY, type ChartSpec } from "@/lib/charts";
+import { isScaled, isXY, type ChartSpec } from "@/lib/charts";
 import { plotChart } from "@/lib/chart-geometry";
 import type { DataTable } from "@/lib/data-tables";
-import { plotPlate } from "@/lib/plate-geometry";
+import { plotScaled } from "@/lib/plate-geometry";
 import type { ChartKind } from "@/lib/summary-guide";
 import { plotSummary } from "@/lib/summary-geometry";
 import { DASH, SCREEN_INK } from "./chart-svg";
@@ -13,12 +13,12 @@ export function ChartThumb({ spec, table, tables, className }: { spec: ChartSpec
   const art = useMemo(() => {
     const ink = SCREEN_INK;
     const line = (x1: number, x2: number, y: number) => <line x1={x1} x2={x2} y1={y} y2={y} stroke={ink.axis} strokeWidth={1} vectorEffect="non-scaling-stroke" />;
-    if (isHeatmap(spec)) {
-      const plot = plotPlate(spec, table, { width: 300, height: 220 });
+    if (isScaled(spec)) {
+      const plot = plotScaled(spec, table, { width: 300, height: 220 });
       const pad = plot.pitch / 2;
       return {
         box: `${plot.plate.left - pad} ${plot.plate.top - pad} ${plot.plate.width + pad * 2} ${plot.plate.height + pad * 2}`,
-        marks: plot.wells.map((w) => (w.t === null ? null : <circle key={w.name} cx={w.cx} cy={w.cy} r={plot.radius} fill={ink.ramp(w.t)} />)),
+        marks: plot.wells.map((w) => (w.t === null ? null : plot.shape === "square" ? <rect key={w.name} x={w.cx - plot.pitch / 2 + 1} y={w.cy - plot.pitch / 2 + 1} width={plot.pitch - 2} height={plot.pitch - 2} fill={ink.ramp(w.t)} /> : <circle key={w.name} cx={w.cx} cy={w.cy} r={plot.radius} fill={ink.ramp(w.t)} />)),
       };
     }
     if (!isXY(spec)) {
@@ -116,6 +116,11 @@ export function ChartKindGlyph({ type, className }: { type: ChartKind; className
       {type === "heatmap" ? (
         <g fill="currentColor">
           {[0, 1, 2].flatMap((r) => [0, 1, 2, 3].map((c) => <circle key={`${r}${c}`} cx={5.5 + c * 4.3} cy={7.5 + r * 4.5} r={1.6} opacity={0.35 + ((r + c) % 3) * 0.3} />))}
+        </g>
+      ) : null}
+      {type === "grid" ? (
+        <g fill="currentColor">
+          {[0, 1, 2].flatMap((r) => [0, 1, 2].map((c) => <rect key={`${r}${c}`} x={5 + c * 5} y={5 + r * 5} width={4} height={4} rx={0.75} opacity={0.3 + ((r * 2 + c) % 3) * 0.32} />))}
         </g>
       ) : null}
     </svg>

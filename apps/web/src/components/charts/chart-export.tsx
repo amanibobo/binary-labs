@@ -3,12 +3,14 @@ import type { ReactElement } from "react";
 import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
 import { analyze } from "@/lib/analysis";
-import { isHeatmap, isXY, type ChartSpec } from "@/lib/charts";
+import { isGrid, isHeatmap, isXY, type ChartSpec } from "@/lib/charts";
 import { plotChart } from "@/lib/chart-geometry";
 import { chartNumbers, numbersCsv } from "@/lib/chart-numbers";
 import { cellText, columnLabel, findColumn, type DataColumn, type DataTable } from "@/lib/data-tables";
 import { formatValue } from "@/lib/numbers";
-import { plotPlate } from "@/lib/plate-geometry";
+import { axisText } from "@/lib/chart-guide";
+import { gridCells } from "@/lib/grids";
+import { plotGrid, plotPlate } from "@/lib/plate-geometry";
 import { plotSummary } from "@/lib/summary-geometry";
 import { ChartSvg, EXPORT_INK, PlateSvg } from "./chart-svg";
 import { SummarySvg } from "./summary-svg";
@@ -50,8 +52,8 @@ export function exportFigure(spec: ChartSpec, table: DataTable, title: string, s
     height,
     mm: box.mm === null ? null : { width: box.mm, height: Math.round(((box.mm * height) / width) * 10) / 10 },
   });
-  if (isHeatmap(spec)) {
-    const plot = plotPlate(spec, table, frame, { title });
+  if (isHeatmap(spec) || isGrid(spec)) {
+    const plot = isGrid(spec) ? plotGrid(spec, table, frame, { title }) : plotPlate(spec, table, frame, { title });
     return sized(<PlateSvg plot={plot} ink={EXPORT_INK} gradientId="scale" label={title} />, plot.width, plot.height);
   }
   if (isXY(spec)) {
@@ -144,6 +146,12 @@ export async function downloadPdf(file: ChartFile, title: string): Promise<void>
 // test, the fit and the samples; for any other, the rows it draws.
 export function chartCsv(spec: ChartSpec, table: DataTable, title: string, provenance: readonly string[], tables: readonly DataTable[] = [table]): string {
   const heading = [title, ...provenance];
+  if (isGrid(spec)) {
+    const data = gridCells(spec, table);
+    const [down, across] = [findColumn(table, spec.rows), findColumn(table, spec.columns)];
+    const rows = (data?.cells ?? []).map((c) => [data?.rowNames[c.row] ?? "", data?.columnNames[c.column] ?? "", c.value, c.rows.length]);
+    return numbersCsv([{ title: table.name, columns: [down?.name ?? "Rows", across?.name ?? "Columns", `Mean ${axisText(spec.value.title, spec.value.unit)}`.trim(), "n"], rows }], heading);
+  }
   if (isHeatmap(spec)) return numbersCsv([{ title: table.name, columns: ["Well", "Value"], rows: plotPlate(spec, table, EXPORT_SIZE).wells.map((w) => [w.name, w.value]) }], heading);
   if (isXY(spec)) {
     const ids = [spec.x.column, ...spec.series.flatMap((s) => [s.x, s.column, s.error])];

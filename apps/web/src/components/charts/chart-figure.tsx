@@ -2,13 +2,12 @@
 import { Popover } from "radix-ui";
 import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
 import { cn } from "@/lib/cn";
-import { isHeatmap, isXY, type ChartSpec, type HeatmapSpec, type XYSpec } from "@/lib/charts";
+import { isScaled, isXY, type ChartSpec, type ScaledSpec, type XYSpec } from "@/lib/charts";
 import { formatValue, LABEL_FONT, plotChart, pointAt, textWidth, TICK_FONT, xLabel, type Plot, type Point } from "@/lib/chart-geometry";
 import { cellText, columnLabel, findColumn, rowsNote, type DataColumn, type DataTable } from "@/lib/data-tables";
 import type { LabelTarget } from "@/lib/chart-edits";
 import type { ColumnId } from "@/lib/ids";
-import { plateHeight, plotPlate, readLabel, type PlatePlot, type PlateWell } from "@/lib/plate-geometry";
-import { rowLetter } from "@/lib/plates";
+import { plotScaled, readLabel, scaledHeight, type PlatePlot, type PlateWell } from "@/lib/plate-geometry";
 import { PencilIcon } from "../icons/drawn";
 import { menuSurface } from "../ui/menu";
 import { Button } from "../ui/button";
@@ -57,7 +56,7 @@ export function ChartFigure({
   // A line under the chart, beside "Show the numbers".
   hint?: ReactNode;
 }) {
-  if (isHeatmap(spec)) return <PlateFigure spec={spec} table={table} label={label} className={className} edit={edit} hint={hint} />;
+  if (isScaled(spec)) return <PlateFigure spec={spec} table={table} label={label} className={className} edit={edit} hint={hint} />;
   if (isXY(spec)) return <XYFigure spec={spec} table={table} label={label} className={className} edit={edit} hint={hint} />;
   return <SummaryFigure spec={spec} table={table} tables={tables ?? [table]} label={label} className={className} edit={edit} hint={hint} />;
 }
@@ -614,19 +613,19 @@ function RowsTable({ columns, rows }: { columns: DataColumn[]; rows: number[] })
 
 // A plate heatmap that fills its container's width. Hover or arrow keys read a well; the
 // numbers are the plate as a grid.
-function PlateFigure({ spec, table, label, className, edit, hint }: { spec: HeatmapSpec; table: DataTable; label: string; className?: string; edit?: FigureEdit; hint?: ReactNode }) {
+function PlateFigure({ spec, table, label, className, edit, hint }: { spec: ScaledSpec; table: DataTable; label: string; className?: string; edit?: FigureEdit; hint?: ReactNode }) {
   const [box, width] = useWidth();
   const [active, setActive] = useState<number | null>(null);
   const [showTable, setShowTable] = useState(false);
   const gradientId = useId();
-  const height = width === null ? 320 : plateHeight(spec, width);
+  const height = width === null ? 320 : scaledHeight(spec, table, width);
   const editable = edit !== undefined;
   const plot = useMemo(
-    () => (width === null ? null : plotPlate(spec, table, { width, height: plateHeight(spec, width) }, { placeholders: editable })),
+    () => (width === null ? null : plotScaled(spec, table, { width, height: scaledHeight(spec, table, width) }, { placeholders: editable })),
     [spec, table, width, editable],
   );
   const labels = useMemo(() => (plot === null || !editable ? [] : plateLabels(plot)), [plot, editable]);
-  const read = readLabel(spec, table);
+  const read = spec.type === "heatmap" ? readLabel(spec, table) : null;
   const notes = [...(read === null ? [] : [`${read}.`]), ...(plot?.notes ?? []), rowsNote(table)].filter((n): n is string => n !== null);
 
   function point(event: PointerEvent<SVGRectElement>) {
@@ -660,7 +659,7 @@ function PlateFigure({ spec, table, label, className, edit, hint }: { spec: Heat
       <Frame
         box={box}
         height={height}
-        label={`${label}. Use the arrow keys to read wells.`}
+        label={`${label}. Use the arrow keys to read ${spec.type === "grid" ? "squares" : "wells"}.`}
         onKeyDown={step}
         onFocus={() => setActive((cur) => cur ?? 0)}
         onBlur={() => setActive(null)}
@@ -668,7 +667,11 @@ function PlateFigure({ spec, table, label, className, edit, hint }: { spec: Heat
         {plot === null ? null : (
           <PlateSvg plot={plot} ink={SCREEN_INK} gradientId={gradientId} label={label}>
             {well === undefined ? null : (
-              <circle cx={well.cx} cy={well.cy} r={plot.radius + 2.5} fill="none" stroke={SCREEN_INK.title} strokeWidth={1.5} pointerEvents="none" />
+              plot.shape === "square" ? (
+                <rect x={well.cx - plot.pitch / 2 - 1} y={well.cy - plot.pitch / 2 - 1} width={plot.pitch + 2} height={plot.pitch + 2} rx={3} fill="none" stroke={SCREEN_INK.title} strokeWidth={1.5} pointerEvents="none" />
+              ) : (
+                <circle cx={well.cx} cy={well.cy} r={plot.radius + 2.5} fill="none" stroke={SCREEN_INK.title} strokeWidth={1.5} pointerEvents="none" />
+              )
             )}
             <rect
               x={plot.plate.left}
@@ -690,7 +693,7 @@ function PlateFigure({ spec, table, label, className, edit, hint }: { spec: Heat
   );
 }
 
-function WellReadout({ plot, well, spec }: { plot: PlatePlot; well: PlateWell; spec: HeatmapSpec }) {
+function WellReadout({ plot, well, spec }: { plot: PlatePlot; well: PlateWell; spec: ScaledSpec }) {
   const unit = spec.value.unit.trim();
   const onLeft = well.cx > plot.plate.left + plot.plate.width / 2;
   const below = well.cy < plot.plate.top + plot.pitch * 2;
@@ -708,7 +711,7 @@ function WellReadout({ plot, well, spec }: { plot: PlatePlot; well: PlateWell; s
         {well.label === null ? null : ` · ${well.label}`}
       </p>
       <p className="mt-0.5 text-label-small text-content-primary tabular-nums">
-        {well.value === null ? (well.missing ? "Not in the table" : "No number") : `${formatValue(well.value)}${unit ? ` ${unit}` : ""}`}
+        {well.value === null ? (well.missing ? (spec.type === "grid" ? "No row has this pair" : "Not in the table") : "No number") : `${formatValue(well.value)}${unit ? ` ${unit}` : ""}`}
       </p>
     </div>
   );
@@ -726,7 +729,7 @@ function PlateTable({ plot }: { plot: PlatePlot }) {
             </th>
             {rows[0]?.map((w) => (
               <th key={w.column} scope="col" className="px-3 py-2 font-medium whitespace-nowrap text-content-secondary">
-                {w.column + 1}
+                {plot.columnNames[w.column]}
               </th>
             ))}
           </tr>
@@ -735,7 +738,7 @@ function PlateTable({ plot }: { plot: PlatePlot }) {
           {rows.map((wells, r) => (
             <tr key={r} className="border-t border-border-opaque">
               <th scope="row" className="px-3 py-1.5 font-medium text-content-secondary">
-                {rowLetter(r)}
+                {plot.rowNames[r]}
               </th>
               {wells.map((w) => (
                 <td key={w.name} title={w.label ?? undefined} className="px-3 py-1.5 whitespace-nowrap text-content-primary">

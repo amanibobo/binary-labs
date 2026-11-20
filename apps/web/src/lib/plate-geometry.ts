@@ -1,10 +1,11 @@
-import { plateShape, type HeatmapSpec } from "./charts";
+import { plateShape, type GridSpec, type HeatmapSpec, type ScaledSpec } from "./charts";
 import { formatValue, linearTicks, niceDomain, PLACEHOLDER, textWidth, TICK_FONT, TITLE_FONT, type Tick } from "./chart-geometry";
 import { findColumn, type DataTable } from "./data-tables";
+import { gridCells } from "./grids";
 import { plateCells, plateLayout, rowLetter, wellName, type PlateCell } from "./plates";
 
-// Where every well of a plate heatmap goes and how far along the color scale it sits. Pure, as
-// chart-geometry.ts is; plate-svg.tsx draws it.
+// Where every well of a plate heatmap, or square of a heatmap of two columns, goes and how far
+// along the color scale it sits. Pure, as chart-geometry.ts is; chart-svg.tsx draws it.
 
 // The sequential ramp: one hue, the dataviz reference blue, light to dark on the light surface
 // and dark to light on the dark one, so a low value recedes into the page in both. Each set of
@@ -25,16 +26,24 @@ export type PlateWell = PlateCell & {
   missing: boolean;
 };
 
+// A plate's wells are round; a heatmap of two columns (lib/grids.ts) draws squares.
+export type CellShape = "circle" | "square";
+
 export type PlatePlot = {
   width: number;
   height: number;
   title: { text: string; x: number; y: number } | null;
+  shape: CellShape;
   radius: number;
   pitch: number;
   plate: { left: number; top: number; width: number; height: number };
   wells: PlateWell[];
+  // Every row's and column's whole name, for the readout and the numbers.
+  rowNames: string[];
+  columnNames: string[];
   rowLabels: { text: string; x: number; y: number }[];
-  columnLabels: { text: string; x: number; y: number }[];
+  // Names too wide for their column are drawn on a slant.
+  columnLabels: { text: string; x: number; y: number; slant: boolean }[];
   scale: { left: number; top: number; width: number; height: number; ticks: Tick[]; title: string; placeholder: boolean; lo: number; hi: number } | null;
   rows: number;
   columns: number;
@@ -43,10 +52,13 @@ export type PlatePlot = {
 
 const PITCH_MAX = 52;
 const BAR_HEIGHT = 10;
+const NAME_MAX = 18;
 
-function valueTitle(spec: HeatmapSpec): string {
-  const t = spec.value.title.trim();
-  const u = spec.value.unit.trim();
+type ScaleValue = { title: string; unit: string; min: number | null; max: number | null };
+
+function valueTitle(value: ScaleValue): string {
+  const t = value.title.trim();
+  const u = value.unit.trim();
   if (t === "") return u;
   return u === "" ? t : `${t} (${u})`;
 }
@@ -67,76 +79,63 @@ export function readLabel(spec: HeatmapSpec, table: DataTable): string | null {
   return `Read ${source.row + 1} of ${table.rows}${when}`;
 }
 
-export function plotPlate(
-  spec: HeatmapSpec,
-  table: DataTable,
-  size: { width: number; height: number },
-  options: { title?: string; placeholders?: boolean } = {},
-): PlatePlot {
-  const notes: string[] = [];
-  const { rows, columns } = plateShape(spec);
-  const layout = plateLayout(table);
-  const cells = layout === null ? [] : plateCells(table, layout, spec.plate.source);
-  const byName = new Map(cells.map((c) => [c.name, c]));
+const clip = (text: string) => (text.length > NAME_MAX ? `${text.slice(0, NAME_MAX - 1)}…` : text);
 
+type Laid = Omit<PlateWell, "cx" | "cy" | "t">;
+
+// Where every cell of a grid goes, its color along the scale, and the scale under it: the
+// layout a plate and a heatmap of two columns share.
+function layOut(
+  grid: { rowNames: string[]; columnNames: string[]; cells: Laid[]; shape: CellShape; value: ScaleValue; thinLabels: boolean },
+  size: { width: number; height: number },
+  options: { title?: string; placeholders?: boolean },
+): Omit<PlatePlot, "notes"> {
+  const rows = grid.rowNames.length;
+  const columns = grid.columnNames.length;
   let lo = Infinity;
   let hi = -Infinity;
-  for (const c of cells) {
+  for (const c of grid.cells) {
     if (c.value === null) continue;
     lo = Math.min(lo, c.value);
     hi = Math.max(hi, c.value);
   }
   const hasData = Number.isFinite(lo);
-  if (!hasData) notes.push("No well has a number to show.");
   const [niceLo, niceHi] = hasData ? niceDomain(lo, hi, 4) : [0, 1];
-  let domain: [number, number] = [spec.value.min ?? (hasData ? lo : niceLo), spec.value.max ?? (hasData ? hi : niceHi)];
+  let domain: [number, number] = [grid.value.min ?? (hasData ? lo : niceLo), grid.value.max ?? (hasData ? hi : niceHi)];
   if (domain[0] >= domain[1]) domain = hasData && lo < hi ? [lo, hi] : [niceLo, niceHi];
 
   const title = options.title ? { text: options.title, x: 0, y: TITLE_FONT + 4 } : null;
   let top = 8 + (title ? TITLE_FONT + 16 : 0);
-  const scaleTitleSet = valueTitle(spec);
+  const scaleTitleSet = valueTitle(grid.value);
   const scaleTitle = scaleTitleSet || (options.placeholders ? PLACEHOLDER : "");
   // Below the plate: the scale's bar, its tick labels and its title.
   const below = 20 + BAR_HEIGHT + 6 + TICK_FONT + (scaleTitle ? TICK_FONT + 10 : 0);
-  const labelLeft = textWidth("P", TICK_FONT) + 12;
-  top += TICK_FONT + 10;
-  const pitch = Math.max(8, Math.min(PITCH_MAX, (size.width - labelLeft - 4) / columns, (size.height - top - below) / rows));
+  const rowTexts = grid.rowNames.map(clip);
+  const columnTexts = grid.columnNames.map(clip);
+  const labelLeft = Math.max(textWidth("P", TICK_FONT), ...rowTexts.map((t) => textWidth(t, TICK_FONT))) + 12;
+  const widest = Math.max(0, ...columnTexts.map((t) => textWidth(t, TICK_FONT)));
+  const fit = (head: number) => Math.max(8, Math.min(PITCH_MAX, (size.width - labelLeft - 4) / columns, (size.height - top - head - below) / rows));
+  // Column names wider than their column go on a slant, which needs room above the cells.
+  const flat = fit(TICK_FONT + 10);
+  const slant = widest > flat - 4;
+  const head = slant ? Math.ceil(widest * Math.SQRT1_2) + TICK_FONT + 4 : TICK_FONT + 10;
+  top += head;
+  const pitch = slant ? fit(head) : flat;
   const plateWidth = pitch * columns;
   const plateHeight = pitch * rows;
   const left = labelLeft;
   const radius = Math.max(3, pitch / 2 - Math.max(1.5, pitch * 0.08));
 
-  const wells: PlateWell[] = [];
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < columns; c++) {
-      const name = wellName({ row: r, column: c });
-      const cell = byName.get(name);
-      const value = cell?.value ?? null;
-      wells.push({
-        row: r,
-        column: c,
-        name,
-        value,
-        label: cell?.label ?? null,
-        cx: left + pitch * (c + 0.5),
-        cy: top + pitch * (r + 0.5),
-        t: value === null ? null : Math.min(1, Math.max(0, (value - domain[0]) / (domain[1] - domain[0]))),
-        missing: cell === undefined,
-      });
-    }
-  }
-  const outside = cells.filter((c) => c.row >= rows || c.column >= columns).length;
-  if (outside > 0) notes.push(`${outside} wells are outside a ${spec.plate.size}-well plate and aren't shown.`);
-  const blank = wells.filter((w) => !w.missing && w.value === null).length;
-  if (blank > 0) notes.push(`${blank} ${blank === 1 ? "well has" : "wells have"} no number.`);
+  const wells: PlateWell[] = grid.cells.map((cell) => ({
+    ...cell,
+    cx: left + pitch * (cell.column + 0.5),
+    cy: top + pitch * (cell.row + 0.5),
+    t: cell.value === null ? null : Math.min(1, Math.max(0, (cell.value - domain[0]) / (domain[1] - domain[0]))),
+  }));
 
-  const every = pitch < 16 ? 2 : 1;
-  const rowLabels = Array.from({ length: rows }, (_, r) => ({ text: rowLetter(r), x: left - 10, y: top + pitch * (r + 0.5) })).filter(
-    (_, r) => r % every === 0,
-  );
-  const columnLabels = Array.from({ length: columns }, (_, c) => ({ text: String(c + 1), x: left + pitch * (c + 0.5), y: top - 8 })).filter(
-    (_, c) => c % every === 0,
-  );
+  const every = grid.thinLabels && pitch < 16 ? 2 : 1;
+  const rowLabels = rowTexts.map((text, r) => ({ text, x: left - 10, y: top + pitch * (r + 0.5) })).filter((_, r) => r % every === 0);
+  const columnLabels = columnTexts.map((text, c) => ({ text, x: left + pitch * (c + 0.5), y: top - 8, slant })).filter((_, c) => c % every === 0);
 
   const barWidth = Math.min(plateWidth, 320);
   const barTop = top + plateHeight + 20;
@@ -154,17 +153,82 @@ export function plotPlate(
     width: size.width,
     height: Math.min(size.height, Math.ceil(usedHeight)),
     title,
+    shape: grid.shape,
     radius,
     pitch,
     plate: { left, top, width: plateWidth, height: plateHeight },
     wells,
+    rowNames: grid.rowNames,
+    columnNames: grid.columnNames,
     rowLabels,
     columnLabels,
     scale,
     rows,
     columns,
-    notes,
   };
+}
+
+export function plotPlate(
+  spec: HeatmapSpec,
+  table: DataTable,
+  size: { width: number; height: number },
+  options: { title?: string; placeholders?: boolean } = {},
+): PlatePlot {
+  const notes: string[] = [];
+  const { rows, columns } = plateShape(spec);
+  const layout = plateLayout(table);
+  const found = layout === null ? [] : plateCells(table, layout, spec.plate.source);
+  const byName = new Map(found.map((c) => [c.name, c]));
+  if (!found.some((c) => c.value !== null)) notes.push("No well has a number to show.");
+
+  const cells: Laid[] = [];
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < columns; c++) {
+      const name = wellName({ row: r, column: c });
+      const cell = byName.get(name);
+      cells.push({ row: r, column: c, name, value: cell?.value ?? null, label: cell?.label ?? null, missing: cell === undefined });
+    }
+  }
+  const outside = found.filter((c) => c.row >= rows || c.column >= columns).length;
+  if (outside > 0) notes.push(`${outside} wells are outside a ${spec.plate.size}-well plate and aren't shown.`);
+  const blank = cells.filter((w) => !w.missing && w.value === null).length;
+  if (blank > 0) notes.push(`${blank} ${blank === 1 ? "well has" : "wells have"} no number.`);
+  const rowNames = Array.from({ length: rows }, (_, r) => rowLetter(r));
+  const columnNames = Array.from({ length: columns }, (_, c) => String(c + 1));
+  return { ...layOut({ rowNames, columnNames, cells, shape: "circle", value: spec.value, thinLabels: true }, size, options), notes };
+}
+
+// A heatmap of two columns: a square per pair, the mean of the rows that have it. A pair no
+// row has is an empty square, and the note under it counts them.
+export function plotGrid(
+  spec: GridSpec,
+  table: DataTable,
+  size: { width: number; height: number },
+  options: { title?: string; placeholders?: boolean } = {},
+): PlatePlot {
+  const notes: string[] = [];
+  const data = gridCells(spec, table) ?? { rowNames: [], columnNames: [], cells: [], skipped: 0 };
+  const cells: Laid[] = data.cells.map((c) => ({
+    row: c.row,
+    column: c.column,
+    name: `${data.rowNames[c.row]}, ${data.columnNames[c.column]}`,
+    value: c.value,
+    label: c.rows.length > 1 ? `mean of ${c.rows.length} rows` : null,
+    missing: c.rows.length === 0,
+  }));
+  const empty = cells.filter((c) => c.missing).length;
+  if (empty > 0) notes.push(`${empty} ${empty === 1 ? "pair has no row, so its square is" : "pairs have no row, so their squares are"} empty.`);
+  if (data.skipped > 0) notes.push(`${data.skipped} ${data.skipped === 1 ? "row has a value but nothing to place it by, so it isn't" : "rows have a value but nothing to place them by, so they aren't"} shown.`);
+  return { ...layOut({ ...data, cells, shape: "square", value: spec.value, thinLabels: false }, size, options), notes };
+}
+
+export function plotScaled(spec: ScaledSpec, table: DataTable, size: { width: number; height: number }, options: { title?: string; placeholders?: boolean } = {}): PlatePlot {
+  return spec.type === "grid" ? plotGrid(spec, table, size, options) : plotPlate(spec, table, size, options);
+}
+
+// The height a plate or a heatmap of two columns needs at a width.
+export function scaledHeight(spec: ScaledSpec, table: DataTable, width: number): number {
+  return spec.type === "grid" ? plotGrid(spec, table, { width, height: 2000 }).height : plateHeight(spec, width);
 }
 
 // A plate fits its width: the height it needs at that width.

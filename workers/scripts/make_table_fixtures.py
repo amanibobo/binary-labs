@@ -43,6 +43,11 @@ For layouts, repeats, fits and tests (decisions.md, "charts round 1"):
   to "Rep 3" under a merged strain name.
 - cell_sizes.csv: 200 cell diameters from an image analysis export.
 - pendulum.csv: a physics lab's pendulum: length against the period squared.
+
+For charts round 2:
+
+- viability_lines_by_day.csv: viability of four cell lines on days 1, 2, 3 and 5, three wells
+  each, one row per well (Cell line, Day, Rep, Viability), for a heatmap of line by day.
 """
 
 from __future__ import annotations
@@ -418,7 +423,21 @@ def pendulum() -> bytes:
     return samples.csv_text(rows)
 
 
+def lines_by_day() -> bytes:
+    rng = random.Random(45)
+    rows = [["Cell line", "Day", "Rep", "Viability (%)"]]
+    start = {"HeLa": 97, "HEK293": 95, "MCF7": 93, "A549": 96}
+    loss = {"HeLa": 14, "HEK293": 6, "MCF7": 19, "A549": 9}
+    for line, first in start.items():
+        for day in (1, 2, 3, 5):
+            for rep in range(3):
+                level = first - loss[line] * (day - 1) + rng.gauss(0, 2)
+                rows.append([line, str(day), str(rep + 1), f"{max(2.0, level):.1f}"])
+    return samples.csv_text(rows)
+
+
 FILES: dict[str, Callable[[], bytes]] = {
+    "viability_lines_by_day.csv": lines_by_day,
     "viability_drugA_layout.csv": lambda: viability(True),
     "viability_drugA.csv": lambda: viability(False),
     "Bradford_plate_2026-11-05.csv": bradford_plate,

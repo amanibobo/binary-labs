@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/cn";
 import { labelText, rename, type LabelTarget } from "@/lib/chart-edits";
 import { chartWarnings, describeChart, startChart, suggestionsFor, switchKind } from "@/lib/chart-guide";
-import { chartHref, chartTrouble, checkSpec, isSummary, isXY, repairSpec, specProblem, titleFromName, type ChartSpec, type HeatmapSpec, type SavedChart, type XYSpec } from "@/lib/charts";
+import { chartHref, chartTrouble, checkSpec, isSummary, isXY, repairSpec, specProblem, titleFromName, type ChartSpec, type GridSpec, type HeatmapSpec, type SavedChart, type XYSpec } from "@/lib/charts";
 import { mainTable, type DataTable, type DataTables } from "@/lib/data-tables";
 import type { LocationId, ProtocolId, Sha256 } from "@/lib/ids";
 import { describeLayout, layoutChoices, layoutFromFile, type SavedLayout } from "@/lib/layouts";
@@ -245,6 +245,7 @@ function Builder({
   const edit: PanelEdit = {
     xy: (f: (s: XYSpec) => XYSpec, group?: string) => editSpec((s) => (isXY(s) ? f(s) : s), group),
     plate: (f: (s: HeatmapSpec) => HeatmapSpec, group?: string) => editSpec((s) => (s.type === "heatmap" ? f(s) : s), group),
+    grid: (f: (s: GridSpec) => GridSpec, group?: string) => editSpec((s) => (s.type === "grid" ? f(s) : s), group),
     summary: (f, group) => editSpec((s) => (isSummary(s) || s.type === "histogram" ? f(s) : s), group),
     kind: (kind: ChartKind) =>
       history.change((h) => {
@@ -404,6 +405,8 @@ function Builder({
   const hint =
     spec === null ? null : spec.type === "heatmap" ? (
       "Point at a well to read it. Click the scale's title to rename it."
+    ) : spec.type === "grid" ? (
+      "Point at a square to read it. Click the scale's title to rename it."
     ) : isXY(spec) ? (
       `Click a title, a name or a ${MARK_WORD[spec.type]} to change it.`
     ) : (

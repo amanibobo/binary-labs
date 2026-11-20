@@ -1,5 +1,5 @@
 import { axisText, splitAxisText } from "./chart-guide";
-import { isXY, MAX_SERIES, nextStyle, type ChartSpec, type HeatmapSpec, type HistogramSpec, type Series, type SeriesColor, type Stroke, type SummaryAxis, type SummarySpec, type XYSpec } from "./charts";
+import { isScaled, isXY, MAX_SERIES, nextStyle, type ChartSpec, type HistogramSpec, type ScaledSpec, type Series, type SeriesColor, type Stroke, type SummaryAxis, type SummarySpec, type XYSpec } from "./charts";
 import { findColumn, spreadFor, type DataColumn, type DataTable } from "./data-tables";
 import type { ColumnId } from "./ids";
 
@@ -96,20 +96,20 @@ export function setErrorBars(spec: XYSpec, table: DataTable, on: boolean): XYSpe
 
 // The text a label edits in place, units included.
 export function labelText(spec: ChartSpec, target: LabelTarget): string {
-  if (!isXY(spec) && spec.type !== "heatmap") {
+  if (!isXY(spec) && !isScaled(spec)) {
     if (target.kind === "x") return "unit" in spec.x ? axisText(spec.x.title, spec.x.unit) : spec.x.title;
     if (target.kind === "y") return "unit" in spec.y ? axisText(spec.y.title, spec.y.unit) : spec.y.title;
     return "";
   }
   switch (target.kind) {
     case "x":
-      return spec.type === "heatmap" ? "" : axisText(spec.x.title, spec.x.unit);
+      return isScaled(spec) ? "" : axisText(spec.x.title, spec.x.unit);
     case "y":
-      return spec.type === "heatmap" ? "" : axisText(spec.y.title, spec.y.unit);
+      return isScaled(spec) ? "" : axisText(spec.y.title, spec.y.unit);
     case "value":
-      return spec.type === "heatmap" ? axisText(spec.value.title, spec.value.unit) : "";
+      return isScaled(spec) ? axisText(spec.value.title, spec.value.unit) : "";
     case "series":
-      return spec.type === "heatmap" ? "" : (spec.series.find((s) => s.column === target.column)?.name ?? "");
+      return isScaled(spec) ? "" : (spec.series.find((s) => s.column === target.column)?.name ?? "");
     default: {
       const _exhaustive: never = target;
       return _exhaustive;
@@ -122,7 +122,7 @@ export function labelText(spec: ChartSpec, target: LabelTarget): string {
 export function rename(spec: ChartSpec, table: DataTable, target: LabelTarget, text: string): ChartSpec {
   const parts = splitAxisText(text.slice(0, 80));
   const unit = parts.unit.slice(0, 24);
-  if (spec.type === "heatmap") return target.kind === "value" ? renameValue(spec, parts.title, unit) : spec;
+  if (isScaled(spec)) return target.kind === "value" ? renameValue(spec, parts.title, unit) : spec;
   if (!isXY(spec)) {
     // A chart of repeats: its two axis titles. A bar chart of groups names its bottom only.
     const whole = text.trim().slice(0, 80);
@@ -209,6 +209,6 @@ export function withRepeats(spec: SummarySpec, p: { spread?: SummarySpec["spread
   }
 }
 
-function renameValue(spec: HeatmapSpec, title: string, unit: string): HeatmapSpec {
+function renameValue<T extends ScaledSpec>(spec: T, title: string, unit: string): T {
   return { ...spec, value: { ...spec.value, title, unit } };
 }

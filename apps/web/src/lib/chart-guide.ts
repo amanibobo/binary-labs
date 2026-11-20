@@ -1,16 +1,19 @@
 import {
   checkSpec,
+  isGrid,
   isHeatmap,
   isXY,
   MAX_BARS,
   MAX_SERIES,
   nextStyle,
   specProblem,
+  startingGrid,
   startingHeatmap,
   startingMeasure,
   startingXY,
   withType,
   type ChartSpec,
+  type GridSpec,
   type HeatmapSpec,
   type Series,
   type XYSpec,
@@ -31,6 +34,7 @@ import {
   type DataTable,
   type NumberColumn,
 } from "./data-tables";
+import { gridCells } from "./grids";
 import { plateCells, plateLayout } from "./plates";
 import { readLabel } from "./plate-geometry";
 
@@ -40,7 +44,7 @@ import { readLabel } from "./plate-geometry";
 // builder, its tests and the fixtures all read the same answers.
 
 // Charts of a sheet's columns as they are, and the plate heatmap.
-export type ChartType = XYType | "heatmap";
+export type ChartType = XYType | "heatmap" | "grid";
 
 // The first question, "What do you want to show?", one answer per kind of chart.
 export const CHOICES = [
@@ -165,6 +169,7 @@ export function spreadWells(wells: readonly NumberColumn[]): NumberColumn[] {
 // most likely pick, already picked. Null when the table can't make that kind of chart.
 export function startFor(table: DataTable, type: ChartType): ChartSpec | null {
   if (type === "heatmap") return startingHeatmap(table);
+  if (type === "grid") return plateLayout(table) === null ? startingGrid(table) : null;
   const layout = plateLayout(table);
   if (layout?.kind === "read" && type !== "bar") {
     const x = layout.time ?? axisColumns(table)[0];
@@ -193,7 +198,7 @@ export function startingChart(table: DataTable): ChartSpec | null {
 // of repeats when the sheet or the plate's layout has them, and as a chart of the sheet's own
 // columns when it doesn't.
 
-const RAW: Record<ChartKind, ChartType | null> = { line: "line", bar: "bar", scatter: "scatter", heatmap: "heatmap", dose: null, box: null, histogram: null };
+const RAW: Record<ChartKind, ChartType | null> = { line: "line", bar: "bar", scatter: "scatter", heatmap: "heatmap", grid: "grid", dose: null, box: null, histogram: null };
 
 // A scatter of a few rows reads best as a curve with a fitted line; a long trace as dots.
 const CURVE_ROWS = 60;
@@ -202,7 +207,7 @@ const CURVE_ROWS = 60;
 export function startChart(data: ChartData, kind?: ChartKind): ChartSpec | null {
   const pick = kind ?? suggestionsFor(data)[0]?.kind;
   if (pick === undefined) return null;
-  const summary = pick === "heatmap" ? null : startKind(data, pick);
+  const summary = pick === "heatmap" || pick === "grid" ? null : startKind(data, pick);
   if (summary !== null && !(summary.type === "curve" && summary.source.kind === "rows" && summary.source.series[0]?.values.length === 1 && data.table.rows > CURVE_ROWS)) return summary;
   const raw = RAW[pick];
   return raw === null ? null : startFor(data.table, raw);
@@ -219,6 +224,8 @@ export function suggestionsFor(data: ChartData): KindSuggestion[] {
     if (data.layout !== null || out.length === 0) out.push({ kind: raw.type, reason });
     else out.splice(Math.min(out.length, 1), 0, { kind: raw.type, reason });
   }
+  const grid = startFor(data.table, "grid");
+  if (grid !== null && grid.type === "grid") out.push({ kind: "grid", reason: gridReason(grid, data.table) });
   return out.filter((s) => startChart(data, s.kind) !== null);
 }
 
@@ -230,7 +237,7 @@ export function kindChoiceProblem(data: ChartData, kind: ChartKind): string | nu
 }
 
 export function kindsFor(data: ChartData): ChartKind[] {
-  return KINDS.filter((k) => k !== "heatmap" || plateLayout(data.table) !== null);
+  return KINDS.filter((k) => (k === "heatmap" ? plateLayout(data.table) !== null : k === "grid" ? startFor(data.table, "grid") !== null : true));
 }
 
 // The chart a switch to another kind lands on. Between the sheet's own kinds it keeps the same
@@ -268,6 +275,7 @@ function barProblem(spec: ChartSpec, table: DataTable): string | null {
 // Why a table can't make this kind of chart, or null when it can.
 export function choiceProblem(table: DataTable, type: ChartType): string | null {
   if (type === "heatmap") return plateLayout(table) === null ? "This sheet isn't laid out as a plate." : null;
+  if (type === "grid") return startFor(table, "grid") === null ? kindProblem({ table, tables: [table], layout: null }, "grid") : null;
   const numbers = numberColumns(table).length;
   if (numbers === 0) return "This sheet has no numbers to draw.";
   const spec = startFor(table, type);
@@ -283,6 +291,8 @@ export function choiceProblem(table: DataTable, type: ChartType): string | null 
 // that kind as a new chart of this table starts.
 export function switched(spec: ChartSpec, type: ChartType, table: DataTable, other: ChartSpec | null): ChartSpec | null {
   if (spec.type === type) return spec;
+  if (type === "grid") return other?.type === "grid" ? other : startFor(table, "grid");
+  if (spec.type === "grid") return other !== null && (other.type === type || (isXY(other) && type !== "heatmap")) ? withType(other, type, table, null) : startFor(table, type);
   const crossing = (spec.type === "heatmap") !== (type === "heatmap");
   const kept = other !== null && (other.type === "heatmap") === (type === "heatmap");
   return crossing && !kept ? startFor(table, type) : withType(spec, type, table, other);
@@ -367,6 +377,7 @@ function bound(v: number, column: DataColumn | undefined): string {
 // how much the repeats vary (± SD)."
 export function describeChart(spec: ChartSpec, table: DataTable, tables: readonly DataTable[] = [table]): string {
   if (isHeatmap(spec)) return describePlate(spec, table);
+  if (isGrid(spec)) return describeGrid(spec, table);
   if (isXY(spec)) return describeXY(spec, table);
   return describeSummary(spec, { table, tables, layout: null });
 }
@@ -466,12 +477,41 @@ function describePlate(spec: HeatmapSpec, table: DataTable): string {
   return `${what} in each well of a ${size}-well plate${span}, as the scale under the plate shows.${wells}${at}${scale}`;
 }
 
+function gridReason(spec: GridSpec, table: DataTable): string {
+  const data = gridCells(spec, table);
+  const down = findColumn(table, spec.rows)?.name ?? "";
+  const across = findColumn(table, spec.columns)?.name ?? "";
+  const measure = findColumn(table, spec.measure)?.name ?? "the value";
+  return `${down} and ${across} sort the rows into ${data?.rowNames.length ?? 0} by ${data?.columnNames.length ?? 0} pairs, so a heatmap shows ${measure} for every pair at once.`;
+}
+
+// "Mean viability (%) for each Cell line and Day, 4 by 3 pairs, from 12 to 98. Each square
+// is the mean of the rows with that pair, as the scale under it shows."
+function describeGrid(spec: GridSpec, table: DataTable): string {
+  const data = gridCells(spec, table);
+  const down = findColumn(table, spec.rows);
+  const across = findColumn(table, spec.columns);
+  if (data === null || down === undefined || across === undefined) return "";
+  const values = data.cells.flatMap((c) => (c.value === null ? [] : [c.value]));
+  const what = axisText(spec.value.title, spec.value.unit) || "The value";
+  const span = values.length === 0 ? "" : `, from ${formatValue(Math.min(...values))} to ${formatValue(Math.max(...values))}`;
+  const most = Math.max(0, ...data.cells.map((c) => c.rows.length));
+  const each = most > 1 ? "Each square is the mean of the rows with that pair" : "Each square is the one row with that pair";
+  const { min, max } = spec.value;
+  const scale = min !== null || max !== null ? ` The colors run ${min !== null ? `from ${formatValue(min)} ` : ""}${max !== null ? `up to ${formatValue(max)}` : "up"}.` : "";
+  return `${what} for each ${down.name} (down the side) and ${across.name} (across the top), ${data.rowNames.length} by ${data.columnNames.length}${span}. ${each}, as the scale under it shows.${scale}`;
+}
+
 // What's off about a chart, each in one plain sentence; empty when nothing is.
 export function chartWarnings(spec: ChartSpec, table: DataTable, tables: readonly DataTable[] = [table]): string[] {
   if (spec.type === "heatmap") {
     const source = spec.plate.source;
     const value = source.kind === "wells" ? findColumn(table, source.value) : undefined;
     return value === undefined ? [] : invalidCells([value]);
+  }
+  if (spec.type === "grid") {
+    const measure = findColumn(table, spec.measure);
+    return measure === undefined ? [] : invalidCells([measure]);
   }
   if (!isXY(spec)) return summaryWarnings(spec, { table, tables, layout: null });
   const out: string[] = [];

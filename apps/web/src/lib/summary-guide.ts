@@ -27,7 +27,7 @@ import { groupsOf, sourcesFor, type Grouped, type Source } from "./replicates";
 export type PlateMap = { layout: SampleLayout; layoutId: LayoutId | null; from: string };
 export type ChartData = { table: DataTable; tables: readonly DataTable[]; layout: PlateMap | null };
 
-export const KINDS = ["line", "bar", "scatter", "dose", "box", "histogram", "heatmap"] as const;
+export const KINDS = ["line", "bar", "scatter", "dose", "box", "histogram", "heatmap", "grid"] as const;
 export type ChartKind = (typeof KINDS)[number];
 
 export const KIND_NAMES = {
@@ -38,6 +38,7 @@ export const KIND_NAMES = {
   box: "Box plot",
   histogram: "Histogram",
   heatmap: "Plate",
+  grid: "Heatmap",
 } satisfies Record<ChartKind, string>;
 
 export const KIND_QUESTIONS = {
@@ -48,6 +49,7 @@ export const KIND_QUESTIONS = {
   box: { question: "How values spread in each group", hint: "A box plot with every point" },
   histogram: { question: "How values are spread", hint: "How many fall in each range" },
   heatmap: { question: "A whole plate at a glance", hint: "Every well, colored by its value" },
+  grid: { question: "A value for every pair", hint: "Like each sample on each day, as colored squares" },
 } satisfies Record<ChartKind, { question: string; hint: string }>;
 
 export function kindOf(spec: ChartSpec): ChartKind {
@@ -68,6 +70,8 @@ export function kindOf(spec: ChartSpec): ChartKind {
       return "histogram";
     case "heatmap":
       return "heatmap";
+    case "grid":
+      return "grid";
     default: {
       const _exhaustive: never = spec;
       return _exhaustive;
@@ -236,6 +240,7 @@ export function startKind(data: ChartData, kind: ChartKind): SummarySpec | Histo
       return spec;
     }
     case "heatmap":
+    case "grid":
       return null;
     default: {
       const _exhaustive: never = kind;
@@ -286,6 +291,8 @@ export function kindProblem(data: ChartData, kind: ChartKind): string | null {
       return plate !== null ? "A plate's wells are better compared as groups or on the plate." : "There's no column of numbers to count.";
     case "heatmap":
       return plate === null ? "This sheet isn't laid out as a plate." : null;
+    case "grid":
+      return "There aren't two columns here that sort the rows into kinds, like a sample and a day, with a number to color by.";
     default: {
       const _exhaustive: never = kind;
       return _exhaustive;
