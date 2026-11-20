@@ -264,3 +264,25 @@ const FAILURES: Readonly<Record<string, RunFailure>> = {
 export function runFailure(error: { code?: string }): RunFailure {
   return FAILURES[error.code ?? ""] ?? { status: 500, message: "We couldn't save that. Try again." };
 }
+
+// ---- Words for the run page.
+
+// Under a file's name when it isn't simply there: its copy isn't kept yet, or the file has
+// left the lab's folder (the run still opens its copy).
+export function fileStateLine(file: Pick<RunFile, "kept" | "locationId">): string | null {
+  if (!file.kept) return "Binary is still saving its copy of this file.";
+  if (file.locationId === null) return "Removed from the lab's folder. The run keeps its copy.";
+  return null;
+}
+
+const SAYS: Readonly<Record<LabelOutcome, string>> = { worked: "worked", failed: "failed", unclear: "unclear", repeat: "a repeat", final: "final" };
+
+// What the file's own label reads, when it differs from what the run says. A hint only.
+export function fileSaysLine(file: Pick<RunFile, "fileSays">, status: RunStatus | null): string | null {
+  if (file.fileSays === null || file.fileSays === status) return null;
+  return `The file's label says ${SAYS[file.fileSays]}.`;
+}
+
+export function filesCount(n: number): string {
+  return n === 1 ? "1 file" : `${n} files`;
+}

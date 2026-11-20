@@ -57,6 +57,17 @@ LAB_TABLES = (
     "suggestions",
     "suggestion_labels",
     "audit_log",
+    "runs",
+    "run_files",
+    "run_log",
+    "run_debriefs",
+    "run_debrief_answers",
+    "run_suggestion_dismissals",
+    "export_exclusions",
+    "run_rubrics",
+    "run_reviews",
+    "task_exports",
+    "task_model_runs",
 )
 
 # Tables that point at a blob by sha256 (besides extractions, which go with it). A blob none
@@ -77,6 +88,7 @@ BLOB_REFERENCES = (
     "suggestion_labels",
     "talk_throughs",
     "note_pages",
+    "run_files",
 )
 # The column a table names its blob by, where it isn't sha256: a talk-through drafted from a
 # video names the video (its recording is a file_locations row).

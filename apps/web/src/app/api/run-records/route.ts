@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
   if (access.kind === "denied") return access.response;
   const { supabase, lab } = access.member;
   const params = Object.fromEntries(request.nextUrl.searchParams);
-  const filter = RunListFilter.safeParse({ ...params, offset: undefined });
+  const filter = RunListFilter.safeParse(params);
   if (!filter.success) return badRequest(filter.error);
   return ok({ runs: await loadLabRuns(supabase, lab.id, filter.data, Offset.parse(params.offset)) });
 }

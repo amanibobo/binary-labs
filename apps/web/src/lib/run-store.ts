@@ -4,6 +4,7 @@ import { CheckSpecs } from "./checks";
 import { ProtocolId, Sha256, type CheckId, type LabId } from "./ids";
 import { assembleHistory, HISTORY_RESULT_COLUMNS, OpenFlagRows, ResultRows, VersionRows, type RunHistory } from "./run-history";
 import { assembleRuns, ExperimentRows, LABEL_RUN_COLUMNS, LabelRunRows, LOCATION_RUN_COLUMNS, LocationRunRows, type RunChoices, type RunInfo } from "./runs";
+import { loadFileRuns } from "./run-record-store";
 import { unwrap, type Supabase } from "./supabase/server";
 
 // Files as runs (lib/runs.ts) and a check's run history (lib/run-history.ts), read as the
@@ -14,14 +15,15 @@ const CHOICES = 40;
 export async function loadRuns(supabase: Supabase, labId: LabId, shas: readonly Sha256[]): Promise<RunInfo[]> {
   const wanted = [...new Set(shas)];
   if (wanted.length === 0) return [];
-  const [locations, labels] = await Promise.all([
+  const [locations, labels, fileRuns] = await Promise.all([
     supabase.from("file_locations").select(LOCATION_RUN_COLUMNS).eq("lab_id", labId).in("sha256", wanted).is("deleted_at", null).order("modified_at", { ascending: false }),
     supabase.from("labels").select(LABEL_RUN_COLUMNS).eq("lab_id", labId).in("sha256", wanted),
+    loadFileRuns(supabase, labId, wanted),
   ]);
   const named = LabelRunRows.parse(unwrap(labels));
   const experimentIds = [...new Set(named.flatMap((l) => (l.experiment_id === null ? [] : [l.experiment_id])))];
   const experiments = experimentIds.length === 0 ? [] : ExperimentRows.parse(unwrap(await supabase.from("experiments").select("id, name").eq("lab_id", labId).in("id", experimentIds)));
-  return assembleRuns(wanted, LocationRunRows.parse(unwrap(locations)), named, experiments);
+  return assembleRuns(wanted, LocationRunRows.parse(unwrap(locations)), named, experiments, fileRuns);
 }
 
 // The runs "Add runs" offers for a file: the other data sheets of its experiment, oldest first,

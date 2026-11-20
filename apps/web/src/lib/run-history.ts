@@ -3,7 +3,7 @@ import { linearScale, niceDomain, textWidth, TICK_FONT, TITLE_FONT, LABEL_FONT, 
 import { CheckRange, CheckSpec, CheckSpecs, formatNumber, measureText, rangeText, type CheckSpec as Check } from "./checks";
 import { formatDate } from "./data-tables";
 import { CheckId, FlagId, ProtocolId, Sha256 } from "./ids";
-import { RunInfo, isFailed, runName } from "./runs";
+import { RunInfo, howItWent, isFailed, runName } from "./runs";
 
 // A protocol check's results across runs (decisions.md, "charts round 2"): each file the check
 // ran on is one run, its value is a point, the range it was held to is a shaded band behind it,
@@ -261,7 +261,7 @@ export function describeHistory(history: RunHistory): string {
 
 // The numbers behind it, one row per run, unrounded.
 export function historyRows(history: RunHistory): (string | number | null)[][] {
-  return history.runs.map((r) => [runName(r.run), r.run.date, r.run.outcome, r.observed, r.unit, rangeText(r.range, r.unit), r.result === "couldnt" ? "couldn't check" : r.result, r.reason, r.version]);
+  return history.runs.map((r) => [runName(r.run), r.run.date, howItWent(r.run), r.observed, r.unit, rangeText(r.range, r.unit), r.result === "couldnt" ? "couldn't check" : r.result, r.reason, r.version]);
 }
 
 export const HISTORY_COLUMNS = ["Run", "Date", "Outcome", "Value", "Unit", "Allowed range", "Result", "Why not checked", "Protocol version"];

@@ -374,7 +374,7 @@ export function chartsOf(sha: Sha256): SavedChart[] {
 
 // The fixture files as runs (lib/runs.ts): the three flasks share an experiment, and the
 // third's label says it failed.
-const FLASK_RUNS: Partial<Record<Sha256, Omit<RunInfo, "sha256" | "locationId">>> = {
+const FLASK_RUNS: Partial<Record<Sha256, Omit<RunInfo, "sha256" | "locationId" | "run">>> = {
   [FLASK1]: { name: "Flask growth, run 1", date: "2026-11-02", outcome: "worked", experiment: "E. coli growth" },
   [FLASK2]: { name: "Flask growth, run 2", date: "2026-11-05", outcome: "worked", experiment: "E. coli growth" },
   [FLASK3]: { name: "Flask growth, run 3", date: "2026-11-09", outcome: "failed", experiment: "E. coli growth" },
@@ -383,7 +383,7 @@ const FLASK_RUNS: Partial<Record<Sha256, Omit<RunInfo, "sha256" | "locationId">>
 export function fixtureRun(sha: Sha256): RunInfo {
   const known = FLASK_RUNS[sha];
   const file = TABLES.has(sha) ? fixtureFile(sha) : null;
-  return { sha256: sha, locationId: file?.locationId ?? null, name: known?.name ?? file?.name ?? "A file", date: known?.date ?? null, outcome: known?.outcome ?? null, experiment: known?.experiment ?? null };
+  return { sha256: sha, locationId: file?.locationId ?? null, name: known?.name ?? file?.name ?? "A file", date: known?.date ?? null, outcome: known?.outcome ?? null, experiment: known?.experiment ?? null, run: null };
 }
 
 export function fixtureRunChoices(sha: Sha256): RunChoices {

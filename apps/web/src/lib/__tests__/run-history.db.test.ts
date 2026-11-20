@@ -6,7 +6,8 @@ import { CreateLabResult } from "../domain";
 import { CheckId, LabId, ProtocolId, ProtocolVersionId, Sha256 } from "../ids";
 import { SavedVersionRows } from "../protocols";
 import { assembleHistory, HISTORY_RESULT_COLUMNS, OpenFlagRows, ResultRows, VersionRows } from "../run-history";
-import { assembleRuns, ExperimentRows, LABEL_RUN_COLUMNS, LabelRunRows, LOCATION_RUN_COLUMNS, LocationRunRows } from "../runs";
+import { FileRunsJson } from "../run-record";
+import { assembleRuns, ExperimentRows, isFailed, LABEL_RUN_COLUMNS, LabelRunRows, LOCATION_RUN_COLUMNS, LocationRunRows } from "../runs";
 
 // A check's run history and files as runs, read with the store's own selects as a member under
 // RLS against the real migrations: three Bradford runs of one experiment, the first checked
@@ -113,7 +114,8 @@ async function readHistory(userId: string, lab: LabId) {
     const labels = LabelRunRows.parse(await rows(`select ${LABEL_RUN_COLUMNS} from labels where lab_id = $1 and sha256 = any($2)`, [lab, wanted]));
     const experiments = ExperimentRows.parse(await rows("select id, name from experiments where lab_id = $1", [lab]));
     const flags = OpenFlagRows.parse(await rows("select id, sha256 from flags where lab_id = $1 and protocol_id = $2 and check_id = $3 and cleared_at is null", [lab, protocol, CURVE]));
-    const runs = assembleRuns(wanted, locations, labels, experiments);
+    const fileRuns = FileRunsJson.parse(await rows("select * from file_runs($1, $2)", [lab, wanted]));
+    const runs = assembleRuns(wanted, locations, labels, experiments, fileRuns);
     const current = CheckSpecs.parse([curve(0.98)]);
     return assembleHistory({ protocol: { id: protocol, title: "Bradford assay" }, current, checkId: CURVE, results, versions: versionRows, runs, flags });
   });
@@ -135,6 +137,23 @@ describe("a check's run history", () => {
     expect(history?.runs.slice(1).map((r) => r.flagId)).toEqual([null, null]);
     expect(history?.runs.map((r) => r.run.outcome)).toEqual(["worked", "failed", "worked"]);
     expect(history?.runs.map((r) => r.run.experiment)).toEqual(["P450 purification", "P450 purification", "P450 purification"]);
+  });
+
+  it("reads failed from the run's status once a person makes a run from the file, not from its label", async () => {
+    const before = await readHistory(rosa, labA);
+    expect(before?.runs.map((r) => isFailed(r.run))).toEqual([false, true, false]);
+    // Run 2's label says failed; its run says it worked. Run 3's label says worked; its run failed.
+    const made = async (sha: string, status: string) =>
+      asUser(rosa, async () => z.object({ id: z.string() }).parse((await db.query("select create_run($1, $2, $3::jsonb) as v", [labA, [sha], JSON.stringify({ status })])).rows[0]?.v).id);
+    const ids = [await made(run2, "worked"), await made(run3, "failed")];
+    try {
+      const after = await readHistory(rosa, labA);
+      expect(after?.runs.map((r) => isFailed(r.run))).toEqual([false, false, true]);
+      expect(after?.runs.map((r) => r.run.outcome)).toEqual(["worked", "failed", "worked"]);
+      expect(after?.runs.map((r) => r.run.run?.id ?? null)).toEqual([null, ...ids]);
+    } finally {
+      await db.query("delete from runs where id = any($1)", [ids]);
+    }
   });
 
   it("leaves out a run whose file left the lab", async () => {

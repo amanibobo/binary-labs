@@ -23,6 +23,7 @@ import { fixtureHubFiles, fixtureLab, fixtureLocal, type LabSize } from "./map";
 import { ChartId, UserId } from "@/lib/ids";
 import { CreateChartRequest, SaveChartRequest } from "@/lib/charts";
 import { ReviewRequest } from "@/lib/flags";
+import { FixtureRuns } from "./runs-api";
 import { bradfordAssay, fixtureFileChecks, fixtureFlagMarks, flagTable } from "./flags";
 
 // The provider has already applied the event on screen; there's no server to tell.
@@ -292,7 +293,9 @@ export function FixtureLabApi({
   };
   return (
     <LabApiProvider value={api}>
-      <OnboardingSaveProvider value={keepOnboardingInMemory}>{children}</OnboardingSaveProvider>
+      <FixtureRuns>
+        <OnboardingSaveProvider value={keepOnboardingInMemory}>{children}</OnboardingSaveProvider>
+      </FixtureRuns>
     </LabApiProvider>
   );
 }

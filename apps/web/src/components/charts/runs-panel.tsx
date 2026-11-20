@@ -31,7 +31,7 @@ export function useRuns(file: { sha256: Sha256; name: string; locationId: Locati
   return useMemo(() => {
     if (spec === null) return { combined: null, states: null };
     const known = new Map((infos.data ?? []).map((r) => [r.sha256, r]));
-    const info = (sha: Sha256, name: string, locationId: LocationId | null): RunInfo => known.get(sha) ?? { sha256: sha, locationId, name, date: null, outcome: null, experiment: null };
+    const info = (sha: Sha256, name: string, locationId: LocationId | null): RunInfo => known.get(sha) ?? { sha256: sha, locationId, name, date: null, outcome: null, experiment: null, run: null };
     const base = { run: info(file.sha256, file.name, file.locationId), table };
     if (others.length === 0) return { combined: null, states: [{ run: base.run, drawn: true, why: null }] };
     const loaded = others.flatMap((sha, i) => {
