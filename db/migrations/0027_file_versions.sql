@@ -16,9 +16,14 @@ create table file_versions (
   -- When the source says this content was saved, and when Binary first read it here.
   modified_at timestamptz not null,
   seen_at timestamptz not null default now(),
+  -- When this version's own bytes were put in our store at <lab_id>/files/<sha256>, unchanged.
+  -- Null until the worker has kept them, and for good when the content was gone from its
+  -- source before it could.
+  kept_at timestamptz,
   unique (location_id, number)
 );
 create index file_versions_lab_sha_idx on file_versions (lab_id, sha256);
+create index file_versions_unkept_idx on file_versions (location_id) where kept_at is null;
 
 -- Every writer of a location goes through this, so none can forget: the scan, uploads, the
 -- instrument uploader and imports. The update that fires it holds the location's row lock,
@@ -189,7 +194,8 @@ returns table (
   has_preview boolean,
   label jsonb,
   source_kind source_kind,
-  who text
+  who text,
+  kept boolean
 )
 language sql stable security invoker set search_path = public as $$
   select fv.id, fv.number, fv.sha256, b.file_kind, b.mime, fv.size, fv.path, fv.original_name,
@@ -200,7 +206,8 @@ language sql stable security invoker set search_path = public as $$
     coalesce(
       (select pe.display_name from uploads u join people pe on pe.id = u.person_id where u.location_id = fl.id),
       (select i.name from instruments i where i.source_id = fl.source_id)
-    )
+    ),
+    fv.kept_at is not null
   from file_versions fv
   join file_locations fl on fl.id = fv.location_id
   join sources s on s.id = fl.source_id
@@ -226,6 +233,22 @@ language sql stable security definer set search_path = public as $$
   limit 1
 $$;
 
+-- What keeping every version's bytes costs a lab: each content is stored once however many
+-- places or versions hold it. `waiting` are contents not kept yet.
+create function lab_originals(p_lab_id uuid)
+returns table (kept_files bigint, kept_bytes bigint, waiting_files bigint, waiting_bytes bigint)
+language sql stable security invoker set search_path = public as $$
+  with contents as (
+    select fv.sha256, max(fv.size) as size, bool_or(fv.kept_at is not null) as kept
+    from file_versions fv
+    where fv.lab_id = p_lab_id
+    group by fv.sha256
+  )
+  select count(*) filter (where c.kept), coalesce(sum(c.size) filter (where c.kept), 0)::bigint,
+    count(*) filter (where not c.kept), coalesce(sum(c.size) filter (where not c.kept), 0)::bigint
+  from contents c
+$$;
+
 revoke all on file_versions from anon, authenticated;
 revoke all on function
   record_file_version(),
@@ -233,7 +256,8 @@ revoke all on function
   drive_folders(uuid, text),
   drive_files(uuid, text, text, int, int),
   file_history(uuid, uuid),
-  version_text(uuid, uuid)
+  version_text(uuid, uuid),
+  lab_originals(uuid)
 from public, anon, authenticated;
 grant select on file_versions to authenticated;
 grant execute on function
@@ -241,5 +265,6 @@ grant execute on function
   drive_folders(uuid, text),
   drive_files(uuid, text, text, int, int),
   file_history(uuid, uuid),
-  version_text(uuid, uuid)
+  version_text(uuid, uuid),
+  lab_originals(uuid)
 to authenticated;

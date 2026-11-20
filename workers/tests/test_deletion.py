@@ -238,7 +238,8 @@ def test_the_job_leaves_nothing_of_the_lab_but_the_deletion_record(rt, conn, lab
     assert counts is not None
     assert counts["file_locations"] == 3 and counts["protocols"] == 1 and counts["corrections"] == 1
     assert counts["blobs"] == len(only_a) and counts["extractions"] == len(only_a)
-    assert counts["preview_files"] == 1 and counts["jobs"] == 1
+    # One preview and the three files' own bytes, kept under the lab's prefix.
+    assert counts["preview_files"] == 4 and counts["jobs"] == 1
     assert rows_mentioning(conn, str(a.id)) == {"public.lab_deletions": 1}
     for sha in only_a:
         assert rows_mentioning(conn, sha) == {}, sha

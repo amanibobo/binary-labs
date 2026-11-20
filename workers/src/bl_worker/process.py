@@ -10,7 +10,7 @@ from uuid import UUID
 import psycopg
 from psycopg.types.json import Jsonb
 
-from bl_worker import data_tables
+from bl_worker import data_tables, originals
 from bl_worker.chunking import name_chunk, text_chunks
 from bl_worker.db import lab_lock
 from bl_worker.domain import ExtractionKind, FileKind, SourceKind, SourceReadError, SourceRow
@@ -90,6 +90,7 @@ def _process(rt: Runtime, conn: psycopg.Connection, loc: Location) -> Outcome:
     try:
         data = read_file(loc.source, rt.settings, rt.previews, loc.external_id, loc.source_rev)
         blob = _store_blob(conn, loc, data)
+        originals.keep(conn, rt.previews, loc.lab_id, blob.sha256, data, blob.mime, loc.source.kind)
         link_pending(conn, loc.id, blob.sha256)
         extracted = extract_cached(conn, extractor_for(rt, conn, loc, blob), loc.lab_id, blob, data)
         _write_chunks(conn, loc.lab_id, blob.sha256, extracted)

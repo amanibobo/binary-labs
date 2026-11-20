@@ -13,6 +13,7 @@ from bl_worker import (
     data_tables,
     deletion,
     neighbors,
+    originals,
     process,
     scan,
     talk_throughs,
@@ -345,6 +346,31 @@ async def sweep_stale_tables(context: JobContext, timestamp: int) -> None:
     deferred, done = await asyncio.to_thread(sweep)
     if deferred:
         log.info("deferred %d table re-parses; tables: %s", deferred, done)
+
+
+@app.task(name="keep_original", pass_context=True, retry=RetryStrategy(max_attempts=3, wait=30))
+def keep_original(context: JobContext, location_id: str) -> None:
+    outcome = originals.keep_location(_runtime(context), UUID(location_id))
+    log.info("original of %s: %s", location_id, outcome)
+
+
+@app.periodic(cron="* * * * *")
+@app.task(name="sweep_originals", pass_context=True, queueing_lock="sweep_originals")
+async def sweep_originals(context: JobContext, timestamp: int) -> None:
+    """Queues a few of the files read before originals were kept, each minute, until every
+    version whose content is still at its source has its bytes in our store."""
+    rt = _runtime(context)
+
+    def sweep() -> int:
+        with rt.pool.connection() as conn:
+            todo = originals.waiting(conn)
+        return sum(
+            _defer_locked("keep_original", f"original:{loc}", location_id=str(loc)) for loc in todo
+        )
+
+    deferred = await asyncio.to_thread(sweep)
+    if deferred:
+        log.info("deferred %d originals to keep", deferred)
 
 
 @app.task(name="delete_lab", pass_context=True, retry=RetryStrategy(max_attempts=3, wait=30))

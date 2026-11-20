@@ -4,7 +4,8 @@ import psycopg
 import pytest
 from conftest import as_user, committed_as_user, run_scan
 
-from bl_worker import deletion, samples
+from bl_worker import deletion, originals, samples
+from bl_worker.previews import file_key
 from bl_worker.process import Outcome
 
 
@@ -109,7 +110,8 @@ def test_a_persons_name_for_a_file_follows_it_to_the_next_version(rt, conn, make
 
     labels = conn.execute(
         "select fl.path, l.status, l.clean_name, l.experiment_id, l.summary, l.prompt_version"
-        " from file_locations fl left join labels l on l.lab_id = fl.lab_id and l.sha256 = fl.sha256"
+        " from file_locations fl"
+        " left join labels l on l.lab_id = fl.lab_id and l.sha256 = fl.sha256"
         " where fl.lab_id = %s order by fl.path",
         (lab.id,),
     ).fetchall()
@@ -201,3 +203,125 @@ def test_deleting_the_lab_takes_its_history_and_the_old_contents(rt, conn, make_
     assert counts is not None and counts["file_versions"] == 2 and counts["blobs"] == 2
     assert conn.execute("select count(*) from blobs").fetchone() == (0,)
     assert conn.execute("select count(*) from file_versions").fetchone() == (0,)
+
+
+def kept(conn, lab_id) -> list[tuple[int, bool]]:
+    return conn.execute(
+        "select number, kept_at is not null from file_versions where lab_id = %s order by number",
+        (lab_id,),
+    ).fetchall()
+
+
+def test_every_version_keeps_its_own_bytes_unchanged(rt, conn, make_lab):
+    lab = make_lab()
+    first = samples.gel_jpeg(seed=7)
+    second = samples.gel_jpeg(seed=8)
+    path = lab.write("gel.jpg", first)
+    os.utime(path, ns=(1_700_000_000 * 10**9, 1_700_000_000 * 10**9))
+    run_scan(rt, lab.source_id)
+    path.write_bytes(second)
+    os.utime(path, ns=(1_700_000_100 * 10**9, 1_700_000_100 * 10**9))
+    run_scan(rt, lab.source_id)
+
+    shas = [sha for _, sha, _, _ in versions(conn, lab.id, "/gel.jpg")]
+    assert kept(conn, lab.id) == [(1, True), (2, True)]
+    # The source now holds only the second; the first is still ours, byte for byte.
+    assert rt.previews.get(file_key(lab.id, shas[0])) == first
+    assert rt.previews.get(file_key(lab.id, shas[1])) == second
+    assert path.read_bytes() == second
+    with as_user(conn, lab.user_id):
+        assert conn.execute("select * from lab_originals(%s)", (lab.id,)).fetchone() == (
+            2,
+            len(first) + len(second),
+            0,
+            0,
+        )
+        history = conn.execute(
+            "select number, kept from file_history(%s, (select id from file_locations"
+            " where lab_id = %s))",
+            (lab.id, lab.id),
+        ).fetchall()
+        assert history == [(1, True), (2, True)]
+
+
+def test_a_copy_and_a_change_back_share_one_stored_object(rt, conn, make_lab, monkeypatch):
+    lab = make_lab()
+    edit(lab, "a.txt", "one", 1_700_000_000)
+    edit(lab, "copy of a.txt", "one", 1_700_000_000)
+    puts: list[str] = []
+    put = rt.previews.put
+    monkeypatch.setattr(
+        rt.previews, "put", lambda key, data, *a, **k: (puts.append(key), put(key, data, *a, **k))
+    )
+    run_scan(rt, lab.source_id)
+    edit(lab, "a.txt", "two", 1_700_000_100)
+    run_scan(rt, lab.source_id)
+    edit(lab, "a.txt", "one", 1_700_000_200)
+    run_scan(rt, lab.source_id)
+
+    files = [k for k in puts if "/files/" in k]
+    assert len(files) == 2 and len(set(files)) == 2
+    assert all(k for _, k in kept(conn, lab.id))
+    assert conn.execute(
+        "select kept_files, waiting_files from lab_originals(%s)", (lab.id,)
+    ).fetchone() == (2, 0)
+
+
+def test_files_read_before_originals_were_kept_are_read_again_and_kept(rt, conn, make_lab):
+    lab = make_lab()
+    edit(lab, "old.txt", "read long ago", 1_700_000_000)
+    edit(lab, "edited.txt", "as it was", 1_700_000_000)
+    run_scan(rt, lab.source_id)
+    # As the migration leaves a lab: versions recorded, nothing in the store.
+    conn.execute("update file_versions set kept_at = null where lab_id = %s", (lab.id,))
+    rt.previews.delete_prefix(f"{lab.id}/files/")
+    # One of them changes on disk before the sweep reaches it; no scan has seen that yet.
+    (lab.folder / "edited.txt").write_text("as it is now")
+
+    todo = originals.waiting(conn)
+    assert len(todo) == 2
+    outcomes = sorted(originals.keep_location(rt, loc) for loc in todo)
+    assert outcomes == [originals.Kept.CHANGED, originals.Kept.KEPT]
+    state = dict(
+        conn.execute(
+            "select fv.original_name, fv.kept_at is not null from file_versions fv"
+            " where fv.lab_id = %s",
+            (lab.id,),
+        ).fetchall()
+    )
+    assert state == {"old.txt": True, "edited.txt": False}
+    (sha,) = conn.execute(
+        "select sha256 from file_locations where lab_id = %s and path = '/old.txt'", (lab.id,)
+    ).fetchone()
+    assert rt.previews.get(file_key(lab.id, sha)) == b"read long ago"
+    # A second pass does nothing more: one is kept, the other still doesn't match.
+    again = sorted(originals.keep_location(rt, loc) for loc in todo)
+    assert again == [originals.Kept.CHANGED, originals.Kept.SKIPPED]
+
+    # The next scan records the edit as version 2 and keeps it; version 1's bytes are gone
+    # from the source for good, and the history says so rather than pretending.
+    run_scan(rt, lab.source_id)
+    edited = conn.execute(
+        "select fv.number, fv.kept_at is not null from file_versions fv"
+        " join file_locations fl on fl.id = fv.location_id"
+        " where fl.path = '/edited.txt' order by fv.number"
+    ).fetchall()
+    assert edited == [(1, False), (2, True)]
+    assert originals.waiting(conn) == []
+
+
+def test_deleting_the_lab_removes_the_kept_originals(rt, conn, make_lab):
+    lab = make_lab()
+    edit(lab, "notes.txt", "one", 1_700_000_000)
+    run_scan(rt, lab.source_id)
+    (sha,) = conn.execute(
+        "select sha256 from file_versions where lab_id = %s", (lab.id,)
+    ).fetchone()
+    assert rt.previews.get(file_key(lab.id, sha)) == b"one"
+
+    with committed_as_user(conn, lab.user_id):
+        conn.execute("select request_lab_deletion(%s, 'lab')", (lab.id,))
+    deletion.delete_lab(rt, lab.id)
+
+    assert rt.previews.get(file_key(lab.id, sha)) is None
+    assert (lab.folder / "notes.txt").read_text() == "one"
