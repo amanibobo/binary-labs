@@ -11,7 +11,7 @@ mkdirSync(out, { recursive: true });
 
 function assert(ok, message) {
   if (!ok) throw new Error(message);
-  console.log(`ok  ${message}`);
+  process.stdout.write(`ok  ${message}\n`);
 }
 
 const browser = await chromium.launch();
