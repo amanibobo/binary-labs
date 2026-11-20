@@ -63,14 +63,12 @@ export const fixtureFailureList: FailureList = FailureList.parse({
 
 // Which member's account each People row is: Ade's and Priya's are linked, Jordan's isn't yet,
 // so he can be named but can't say yes until he says "This is me" from his own account.
-const linked = new Map<number, number>([
-  [0, 0],
-  [1, 1],
-]);
+const linked = new Map<number, number>();
 export function resetFixtureLinks(): void {
   linked.clear();
   linked.set(0, 0).set(1, 1);
 }
+resetFixtureLinks();
 const choices = (): ConfirmerChoice[] => people.map((p, i) => ({ id: p.id, name: p.name, you: linked.get(i) === viewer, account: linked.has(i) }));
 
 const NO_CONFIRMATION = {
