@@ -324,12 +324,25 @@ def note_cover(conn: psycopg.Connection, lab_id: UUID, sha256: str) -> UUID | No
     return row[0] if row else None
 
 
+def is_debrief_answer(conn: psycopg.Connection, lab_id: UUID, sha256: str) -> bool:
+    """A run's debrief answer is the scientist's own words; no model writes a title or summary
+    for its recording."""
+    row = conn.execute(
+        "select 1 from run_debrief_answers a join file_locations fl on fl.id = a.location_id"
+        " where fl.lab_id = %s and fl.sha256 = %s limit 1",
+        (lab_id, sha256),
+    ).fetchone()
+    return row is not None
+
+
 def label_blob(rt: Runtime, lab_id: UUID, sha256: str, *, call_models: bool = True) -> Draft | None:
     """Labels one blob for one lab. Never touches a value a person accepted or corrected; a
     label from before the current prompt gets only the fields it didn't have. The first page of
     a note is labeled as the whole note. With call_models=False only cached model answers are
     used (re-suggesting)."""
     with rt.pool.connection() as conn:
+        if is_debrief_answer(conn, lab_id, sha256):
+            return None
         note = note_cover(conn, lab_id, sha256)
         # The first page gets its own label (and description) first; the note waits for it.
         unlabeled = (
@@ -533,12 +546,15 @@ def write_label(conn: psycopg.Connection, lab_id: UUID, sha256: str, d: Draft) -
 
 
 # Blobs that still need a label: none yet, or a rules-only label made while no model was
-# configured. A blob whose model call already ran (even a refusal) is done.
+# configured. A blob whose model call already ran (even a refusal) is done. A debrief answer
+# is never labeled.
 UNLABELED = """
 select distinct fl.lab_id, fl.sha256 from file_locations fl
 join labs lab on lab.id = fl.lab_id and lab.deletion_requested_at is null
 left join labels l on l.lab_id = fl.lab_id and l.sha256 = fl.sha256
 where fl.sha256 is not null and fl.deleted_at is null and fl.index_state <> 'pending'
+  and not exists (select 1 from run_debrief_answers a join file_locations d on d.id = a.location_id
+    where d.lab_id = fl.lab_id and d.sha256 = fl.sha256)
   and (l.sha256 is null or (%(models)s and l.source = 'rules'
     and l.status not in ('accepted', 'corrected')
     and not exists (select 1 from model_calls m where m.lab_id = fl.lab_id
