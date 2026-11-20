@@ -430,6 +430,7 @@ export type HelpAnswerId =
   | "members"
   | "share-run"
   | "model-check"
+  | "task-folder"
   | "instrument";
 
 // A clip where seeing it helps; a few answers are clear in words alone.
@@ -682,6 +683,10 @@ export const HELP_ANSWERS: readonly HelpAnswer[] = [
     clip: null,
   },
   {
+    id: "task-folder",
+    group: "lab",
+    question: "Make a task from a failed run",
+    answer: "On a shared run with a confirmed cause, choose Make a task from this run: a second scientist writes the question and rubric, then you read the record with names taken out and build the folder. Download it from the same page.",
     id: "model-check",
     group: "lab",
     question: "Test a run's task on AI models",

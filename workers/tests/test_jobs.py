@@ -72,6 +72,7 @@ def test_scheduler_scans_and_worker_indexes_everything(rt, conn, make_lab, job_a
     jobs.pop("sweep_stale_tables:succeeded", None)
     jobs.pop("sweep_originals:succeeded", None)
     jobs.pop("tend_model_checks:succeeded", None)
+    jobs.pop("sweep_withdrawn_folders:succeeded", None)
     assert jobs == {
         "process_location:succeeded": 3,
         "scan_source:succeeded": 1,
