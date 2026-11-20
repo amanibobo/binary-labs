@@ -24,6 +24,7 @@ import { When } from "@/components/ui/when";
 import { FlagMark } from "../flags/flag-marks";
 import { LabelsProvider, LabListsProvider, useLabelPolling, useLabels } from "../labels/labels-context";
 import { BulkBar, SelectBox, SelectToggle, useSelection, type Selection } from "../labels/selection";
+import { FilesViewSwitch } from "../drive/view-switch";
 
 export function BrowseView({
   labName,
@@ -46,8 +47,9 @@ export function BrowseView({
     <LabListsProvider value={lists}>
       <LabelsProvider>
         <div className="border-b border-border-opaque">
-          <div className="mx-auto flex h-14 w-full max-w-6xl items-center px-4 sm:px-6">
+          <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
             <Breadcrumbs items={crumbs} />
+            <FilesViewSwitch current="folders" />
           </div>
         </div>
         <h1 className="sr-only">{folder.path === "" ? labName : folder.name}</h1>

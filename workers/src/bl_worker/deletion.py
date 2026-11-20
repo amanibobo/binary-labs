@@ -23,6 +23,7 @@ LAB_TABLES = (
     "members",
     "sources",
     "file_locations",
+    "file_versions",
     "uploads",
     "chunks",
     "previews",
@@ -62,6 +63,7 @@ LAB_TABLES = (
 # of them references after the lab's rows are gone was only this lab's.
 BLOB_REFERENCES = (
     "file_locations",
+    "file_versions",
     "chunks",
     "previews",
     "labels",

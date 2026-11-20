@@ -54,6 +54,7 @@ const shots = [
   ...flagShots(),
   ...askShots(),
   ...smartLabelShots(),
+  ...driveShots(),
 ];
 
 // The Search home and its rows, quiet until opened: the home with recent questions, results,
@@ -155,6 +156,21 @@ function calendarShots() {
 
 // Checks and flags: the check editor, a flag on a file's row and opened view, the Flags list,
 // answering a flag, and a protocol page with its checks.
+// The lab drive: its folders, one folder, a file's newest version and older ones.
+function driveShots() {
+  const d = (query) => `/dev/fixtures/drive?${query}`;
+  const all = (shot) => ["dark", "light"].flatMap((scheme) => [1440, 390].map((width) => ({ ...shot, width, scheme })));
+  return [
+    ...all({ name: "drive-root", path: d("view=root") }),
+    { name: "drive-months", path: d("view=root&by=month"), width: 1440, scheme: "light" },
+    ...all({ name: "drive-folder", path: d("view=folder") }),
+    ...all({ name: "drive-file", path: d("view=file") }),
+    ...all({ name: "drive-file-older", path: d("view=file&v=2") }),
+    { name: "drive-file-first", path: d("view=file&v=1"), width: 1440, scheme: "light" },
+    { name: "browse-switch", path: "/dev/fixtures/browse", width: 390, scheme: "light" },
+  ];
+}
+
 function flagShots() {
   const f = (view) => `/dev/fixtures/flags?view=${view}`;
   const all = (shot) => ["dark", "light"].flatMap((scheme) => [1440, 390].map((width) => ({ ...shot, width, scheme })));
