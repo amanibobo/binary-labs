@@ -12,10 +12,12 @@ import { SettingsFrame } from "@/app/settings/settings-frame";
 import { SharingSettings } from "@/app/settings/sharing/sharing-settings";
 import { UploaderDownloadSection } from "@/app/settings/uploader-download-section";
 import { AppShell } from "@/components/app-shell";
+import { FailureTypesSection } from "@/components/runs/failure/failure-types";
 import { disconnectedSource, experiments, fixtureShell, members, people, scanningSource } from "@/fixtures/data";
 import { FixtureLabApi } from "@/fixtures/fixture-api";
 import { requireFixtures } from "@/fixtures/gate";
 import { fixturePairing, instruments, waitingInstrument } from "@/fixtures/instruments";
+import { fixtureFailureList } from "@/fixtures/runs-failure";
 import { fixtureLabSharing, fixtureSharingLog } from "@/fixtures/runs-sharing";
 
 // /dev/fixtures/settings[/<section>]?state=connect|scanning|disconnected&role=admin|member&code=shown|paired&dropbox=<notice>
@@ -72,6 +74,8 @@ export default async function SettingsFixture({ params, searchParams }: Props) {
         const sharing = Sharing.parse(query.sharing);
         return <SharingSettings initial={fixtureLabSharing(sharing, isAdmin)} initialLog={isAdmin ? (sharing === "on" ? fixtureSharingLog() : []) : null} />;
       }
+      case "failure-types":
+        return <FailureTypesSection list={fixtureFailureList} />;
       case "account":
         return <AccountSection email={email} labName={LAB} isAdmin={isAdmin} />;
       case "appearance":

@@ -403,6 +403,7 @@ export type HelpAnswerId =
   | "many-labels"
   | "repeat-run"
   | "make-run"
+  | "failed-run"
   | "needs-look"
   | "older-version"
   | "run-protocol"
@@ -496,6 +497,13 @@ export const HELP_ANSWERS: readonly HelpAnswer[] = [
     question: "Record how an experiment went",
     answer: "Choose Select in Search or Browse, tick the files from one attempt, then Make a run from these files. On the run's page, say if it worked, failed or was odd; each file opens exactly as it was first read.",
     clip: "runs",
+  },
+  {
+    id: "failed-run",
+    group: "find",
+    question: "Write down why a run failed",
+    answer: "On a failed or odd run, write what you think went wrong, then Confirm the cause once a control, a repeat or the PI shows it. Name who confirmed it; they say yes from their own account.",
+    clip: null,
   },
   {
     id: "needs-look",
