@@ -40,8 +40,8 @@ export function LabListSection({ kind, entries, isAdmin }: { kind: LabListKind; 
       ) : (
         <ul>
           {entries.map((entry) => (
-            <li key={entry.id} className={cn(dataRow, "flex min-h-14 items-center gap-4 px-5 py-2 sm:min-h-16 sm:px-6")}>
-              <span className="min-w-0 flex-1">
+            <li key={entry.id} className={cn(dataRow, "flex min-h-14 flex-wrap items-center gap-x-4 gap-y-1 px-5 py-2 sm:min-h-16 sm:flex-nowrap sm:px-6")}>
+              <span className={cn("min-w-0 flex-1", entry.actions !== undefined && "max-sm:basis-full")}>
                 <span className="block truncate text-paragraph-medium text-content-primary">{entry.name}</span>
                 {entry.aliases.length === 0 ? null : (
                   <span className="block truncate text-paragraph-small text-content-tertiary">{entry.aliases.join(", ")}</span>

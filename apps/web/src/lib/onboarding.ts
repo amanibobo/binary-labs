@@ -428,6 +428,7 @@ export type HelpAnswerId =
   | "export"
   | "invite"
   | "members"
+  | "this-is-me"
   | "share-run"
   | "model-check"
   | "instrument";
@@ -672,6 +673,13 @@ export const HELP_ANSWERS: readonly HelpAnswer[] = [
     group: "lab",
     question: "Remove someone or make them an admin",
     answer: "In Settings, Members, an admin picks Admin or Member beside a person, or chooses Remove, which deletes nothing they made. A lab always keeps one admin.",
+    clip: null,
+  },
+  {
+    id: "this-is-me",
+    group: "lab",
+    question: "Link your account to your name",
+    answer: "Choose This is me beside your name in Settings, People, or on a run that says you aren't linked, so you can say yes to a cause you confirmed. An admin can link or unlink anyone there.",
     clip: null,
   },
   {

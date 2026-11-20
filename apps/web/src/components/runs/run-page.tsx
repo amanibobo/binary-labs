@@ -200,14 +200,14 @@ function Status({ run, disabled, write }: { run: RunRecord; disabled: boolean; w
         </button>
       )}
       {asking === undefined ? null : (
-        <div role="alertdialog" aria-label={`Remove ${removed}?`} className="mt-3 rounded-card border border-border-opaque bg-background-secondary px-4 py-3">
+        <div role="alertdialog" aria-label={`Remove ${removed.name}?`} className="mt-3 rounded-card border border-border-opaque bg-background-secondary px-4 py-3">
           <p className="max-w-prose text-paragraph-small text-content-primary">
-            This run has {removed} written down. {asking === null ? "Clearing your answer" : `Marking it ${statusLabel(asking).toLowerCase()}`} removes{" "}
-            {removed === "the failure type" ? "it" : "them"}. The run&rsquo;s history keeps what {removed === "the failure type" ? "it was" : "they were"}.
+            This run has {removed.has}. {asking === null ? "Clearing your answer" : `Marking it ${statusLabel(asking).toLowerCase()}`} removes {removed.it}. The
+            run&rsquo;s history keeps what {removed.was}.
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             <Button type="button" variant="negative" size="compact" disabled={disabled} onClick={() => void choose(asking, true)}>
-              Remove {removed}
+              Remove {removed.name}
             </Button>
             <Button type="button" variant="secondary" size="compact" onClick={() => setAsking(undefined)}>
               Keep it as it is
@@ -219,12 +219,18 @@ function Status({ run, disabled, write }: { run: RunRecord; disabled: boolean; w
   );
 }
 
-// What leaving failed or odd would remove, as the question names it.
-function removedWords(run: RunRecord): string {
+// What leaving failed or odd would remove, in the question's words.
+const REMOVED = {
+  cause: { name: "the cause", has: "a cause written down", it: "it", was: "it was" },
+  type: { name: "the failure type", has: "a failure type picked", it: "it", was: "it was" },
+  both: { name: "the cause and the failure type", has: "a cause and a failure type written down", it: "them", was: "they were" },
+} as const;
+
+function removedWords(run: RunRecord): (typeof REMOVED)[keyof typeof REMOVED] {
   const f = run.failure;
   const cause = f.suspectedCause !== null || f.confirmedCause !== null;
-  if (!cause) return "the failure type";
-  return f.taxonomyVersion === null ? "the cause" : "the cause and the failure type";
+  if (!cause) return REMOVED.type;
+  return f.taxonomyVersion === null ? REMOVED.cause : REMOVED.both;
 }
 
 function Files({ run, disabled, write }: { run: RunRecord; disabled: boolean; write: Write }) {
