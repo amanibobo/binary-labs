@@ -59,19 +59,19 @@ export function noteFailure(error: { code?: string }): { status: number; message
   }
 }
 
-// A list of files with each note shown once, as its first page (which carries the note's
-// label), where the first of its pages appeared. Pages whose first page isn't in `covers`
-// stay as they are.
+// A list of files with each note shown once where the first of its pages appeared: as its first
+// page (which carries the note's label) when that's in `covers` or the list, else as the first
+// of its pages the list holds.
 export function collapseNotes(hits: readonly FileHit[], covers: readonly FileHit[]): FileHit[] {
-  const bySha = new Map(covers.map((c) => [c.sha256, c]));
+  const bySha = new Map([...hits, ...covers].map((c) => [c.sha256, c]));
   const seen = new Set<string>();
   const out: FileHit[] = [];
   for (const hit of hits) {
     const note = hit.label?.note ?? null;
-    const cover = note === null ? hit : hit.sha256 === note.pages[0].sha256 ? hit : (bySha.get(note.pages[0].sha256) ?? hit);
-    if (seen.has(cover.sha256)) continue;
-    seen.add(cover.sha256);
-    out.push(cover);
+    const key = note === null ? hit.sha256 : note.id;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(note === null ? hit : (bySha.get(note.pages[0].sha256) ?? hit));
   }
   return out;
 }

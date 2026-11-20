@@ -6,6 +6,7 @@ import { useLabels, type LabeledFile } from "./labels-context";
 
 // One short question a voice note left open ("that thing from Tuesday"), answered with one
 // tap. The answer is a correction like any other, so it can be undone and it teaches Binary.
+// Not sure is a fine answer too: Skip stops asking, and its toast can bring the question back.
 export function FollowUpQuestion({ hit, followUp, className }: { hit: LabeledFile; followUp: FollowUp; className?: string }) {
   const labels = useLabels();
   const [problem, setProblem] = useState<string | null>(null);
@@ -26,6 +27,13 @@ export function FollowUpQuestion({ hit, followUp, className }: { hit: LabeledFil
             {choice.label}
           </button>
         ))}
+        <button
+          type="button"
+          onClick={() => labels.skipQuestion(hit)}
+          className="inline-flex min-h-8 items-center rounded-md px-2 text-label-small text-content-tertiary transition-colors duration-150 ease-out hover:bg-background-tertiary hover:text-content-primary max-sm:min-h-11"
+        >
+          Skip
+        </button>
       </div>
       {problem === null ? null : (
         <p role="alert" className="mt-1 text-paragraph-xsmall text-content-primary">

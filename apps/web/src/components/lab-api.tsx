@@ -2,9 +2,19 @@
 
 import { createContext, use } from "react";
 import { z } from "zod";
-import { CorrectionWire, FileLabelsWire, SearchResponse, type Correction, type FileHit, type FileLabel, type SearchParams } from "@/lib/domain";
+import {
+  CorrectionWire,
+  FileLabelsWire,
+  SearchResponse,
+  type Correction,
+  type FileHit,
+  type FileLabel,
+  type Label,
+  type SearchParams,
+} from "@/lib/domain";
 import { searchQueryString } from "@/lib/filters";
-import { correctRequest } from "@/lib/labels";
+import { correctRequest, LabelResult, RepeatCandidates, type RepeatCandidate } from "@/lib/labels";
+import { bulkRequest, BulkResultWire, UndoBatchWire, type BatchId, type BulkChange, type BulkResult, type UndoBatchResult } from "@/lib/bulk-labels";
 import type { NoteRequest } from "@/lib/notes";
 import type { LabelDraft } from "@/lib/label-edit";
 import { BrowseResponse, type FolderPath } from "@/lib/folders";
@@ -81,6 +91,14 @@ export type LabApi = {
   // Both reject with an Error whose message can be shown to the person.
   correctLabel: (sha: Sha256, draft: LabelDraft) => Promise<Correction>;
   undoCorrection: (id: CorrectionId) => Promise<Correction>;
+  // One change to many files' labels, and its undo. Both reject with a showable Error.
+  correctLabels: (shas: readonly Sha256[], change: BulkChange) => Promise<BulkResult>;
+  undoLabelBatch: (id: BatchId) => Promise<UndoBatchResult>;
+  // Skips a voice note's question, or asks it again; rejects with a showable Error.
+  skipQuestion: (sha: Sha256, skipped: boolean) => Promise<Label>;
+  // Links a repeat run to the run it repeats (null unlinks); rejects with a showable Error.
+  linkRepeat: (sha: Sha256, repeatOf: Sha256 | null) => Promise<Label>;
+  repeatCandidates: (sha: Sha256, query: string, signal: AbortSignal) => Promise<RepeatCandidate[]>;
   // Keeps, splits (or un-splits), takes a page out of, or joins a note; rejects with a showable Error.
   changeNote: (req: NoteRequest) => Promise<void>;
   // The page's current version, to start over from after someone else saved.
@@ -290,6 +308,12 @@ export const httpLabApi: LabApi = {
     FileLabelsWire.parse(await getJson(`/api/labels?${new URLSearchParams({ shas: shas.join(",") })}`, signal)),
   correctLabel: async (sha, draft) => CorrectionWire.parse(await postJson("/api/labels/correct", correctRequest(sha, draft))),
   undoCorrection: async (id) => CorrectionWire.parse(await postJson("/api/labels/undo", { correctionId: id })),
+  correctLabels: async (shas, change) => BulkResultWire.parse(await postJson("/api/labels/bulk", bulkRequest(shas, change))),
+  undoLabelBatch: async (id) => UndoBatchWire.parse(await postJson("/api/labels/bulk/undo", { batchId: id })),
+  skipQuestion: async (sha, skipped) => LabelResult.parse(await postJson("/api/labels/question", { sha256: sha, skipped })).label,
+  linkRepeat: async (sha, repeatOf) => LabelResult.parse(await postJson("/api/labels/repeat", { sha256: sha, repeatOf })).label,
+  repeatCandidates: async (sha, query, signal) =>
+    RepeatCandidates.parse(await getJson(`/api/labels/repeat?${new URLSearchParams({ sha256: sha, q: query })}`, signal)),
   changeNote: async (req) => {
     await postJson("/api/notes", req);
   },

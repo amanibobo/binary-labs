@@ -15,6 +15,7 @@ import { PreviewPanel } from "../files/preview-panel";
 import { CheckMark, OutcomeWord, RowName, SummaryLine, TagList } from "../labels/file-label";
 import { LabelsSection } from "../labels/labels-section";
 import { useLabels } from "../labels/labels-context";
+import { SelectBox, type Selection } from "../labels/selection";
 import { OpenExternalIcon } from "../icons/drawn";
 import { FlagMark } from "../flags/flag-marks";
 import { buttonVariants } from "../ui/button";
@@ -33,11 +34,14 @@ export function FileResult({
   query,
   expanded,
   onToggle,
+  selection,
 }: {
   hit: FileHit;
   query: string;
   expanded: boolean;
   onToggle: () => void;
+  // Rows that can be picked to change their labels together; X picks this one.
+  selection?: Selection;
 }) {
   const { labelOf } = useLabels();
   const label = labelOf(hit);
@@ -89,6 +93,7 @@ export function FileResult({
           repeat: e.repeat || e.nativeEvent.isComposing,
           typing: isTypingTarget(e.target),
           sheet,
+          selectable: selection !== undefined,
         });
         if (shortcut === null) return;
         e.preventDefault();
@@ -101,6 +106,9 @@ export function FileResult({
           case "chart":
             router.push(newChartHref(primary.id));
             break;
+          case "select":
+            selection?.toggle(hit);
+            break;
           default: {
             const _exhaustive: never = shortcut;
             return _exhaustive;
@@ -112,7 +120,7 @@ export function FileResult({
         <button
           type="button"
           data-row-toggle
-          aria-keyshortcuts={sheet ? "ArrowUp ArrowDown Home End E C" : "ArrowUp ArrowDown Home End E"}
+          aria-keyshortcuts={["ArrowUp ArrowDown Home End E", sheet ? "C" : null, selection === undefined ? null : "X"].filter((k) => k !== null).join(" ")}
           aria-expanded={expanded}
           aria-controls={panelId}
           onClick={onToggle}
@@ -127,6 +135,7 @@ export function FileResult({
             {check ? ", check this label" : ""}
           </span>
         </button>
+        {selection === undefined ? null : <SelectBox selection={selection} file={hit} name={title} className="mt-2 sm:mt-3" />}
         <FileThumb hit={hit} />
         <span data-tour="label" className="pointer-events-none relative min-w-0 flex-1">
           <span className="flex min-w-0 items-start gap-2">

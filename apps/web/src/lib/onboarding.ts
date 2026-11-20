@@ -392,6 +392,8 @@ export type HelpAnswerId =
   | "keys"
   | "open-file"
   | "fix-label"
+  | "many-labels"
+  | "repeat"
   | "needs-look"
   | "map"
   | "learn"
@@ -442,7 +444,7 @@ export const HELP_ANSWERS: readonly HelpAnswer[] = [
     id: "keys",
     group: "find",
     question: "Use the keyboard in Search",
-    answer: "Press ↓ from the search box to move through the files, Enter to open one and Esc to close it. On a file, E edits its labels and C makes a chart from a data sheet.",
+    answer: "Press ↓ from the search box to move through the files, Enter to open one and Esc to close it. On a file, E edits its labels, C makes a chart from a data sheet and X picks it.",
     clip: null,
   },
   {
@@ -458,6 +460,20 @@ export const HELP_ANSWERS: readonly HelpAnswer[] = [
     question: "Fix a label",
     answer: "Click a file to open it, choose Edit labels (or press E on the file), click the value to change, type and press Enter. Similar files learn from what you fix.",
     clip: "fix",
+  },
+  {
+    id: "many-labels",
+    group: "find",
+    question: "Change labels on many files",
+    answer: "Choose Select by the list in Search or Browse, tick the files, then pick what to change, like the experiment. It says how many files change before you apply, and Undo puts them all back.",
+    clip: null,
+  },
+  {
+    id: "repeat",
+    group: "find",
+    question: "Link a repeat to its run",
+    answer: "Open the repeat, choose Edit labels and mark it A repeat, then Pick the run it repeats. Each run then links to the other.",
+    clip: null,
   },
   {
     id: "needs-look",

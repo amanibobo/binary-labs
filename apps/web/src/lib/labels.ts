@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { IsoDate, LabelCondition, LabelOutcome, NoteKind } from "./domain";
+import { IsoDate, LabelCondition, LabelOutcome, LabelWire, NoteKind } from "./domain";
 import { CorrectionId, ExperimentId, PersonId, Sha256, type LabId } from "./ids";
 import type { LabelDraft } from "./label-edit";
 
@@ -94,5 +94,38 @@ export function correctionFailure(error: { code?: string; message: string }): { 
       return { status: 403, message: "You're not a member of this lab." };
     default:
       return { status: 500, message: "We couldn't save that. Try again." };
+  }
+}
+
+// Skipping a voice note's question, or asking it again (the skip's undo).
+export const SkipQuestionRequest = z.object({ sha256: Sha256, skipped: z.boolean() });
+
+// Linking a repeat run to the run it repeats; null unlinks it.
+export const RepeatRequest = z.object({ sha256: Sha256, repeatOf: Sha256.nullable() });
+
+export const RepeatCandidatesQuery = z.object({ sha256: Sha256, q: z.string().max(200).default("") });
+
+// A run a repeat might repeat, as the picker lists it.
+export const RepeatCandidate = z.object({
+  sha256: Sha256,
+  name: z.string(),
+  date: IsoDate.nullable(),
+  experiment: z.string().nullable(),
+  outcome: LabelOutcome.nullable(),
+});
+export type RepeatCandidate = z.infer<typeof RepeatCandidate>;
+export const RepeatCandidates = z.array(RepeatCandidate);
+
+export const LabelResult = z.object({ label: LabelWire });
+
+// link_repeat raises BL811 and BL812, and skip_follow_up BL001.
+export function linkFailure(error: { code?: string; message: string }): { status: number; message: string } {
+  switch (error.code) {
+    case "BL811":
+      return { status: 400, message: "Pick a labeled file from this lab." };
+    case "BL812":
+      return { status: 400, message: "A run can't repeat itself or a repeat of itself." };
+    default:
+      return correctionFailure(error);
   }
 }

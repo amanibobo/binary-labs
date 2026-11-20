@@ -22,6 +22,7 @@ import { CheckMark } from "./file-label";
 import { FollowUpQuestion } from "./follow-up";
 import { InlineEdit } from "./inline-edit";
 import { useLabels, useLabLists } from "./labels-context";
+import { RepeatField, RepeatLines } from "./repeats";
 
 const FIELD_NAMES: Record<TagRef["kind"], string> = {
   date: "Date",
@@ -184,6 +185,7 @@ function ReadLabels({ hit, label, onEdit }: { hit: FileHit; label: Label; onEdit
         </span>
       ) : null}
       {label.conditions.length > 0 ? <ConditionsLine conditions={label.conditions} /> : null}
+      <RepeatLines hit={hit} label={label} />
       {label.followUp === null ? null : <FollowUpQuestion hit={hit} followUp={label.followUp} />}
       {check ? null : (
         <button type="button" onClick={onEdit} className={cn(quietAction, "justify-self-start")}>
@@ -299,6 +301,11 @@ function EditLabels({ hit, label, onDone }: { hit: FileHit; label: Label; onDone
         <Field name="Outcome" guessed={guessed && label.outcome !== null}>
           <OutcomePicker hit={hit} label={label} />
         </Field>
+        {label.outcome === "repeat" || label.repeatOf !== null ? (
+          <Field name="Repeat of">
+            <RepeatField hit={hit} label={label} />
+          </Field>
+        ) : null}
         {facts.map(({ ref, value, suggestions }) => {
           const field = FIELD_NAMES[ref.kind];
           return (

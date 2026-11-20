@@ -31,6 +31,7 @@ LAB_TABLES = (
     "label_rules",
     "notes",
     "note_pages",
+    "run_repeats",
     "experiments",
     "people",
     "model_calls",
