@@ -214,8 +214,8 @@ export type RunListFilter = z.infer<typeof RunListFilter>;
 
 export const RUNS_PAGE = 50;
 
-// A status change comes back saved, or asks first: the run has a cause written down, and
-// leaving failed or odd would remove it.
+// A status change comes back saved, or asks first: the run has a cause or a failure type
+// written down, and leaving failed or odd would remove it.
 export type StatusOutcome = { kind: "saved"; run: RunRecord } | { kind: "has_causes" };
 export const StatusOutcomeWire = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("saved"), run: RunRecord }),

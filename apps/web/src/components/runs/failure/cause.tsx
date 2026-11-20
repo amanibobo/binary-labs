@@ -1,6 +1,8 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
+import { settingsHref } from "@/app/settings/sections";
 import { useId, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Caption, Input, Textarea } from "@/components/ui/field";
@@ -161,6 +163,7 @@ export function ConfirmedCause({ run, people, disabled, write }: { run: RunRecor
 
 function Attest({ run, state, disabled, write }: { run: RunRecord; state: NonNullable<ReturnType<typeof attestState>>; disabled: boolean; write: Write }) {
   const api = useRunsApi();
+  const queryClient = useQueryClient();
   switch (state.kind) {
     case "attested":
       return (
@@ -181,9 +184,39 @@ function Attest({ run, state, disabled, write }: { run: RunRecord; state: NonNul
       return <Caption className="max-w-prose">Waiting for {state.name} to say yes from their own account. Until then, nothing about this run can be shared outside the lab.</Caption>;
     case "no_account":
       return (
-        <Caption className="max-w-prose">
-          {state.name} isn&rsquo;t linked to a Binary account yet, so they can&rsquo;t say yes here. Until they do, nothing about this run can be shared outside the lab.
-        </Caption>
+        <div className="grid max-w-prose gap-2">
+          <Caption>
+            {state.name} isn&rsquo;t linked to a Binary account yet, so they can&rsquo;t say yes here. Until they do, nothing about this run can be shared outside the lab.
+            {state.claimable ? null : (
+              <>
+                {" "}
+                An admin can link them in{" "}
+                <Link href={settingsHref("people")} className="underline underline-offset-2">
+                  Settings, People
+                </Link>
+                .
+              </>
+            )}
+          </Caption>
+          {state.claimable ? (
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span className="text-paragraph-small text-content-primary">Are you {state.name}?</span>
+              <Button
+                type="button"
+                variant="secondary"
+                size="compact"
+                disabled={disabled}
+                onClick={() =>
+                  void write(() => api.claimPerson(run.id, state.personId)).then((linked) => {
+                    if (linked) void queryClient.invalidateQueries({ queryKey: ["confirmer-choices", run.id] });
+                  })
+                }
+              >
+                This is me
+              </Button>
+            </div>
+          ) : null}
+        </div>
       );
     default: {
       const _exhaustive: never = state;

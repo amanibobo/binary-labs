@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { PersonId, RunId, Sha256 } from "./ids";
+import { peopleFailure } from "./people-accounts";
 import { FailureTerm, fromRow, runFailure, type ConfirmMethod, type FailureFields, type RunFailure } from "./run-record";
 
 // The failure record (decisions.md, "the run record: the failure record"): the shapes and words
@@ -73,6 +74,8 @@ export const CauseRequest = z.discriminatedUnion("action", [
   z.object({ action: z.literal("confirm"), confirm: ConfirmDraft }),
   z.object({ action: z.literal("withdraw") }),
   z.object({ action: z.literal("attest") }),
+  // "This is me" on a confirmer whose People row has no account yet.
+  z.object({ action: z.literal("claim"), personId: PersonId }),
 ]);
 export type CauseRequest = z.infer<typeof CauseRequest>;
 
@@ -111,7 +114,7 @@ const FAILURES: Readonly<Record<string, RunFailure>> = {
   BL917: { status: 400, message: "Write it in a few words: a cause up to 4,000 characters, a note up to 2,000." },
 };
 export function failureFailure(error: { code?: string }): RunFailure {
-  return FAILURES[error.code ?? ""] ?? runFailure(error);
+  return FAILURES[error.code ?? ""] ?? (error.code?.startsWith("BL98") === true ? peopleFailure(error) : runFailure(error));
 }
 
 // What the page says under a confirmed cause about the confirmer's own yes.
@@ -119,7 +122,8 @@ export type AttestState =
   | { kind: "attested"; at: string }
   | { kind: "yours" }
   | { kind: "waiting"; name: string }
-  | { kind: "no_account"; name: string };
+  // `claimable`: the viewer isn't anyone in People yet, so they can say "This is me".
+  | { kind: "no_account"; personId: PersonId; name: string; claimable: boolean };
 
 export function attestState(failure: Pick<FailureFields, "confirmedBy" | "confirmerAttestedAt">, choices: readonly ConfirmerChoice[]): AttestState | null {
   const by = failure.confirmedBy;
@@ -127,5 +131,6 @@ export function attestState(failure: Pick<FailureFields, "confirmedBy" | "confir
   if (failure.confirmerAttestedAt !== null) return { kind: "attested", at: failure.confirmerAttestedAt };
   const choice = choices.find((c) => c.id === by.id);
   if (choice?.you === true) return { kind: "yours" };
-  return choice?.account === false ? { kind: "no_account", name: by.name } : { kind: "waiting", name: by.name };
+  if (choice?.account === false) return { kind: "no_account", personId: by.id, name: by.name, claimable: !choices.some((c) => c.you) };
+  return { kind: "waiting", name: by.name };
 }

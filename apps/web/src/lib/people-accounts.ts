@@ -25,16 +25,17 @@ export function canClaim(person: PersonAccount, people: readonly PersonAccount[]
 }
 
 // The members an admin can link a row to: those who aren't someone in People yet.
-export function unlinkedMembers<M extends { userId: string }>(members: readonly M[], people: readonly PersonAccount[]): M[] {
+export function unlinkedMembers<M extends { userId: UserId }>(members: readonly M[], people: readonly PersonAccount[]): M[] {
   const linked = new Set(people.flatMap((p) => (p.userId === null ? [] : [p.userId])));
   return members.filter((m) => !linked.has(m.userId));
 }
 
-// What unlinking says before it happens, when the person has said yes to anything.
-export function unlinkWarning(person: Pick<PersonAccount, "name" | "yeses">): string | null {
+// What unlinking a person, or removing their member, says before it happens when the person has
+// said yes to anything: `doing` is "Unlinking" or "Removing them".
+export function unlinkWarning(person: Pick<PersonAccount, "name" | "yeses">, doing: string): string | null {
   if (person.yeses === 0) return null;
   const causes = person.yeses === 1 ? "1 confirmed cause" : `${person.yeses} confirmed causes`;
-  return `${person.name} said yes to ${causes} from this account. Unlinking takes those back, so those runs can't be shared outside the lab until ${person.name} says yes again from a linked account.`;
+  return `${person.name} said yes to ${causes} from this account. ${doing} takes those back, so those runs can't be shared outside the lab until ${person.name} says yes again from a linked account.`;
 }
 
 const FAILURES: Readonly<Record<string, RunFailure>> = {

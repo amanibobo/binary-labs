@@ -1,6 +1,6 @@
 import "server-only";
 import { NextResponse } from "next/server";
-import type { LabId, RunId } from "./ids";
+import type { LabId, PersonId, RunId } from "./ids";
 import { logError } from "./log";
 import { confirmArgs, ConfirmerChoicesJson, failureFailure, FailureListJson, type ConfirmDraft, type ConfirmerChoice, type FailureList, type FailureType } from "./run-failure";
 import { RunJson, type RunRecord } from "./run-record";
@@ -54,6 +54,12 @@ export const withdrawCause = (supabase: RunDb, id: RunId) =>
   );
 
 export const attestCause = (supabase: RunDb, id: RunId) => writeRun(supabase.rpc("attest_cause", { p_run_id: id }));
+
+// "This is me" on the run's confirmer (claim_person, 0042), then the run as it reads now.
+export async function claimConfirmer(supabase: RunDb, id: RunId, personId: PersonId): Promise<Written<RunRecord>> {
+  const { error } = await supabase.rpc("claim_person", { p_person_id: personId });
+  return error !== null ? { kind: "error", error } : writeRun(supabase.rpc("run_json", { p_run_id: id }));
+}
 
 export const setFailureType = (supabase: RunDb, id: RunId, type: FailureType | null) =>
   writeRun(

@@ -143,13 +143,14 @@ function Title({ run, disabled, onRename }: { run: RunRecord; disabled: boolean;
   );
 }
 
-// How the run went, as three plain answers. Leaving failed or odd would remove a cause someone
-// wrote down, so that asks first.
+// How the run went, as three plain answers. Leaving failed or odd would remove a cause or a
+// failure type someone wrote down, so that asks first.
 function Status({ run, disabled, write }: { run: RunRecord; disabled: boolean; write: Write }) {
   const api = useRunsApi();
   const name = useId();
   // The answer waiting on "this removes the cause"; undefined when nothing is waiting.
   const [asking, setAsking] = useState<RunStatus | null | undefined>(undefined);
+  const removed = removedWords(run);
 
   const choose = (status: RunStatus | null, clearCauses: boolean) =>
     write(async () => {
@@ -199,14 +200,14 @@ function Status({ run, disabled, write }: { run: RunRecord; disabled: boolean; w
         </button>
       )}
       {asking === undefined ? null : (
-        <div role="alertdialog" aria-label="Remove the cause?" className="mt-3 rounded-card border border-border-opaque bg-background-secondary px-4 py-3">
+        <div role="alertdialog" aria-label={`Remove ${removed}?`} className="mt-3 rounded-card border border-border-opaque bg-background-secondary px-4 py-3">
           <p className="max-w-prose text-paragraph-small text-content-primary">
-            This run has a cause written down. {asking === null ? "Clearing your answer" : `Marking it ${statusLabel(asking).toLowerCase()}`} removes the cause
-            and the failure type. The run&rsquo;s history keeps what they were.
+            This run has {removed} written down. {asking === null ? "Clearing your answer" : `Marking it ${statusLabel(asking).toLowerCase()}`} removes{" "}
+            {removed === "the failure type" ? "it" : "them"}. The run&rsquo;s history keeps what {removed === "the failure type" ? "it was" : "they were"}.
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             <Button type="button" variant="negative" size="compact" disabled={disabled} onClick={() => void choose(asking, true)}>
-              Remove the cause
+              Remove {removed}
             </Button>
             <Button type="button" variant="secondary" size="compact" onClick={() => setAsking(undefined)}>
               Keep it as it is
@@ -216,6 +217,14 @@ function Status({ run, disabled, write }: { run: RunRecord; disabled: boolean; w
       )}
     </RunSection>
   );
+}
+
+// What leaving failed or odd would remove, as the question names it.
+function removedWords(run: RunRecord): string {
+  const f = run.failure;
+  const cause = f.suspectedCause !== null || f.confirmedCause !== null;
+  if (!cause) return "the failure type";
+  return f.taxonomyVersion === null ? "the cause" : "the cause and the failure type";
 }
 
 function Files({ run, disabled, write }: { run: RunRecord; disabled: boolean; write: Write }) {

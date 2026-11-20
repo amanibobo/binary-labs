@@ -9,10 +9,13 @@ import { Dialog, DialogContent, DialogDock } from "@/components/ui/dialog";
 import { Input, Label } from "@/components/ui/field";
 import { When } from "@/components/ui/when";
 import type { LabMember } from "@/lib/domain";
+import { unlinkWarning, type PersonAccount } from "@/lib/people-accounts";
 import { changeMemberRole, inviteMember, removeMember, type InviteState } from "./actions";
 import { SettingsGroup } from "./settings-frame";
 
-export function MembersSection({ members, isAdmin, email }: { members: LabMember[]; isAdmin: boolean; email: string }) {
+// `people` is the lab's People with their accounts, so removing someone says first which yeses
+// it takes back.
+export function MembersSection({ members, isAdmin, email, people = [] }: { members: LabMember[]; isAdmin: boolean; email: string; people?: readonly PersonAccount[] }) {
   const admins = members.filter((m) => m.role === "admin").length;
   return (
     <>
@@ -50,7 +53,7 @@ export function MembersSection({ members, isAdmin, email }: { members: LabMember
                 <DataCell className="hidden text-paragraph-small text-content-tertiary sm:table-cell">
                   <When iso={member.joinedAt} />
                 </DataCell>
-                {isAdmin ? <DataCell className="text-right">{manageable ? <RemoveMember member={member} you={you} /> : null}</DataCell> : null}
+                {isAdmin ? <DataCell className="text-right">{manageable ? <RemoveMember member={member} you={you} person={people.find((p) => p.userId === member.userId)} /> : null}</DataCell> : null}
               </tr>
             );
           })}
@@ -93,10 +96,11 @@ function RolePicker({ member, you }: { member: LabMember; you: boolean }) {
   );
 }
 
-function RemoveMember({ member, you }: { member: LabMember; you: boolean }) {
+function RemoveMember({ member, you, person }: { member: LabMember; you: boolean; person: PersonAccount | undefined }) {
   const [open, setOpen] = useState(false);
   const [pending, start] = useTransition();
   const who = member.email ?? "this member";
+  const warning = person === undefined ? null : unlinkWarning(person, you ? "Leaving" : "Removing them");
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <Button variant="tertiary" size="compact" onClick={() => setOpen(true)}>
@@ -109,6 +113,7 @@ function RemoveMember({ member, you }: { member: LabMember; you: boolean }) {
             Nothing {you ? "you" : "they"} made is deleted. Uploads, recordings, protocol versions, label fixes, notes and answers stay in the
             lab, credited to a former member.
           </p>
+          {warning === null ? null : <p className="text-content-primary">{warning}</p>}
         </div>
         <DialogDock className="pt-5">
           <Button

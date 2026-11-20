@@ -61,8 +61,17 @@ export const fixtureFailureList: FailureList = FailureList.parse({
 });
 
 
-// Jordan has no account, so he can be named but can't say yes himself.
-const choices = (): ConfirmerChoice[] => people.map((p, i) => ({ id: p.id, name: p.name, you: i === viewer, account: i !== 2 }));
+// Which member's account each People row is: Ade's and Priya's are linked, Jordan's isn't yet,
+// so he can be named but can't say yes until he says "This is me" from his own account.
+const linked = new Map<number, number>([
+  [0, 0],
+  [1, 1],
+]);
+export function resetFixtureLinks(): void {
+  linked.clear();
+  linked.set(0, 0).set(1, 1);
+}
+const choices = (): ConfirmerChoice[] => people.map((p, i) => ({ id: p.id, name: p.name, you: linked.get(i) === viewer, account: linked.has(i) }));
 
 const NO_CONFIRMATION = {
   confirmedCause: null,
@@ -130,6 +139,15 @@ export const fixtureFailureApi = (store: FixtureRunStore): FailureApi => {
       const mine = choices().find((c) => c.you);
       if (run.failure.confirmedBy === null || run.failure.confirmedBy.id !== mine?.id) throw new Error("Only the person named as the confirmer can say yes, from their own account.");
       return update(run, { confirmerAttestedAt: run.failure.confirmerAttestedAt ?? new Date().toISOString() });
+    },
+    claimPerson: async (id, personId) => {
+      await wait(120);
+      const index = people.findIndex((p) => p.id === personId);
+      if (index < 0) throw new Error("That person isn't in the lab's People any more.");
+      if (linked.has(index) && linked.get(index) !== viewer) throw new Error("That person is already linked to another account. An admin can unlink them in Settings, People.");
+      if ([...linked].some(([i, m]) => m === viewer && i !== index)) throw new Error("That account is already linked to someone else in People. Unlink that first.");
+      linked.set(index, viewer);
+      return store.get(id);
     },
     setFailureType: async (id, type) => {
       await wait(120);

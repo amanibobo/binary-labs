@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { RunId } from "@/lib/ids";
+import type { PersonId, RunId } from "@/lib/ids";
 import { ConfirmerChoice, FailureList, type CauseRequest, type ConfirmDraft, type FailureType } from "@/lib/run-failure";
 import { RunRecord } from "@/lib/run-record";
 import { getJson, send } from "./http";
@@ -17,6 +17,8 @@ export type FailureApi = {
   withdrawCause: (id: RunId) => Promise<RunRecord>;
   // Only the named confirmer's own account can say "Yes, I confirmed this".
   attestCause: (id: RunId) => Promise<RunRecord>;
+  // "This is me": the viewer, who isn't anyone in People yet, links themselves to this person.
+  claimPerson: (id: RunId, personId: PersonId) => Promise<RunRecord>;
   setFailureType: (id: RunId, type: FailureType | null) => Promise<RunRecord>;
 };
 
@@ -30,5 +32,6 @@ export const httpFailureApi: FailureApi = {
   confirmCause: (id, draft) => cause(id, { action: "confirm", confirm: draft }),
   withdrawCause: (id) => cause(id, { action: "withdraw" }),
   attestCause: (id) => cause(id, { action: "attest" }),
+  claimPerson: (id, personId) => cause(id, { action: "claim", personId }),
   setFailureType: async (id, type) => RunRecord.parse(await send(`${base}/${id}/failure-type`, "POST", { type })),
 };

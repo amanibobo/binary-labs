@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useId, useTransition } from "react";
+import { useActionState, useId, useTransition, type ReactNode } from "react";
 import { toast } from "sonner";
 import Link from "next/link";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -10,7 +10,9 @@ import { localMapHref, MapNodeId } from "@/lib/map";
 import { Input, Label } from "@/components/ui/field";
 import { addListEntry, removeListEntry, type LabListKind, type ListAddState } from "./actions";
 
-export type LabListEntry = { id: string; name: string; aliases: readonly string[] };
+// `detail` is a line under the aliases and `actions` sit before Map; People uses both for the
+// account a person is linked to.
+export type LabListEntry = { id: string; name: string; aliases: readonly string[]; detail?: string; actions?: ReactNode };
 
 const COPY: Record<LabListKind, { empty: string; nameLabel: string; namePlaceholder: string; aliasLabel: string; aliasPlaceholder: string }> = {
   experiments: {
@@ -44,7 +46,9 @@ export function LabListSection({ kind, entries, isAdmin }: { kind: LabListKind; 
                 {entry.aliases.length === 0 ? null : (
                   <span className="block truncate text-paragraph-small text-content-tertiary">{entry.aliases.join(", ")}</span>
                 )}
+                {entry.detail === undefined ? null : <span className="block truncate text-paragraph-small text-content-tertiary">{entry.detail}</span>}
               </span>
+              {entry.actions}
               <Link
                 href={localMapHref(MapNodeId.parse(`${kind === "experiments" ? "experiment" : "person"}:${entry.id}`))}
                 className={buttonVariants({ variant: "tertiary", size: "compact" })}

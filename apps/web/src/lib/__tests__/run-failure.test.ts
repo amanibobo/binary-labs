@@ -49,7 +49,8 @@ describe("the confirmer's yes", () => {
 
   it("asks only the named confirmer, and says why anyone else waits", () => {
     expect(attestState(confirmed(priya, null), choices)).toEqual({ kind: "yours" });
-    expect(attestState(confirmed(ade, null), choices)).toEqual({ kind: "no_account", name: "Ade" });
+    expect(attestState(confirmed(ade, null), choices)).toEqual({ kind: "no_account", personId: ade, name: "Ade", claimable: false });
+    expect(attestState(confirmed(ade, null), choices.map((c) => ({ ...c, you: false })))).toEqual({ kind: "no_account", personId: ade, name: "Ade", claimable: true });
     expect(attestState(confirmed(ade, null), [{ ...choices[0], account: true }])).toEqual({ kind: "waiting", name: "Ade" });
     expect(attestState(confirmed(priya, "2026-11-12T10:00:00Z"), choices)).toEqual({ kind: "attested", at: "2026-11-12T10:00:00Z" });
     expect(attestState({ confirmedBy: null, confirmerAttestedAt: null }, choices)).toBeNull();
@@ -62,5 +63,6 @@ describe("failure errors", () => {
     expect(failureFailure({ code: "BL912" }).status).toBe(403);
     expect(failureFailure({ code: "BL907" }).status).toBe(404);
     expect(failureFailure({}).status).toBe(500);
+    expect(failureFailure({ code: "BL983" })).toEqual({ status: 409, message: "That account is already linked to someone else in People. Unlink that first." });
   });
 });

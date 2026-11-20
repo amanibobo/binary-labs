@@ -5,7 +5,7 @@ import { SetStatusRequest } from "@/lib/run-record";
 import { runError, setRunStatus } from "@/lib/run-record-store";
 import { runAccess } from "@/lib/run-routes";
 
-// POST says how the run went. A run with a cause written down answers { kind: "has_causes" }
+// POST says how the run went. A run with a cause or a failure type answers { kind: "has_causes" }
 // instead of leaving failed or odd, until the caller sends clearCauses.
 export async function POST(request: NextRequest, ctx: RouteContext<"/api/run-records/[id]/status">) {
   const access = await runAccess(ctx.params);
