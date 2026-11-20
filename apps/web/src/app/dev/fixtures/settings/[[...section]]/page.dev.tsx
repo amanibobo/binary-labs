@@ -9,6 +9,7 @@ import { LabListSection } from "@/app/settings/lab-list-section";
 import { MembersSection } from "@/app/settings/members-section";
 import { DropboxNotice, SettingsSection } from "@/app/settings/sections";
 import { SettingsFrame } from "@/app/settings/settings-frame";
+import { UploaderDownloadSection } from "@/app/settings/uploader-download-section";
 import { AppShell } from "@/components/app-shell";
 import { disconnectedSource, experiments, fixtureShell, members, people, scanningSource } from "@/fixtures/data";
 import { FixtureLabApi } from "@/fixtures/fixture-api";
@@ -16,6 +17,7 @@ import { requireFixtures } from "@/fixtures/gate";
 import { fixturePairing, instruments, waitingInstrument } from "@/fixtures/instruments";
 
 // /dev/fixtures/settings[/<section>]?state=connect|scanning|disconnected&role=admin|member&code=shown|paired&dropbox=<notice>
+// /dev/fixtures/settings/instruments/download[?download=on]
 const State = z.enum(["connect", "scanning", "disconnected"]).catch("scanning");
 const Role = z.enum(["admin", "member"]).catch("admin");
 const Section = SettingsSection.nullable().catch(null);
@@ -47,12 +49,16 @@ export default async function SettingsFixture({ params, searchParams }: Props) {
   const body = (s: SettingsSection): ReactNode => {
     switch (s) {
       case "general":
-        return <GeneralSection labName={LAB} isAdmin={isAdmin} />;
+        return <GeneralSection labName={LAB} isAdmin={isAdmin} budget={{ capUsd: 25, spentUsd: 3.2, resetsAt: "2026-12-01T00:00:00Z" }} />;
       case "members":
         return <MembersSection members={state === "connect" ? members.slice(0, 1) : members} isAdmin={isAdmin} email={email} />;
       case "dropbox":
         return <DropboxSection initial={source} isAdmin={isAdmin} notice={query.dropbox === undefined ? null : DropboxNotice.parse(query.dropbox)} />;
       case "instruments":
+        if (path?.[1] === "download") {
+          const download = query.download === "on" ? { kind: "available" as const, url: "https://downloads.example.org/binary-labs-uploader.exe" } : { kind: "not_yet" as const };
+          return <UploaderDownloadSection download={download} server="https://binary.example.org" isAdmin={isAdmin} />;
+        }
         return <InstrumentsSection instruments={state === "connect" ? [] : shown} isAdmin={isAdmin} shownCode={code === undefined ? null : fixturePairing} />;
       case "experiments":
         return <LabListSection kind="experiments" entries={state === "connect" ? [] : experiments} isAdmin={isAdmin} />;

@@ -1,5 +1,5 @@
 import { SourceKey, type AnswerSentence, type AnswerSource, type AskEvent, type AskStep, type FileSource, type RecentQuestion, type SavedAnswer } from "@/lib/answers";
-import { LocationId, ProtocolId, ProtocolVersionId, QuestionId, Sha256, SourceId, SuggestionId, UserId } from "@/lib/ids";
+import { ExperimentId, LocationId, PersonId, ProtocolId, ProtocolVersionId, QuestionId, Sha256, SourceId, SuggestionId, UserId } from "@/lib/ids";
 import type { LabelSuggestion, ProtocolEditSuggestion } from "@/lib/suggestions";
 import { purification, purificationBody } from "./protocols";
 
@@ -217,6 +217,15 @@ export const protocolEdit: ProtocolEditSuggestion = {
   appliedVersion: null,
 };
 
+const bm3 = ExperimentId.parse("9a1c2c39-5a4e-4c55-9d7b-0c3c1a7a00e1");
+const bm1 = ExperimentId.parse("9a1c2c39-5a4e-4c55-9d7b-0c3c1a7a00e2");
+const ade = PersonId.parse("9a1c2c39-5a4e-4c55-9d7b-0c3c1a7a00f1");
+const mia = PersonId.parse("9a1c2c39-5a4e-4c55-9d7b-0c3c1a7a00f2");
+const ids = (experiment: string | null, person: string | null) => ({
+  experimentId: experiment === null ? null : experiment === "P450 BM3" ? bm3 : bm1,
+  personId: person === null ? null : person === "Ade Okafor" ? ade : mia,
+});
+
 export const labelFixes: LabelSuggestion = {
   kind: "labels",
   id: SuggestionId.parse("9a1c2c39-5a4e-4c55-9d7b-0c3c1a7a0002"),
@@ -230,34 +239,44 @@ export const labelFixes: LabelSuggestion = {
     {
       sha256: Sha256.parse("e".repeat(64)),
       path: "/Lab/People/AO/notes 2026-10-14.txt",
-      current: { cleanName: "Bench notes, Oct 14", date: "2026-10-14", experiment: null, person: "Ade Okafor" },
-      proposed: { cleanName: null, date: null, experiment: "P450 BM3", person: null },
+      current: { cleanName: "Bench notes, Oct 14", date: "2026-10-14", experiment: null, person: "Ade Okafor", ...ids(null, "Ade Okafor") },
+      proposed: { cleanName: null, date: null, experiment: "P450 BM3", person: null, ...ids("P450 BM3", null) },
       reason: "The notes are about batch 3's nickel column and its fractions.",
       applied: false,
     },
     {
       sha256: Sha256.parse("f".repeat(64)),
       path: "/Lab/Instruments/AKTA/SEC_trace_141026.csv",
-      current: { cleanName: "SEC trace, Oct 14", date: "2026-10-14", experiment: null, person: null },
-      proposed: { cleanName: null, date: null, experiment: "P450 BM3", person: "Ade Okafor" },
+      current: { cleanName: "SEC trace, Oct 14", date: "2026-10-14", experiment: null, person: null, ...ids(null, null) },
+      proposed: { cleanName: null, date: null, experiment: "P450 BM3", person: "Ade Okafor", ...ids("P450 BM3", "Ade Okafor") },
       reason: "Run the same day as the batch 3 notes, which mention the SEC run.",
       applied: false,
     },
     {
       sha256: Sha256.parse("2".repeat(64)),
       path: "/Lab/Gels/2026-10 Batch 3/IMG_4822.jpg",
-      current: { cleanName: "Gel photo", date: null, experiment: null, person: null },
-      proposed: { cleanName: "Batch 3 SDS-PAGE gel, second lane set", date: "2026-10-14", experiment: "P450 BM3", person: null },
+      current: { cleanName: "Gel photo", date: null, experiment: null, person: null, ...ids(null, null) },
+      proposed: { cleanName: "Batch 3 SDS-PAGE gel, second lane set", date: "2026-10-14", experiment: "P450 BM3", person: null, ...ids("P450 BM3", null) },
       reason: "It sits in the Batch 3 gels folder beside IMG_4821, taken the same afternoon.",
       applied: false,
     },
     {
       sha256: Sha256.parse("9".repeat(64)),
       path: "/Lab/Data/Batch 3/fractions.csv",
-      current: { cleanName: "Fraction absorbances", date: "2026-10-14", experiment: null, person: null },
-      proposed: { cleanName: null, date: null, experiment: "P450 BM3", person: null },
+      current: { cleanName: "Fraction absorbances", date: "2026-10-14", experiment: null, person: null, ...ids(null, null) },
+      proposed: { cleanName: null, date: null, experiment: "P450 BM3", person: null, ...ids("P450 BM3", null) },
       reason: "It's in the Batch 3 data folder and lists fractions 8 to 12.",
       applied: false,
     },
   ],
+  lists: {
+    experiments: [
+      { id: bm1, name: "P450 BM1" },
+      { id: bm3, name: "P450 BM3" },
+    ],
+    people: [
+      { id: ade, name: "Ade Okafor" },
+      { id: mia, name: "Mia Chen" },
+    ],
+  },
 };

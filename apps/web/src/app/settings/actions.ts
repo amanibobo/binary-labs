@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { AiCapInput } from "@/lib/ai-spend";
 import { audit } from "@/lib/audit";
 import { folderPath } from "@/lib/dropbox";
 import { holdTokens, revokeHeldTokens, sourceAccessToken } from "@/lib/dropbox-session";
@@ -174,6 +175,65 @@ export async function inviteMember(_prev: InviteState, form: FormData): Promise<
     logError("member.invite_failed", { labId: lab.id, error });
     return { kind: "error", message: "We couldn't send that invite. Try again.", email: raw };
   }
+}
+
+// The database checks the admin role and keeps an admin in the lab (BL801); removing someone
+// deletes only their membership (0031_ask_and_settings.sql).
+function memberFailure(error: { code?: string }, verb: "remove" | "change"): string {
+  if (error.code === "BL801") return verb === "remove" ? "The lab needs an admin. Make someone else an admin first." : "The lab needs an admin. Make someone else an admin before changing this role.";
+  if (error.code === "BL802") return "That person isn't in the lab any more.";
+  return verb === "remove" ? "We couldn't remove them. Try again." : "We couldn't change that role. Try again.";
+}
+
+export async function removeMember(rawUserId: string): Promise<ActionResult> {
+  const { supabase, lab, user } = await requireAdmin();
+  const target = UserId.safeParse(rawUserId);
+  if (!target.success) return { kind: "error", message: "That person isn't in the lab any more." };
+  const { error } = await supabase.rpc("remove_member", { p_lab_id: lab.id, p_user_id: target.data });
+  if (error !== null) {
+    if (error.code !== "BL801" && error.code !== "BL802") logError("member.remove_failed", { labId: lab.id, error });
+    return { kind: "error", message: memberFailure(error, "remove") };
+  }
+  if (target.data === user.id) {
+    revalidatePath("/", "layout");
+    redirect("/");
+  }
+  revalidatePath(settingsHref("members"));
+  return { kind: "ok" };
+}
+
+const MemberRole = z.enum(["admin", "member"]);
+
+export async function changeMemberRole(rawUserId: string, rawRole: string): Promise<ActionResult> {
+  const { supabase, lab, user } = await requireAdmin();
+  const target = UserId.safeParse(rawUserId);
+  const role = MemberRole.safeParse(rawRole);
+  if (!target.success || !role.success) return { kind: "error", message: "That person isn't in the lab any more." };
+  const { error } = await supabase.rpc("set_member_role", { p_lab_id: lab.id, p_user_id: target.data, p_role: role.data });
+  if (error !== null) {
+    if (error.code !== "BL801" && error.code !== "BL802") logError("member.role_failed", { labId: lab.id, error });
+    return { kind: "error", message: memberFailure(error, "change") };
+  }
+  // Stepping down as admin changes what every page shows you.
+  if (target.data === user.id) revalidatePath("/", "layout");
+  else revalidatePath(settingsHref("members"));
+  return { kind: "ok" };
+}
+
+export type AiCapState = { kind: "idle" } | { kind: "saved"; capUsd: number } | { kind: "error"; message: string; typed: string };
+
+export async function setAiCap(_prev: AiCapState, form: FormData): Promise<AiCapState> {
+  const { supabase, lab } = await requireAdmin();
+  const typed = String(form.get("cap") ?? "").trim().replace(/^\$/, "");
+  const cap = typed === "" ? null : AiCapInput.safeParse(typed);
+  if (cap === null || !cap.success) return { kind: "error", message: cap?.error.issues[0]?.message ?? "Enter an amount in dollars, like 25.", typed };
+  const { data, error } = await supabase.rpc("set_ai_cap", { p_lab_id: lab.id, p_cap_usd: cap.data });
+  if (error !== null) {
+    logError("lab.ai_cap_failed", { labId: lab.id, error });
+    return { kind: "error", message: "We couldn't save the limit. Try again.", typed };
+  }
+  revalidatePath(settingsHref("general"));
+  return { kind: "saved", capUsd: z.coerce.number().parse(data) };
 }
 
 // Experiments and people: any member can add one, only admins remove one (RLS enforces both).

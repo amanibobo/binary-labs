@@ -25,6 +25,8 @@ export function suggestionError(error: DbError, ctx: { event: string; labId: Lab
       return NextResponse.json({ error: "Pick at least one file from this suggestion." }, { status: 400 });
     case "BL102":
       return NextResponse.json({ error: "This protocol is archived." }, { status: 409 });
+    case "23503":
+      return NextResponse.json({ error: "Pick an experiment and a person from the lab's lists." }, { status: 400 });
     case "BL001":
       return NextResponse.json({ error: "One of these files has no label yet." }, { status: 409 });
     case "23514":
@@ -59,7 +61,11 @@ export async function approve(
       );
     }
     case "labels": {
-      const { data, error } = await supabase.rpc("approve_label_suggestion", { p_id: id, p_shas: req.shas });
+      const { data, error } = await supabase.rpc("approve_label_suggestion", {
+        p_id: id,
+        p_shas: req.shas,
+        p_edits: req.edits.map((e) => ({ sha256: e.sha256, clean_name: e.cleanName, date: e.date, experiment_id: e.experimentId, person_id: e.personId })),
+      });
       if (error !== null) return suggestionError(error, { event: "suggestions.approve_failed", labId });
       const applied = AppliedRows.parse(data).length;
       return NextResponse.json({ kind: "approved", protocolId: null, version: null, applied } satisfies ApproveOutcome, { headers: NO_STORE });

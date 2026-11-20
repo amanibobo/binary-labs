@@ -58,6 +58,9 @@ export const AuditAction = z.enum([
   "note.split",
   "note.keep",
   "note.remove_page",
+  "member.remove",
+  "member.role",
+  "lab.ai_cap",
 ]);
 export type AuditAction = z.infer<typeof AuditAction>;
 

@@ -113,6 +113,8 @@ const ProductionEnv = z.object({
   EMBED_URL: https("EMBED_URL"),
   EMBED_API_KEY: nonEmpty,
   ANTHROPIC_API_KEY: nonEmpty,
+  // Optional until the uploader has a public home; Settings says it isn't available yet.
+  UPLOADER_DOWNLOAD_URL: https("UPLOADER_DOWNLOAD_URL").optional(),
 });
 
 export const PRODUCTION_ENV_NAMES = Object.keys(ProductionEnv.shape);

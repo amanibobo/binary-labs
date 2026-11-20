@@ -160,6 +160,7 @@ describe("asking", () => {
       protocols: async () => (files === null ? [] : [protocol]),
       table: async () => (tableMissing ? null : yields),
       budget: async () => ({ capUsd: cap, spentUsd: spent, resetsAt: "2026-12-01T00:00:00Z" }),
+      protocolEvidence: async () => [],
     };
     const writer: AnswerWriter = {
       cachedOutput: async () => cached,

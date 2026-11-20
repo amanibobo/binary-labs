@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useId, useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -8,6 +9,7 @@ import { InstrumentIcon } from "@/components/icons/drawn";
 import { dataSurface } from "@/components/ui/data-table";
 import { Input, Label } from "@/components/ui/field";
 import { cn } from "@/lib/cn";
+import { UPLOADER_DOWNLOAD_HREF } from "@/lib/uploader-download";
 import { filesLine, PAIRING_MINUTES, seenLine, type Instrument } from "@/lib/instruments";
 import { addInstrument, renewPairingCode, revokeInstrument, type AddInstrumentState, type PairingCode } from "./actions";
 import { ConnectionRow } from "./settings-frame";
@@ -72,6 +74,12 @@ export function InstrumentsSection({ instruments, isAdmin, shownCode }: Props) {
         )}
         {isAdmin ? <AddForm onAdded={setPairing} /> : null}
       </div>
+      <p className="text-paragraph-small text-content-tertiary">
+        Each instrument PC runs a small uploader.{" "}
+        <Link href={UPLOADER_DOWNLOAD_HREF} className="text-content-accent underline underline-offset-2">
+          Get the Windows uploader and the setup steps
+        </Link>
+      </p>
     </div>
   );
 }
@@ -166,7 +174,7 @@ function AddForm({ onAdded }: { onAdded: (pairing: PairingCode) => void }) {
   );
 }
 
-function Command({ text }: { text: string }) {
+export function Command({ text }: { text: string }) {
   return (
     <span className="mt-1.5 flex items-center gap-2 rounded-control border border-border-opaque bg-background-secondary py-1 pr-1 pl-3">
       <code className="min-w-0 flex-1 overflow-x-auto font-mono text-paragraph-small whitespace-nowrap text-content-primary">{text}</code>
@@ -208,8 +216,11 @@ function PairingPanel({ pairing, paired, onDone }: { pairing: PairingCode; paire
           </p>
           <ol className="mt-5 grid grid-cols-1 list-decimal gap-4 pl-5 text-paragraph-medium text-content-secondary marker:text-content-tertiary">
             <li>
-              Copy <span className="font-mono text-paragraph-small text-content-primary">{exe}.exe</span> to the instrument PC, for example into
-              C:\Program Files\Binary.
+              Copy{" "}
+              <Link href={UPLOADER_DOWNLOAD_HREF} className="font-mono text-paragraph-small text-content-accent underline underline-offset-2">
+                {exe}.exe
+              </Link>{" "}
+              to the instrument PC, for example into C:\Program Files\Binary.
             </li>
             <li>
               In Command Prompt on that PC, pair it:

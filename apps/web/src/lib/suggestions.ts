@@ -46,7 +46,9 @@ const LabelFacts = z.object({
   cleanName: z.string().nullable(),
   date: z.string().nullable(),
   experiment: z.string().nullable(),
+  experimentId: ExperimentId.nullable(),
   person: z.string().nullable(),
+  personId: PersonId.nullable(),
 });
 export type LabelFacts = z.infer<typeof LabelFacts>;
 
@@ -61,7 +63,15 @@ export const LabelChange = z.object({
 });
 export type LabelChange = z.infer<typeof LabelChange>;
 
-export const LabelSuggestion = z.object({ ...Common, kind: z.literal("labels"), changes: z.array(LabelChange) });
+const Named = z.object({ id: z.string(), name: z.string() });
+
+export const LabelSuggestion = z.object({
+  ...Common,
+  kind: z.literal("labels"),
+  changes: z.array(LabelChange),
+  // What an edit may pick from.
+  lists: z.object({ experiments: z.array(Named.extend({ id: ExperimentId })), people: z.array(Named.extend({ id: PersonId })) }),
+});
 export type LabelSuggestion = z.infer<typeof LabelSuggestion>;
 
 export const Suggestion = z.discriminatedUnion("kind", [ProtocolEditSuggestion, LabelSuggestion]);
@@ -86,6 +96,49 @@ export const SuggestOutcome = z.discriminatedUnion("kind", [
 ]);
 export type SuggestOutcome = z.infer<typeof SuggestOutcome>;
 
+// A member's own values for one file, in place of what the AI proposed. As in a proposal, a
+// null field leaves the label's value as it is.
+export const LabelEdit = z.object({
+  sha256: Sha256,
+  cleanName: z.string().trim().min(1).max(TITLE_MAX).nullable(),
+  date: z.iso.date().nullable(),
+  experimentId: ExperimentId.nullable(),
+  personId: PersonId.nullable(),
+});
+export type LabelEdit = z.infer<typeof LabelEdit>;
+
+export type LabelDraft = { cleanName: string; date: string; experimentId: string; personId: string };
+
+// The form starts from what the label would become if approved as proposed.
+export function draftOf(change: LabelChange): LabelDraft {
+  return {
+    cleanName: change.proposed.cleanName ?? change.current.cleanName ?? "",
+    date: change.proposed.date ?? change.current.date ?? "",
+    experimentId: change.proposed.experimentId ?? change.current.experimentId ?? "",
+    personId: change.proposed.personId ?? change.current.personId ?? "",
+  };
+}
+
+// What the form sends for one file: null when it says what the proposal says (nothing to
+// edit), otherwise each field that differs from the label now, the rest left as they are.
+export function editOf(change: LabelChange, draft: LabelDraft): LabelEdit | null {
+  const pick = (typed: string, now: string | null): string | null => {
+    const v = typed.trim();
+    return v === "" || v === now ? null : v;
+  };
+  const cleanName = pick(draft.cleanName, change.current.cleanName);
+  const date = pick(draft.date, change.current.date);
+  const experimentId = pick(draft.experimentId, change.current.experimentId);
+  const personId = pick(draft.personId, change.current.personId);
+  const asProposed =
+    cleanName === change.proposed.cleanName &&
+    date === change.proposed.date &&
+    experimentId === change.proposed.experimentId &&
+    personId === change.proposed.personId;
+  if (asProposed) return null;
+  return LabelEdit.parse({ sha256: change.sha256, cleanName, date, experimentId, personId });
+}
+
 export const ApproveRequest = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("protocol_edit"),
@@ -98,7 +151,7 @@ export const ApproveRequest = z.discriminatedUnion("kind", [
       })
       .nullable(),
   }),
-  z.object({ kind: z.literal("labels"), shas: z.array(Sha256).min(1).max(50) }),
+  z.object({ kind: z.literal("labels"), shas: z.array(Sha256).min(1).max(50), edits: z.array(LabelEdit).max(50).default([]) }),
 ]);
 export type ApproveRequest = z.input<typeof ApproveRequest>;
 

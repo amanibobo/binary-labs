@@ -1,6 +1,6 @@
 import type { Client } from "pg";
 import { z } from "zod";
-import { BudgetRows, CachedOutput, ContextRows, ProtocolContextRows, type AnswerWriter, type AskReads } from "../ask";
+import { BudgetRows, CachedOutput, ContextRows, EvidenceRows, ProtocolContextRows, type AnswerWriter, type AskReads } from "../ask";
 import type { DataTables } from "../data-tables";
 import { QuestionId, SuggestionId, type LabId, type UserId } from "../ids";
 import { toVectorLiteral } from "../search";
@@ -52,6 +52,7 @@ export function pgAskReads(
     protocols: ({ query, limit }) => asRole(db, member, async () => ProtocolContextRows.parse(await rows(db, "ask_protocols($1, $2, $3)", [labId, query, limit]))),
     table: async (key) => tables(key),
     budget: () => asRole(db, member, async () => BudgetRows.parse(await rows(db, "ai_budget($1)", [labId]))),
+    protocolEvidence: (protocolId) => asRole(db, member, async () => EvidenceRows.parse(await rows(db, "protocol_evidence($1)", [protocolId]))),
   };
 }
 
