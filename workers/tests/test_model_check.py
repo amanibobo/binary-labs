@@ -113,8 +113,8 @@ def task(rt, conn, make_lab):
         ).fetchone()
         (run,) = conn.execute(
             "insert into runs (lab_id, title, status, status_at, confirmed_cause, confirmed_by,"
-            " confirm_method, confirmed_at) values (%s, 'BM3 prep', 'failed', now(), %s, %s,"
-            " 'control', now()) returning id",
+            " confirm_method, confirmed_at, confirmer_attested_at) values (%s, 'BM3 prep',"
+            " 'failed', now(), %s, %s, 'control', now(), now()) returning id",
             (lab.id, ANSWER_KEY, person),
         ).fetchone()
         conn.execute("update runs set share = true where id = %s", (run,))

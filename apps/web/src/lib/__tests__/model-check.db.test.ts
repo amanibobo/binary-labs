@@ -1,13 +1,17 @@
 import { Client } from "pg";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { CreateLabResult } from "../domain";
-import { LabId, Sha256 } from "../ids";
-import { RunModelChecksJson, tally } from "../model-check";
+import { LabId, RunId, Sha256 } from "../ids";
+import { AnswerId, RunModelChecksJson, tally, TaskId } from "../model-check";
+import { loadModelChecks, writeModelCheck } from "../model-check-store";
+import type { RunDb } from "../run-record-store";
 
 // The model check's functions against the real migrations: as the person who ran the run, as
 // another member of the lab (the second scientist), as a member of another lab, signed out, and
 // as the worker (the owner, which skips row security and writes the answers).
+
+vi.mock("server-only", () => ({}));
 
 const db = new Client({ connectionString: process.env.TEST_DATABASE_URL ?? "postgresql://localhost/binary_labs_web_test" });
 const ada = "00000000-0000-4000-8000-0000000c0001";
@@ -36,6 +40,29 @@ const codeOf = (p: Promise<unknown>) => p.then(() => "ok", (e: { code?: string }
 const owner = (sql: string, params: unknown[] = []) => db.query(sql, params);
 const value = async (sql: string, params: unknown[] = []) => (await owner(sql, params)).rows[0]?.v;
 const count = async (sql: string, params: unknown[] = []) => Number(await value(`select count(*) as v from ${sql}`, params));
+
+// The route's store calls functions the way supabase-js does: by name, with named arguments,
+// as the member under RLS. A wrong function or argument name fails here.
+function memberDb(userId: string): RunDb {
+  return {
+    rpc: async (fn, args) => {
+      const names = Object.keys(args);
+      if (!/^[a-z_]+$/.test(fn) || !names.every((k) => /^[a-z_0-9]+$/.test(k))) throw new Error(`not a function call: ${fn}`);
+      await db.query("begin");
+      try {
+        await db.query("set local role authenticated");
+        await db.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify({ sub: userId })]);
+        const res = await db.query(`select ${fn}(${names.map((k, i) => `${k} => $${i + 1}`).join(", ")}) as v`, Object.values(args));
+        await db.query("commit");
+        return { data: one.parse(res.rows[0]).v, error: null };
+      } catch (err) {
+        await db.query("rollback");
+        const e = z.object({ code: z.string().optional(), message: z.string() }).parse(err);
+        return { data: null, error: { code: e.code, message: e.message } };
+      }
+    },
+  };
+}
 
 let lab: LabId;
 let otherLab: LabId;
@@ -96,7 +123,7 @@ beforeAll(async () => {
   runId = run.id;
   await owner(
     `update runs set status = 'failed', status_at = now(), person_id = $2, confirmed_cause = 'The lysis buffer was pH 9.', confirmed_by = $2,
-       confirm_method = 'control', confirmed_at = now() where id = $1`,
+       confirm_method = 'control', confirmed_at = now(), confirmer_attested_at = now() where id = $1`,
     [runId, adaPerson],
   );
   await owner("insert into run_rubrics (run_id, lab_id, question, rubric) values ($1, $2, 'Why did the prep fail?', $3)", [
@@ -286,5 +313,24 @@ describe("grants", () => {
     );
     expect(granted.filter((f) => f.anon)).toEqual([]);
     expect(granted.filter((f) => f.member).map((f) => f.name)).toEqual(["judge_model_answer", "keep_model_task", "model_check_setup_json", "request_model_check", "run_model_checks_json"]);
+  });
+});
+
+describe("the route's store", () => {
+  it("starts a check, keeps the task and judges an answer by the functions' own names, answering with the whole check", async () => {
+    const run = RunId.parse(runId);
+    const taskId = TaskId.parse(task);
+    const started = await writeModelCheck(memberDb(ben), run, { action: "start", taskId });
+    expect(started.kind).toBe("ok");
+    const check = started.kind === "ok" ? started.value?.tasks[0]?.check : null;
+    expect(check?.answers.map((x) => x.state)).toEqual(["waiting", "waiting", "waiting", "waiting"]);
+    const [first] = check?.answers ?? [];
+    await answer(z.string().parse(first?.id), "unclear");
+    const judged = await writeModelCheck(memberDb(ben), run, { action: "judge", answerId: AnswerId.parse(first?.id), solved: true, note: "Close enough." });
+    expect(judged.kind === "ok" ? judged.value?.tasks[0]?.check?.answers[0] : null).toMatchObject({ solved: true, judgedBy: "Ben", judgedNote: "Close enough." });
+    const kept = await writeModelCheck(memberDb(ben), run, { action: "keep", taskId, keep: true });
+    expect(kept.kind === "ok" ? kept.value?.tasks[0]?.keptBy : null).toBe("Ben");
+    expect(await writeModelCheck(memberDb(ben), run, { action: "start", taskId })).toMatchObject({ kind: "error", error: { code: "BL973" } });
+    expect(await loadModelChecks(memberDb(cy), run)).toBeNull();
   });
 });
