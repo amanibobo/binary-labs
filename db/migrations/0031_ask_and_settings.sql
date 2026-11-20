@@ -163,7 +163,7 @@ end
 $$;
 
 -- Removing a member and changing a role. Admins only, and a lab always keeps an admin: the
--- last one can't remove or demote themselves (BL811). The lab's admins are locked first, so
+-- last one can't remove or demote themselves (BL821). The lab's admins are locked first, so
 -- two admins demoting each other at once can't leave it with none. Removing someone deletes
 -- only their membership: what they made stays, and its author stays their user id.
 create function remove_member(p_lab_id uuid, p_user_id uuid) returns void
@@ -177,10 +177,10 @@ begin
   perform 1 from members where lab_id = p_lab_id and role = 'admin' for update;
   select role into v_role from members where lab_id = p_lab_id and user_id = p_user_id for update;
   if not found then
-    raise exception 'not a member of this lab' using errcode = 'BL812';
+    raise exception 'not a member of this lab' using errcode = 'BL822';
   end if;
   if v_role = 'admin' and (select count(*) from members where lab_id = p_lab_id and role = 'admin') = 1 then
-    raise exception 'a lab keeps at least one admin' using errcode = 'BL811';
+    raise exception 'a lab keeps at least one admin' using errcode = 'BL821';
   end if;
   delete from members where lab_id = p_lab_id and user_id = p_user_id;
   insert into audit_log (lab_id, actor, action, target) values (p_lab_id, auth.uid(), 'member.remove', p_user_id::text);
@@ -198,13 +198,13 @@ begin
   perform 1 from members where lab_id = p_lab_id and role = 'admin' for update;
   select role into v_role from members where lab_id = p_lab_id and user_id = p_user_id for update;
   if not found then
-    raise exception 'not a member of this lab' using errcode = 'BL812';
+    raise exception 'not a member of this lab' using errcode = 'BL822';
   end if;
   if v_role = p_role then
     return;
   end if;
   if v_role = 'admin' and (select count(*) from members where lab_id = p_lab_id and role = 'admin') = 1 then
-    raise exception 'a lab keeps at least one admin' using errcode = 'BL811';
+    raise exception 'a lab keeps at least one admin' using errcode = 'BL821';
   end if;
   update members set role = p_role where lab_id = p_lab_id and user_id = p_user_id;
   insert into audit_log (lab_id, actor, action, target) values (p_lab_id, auth.uid(), 'member.role', p_user_id::text || ':' || p_role::text);
