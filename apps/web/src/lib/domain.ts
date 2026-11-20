@@ -58,6 +58,8 @@ export const AuditAction = z.enum([
   "note.split",
   "note.keep",
   "note.remove_page",
+  "calendar.repeat",
+  "calendar.feed_reset",
 ]);
 export type AuditAction = z.infer<typeof AuditAction>;
 
