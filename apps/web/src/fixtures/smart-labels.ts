@@ -189,3 +189,23 @@ export const voiceNote: FileHit = SearchFilesRows.parse([
     },
   },
 ])[0];
+
+// A folder holding the notebook as uploaded, its 12 pages one by one (each page's label names
+// the note, as label_json does), with the plate 2 read and the plate 4 repeat beside them, for
+// Browse showing the note as one row.
+export const notebookFolderFiles: FileHit[] = (() => {
+  const [cover, plate2, plate4] = smartFiles;
+  const note = cover?.label?.note ?? null;
+  const label = cover?.label ?? null;
+  if (cover === undefined || plate2 === undefined || plate4 === undefined || label === null || label.status === "needs_look" || note === null) return [];
+  const rest = note.pages.slice(1).map(
+    (page): FileHit => ({
+      ...cover,
+      sha256: page.sha256,
+      snippet: null,
+      locations: page.location === null ? cover.locations : [page.location],
+      label: { ...label, cleanName: `HeLa drug A notebook, page ${page.position}`, note: { ...note, position: page.position } },
+    }),
+  );
+  return [plate4, plate2, cover, ...rest];
+})();

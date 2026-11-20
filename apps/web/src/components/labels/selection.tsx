@@ -100,7 +100,7 @@ export function BulkBar({ selection }: { selection: Selection }) {
   return (
     <section
       aria-label="Change the picked files"
-      className="sticky bottom-0 z-20 -mx-3 mt-3 border-t border-border-opaque bg-background-primary px-3 pt-3 pb-4"
+      className="sticky bottom-0 z-20 mt-3 border-t border-border-opaque bg-background-primary px-3 pt-3 pb-4"
     >
       <p className="flex items-baseline justify-between gap-3 text-label-small text-content-primary">
         <span aria-live="polite">
