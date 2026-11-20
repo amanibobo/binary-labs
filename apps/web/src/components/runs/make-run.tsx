@@ -40,9 +40,11 @@ export function MakeRunFromPicked({ shas }: { shas: readonly Sha256[] }) {
       <button type="button" disabled={making || tooMany} onClick={() => void make(shas)} className={buttonVariants({ variant: "secondary", size: "compact" })}>
         {making ? "Making the run" : shas.length === 1 ? "Make a run from this file" : `Make a run from these ${shas.length} files`}
       </button>
-      <span className="text-paragraph-small text-content-tertiary">
-        {tooMany ? `A run takes up to ${MAX_RUN_FILES} files at a time.` : "A run is one attempt at an experiment. You can say how it went on the next page."}
-      </span>
+      {tooMany ? (
+        <span className="text-paragraph-small text-content-secondary">A run takes up to {MAX_RUN_FILES} files at a time.</span>
+      ) : (
+        <span className="text-paragraph-small text-content-tertiary max-sm:hidden">A run is one attempt at an experiment. You can say how it went on the next page.</span>
+      )}
     </div>
   );
 }

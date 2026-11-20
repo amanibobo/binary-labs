@@ -55,6 +55,7 @@ const shots = [
   ...askShots(),
   ...smartLabelShots(),
   ...driveShots(),
+  ...runRecordShots(),
 ];
 
 // The Search home and its rows, quiet until opened: the home with recent questions, results,
@@ -156,6 +157,42 @@ function calendarShots() {
 
 // Checks and flags: the check editor, a flag on a file's row and opened view, the Flags list,
 // answering a flag, and a protocol page with its checks.
+// The run record: the lab's runs with "Turn these into runs?", one run that failed, a retry
+// whose status was read from its file, a run nobody has marked (one file removed, one not kept
+// yet), and making a run from picked files.
+function runRecordShots() {
+  const r = (view) => `/dev/fixtures/run-records?view=${view}`;
+  const all = (shot) => ["dark", "light"].flatMap((scheme) => [1440, 390].map((width) => ({ ...shot, width, scheme })));
+  return [
+    ...all({ name: "runs-list", path: r("list") }),
+    { name: "runs-empty", path: r("empty"), width: 1440, scheme: "light" },
+    ...all({ name: "run-failed", path: r("failed") }),
+    ...all({ name: "run-retry", path: r("retry") }),
+    ...all({ name: "run-unmarked", path: r("unmarked") }),
+    {
+      name: "run-retry-picker",
+      path: r("unmarked"),
+      steps: async (page) => {
+        await page.getByRole("radio", { name: /^Odd/ }).click();
+        await page.getByRole("button", { name: "Pick the run this retries" }).click();
+        await page.getByRole("list", { name: "Earlier runs" }).getByRole("button").first().waitFor();
+      },
+      width: 1440,
+      scheme: "light",
+    },
+    ...all({
+      name: "runs-make",
+      path: results,
+      steps: async (page) => {
+        await page.getByRole("button", { name: "Select" }).first().click();
+        await page.getByRole("checkbox").nth(1).click();
+        await page.getByRole("checkbox").nth(2).click();
+        await page.getByRole("button", { name: "Make a run from these 2 files" }).waitFor();
+      },
+    }).map((shot) => ({ ...shot, full: false })),
+  ];
+}
+
 // The lab drive: its folders, one folder, a file's newest version and older ones.
 function driveShots() {
   const d = (query) => `/dev/fixtures/drive?${query}`;
