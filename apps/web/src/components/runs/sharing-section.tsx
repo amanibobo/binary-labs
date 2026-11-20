@@ -2,9 +2,8 @@
 
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
-import { When } from "@/components/ui/when";
 import { cn } from "@/lib/cn";
 import { blockWords, folderCount, RUN_SHARE_DRAFT_NOTE, RUN_SHARE_MEANING, SENT_COPIES_LINE, sharingLogLine, type RunSharing, type SharingLogEntry } from "./api/sharing";
 import { Button } from "../ui/button";
@@ -13,6 +12,21 @@ import { useRunsApi } from "./runs-api";
 import { RunSection, type RunSectionProps } from "./section";
 
 const SHORT_HISTORY = 5;
+
+const noSubscribe = () => () => {};
+const minute = (iso: string, timeZone?: string) =>
+  new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", timeZone }).format(new Date(iso));
+
+// When a sharing change happened, to the minute, in the reader's own time zone once the
+// browser has the page (the server can't know it, so it renders UTC and says so).
+function Minute({ iso }: { iso: string }) {
+  const text = useSyncExternalStore(
+    noSubscribe,
+    () => minute(iso),
+    () => `${minute(iso, "UTC")} UTC`,
+  );
+  return <time dateTime={iso}>{text}</time>;
+}
 
 // Who changed sharing and who asked to export, newest first. `subject` names the run in each
 // line: "this run" on its own page, its title in the lab's log.
@@ -26,7 +40,7 @@ export function SharingHistory({ log, subject }: { log: readonly SharingLogEntry
           <li key={entry.id} className={cn(dataRow, "px-4 py-2.5")}>
             <p className="text-paragraph-small text-content-primary [overflow-wrap:anywhere]">{sharingLogLine(entry, subject(entry))}</p>
             <p className="text-paragraph-xsmall text-content-tertiary">
-              <When iso={entry.at} />
+              <Minute iso={entry.at} />
             </p>
           </li>
         ))}
