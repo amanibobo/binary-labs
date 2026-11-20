@@ -65,6 +65,8 @@ export const AuditAction = z.enum([
   "lab.ai_cap",
   "run.export",
   "run.export_blocked",
+  "person.link",
+  "person.unlink",
 ]);
 export type AuditAction = z.infer<typeof AuditAction>;
 
