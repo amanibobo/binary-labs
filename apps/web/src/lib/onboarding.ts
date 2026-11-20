@@ -405,6 +405,7 @@ export type HelpAnswerId =
   | "make-run"
   | "needs-look"
   | "older-version"
+  | "run-protocol"
   | "map"
   | "learn"
   | "talk-through"
@@ -506,6 +507,13 @@ export const HELP_ANSWERS: readonly HelpAnswer[] = [
     group: "find",
     question: "See an older version of a file",
     answer: "In Browse, choose Clean names, find the file and click its versions, like “4 versions”. Pick one to see what changed and open it as it was.",
+    clip: null,
+  },
+  {
+    id: "run-protocol",
+    group: "find",
+    question: "Say what changed from the protocol",
+    answer: "On a run's page, under Protocol, pick the protocol you followed and say whether you did it exactly as written. If not, change the steps you did differently and Binary lists each change.",
     clip: null,
   },
   {

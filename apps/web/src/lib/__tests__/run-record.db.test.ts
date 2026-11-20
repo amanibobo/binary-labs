@@ -595,11 +595,22 @@ describe("grants", () => {
              has_function_privilege('anon', p.oid, 'execute') as anon
            from pg_proc p join pg_namespace n on n.oid = p.pronamespace
            where n.nspname = 'public' and p.oid >= (select min(oid) from pg_proc where proname = 'run_files_check')
+             and p.oid <= (select max(oid) from pg_proc where proname = 'run_file')
            order by 1`,
         )
       ).rows,
     );
     expect(added.filter((f) => f.anon)).toEqual([]);
+    const later = z.array(z.object({ name: z.string() })).parse(
+      (
+        await owner(
+          `select p.proname as name from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+           where n.nspname = 'public' and p.oid > (select max(oid) from pg_proc where proname = 'run_file')
+             and has_function_privilege('anon', p.oid, 'execute')`,
+        )
+      ).rows,
+    );
+    expect(later).toEqual([]);
     expect(added.filter((f) => f.member).map((f) => f.name)).toEqual([
       "add_run_files", "create_run", "dismiss_run_suggestions", "edit_run", "file_runs", "is_recording", "lab_runs", "link_retry",
       "remove_run_file", "retry_candidates", "run_file", "run_json", "run_ref_json", "run_suggestions", "set_run_status",
