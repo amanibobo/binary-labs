@@ -417,6 +417,9 @@ export const SearchFilters = z.object({
   prefix: z.string().trim().min(1).max(500).optional(),
   from: z.iso.date().optional(),
   to: z.iso.date().optional(),
+  // From the file's label: one outcome, and only files whose label says Check this.
+  outcome: LabelOutcome.optional(),
+  check: z.stringbool().pipe(z.literal(true)).optional(),
 });
 export type SearchFilters = z.infer<typeof SearchFilters>;
 

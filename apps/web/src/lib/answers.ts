@@ -326,10 +326,65 @@ export const RecentQuestionRows = z.array(
     ),
 );
 
-// The Search home shows the lab's last three questions and loads up to fifty (the most recent_questions
-// returns) for "Show all", which opens them in place.
-export const RECENT_QUESTIONS_LOADED = 50;
+// The Search home shows the lab's last three questions, and "Show all" when there are more,
+// which leads to the Questions page. One more is loaded to know whether there are.
 export const RECENT_QUESTIONS_SHOWN = 3;
+export const RECENT_QUESTIONS_LOADED = RECENT_QUESTIONS_SHOWN + 1;
+
+export const QUESTIONS_HREF = "/questions";
+
+// Opening a question from the Questions page: the Search page with it typed in and its saved
+// answer open, as a reload of an answer does.
+export function questionHref(q: Pick<RecentQuestion, "id" | "question">): string {
+  return `/?${new URLSearchParams({ q: q.question, ask: q.id })}`;
+}
+
+// The Questions page: every question the lab asked, newest first, a page at a time, with a
+// search over the questions and their answers. A page ends at its last question, which is
+// where the next one starts.
+export const QUESTIONS_PAGE_SIZE = 50;
+
+export const QuestionCursor = z.object({ at: Timestamp, id: QuestionId });
+export type QuestionCursor = z.infer<typeof QuestionCursor>;
+
+export const QuestionsQuery = z.object({
+  q: z.string().trim().max(300).optional(),
+  before: QuestionCursor.optional(),
+});
+export type QuestionsQuery = z.infer<typeof QuestionsQuery>;
+
+// On the wire: ?q=…&before_at=…&before_id=…, both halves of the cursor or neither.
+export function questionsSearchParams(query: QuestionsQuery): URLSearchParams {
+  const params = new URLSearchParams();
+  if (query.q !== undefined && query.q !== "") params.set("q", query.q);
+  if (query.before !== undefined) {
+    params.set("before_at", query.before.at);
+    params.set("before_id", query.before.id);
+  }
+  return params;
+}
+
+export function parseQuestionsQuery(params: URLSearchParams): QuestionsQuery | null {
+  const at = params.get("before_at");
+  const id = params.get("before_id");
+  if ((at === null) !== (id === null)) return null;
+  const parsed = QuestionsQuery.safeParse({
+    q: params.get("q") ?? undefined,
+    before: at === null || id === null ? undefined : { at, id },
+  });
+  return parsed.success ? parsed.data : null;
+}
+
+export const QuestionsPage = z.object({ questions: z.array(RecentQuestion), next: QuestionCursor.nullable() });
+export type QuestionsPage = z.infer<typeof QuestionsPage>;
+
+// search_questions is asked for one row past the page, so a full last page doesn't offer an
+// empty one after it.
+export function questionsPage(rows: readonly RecentQuestion[], size = QUESTIONS_PAGE_SIZE): QuestionsPage {
+  const questions = rows.slice(0, size);
+  const last = questions.at(-1);
+  return { questions, next: rows.length > size && last !== undefined ? { at: last.askedAt, id: last.id } : null };
+}
 
 // What the Search page needs to ask: whether a model is set up, the lab's recent questions
 // and how many suggestions wait for someone.

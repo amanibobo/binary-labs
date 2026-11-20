@@ -2,9 +2,10 @@
 
 import { DropdownMenu, Popover } from "radix-ui";
 import { useId, type ReactNode } from "react";
-import { FILE_KINDS, FileKind, type SearchFilters } from "@/lib/domain";
+import { FILE_KINDS, FileKind, LabelOutcome, type SearchFilters } from "@/lib/domain";
 import { hasFilters } from "@/lib/filters";
 import { formatDay, KIND_LABELS } from "@/lib/format";
+import { OUTCOME_FILTER_NAMES } from "@/lib/row-summary";
 import { cn } from "@/lib/cn";
 import { CheckIcon, ChevronDownIcon, DeleteIcon } from "../icons/base-web";
 import { FilterIcon } from "../icons/drawn";
@@ -57,6 +58,10 @@ export function Filters({ id, open, value, onChange }: { id: string; open: boole
         <Chip text={value.prefix} mono onRemove={() => onChange({ ...value, prefix: undefined })} />
       )}
       {dates === null ? null : <Chip text={dates} onRemove={() => onChange({ ...value, from: undefined, to: undefined })} />}
+      {value.outcome === undefined ? null : (
+        <Chip text={OUTCOME_FILTER_NAMES[value.outcome]} onRemove={() => onChange({ ...value, outcome: undefined })} />
+      )}
+      {value.check === undefined ? null : <Chip text="Check this" onRemove={() => onChange({ ...value, check: undefined })} />}
     </div>
   );
 }
@@ -179,6 +184,43 @@ function FilterMenus({ id, value, onChange }: { id: string; value: SearchFilters
           </Popover.Content>
         </Popover.Portal>
       </Popover.Root>
+
+      <DropdownMenu.Root>
+        <DropdownMenu.Trigger className={menuTrigger(value.outcome !== undefined)}>
+          <TriggerLabel>{value.outcome === undefined ? "Any outcome" : OUTCOME_FILTER_NAMES[value.outcome]}</TriggerLabel>
+        </DropdownMenu.Trigger>
+        <DropdownMenu.Portal>
+          <DropdownMenu.Content align="start" sideOffset={6} className={menuSurface}>
+            <DropdownMenu.RadioGroup
+              value={value.outcome ?? ""}
+              onValueChange={(next) => {
+                const outcome = LabelOutcome.safeParse(next);
+                onChange({ ...value, outcome: outcome.success ? outcome.data : undefined });
+              }}
+            >
+              {(["", ...LabelOutcome.options] as const).map((outcome) => (
+                <DropdownMenu.RadioItem key={outcome} value={outcome} className={menuItem}>
+                  <span className="flex-1">{outcome === "" ? "Any outcome" : OUTCOME_FILTER_NAMES[outcome]}</span>
+                  <DropdownMenu.ItemIndicator>
+                    <CheckIcon />
+                  </DropdownMenu.ItemIndicator>
+                </DropdownMenu.RadioItem>
+              ))}
+            </DropdownMenu.RadioGroup>
+          </DropdownMenu.Content>
+        </DropdownMenu.Portal>
+      </DropdownMenu.Root>
+
+      {/* Files whose labels Binary guessed and wants someone to look over. */}
+      <button
+        type="button"
+        aria-pressed={value.check === true}
+        onClick={() => onChange({ ...value, check: value.check === true ? undefined : true })}
+        className={cn(menuTrigger(value.check === true), "px-2.5")}
+      >
+        {value.check === true ? <CheckIcon className="size-5 shrink-0" /> : null}
+        Check this only
+      </button>
 
       {hasFilters(value) ? (
         <button type="button" onClick={() => onChange({})} className={cn(menuTrigger(false), "px-2.5 text-content-tertiary")}>

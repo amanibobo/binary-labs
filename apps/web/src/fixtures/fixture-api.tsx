@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 import { LabApiProvider, type LabApi } from "@/components/lab-api";
 import { OnboardingSaveProvider } from "@/components/onboarding/onboarding-context";
 import type { FileHit } from "@/lib/domain";
+import { matchesFilters } from "@/lib/filters";
 import type { SourceState } from "@/lib/source-state";
 import type { TalkThrough } from "@/lib/talk-throughs";
 import type { ProtocolVideo } from "@/lib/videos";
@@ -114,10 +115,10 @@ export function FixtureLabApi({
   const api: LabApi = {
     search: async (params, signal) => {
       await wait(120, signal);
-      const hits = fixtureResults(params.q);
+      const hits = withLabels(fixtureResults(params.q)).filter((h) => matchesFilters(h, params));
       return mode === "hybrid"
-        ? { kind: "hybrid", results: withLabels(hits), protocols: protocolHits }
-        : { kind: "keyword", reason: "embed_timeout", results: withLabels(keywordOnly(hits)), protocols: protocolHits };
+        ? { kind: "hybrid", results: hits, protocols: protocolHits }
+        : { kind: "keyword", reason: "embed_timeout", results: keywordOnly(hits), protocols: protocolHits };
     },
     sourceState: async () => source,
     folders: async (path, signal) => {

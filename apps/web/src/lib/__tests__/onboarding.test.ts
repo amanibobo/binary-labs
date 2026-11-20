@@ -136,7 +136,7 @@ describe("how do I", () => {
 
   it("covers the newer parts of the app", () => {
     const ids = HELP_ANSWERS.map((a) => a.id);
-    for (const id of ["ask", "map", "calendar", "flag", "chart", "wells", "standard-curve", "ic50", "test", "export", "invite"] as const) {
+    for (const id of ["ask", "old-questions", "filter", "keys", "map", "calendar", "flag", "chart", "wells", "standard-curve", "ic50", "test", "export", "invite"] as const) {
       expect(ids).toContain(id);
     }
   });

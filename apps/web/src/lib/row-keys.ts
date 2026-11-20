@@ -24,3 +24,38 @@ export function rowStep({ key, index, count }: { key: RowKey; index: number; cou
     }
   }
 }
+
+// Letters on a file row: E edits its labels and C makes a chart from a data sheet. They never
+// fire while someone types in a field, with Ctrl, Alt or Cmd held (the browser's shortcuts stay
+// its own), or while a key repeats.
+export type RowShortcut = "edit" | "chart";
+
+export function rowShortcut({
+  key,
+  modified,
+  repeat,
+  typing,
+  sheet,
+}: {
+  key: string;
+  modified: boolean;
+  repeat: boolean;
+  typing: boolean;
+  sheet: boolean;
+}): RowShortcut | null {
+  if (modified || repeat || typing) return null;
+  switch (key.toLowerCase()) {
+    case "e":
+      return "edit";
+    case "c":
+      return sheet ? "chart" : null;
+    default:
+      return null;
+  }
+}
+
+// Where a key press counts as typing: a text field, a list box or anything editable.
+export function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  return target.isContentEditable || target.closest("input, textarea, select, [contenteditable]") !== null;
+}
