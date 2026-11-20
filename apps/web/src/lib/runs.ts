@@ -27,6 +27,46 @@ export type RunChoices = z.infer<typeof RunChoicesWire>;
 
 export const RunsQuery = z.object({ sha256: z.array(Sha256).min(1).max(12) });
 
+// What a run is read from: the file's live places, its label and its experiment's name.
+export const LOCATION_RUN_COLUMNS = "id, sha256, original_name, modified_at";
+export const LocationRunRows = z.array(z.object({ id: LocationId, sha256: Sha256, original_name: z.string(), modified_at: z.string() }));
+export const LABEL_RUN_COLUMNS = "sha256, clean_name, date, outcome, experiment_id";
+export const LabelRunRows = z.array(
+  z.object({ sha256: Sha256, clean_name: z.string().nullable(), date: z.string().nullable(), outcome: LabelOutcome.nullable(), experiment_id: z.string().nullable() }),
+);
+export const ExperimentRows = z.array(z.object({ id: z.string(), name: z.string() }));
+
+// Each wanted file that still has a place in the lab, in the order asked, named by its label's
+// title, dated by its label's day (else the day the file last changed), with its outcome.
+export function assembleRuns(
+  wanted: readonly Sha256[],
+  locations: z.infer<typeof LocationRunRows>,
+  labels: z.infer<typeof LabelRunRows>,
+  experiments: z.infer<typeof ExperimentRows>,
+): RunInfo[] {
+  const named = new Map(labels.map((l) => [l.sha256, l]));
+  const experimentName = new Map(experiments.map((e) => [e.id, e.name]));
+  // Locations come newest first; the first place of each file names it.
+  const place = new Map<Sha256, z.infer<typeof LocationRunRows>[number]>();
+  for (const l of locations) if (!place.has(l.sha256)) place.set(l.sha256, l);
+  return wanted.flatMap((sha) => {
+    const p = place.get(sha);
+    if (p === undefined) return [];
+    const label = named.get(sha);
+    const experimentId = label?.experiment_id ?? null;
+    return [
+      {
+        sha256: sha,
+        locationId: p.id,
+        name: label?.clean_name ?? p.original_name,
+        date: label?.date ?? p.modified_at.slice(0, 10),
+        outcome: label?.outcome ?? null,
+        experiment: experimentId === null ? null : (experimentName.get(experimentId) ?? null),
+      },
+    ];
+  });
+}
+
 export function isFailed(run: RunInfo | undefined): boolean {
   return run?.outcome === "failed";
 }

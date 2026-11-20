@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { linearScale, niceDomain, textWidth, TICK_FONT, TITLE_FONT, LABEL_FONT, type Tick } from "./chart-geometry";
-import { CheckRange, CheckSpec, formatNumber, measureText, rangeText, type CheckSpec as Check } from "./checks";
+import { CheckRange, CheckSpec, CheckSpecs, formatNumber, measureText, rangeText, type CheckSpec as Check } from "./checks";
 import { formatDate } from "./data-tables";
-import { CheckId, FlagId, ProtocolId } from "./ids";
+import { CheckId, FlagId, ProtocolId, Sha256 } from "./ids";
 import { RunInfo, isFailed, runName } from "./runs";
 
 // A protocol check's results across runs (decisions.md, "charts round 2"): each file the check
@@ -39,6 +39,47 @@ export const RunHistoryWire = z.object({
   checks: z.array(z.object({ id: CheckId, name: z.string() })),
   runs: z.array(HistoryRun),
 }) satisfies z.ZodType<RunHistory>;
+
+// The rows a history is read from: the worker's results for the check, the versions they cite,
+// and the open flags that link a flagged run to its page.
+export const HISTORY_RESULT_COLUMNS = "sha256, protocol_version_id, outcome, observed, unit, reason";
+export const ResultRows = z.array(
+  z.object({ sha256: Sha256, protocol_version_id: z.string(), outcome: z.enum(RESULTS), observed: z.number().nullable(), unit: z.string().nullable(), reason: z.string().nullable() }),
+);
+export const VersionRows = z.array(z.object({ id: z.string(), version: z.number().int().positive(), expected_values: CheckSpecs }));
+export const OpenFlagRows = z.array(z.object({ id: FlagId, sha256: Sha256 }));
+
+// The history from those rows: each result with the range of the version it was checked
+// against, oldest run first. Null when no version has the check. A result whose file is gone
+// from the lab, or whose version no longer holds the check, is left out.
+export function assembleHistory(input: {
+  protocol: { id: ProtocolId; title: string };
+  current: readonly Check[];
+  checkId: CheckId;
+  results: z.infer<typeof ResultRows>;
+  versions: z.infer<typeof VersionRows>;
+  runs: readonly RunInfo[];
+  flags: z.infer<typeof OpenFlagRows>;
+}): RunHistory | null {
+  const { checkId, current, versions } = input;
+  const held = new Map(versions.map((v) => [v.id, { version: v.version, check: v.expected_values.find((c) => c.id === checkId) }]));
+  const check = current.find((c) => c.id === checkId) ?? [...versions].sort((a, b) => b.version - a.version).flatMap((v) => v.expected_values.filter((c) => c.id === checkId))[0];
+  if (check === undefined) return null;
+  const runOf = new Map(input.runs.map((r) => [r.sha256, r]));
+  const flagOf = new Map(input.flags.map((f) => [f.sha256, f.id]));
+  const runs = input.results.flatMap((r): HistoryRun[] => {
+    const run = runOf.get(r.sha256);
+    const by = held.get(r.protocol_version_id);
+    if (run === undefined || by?.check === undefined) return [];
+    return [{ run, observed: r.observed, result: r.outcome, reason: r.reason, range: by.check.range, unit: r.unit ?? by.check.unit, version: by.version, flagId: flagOf.get(r.sha256) ?? null }];
+  });
+  return {
+    protocol: input.protocol,
+    check,
+    checks: (current.length > 0 ? current : [check]).map((c) => ({ id: c.id, name: c.name })),
+    runs: runs.sort(historyOrder),
+  };
+}
 
 export function historyHref(protocolId: ProtocolId, checkId: CheckId): string {
   return `/protocols/${protocolId}/runs?${new URLSearchParams({ check: checkId })}`;
