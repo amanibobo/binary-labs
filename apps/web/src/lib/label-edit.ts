@@ -38,7 +38,7 @@ const MAX_TAGS = 20;
 const MAX_SUMMARY = 400;
 const MAX_VALUE = 80;
 
-const DATE_HINT = "Use a date like 2026-10-14 or Oct 14 2026.";
+export const DATE_HINT = "Use a date like 2026-10-14 or Oct 14 2026.";
 
 const MONTHS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
 
@@ -330,6 +330,8 @@ export function optimisticLabel(label: Label, draft: LabelDraft): Label {
     unclear: [],
     followUp: answered ? null : q,
     note: label.note,
+    repeatOf: label.repeatOf,
+    repeatedIn: label.repeatedIn,
     status: accepted ? "accepted" : "corrected",
     confidence: 1,
   };

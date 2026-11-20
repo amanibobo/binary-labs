@@ -169,13 +169,20 @@ export type LabelDetails = {
   noteKind: NoteKind | null;
 };
 
+// Another labeled file as a label points at it: a run this one repeats, or a repeat of it.
+export const FileRef = z.object({ sha256: Sha256, name: z.string() });
+export type FileRef = z.infer<typeof FileRef>;
+
 // What Binary adds that a person reads but doesn't set directly: two other titles while it's
-// unsure, what it couldn't read, a voice note's question, and the note the file belongs to.
+// unsure, what it couldn't read, a voice note's question (null once skipped), the note the file
+// belongs to, and the runs it repeats or that repeat it.
 export type LabelHints = {
   alternatives: string[];
   unclear: string[];
   followUp: FollowUp | null;
   note: NoteInfo | null;
+  repeatOf: FileRef | null;
+  repeatedIn: FileRef[];
 };
 
 // "Needs a look" is the one state with no name to show.
@@ -194,6 +201,8 @@ export const PLAIN_LABEL: Pick<LabelDetails, "outcome" | "summary" | "conditions
   unclear: [],
   followUp: null,
   note: null,
+  repeatOf: null,
+  repeatedIn: [],
 };
 
 export function needsCheck(label: Label | null): boolean {
@@ -260,9 +269,11 @@ export const LabelRow = z
     note_kind: NoteKind.nullable().default(null),
     follow_up: FollowUp.nullable().default(null),
     note: NoteRow.nullable().default(null),
+    repeat_of: FileRef.nullable().default(null),
+    repeated_in: z.array(FileRef).default([]),
   })
-  .transform(({ clean_name, note_kind, follow_up, ...r }, ctx) =>
-    toLabel({ ...r, cleanName: clean_name, noteKind: note_kind, followUp: follow_up }, ctx),
+  .transform(({ clean_name, note_kind, follow_up, repeat_of, repeated_in, ...r }, ctx) =>
+    toLabel({ ...r, cleanName: clean_name, noteKind: note_kind, followUp: follow_up, repeatOf: repeat_of, repeatedIn: repeated_in }, ctx),
   );
 
 export const LabelWire = z
@@ -272,6 +283,8 @@ export const LabelWire = z
     noteKind: NoteKind.nullable().default(null),
     followUp: FollowUp.nullable().default(null),
     note: NoteWire.nullable().default(null),
+    repeatOf: FileRef.nullable().default(null),
+    repeatedIn: z.array(FileRef).default([]),
   })
   .transform((r, ctx) => toLabel(r, ctx)) satisfies z.ZodType<Label, unknown>;
 
