@@ -107,7 +107,7 @@ function RemoveMember({ member, you }: { member: LabMember; you: boolean }) {
           <p>{you ? "You lose access to the lab at once." : "They lose access to the lab at once."} An admin can invite {you ? "you" : "them"} again later.</p>
           <p>
             Nothing {you ? "you" : "they"} made is deleted. Uploads, recordings, protocol versions, label fixes, notes and answers stay in the
-            lab under {you ? "your" : "their"} name.
+            lab, credited to a former member.
           </p>
         </div>
         <DialogDock className="pt-5">

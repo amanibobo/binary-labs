@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 import { labelFixes } from "@/fixtures/answers";
 import { draftOf, editOf, type LabelChange } from "../suggestions";
 
-const [notes, sec, gel] = labelFixes.changes as [LabelChange, LabelChange, LabelChange, LabelChange];
+function change(i: number): LabelChange {
+  const found = labelFixes.changes[i];
+  if (found === undefined) throw new Error(`no change ${i}`);
+  return found;
+}
+const [notes, sec, gel] = [change(0), change(1), change(2)];
 const bm1 = labelFixes.lists.experiments.find((e) => e.name === "P450 BM1")?.id ?? "";
 const mia = labelFixes.lists.people.find((p) => p.name === "Mia Chen")?.id ?? "";
 

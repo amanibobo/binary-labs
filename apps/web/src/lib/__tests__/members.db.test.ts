@@ -35,7 +35,7 @@ const audited = async (action: string) => Number((await db.query("select count(*
 
 beforeAll(async () => {
   await db.connect();
-  await db.query("insert into auth.users (id, email) values ($1, 'dee@lab.edu'), ($2, 'eli@lab.edu'), ($3, 'fay@lab.edu'), ($4, 'gus@other.edu')", [dee, eli, fay, gus]);
+  await db.query("insert into auth.users (id, email) values ($1, 'dee.members@lab.test'), ($2, 'eli.members@lab.test'), ($3, 'fay.members@lab.test'), ($4, 'gus.members@other.test')", [dee, eli, fay, gus]);
   lab = CreateLabResult.parse(await asRole(db, as(dee), () => scalar(db, "create_lab('Members Lab')", [])));
   other = CreateLabResult.parse(await asRole(db, as(gus), () => scalar(db, "create_lab('Other Members Lab')", [])));
   await db.query("insert into members (lab_id, user_id, role) values ($1, $2, 'member'), ($1, $3, 'member')", [lab, eli, fay]);

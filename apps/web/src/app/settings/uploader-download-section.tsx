@@ -11,7 +11,7 @@ const FOLDER = "C:\\Program Files\\Binary";
 const EXE = `"${FOLDER}\\${UPLOADER_EXE}"`;
 
 function Step({ children }: { children: ReactNode }) {
-  return <li className="pl-1">{children}</li>;
+  return <li className="min-w-0 pl-1">{children}</li>;
 }
 
 // The Windows uploader: what it is, who sets it up, and the steps, in the order they're done.
@@ -21,7 +21,7 @@ export function UploaderDownloadSection({ download, server, isAdmin }: { downloa
       <Link href={settingsHref("instruments")} className="-mt-4 text-label-medium text-content-tertiary transition-colors duration-150 ease-out hover:text-content-primary">
         Back to instruments
       </Link>
-      <section aria-labelledby="uploader-title" className={cn(dataSurface, "p-5 sm:p-6")}>
+      <section aria-labelledby="uploader-title" className={cn(dataSurface, "min-w-0 p-5 sm:p-6")}>
         <h2 id="uploader-title" className="text-heading-xsmall text-content-primary">
           Instrument uploader for Windows
         </h2>
@@ -46,12 +46,12 @@ export function UploaderDownloadSection({ download, server, isAdmin }: { downloa
         </div>
       </section>
 
-      <section aria-labelledby="uploader-steps">
+      <section aria-labelledby="uploader-steps" className="min-w-0">
         <h2 id="uploader-steps" className="text-label-large text-content-primary">
           Set it up
         </h2>
         <p className="mt-0.5 text-paragraph-small text-content-tertiary">About ten minutes. Do every step at the instrument PC, as the same Windows user.</p>
-        <ol className="mt-4 grid list-decimal gap-5 pl-5 text-paragraph-medium text-content-secondary marker:text-content-tertiary">
+        <ol className="mt-4 grid grid-cols-1 list-decimal gap-5 pl-5 text-paragraph-medium text-content-secondary marker:text-content-tertiary">
           <Step>
             Make a folder <span className="font-mono text-paragraph-small text-content-primary">{FOLDER}</span> and put {UPLOADER_EXE} in it.
           </Step>

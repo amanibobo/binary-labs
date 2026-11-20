@@ -403,7 +403,9 @@ export type HelpAnswerId =
   | "ic50"
   | "test"
   | "export"
-  | "invite";
+  | "invite"
+  | "members"
+  | "instrument";
 
 // A clip where seeing it helps; a few answers are clear in words alone.
 export type HelpAnswer = { id: HelpAnswerId; group: HelpGroupId; question: string; answer: string; clip: ClipId | null };
@@ -534,6 +536,20 @@ export const HELP_ANSWERS: readonly HelpAnswer[] = [
     question: "Invite someone",
     answer: "Choose Invite people above Settings and type their email; they get a link to sign in. Only admins invite, so ask yours if you don't see it.",
     clip: "invite",
+  },
+  {
+    id: "members",
+    group: "lab",
+    question: "Remove someone or make them an admin",
+    answer: "In Settings, Members, an admin picks Admin or Member beside a person, or chooses Remove, which deletes nothing they made. A lab always keeps one admin.",
+    clip: null,
+  },
+  {
+    id: "instrument",
+    group: "lab",
+    question: "Connect an instrument PC",
+    answer: "In Settings, Instruments, choose Get the Windows uploader and the setup steps. An admin adds the instrument, gets a pairing code and runs the uploader on its PC; new files then show up under Browse in Instruments.",
+    clip: null,
   },
 ];
 
