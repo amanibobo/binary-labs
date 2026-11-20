@@ -8,6 +8,7 @@ import { InviteForm } from "@/app/settings/members-section";
 import { cn } from "@/lib/cn";
 import type { ShellData } from "@/lib/shell-data";
 import { PaletteTrigger } from "./command-palette";
+import { SampleTag } from "./demo-lab";
 import { ChevronDownIcon, DeleteIcon, MenuIcon, PlusIcon } from "./icons/base-web";
 import { InfoIcon, SearchOutlineIcon, SidebarIcon, UploadIcon } from "./icons/drawn";
 import { FlagCountText, useFlagCount } from "./flags/flag-count";
@@ -89,21 +90,26 @@ function NavLink({ item, current, onNavigate }: { item: NavItem; current: Sectio
   );
 }
 
-function Brand({ labName, onNavigate }: { labName: string; onNavigate?: () => void }) {
+function Brand({ labName, demo, onNavigate }: { labName: string; demo: boolean; onNavigate?: () => void }) {
   const collapsed = use(Collapsed);
   return (
-    <Tip label="Binary">
+    <Tip label={demo ? "Binary, sample lab" : "Binary"}>
       <Link
         href="/"
         onClick={onNavigate}
-        aria-label={collapsed ? "Binary, home" : undefined}
-        className={cn("flex min-h-11 min-w-0 items-center rounded-lg", collapsed ? "justify-center" : "flex-1 gap-2.5 px-1")}
+        aria-label={collapsed ? (demo ? "Binary, sample lab, home" : "Binary, home") : undefined}
+        className={cn("flex min-h-11 min-w-0 items-center rounded-lg", collapsed ? "flex-col justify-center gap-1" : "flex-1 gap-2.5 px-1")}
       >
         <LogoMark className="h-6 w-auto shrink-0" />
-        {collapsed ? null : (
+        {collapsed ? (
+          demo ? <SampleTag className="px-1" /> : null
+        ) : (
           <span className="min-w-0">
             <span className="block text-label-large text-content-primary">Binary</span>
-            <span className="block truncate text-paragraph-xsmall text-content-tertiary">{labName}</span>
+            <span className="flex min-w-0 items-center gap-1.5">
+              <span className="truncate text-paragraph-xsmall text-content-tertiary">{labName}</span>
+              {demo ? <SampleTag /> : null}
+            </span>
           </span>
         )}
       </Link>
@@ -298,7 +304,7 @@ export function DesktopFrame({ shell, current, initialCollapsed, children }: She
           )}
         >
           <div className={cn("flex items-center px-3 pt-4", collapsed ? "flex-col gap-1" : "gap-1")}>
-            <Brand labName={shell.labName} />
+            <Brand labName={shell.labName} demo={shell.demo} />
             <Tip label={`${toggleLabel} · ⌘\\`}>
               <button
                 type="button"
@@ -330,6 +336,7 @@ export function PhoneBar({ shell, current }: ShellProps) {
       <Link href="/" className="mr-auto flex min-h-11 items-center gap-2 px-1 text-label-large text-content-primary">
         <LogoMark className="h-6 w-auto" />
         Binary
+        {shell.demo ? <SampleTag /> : null}
       </Link>
       <Link
         href="/upload"
@@ -356,7 +363,7 @@ export function PhoneBar({ shell, current }: ShellProps) {
           >
             <Dialog.Title className="sr-only">Menu</Dialog.Title>
             <div className="flex items-center gap-2 px-3 pt-3">
-              <Brand labName={shell.labName} onNavigate={close} />
+              <Brand labName={shell.labName} demo={shell.demo} onNavigate={close} />
               <Dialog.Close className={cn(buttonVariants({ variant: "tertiary", shape: "square", size: "compact" }), "size-11")}>
                 <DeleteIcon />
                 <span className="sr-only">Close</span>
