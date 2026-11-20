@@ -3,7 +3,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/cn";
 import {
@@ -58,16 +58,18 @@ export function DebriefFlow({ run, initial, startAt }: { run: { id: RunId; title
   const [busy, setBusy] = useState(false);
   const setDebrief = (d: Debrief) => queryClient.setQueryData(key, d);
 
+  // An answer's words save on blur, which lands just before a click on Save to the run; the
+  // save waits for them rather than the button being disabled under the click.
+  const pending = useRef<Promise<unknown>>(Promise.resolve());
   const write = async (action: () => Promise<Debrief>): Promise<boolean> => {
-    setBusy(true);
+    const saving = action();
+    pending.current = saving.catch(() => undefined);
     try {
-      setDebrief(await action());
+      setDebrief(await saving);
       return true;
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "We couldn't save that. Try again.");
       return false;
-    } finally {
-      setBusy(false);
     }
   };
 
@@ -124,6 +126,7 @@ export function DebriefFlow({ run, initial, startAt }: { run: { id: RunId; title
           onSave={async (useAsSuspected) => {
             setBusy(true);
             try {
+              await pending.current;
               const saved = await api.approveDebrief(open.id, useAsSuspected);
               queryClient.removeQueries({ queryKey: key });
               toast.success("Saved to the run.");
