@@ -58,7 +58,7 @@ export function nodeRadius(node: MapNode): number {
       return 3 + 2 * Math.log2(1 + node.files);
     case "tag":
       // Smaller than a hub of as many files: a tag says less about a file than its experiment.
-      return 2.5 + 1.2 * Math.log2(1 + node.files);
+      return 2 + 0.9 * Math.log2(1 + node.files);
     default: {
       const _exhaustive: never = node;
       return _exhaustive;

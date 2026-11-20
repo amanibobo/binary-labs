@@ -10,6 +10,8 @@ const views = [
   { name: "one hub open (biggest experiment)", path: "/dev/fixtures/map?size=pilot&view=expanded" },
   { name: "two hubs open, similar in meaning on", path: "/dev/fixtures/map?size=pilot&view=similar" },
   { name: "every hub open", path: "/dev/fixtures/map?size=pilot&view=default&open=all" },
+  { name: "hubs, tags and similar in meaning on", path: "/dev/fixtures/map?size=pilot&view=default&tags=1&similar=1" },
+  { name: "every hub open, tags on", path: "/dev/fixtures/map?size=pilot&view=default&open=all&tags=1" },
 ];
 
 const q = (xs, p) => {

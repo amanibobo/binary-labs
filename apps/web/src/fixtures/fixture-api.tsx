@@ -250,6 +250,7 @@ export function FixtureLabApi({
     },
     saveMapView: async (save) => {
       mapSaves.push(save);
+      window.dispatchEvent(new CustomEvent("fixture-map-save", { detail: save }));
     },
     fileChecks: async (sha, signal) => {
       await wait(80, signal);

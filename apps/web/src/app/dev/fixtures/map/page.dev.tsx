@@ -5,7 +5,7 @@ import { doneSource, fixtureShell } from "@/fixtures/data";
 import { FixtureLabApi } from "@/fixtures/fixture-api";
 import { requireFixtures, type FixtureProps } from "@/fixtures/gate";
 import { biggestHub, fixtureHubView, fixtureLab, fixtureLocal, PILOT_LAB, SMALL_LAB } from "@/fixtures/map";
-import { DEFAULT_MAP_VIEW, flag, MapNodeId, nodeName, type SavedMapView } from "@/lib/map";
+import { DEFAULT_MAP_VIEW, flag, MapNodeId, MapViewSave, nodeName, type SavedMapView } from "@/lib/map";
 
 // The lab map on a generated lab: ?view=default (the hubs), expanded (the biggest experiment's
 // files), similar (that and the biggest person's, with similar in meaning on), tags (the hubs
@@ -28,8 +28,21 @@ export default async function MapFixture({ searchParams }: FixtureProps) {
   const person = biggestHub(lab, "person");
   const file = lab.hubFiles.get(experiment)?.[3] ?? MapNodeId.parse(`file:${"1".padStart(64, "0")}`);
   const switches = { similar: flag(one(params.similar)), tags: flag(one(params.tags)) };
+  // ?saved=<a save as JSON>, as the map sent it: opens the map the way that save left it.
+  const sent = MapViewSave.safeParse(
+    (() => {
+      try {
+        return JSON.parse(one(params.saved) ?? "null");
+      } catch {
+        return null;
+      }
+    })(),
+  );
+  const restored: Partial<SavedMapView> = sent.success
+    ? { ...sent.data, camera: sent.data.place?.camera ?? null, open: sent.data.place?.open ?? [] }
+    : {};
   const global = (saved: Partial<SavedMapView>): MapMode => {
-    const s: SavedMapView = { ...DEFAULT_MAP_VIEW, ...switches, ...saved };
+    const s: SavedMapView = { ...DEFAULT_MAP_VIEW, ...switches, ...saved, ...restored };
     return { kind: "global", view: fixtureHubView(lab, s), saved: s };
   };
   const local = (around: MapNodeId, depth: 1 | 2, saved: Partial<SavedMapView> = {}): MapMode => {

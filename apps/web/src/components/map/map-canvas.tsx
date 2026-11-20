@@ -161,8 +161,9 @@ export function MapCanvas({ graph, active, onActiveChange, onActivate, centerOn,
     s.cam = { k: f.k, x: s.size.w / 2 - (L.x[i] + f.dx) * f.k, y: s.size.h / 2 - (L.y[i] + f.dy) * f.k };
   }
 
-  // Someone moved the camera: stop fitting and following, and say where it is now, by the hub
-  // nearest the middle of the screen.
+  // Someone moved the camera: stop fitting and following, and say where it is now, by a hub:
+  // the one on screen with the most files drawn (the hub they opened and are looking at), else
+  // the one nearest the middle.
   function takeOver() {
     const s = state.current;
     s.autoFit = false;
@@ -171,19 +172,25 @@ export function MapCanvas({ graph, active, onActiveChange, onActivate, centerOn,
 
   function report() {
     const s = state.current;
-    const { onCamera: send, layout: L, hubIndices: hubs } = latest.current;
+    const { onCamera: send, layout: L, hubIndices: hubs, nodes: ns, neighbors: nb } = latest.current;
     if (send === undefined) return;
     if (s.autoFit) return send(null);
     if (s.follow !== null) return send(s.follow);
     const cx = (s.size.w / 2 - s.cam.x) / s.cam.k;
     const cy = (s.size.h / 2 - s.cam.y) / s.cam.k;
+    const halfW = s.size.w / 2 / s.cam.k;
+    const halfH = s.size.h / 2 / s.cam.k;
     let best = -1;
     let bestD = Infinity;
+    let bestFiles = 0;
     for (const i of hubs) {
+      const onScreen = Math.abs(L.x[i] - cx) <= halfW && Math.abs(L.y[i] - cy) <= halfH;
+      const files = onScreen ? (nb[i] ?? []).filter((j) => ns[j]?.kind === "file").length : 0;
       const d = (L.x[i] - cx) ** 2 + (L.y[i] - cy) ** 2;
-      if (d < bestD) {
+      if (files > bestFiles || (files === bestFiles && d < bestD)) {
         bestD = d;
         best = i;
+        bestFiles = files;
       }
     }
     const anchor = best >= 0 ? L.ids[best] : undefined;
@@ -266,7 +273,7 @@ export function MapCanvas({ graph, active, onActiveChange, onActivate, centerOn,
           if (dim && near.has(i) !== pass) continue;
           const r = drawR(i);
           // Tags are squares, so they read apart from every round dot without a hue of their own.
-          if (kind === "tag") ctx.rect(L.x[i] - r * 0.85, L.y[i] - r * 0.85, r * 1.7, r * 1.7);
+          if (kind === "tag") ctx.rect(L.x[i] - r * 0.7, L.y[i] - r * 0.7, r * 1.4, r * 1.4);
           else {
             ctx.moveTo(L.x[i] + r, L.y[i]);
             ctx.arc(L.x[i], L.y[i], r, 0, Math.PI * 2);

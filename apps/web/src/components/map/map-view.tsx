@@ -195,7 +195,7 @@ function GlobalMap({ initialView, saved }: { initialView: HubView; saved: SavedM
       summary={
         empty
           ? "Nothing to map yet. Files show up here once they're labeled with an experiment, a person or an instrument, or attached to a protocol."
-          : `${filesText(view.files)}, ${view.linked.toLocaleString("en-US")} linked to something. Click an experiment, person, protocol or instrument to show its files.`
+          : `${filesText(view.files)}, ${view.linked.toLocaleString("en-US")} linked to something. Click an experiment, person, protocol${filters.tags ? ", instrument or tag" : " or instrument"} to show its files.`
       }
     />
   );
@@ -469,7 +469,7 @@ function MapSearch({ graph, onPick }: { graph: Graph; onPick: (node: MapNode) =>
   };
   const hasResults = onMap.length > 0 || files.length > 0;
   return (
-    <div className="relative w-full lg:w-72 lg:shrink-0">
+    <div className="relative w-full lg:w-52 lg:shrink-0">
       <SearchOutlineIcon className="pointer-events-none absolute top-1/2 left-3 size-5 -translate-y-1/2 text-content-tertiary" />
       <input
         type="search"

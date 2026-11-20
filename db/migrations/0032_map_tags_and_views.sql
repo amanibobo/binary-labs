@@ -222,30 +222,45 @@ begin
       ) r
       where r.rank <= 2
     ),
+    -- Hubs and files by number, each file with its hubs' numbers: grouping hundreds of
+    -- thousands of hub pairs by their text ids took 13 s on the pilot-sized lab, by numbers 2 s.
+    hub_ids as materialized (
+      select hub, (row_number() over (order by hub))::int as i from (select distinct hub from links where p_similar) h
+    ),
+    file_hubs as materialized (
+      select l.sha256, (row_number() over ())::int as f, array_agg(h.i) as hs
+      from links l join hub_ids h on h.hub = l.hub
+      group by l.sha256
+    ),
     -- A list is directed, so a pair on both files' lists is one pair.
     file_pairs as (
-      select least(fn.sha256, fn.neighbor) as f1, greatest(fn.sha256, fn.neighbor) as f2, max(fn.similarity) as s
+      select least(a.f, b.f) as f1, greatest(a.f, b.f) as f2, max(fn.similarity) as s
       from file_neighbors fn
+      join file_hubs a on a.sha256 = fn.sha256
+      join file_hubs b on b.sha256 = fn.neighbor
       where p_similar and fn.lab_id = p_lab_id
       group by 1, 2
     ),
     similar_pairs as (
-      select least(l1.hub, l2.hub) as a, greatest(l1.hub, l2.hub) as b, count(*) as n, avg(p.s) as s
+      select least(a.i, b.i) as a, greatest(a.i, b.i) as b, count(*) as n, avg(p.s) as s
       from file_pairs p
-      join links l1 on l1.sha256 = p.f1
-      join links l2 on l2.sha256 = p.f2 and l2.hub <> l1.hub
-      where not exists (select 1 from links x where x.sha256 = p.f1 and x.hub = l2.hub)
-        and not exists (select 1 from links x where x.sha256 = p.f2 and x.hub = l1.hub)
+      join file_hubs h1 on h1.f = p.f1
+      join file_hubs h2 on h2.f = p.f2
+      cross join lateral unnest(h1.hs) a(i)
+      cross join lateral unnest(h2.hs) b(i)
+      where a.i <> all (h2.hs) and b.i <> all (h1.hs)
       group by 1, 2
       having count(*) >= 2
     ),
     similar_strongest as (
-      select r.a, r.b, r.s from (
+      select ha.hub as a, hb.hub as b, r.s from (
         select p.a, p.b, p.s,
           row_number() over (partition by p.a order by p.n desc, p.s desc, p.b) as ra,
           row_number() over (partition by p.b order by p.n desc, p.s desc, p.a) as rb
         from similar_pairs p
       ) r
+      join hub_ids ha on ha.i = r.a
+      join hub_ids hb on hb.i = r.b
       where r.ra <= 3 or r.rb <= 3
     )
     select jsonb_build_object(
