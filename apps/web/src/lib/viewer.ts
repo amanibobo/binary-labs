@@ -7,7 +7,8 @@ import { MemberRole } from "./domain";
 import { LabId, UserId } from "./ids";
 import { createSupabase, unwrap, type Supabase } from "./supabase/server";
 
-export type Lab = { id: LabId; name: string; role: MemberRole };
+// demo: a lab `bl demo-lab` made (labs.plan = 'demo'). Its data is made up, so the app marks it Sample.
+export type Lab = { id: LabId; name: string; role: MemberRole; demo: boolean };
 export type User = { id: UserId; email: string };
 
 export type Viewer =
@@ -18,7 +19,7 @@ export type Viewer =
 
 const Membership = z.object({
   role: MemberRole,
-  labs: z.object({ id: LabId, name: z.string() }),
+  labs: z.object({ id: LabId, name: z.string(), plan: z.string() }),
 });
 
 // One current lab per user for now: the first membership.
@@ -38,7 +39,7 @@ export const loadViewer = cache(async (): Promise<Viewer> => {
     unwrap(
       await supabase
         .from("members")
-        .select("role, labs!inner(id, name)")
+        .select("role, labs!inner(id, name, plan)")
         .eq("user_id", user.id)
         .order("created_at", { ascending: true })
         .limit(1),
@@ -46,7 +47,7 @@ export const loadViewer = cache(async (): Promise<Viewer> => {
   );
   const first = rows[0];
   if (first === undefined) return { kind: "no_lab", user, supabase };
-  return { kind: "member", user, supabase, lab: { id: first.labs.id, name: first.labs.name, role: first.role } };
+  return { kind: "member", user, supabase, lab: { id: first.labs.id, name: first.labs.name, role: first.role, demo: first.labs.plan === "demo" } };
 });
 
 export type Member = Extract<Viewer, { kind: "member" }>;
