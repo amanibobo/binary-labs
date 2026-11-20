@@ -16,7 +16,12 @@ import pendulumJson from "./tables/pendulum.json";
 import groupsJson from "./tables/treatments_4groups.json";
 import viabilityLayoutJson from "./tables/viability_drugA_layout.json";
 import viabilityJson from "./tables/viability_drugA.json";
+import linesJson from "./tables/viability_lines_by_day.json";
+import flask1Json from "./tables/growth_flask_run1.json";
+import flask2Json from "./tables/growth_flask_run2.json";
+import flask3Json from "./tables/growth_flask_run3.json";
 import { emptyLayout, fillSeries, assignWells, LayoutRows, wellsBetween, type SavedLayout } from "@/lib/layouts";
+import type { RunChoices, RunInfo } from "@/lib/runs";
 
 // Dev-only chart data. The tables are the worker's own parse of the instrument exports in
 // workers/tests/fixtures/tables (workers/scripts/make_table_fixtures.py writes both).
@@ -35,6 +40,11 @@ export const GROUPS = Sha256.parse("d5".repeat(32));
 export const GROWTH = Sha256.parse("d6".repeat(32));
 export const CELLS = Sha256.parse("d7".repeat(32));
 export const PENDULUM = Sha256.parse("d8".repeat(32));
+// Round 2 (decisions.md, "charts round 2"): a heatmap of line by day, and three runs of a flask.
+export const LINES = Sha256.parse("e1".repeat(32));
+export const FLASK1 = Sha256.parse("e2".repeat(32));
+export const FLASK2 = Sha256.parse("e3".repeat(32));
+export const FLASK3 = Sha256.parse("e4".repeat(32));
 
 const TABLES = new Map<Sha256, DataTables>([
   [PLATE, DataTables.parse(plateJson)],
@@ -50,6 +60,10 @@ const TABLES = new Map<Sha256, DataTables>([
   [GROWTH, DataTables.parse(growthJson)],
   [CELLS, DataTables.parse(cellsJson)],
   [PENDULUM, DataTables.parse(pendulumJson)],
+  [LINES, DataTables.parse(linesJson)],
+  [FLASK1, DataTables.parse(flask1Json)],
+  [FLASK2, DataTables.parse(flask2Json)],
+  [FLASK3, DataTables.parse(flask3Json)],
 ]);
 
 export function fixtureTable(sha: Sha256): TableState {
@@ -75,6 +89,10 @@ const CHART_ONLY: Record<string, string> = {
   [GROWTH]: "growth_curve.xlsx",
   [CELLS]: "cell_sizes.csv",
   [PENDULUM]: "pendulum.csv",
+  [LINES]: "viability_lines_by_day.csv",
+  [FLASK1]: "growth_flask_run1.csv",
+  [FLASK2]: "growth_flask_run2.csv",
+  [FLASK3]: "growth_flask_run3.csv",
 };
 
 export function fixtureFile(sha: Sha256): { locationId: LocationId; sha256: Sha256; name: string } {
@@ -352,4 +370,25 @@ export function savedChart(n: number): SavedChart {
 
 export function chartsOf(sha: Sha256): SavedChart[] {
   return savedCharts.filter((c) => c.sha256 === sha);
+}
+
+// The fixture files as runs (lib/runs.ts): the three flasks share an experiment, and the
+// third's label says it failed.
+const FLASK_RUNS: Partial<Record<Sha256, Omit<RunInfo, "sha256" | "locationId">>> = {
+  [FLASK1]: { name: "Flask growth, run 1", date: "2026-11-02", outcome: "worked", experiment: "E. coli growth" },
+  [FLASK2]: { name: "Flask growth, run 2", date: "2026-11-05", outcome: "worked", experiment: "E. coli growth" },
+  [FLASK3]: { name: "Flask growth, run 3", date: "2026-11-09", outcome: "failed", experiment: "E. coli growth" },
+};
+
+export function fixtureRun(sha: Sha256): RunInfo {
+  const known = FLASK_RUNS[sha];
+  const file = TABLES.has(sha) ? fixtureFile(sha) : null;
+  return { sha256: sha, locationId: file?.locationId ?? null, name: known?.name ?? file?.name ?? "A file", date: known?.date ?? null, outcome: known?.outcome ?? null, experiment: known?.experiment ?? null };
+}
+
+export function fixtureRunChoices(sha: Sha256): RunChoices {
+  const own = FLASK_RUNS[sha];
+  const siblings = [FLASK1, FLASK2, FLASK3].filter((s) => s !== sha && own !== undefined);
+  const rest = [PLATE, BIOREACTOR, PENDULUM].filter((s) => s !== sha);
+  return { experiment: own?.experiment ?? null, runs: [...siblings, ...rest].map(fixtureRun) };
 }

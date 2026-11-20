@@ -32,6 +32,8 @@ export type FigureEdit = {
   textOf: (target: LabelTarget) => string;
   // What opens when a line, bar or dot is clicked: its name, color and style.
   seriesEditor: (column: ColumnId, close: () => void) => ReactNode;
+  // The names are the runs' own (lib/runs.ts), so they aren't renamed on the chart.
+  seriesFixed?: boolean;
 };
 
 // A chart that fills its container's width, with a readout on hover and focus, and the numbers
@@ -45,6 +47,7 @@ export function ChartFigure({
   className,
   edit,
   hint,
+  muted,
 }: {
   spec: ChartSpec;
   table: DataTable;
@@ -55,9 +58,11 @@ export function ChartFigure({
   edit?: FigureEdit;
   // A line under the chart, beside "Show the numbers".
   hint?: ReactNode;
+  // Series of failed runs, drawn gray and dashed (lib/runs.ts).
+  muted?: ReadonlySet<string>;
 }) {
   if (isScaled(spec)) return <PlateFigure spec={spec} table={table} label={label} className={className} edit={edit} hint={hint} />;
-  if (isXY(spec)) return <XYFigure spec={spec} table={table} label={label} className={className} edit={edit} hint={hint} />;
+  if (isXY(spec)) return <XYFigure spec={spec} table={table} label={label} className={className} edit={edit} hint={hint} muted={muted} />;
   return <SummaryFigure spec={spec} table={table} tables={tables ?? [table]} label={label} className={className} edit={edit} hint={hint} />;
 }
 
@@ -311,7 +316,7 @@ export function Frame({
 // What the hover layer points at: a place along x (line and bar), or one dot (scatter).
 type Active = { kind: "row"; stop: number } | { kind: "point"; series: number; index: number };
 
-function XYFigure({ spec, table, label, className, edit, hint }: { spec: XYSpec; table: DataTable; label: string; className?: string; edit?: FigureEdit; hint?: ReactNode }) {
+function XYFigure({ spec, table, label, className, edit, hint, muted }: { spec: XYSpec; table: DataTable; label: string; className?: string; edit?: FigureEdit; hint?: ReactNode; muted?: ReadonlySet<string> }) {
   const [box, width] = useWidth();
   const [active, setActive] = useState<Active | null>(null);
   const [showTable, setShowTable] = useState(false);
@@ -321,11 +326,12 @@ function XYFigure({ spec, table, label, className, edit, hint }: { spec: XYSpec;
   const editable = edit !== undefined;
 
   const plot = useMemo(
-    () => (width === null ? null : plotChart(spec, table, { width, height: chartHeight(width) }, { placeholders: editable })),
-    [spec, table, width, editable],
+    () => (width === null ? null : plotChart(spec, table, { width, height: chartHeight(width) }, { placeholders: editable, muted })),
+    [spec, table, width, editable, muted],
   );
   const notes = [...(plot?.notes ?? []), ...columnNotes(spec, table), rowsNote(table)].filter((n): n is string => n !== null);
-  const labels = useMemo(() => (plot === null || !editable ? [] : xyLabels(plot, spec)), [plot, spec, editable]);
+  const fixedNames = edit?.seriesFixed === true;
+  const labels = useMemo(() => (plot === null || !editable ? [] : xyLabels(plot, spec).filter((l) => !(fixedNames && l.target.kind === "series"))), [plot, spec, editable, fixedNames]);
 
   function at(event: PointerEvent<SVGRectElement>): { x: number; y: number } | null {
     const rect = event.currentTarget.ownerSVGElement?.getBoundingClientRect();
@@ -345,7 +351,7 @@ function XYFigure({ spec, table, label, className, edit, hint }: { spec: XYSpec;
     if (plot === null || p === null || !editable) return;
     const i = seriesAt(plot, spec.type, nearest(plot, spec.type, p.x, p.y), p.x, p.y);
     const column = i === null ? undefined : spec.series.find((s) => s.column === plot.series[i]?.column)?.column;
-    if (column !== undefined) setOpened({ column, ...p });
+    if (column !== undefined && !fixedNames) setOpened({ column, ...p });
   }
 
   function step(event: KeyboardEvent<HTMLDivElement>) {

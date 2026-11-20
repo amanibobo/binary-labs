@@ -35,6 +35,7 @@ import {
   type NumberColumn,
 } from "./data-tables";
 import { gridCells } from "./grids";
+import { runName, type Combined } from "./runs";
 import { plateCells, plateLayout } from "./plates";
 import { readLabel } from "./plate-geometry";
 
@@ -380,6 +381,30 @@ export function describeChart(spec: ChartSpec, table: DataTable, tables: readonl
   if (isGrid(spec)) return describeGrid(spec, table);
   if (isXY(spec)) return describeXY(spec, table);
   return describeSummary(spec, { table, tables, layout: null });
+}
+
+// A chart of several runs (lib/runs.ts): "OD600 as Time goes from 0 to 12 h, for 3 runs: …".
+export function describeRuns(combined: Combined): string {
+  const { spec, table } = combined;
+  const drawn = drawnSeries(spec, table);
+  const x = findColumn(table, spec.x.column);
+  if (x === undefined || drawn.length === 0) return "";
+  const xs = drawn.flatMap((d) => {
+    const along = d.series.x === null ? x : findColumn(table, d.series.x);
+    return along === undefined ? [] : d.column.values.flatMap((v, r) => (v === null ? [] : typeof along.values[r] === "number" ? [along.values[r] as number] : []));
+  });
+  const xName = spec.x.title.trim() || x.name;
+  const xUnit = x.kind === "number" && spec.x.unit.trim() !== "" ? ` ${spec.x.unit.trim()}` : "";
+  const lo = xs.length === 0 ? null : Math.min(...xs);
+  const hi = xs.length === 0 ? null : Math.max(...xs);
+  const measured = axisText(spec.y.title, spec.y.unit) || "The values";
+  const along = lo === null || hi === null || lo === hi ? ` against ${xName}` : ` as ${xName} goes from ${bound(lo, x)} to ${bound(hi, x)}${xUnit}`;
+  const runs = combined.runs.filter((r) => r.drawn);
+  const names = runs.map((r) => (r.run.outcome === "failed" ? `${runName(r.run)} (failed)` : runName(r.run)));
+  const failed = runs.filter((r) => r.run.outcome === "failed").length;
+  const gray = failed === 0 ? "" : failed === 1 ? " The run labeled failed is drawn gray and dashed, not left out." : ` The ${failed} runs labeled failed are drawn gray and dashed, not left out.`;
+  const each = spec.series.length > runs.length ? `, ${plural(spec.series.length / Math.max(1, runs.length), "measurement")} from each` : "";
+  return `${measured}${along}, for ${plural(runs.length, "run")}${each}: ${listPhrase(names, 12)}.${gray}`;
 }
 
 function describeXY(spec: XYSpec, table: DataTable): string {

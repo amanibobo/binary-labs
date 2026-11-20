@@ -76,7 +76,7 @@ export function combineRuns(spec: XYSpec, base: { run: RunInfo; table: DataTable
   const find = (t: DataTable, id: ColumnId | null) => (id === null ? undefined : t.columns.find((c) => c.id === id));
   const x = find(base.table, spec.x.column);
   const wanted = (s: Series) => [s.x === null ? x : find(base.table, s.x), find(base.table, s.column), find(base.table, s.error)];
-  const needed = [x, ...spec.series.flatMap(wanted)].filter((c): c is DataColumn => c !== undefined);
+  const needed = [...new Set([x, ...spec.series.flatMap(wanted)])].filter((c): c is DataColumn => c !== undefined);
   const columns: DataColumn[] = [];
   const series: Series[] = [];
   const muted = new Set<string>();
@@ -140,7 +140,10 @@ export function combineRuns(spec: XYSpec, base: { run: RunInfo; table: DataTable
     runs.push({ run, drawn: drew, why: drew ? null : series.length >= limit ? `The chart already has ${limit} lines.` : "It has none of the chart's columns." });
   }
   const left = runs.filter((r) => !r.drawn);
-  for (const r of left) notes.push(`${runName(r.run)} isn't drawn. ${r.why ?? ""}`.trim());
+  for (const r of left) {
+    const note = `${runName(r.run)} isn't drawn. ${r.why ?? ""}`.trim();
+    if (!notes.includes(note)) notes.push(note);
+  }
 
   const padded = columns.map((c): DataColumn => {
     const pad = <T,>(values: readonly T[]) => [...values, ...Array.from({ length: rows - values.length }, () => null)];

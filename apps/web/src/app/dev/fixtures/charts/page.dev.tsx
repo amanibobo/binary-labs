@@ -2,7 +2,7 @@ import { z } from "zod";
 import { AppShell } from "@/components/app-shell";
 import { ChartBuilder, type BuilderMode } from "@/components/charts/chart-builder";
 import { doneSource, fixtureShell } from "@/fixtures/data";
-import { BIOREACTOR, BRADFORD, BRADFORD_PLATE, CELLS, DOSE, DOSE_LAYOUT, ELISA, fixtureFile, GROUPS, GROWTH, KNOCKDOWN, PENDULUM, PLATE, savedChart, SEC } from "@/fixtures/charts";
+import { BIOREACTOR, BRADFORD, BRADFORD_PLATE, CELLS, DOSE, DOSE_LAYOUT, ELISA, fixtureFile, FLASK1, GROUPS, GROWTH, KNOCKDOWN, LINES, PENDULUM, PLATE, savedChart, SEC } from "@/fixtures/charts";
 import { FixtureLabApi } from "@/fixtures/fixture-api";
 import { requireFixtures, type FixtureProps } from "@/fixtures/gate";
 import { protocolList } from "@/fixtures/protocols";
@@ -18,7 +18,8 @@ import type { Sha256 } from "@/lib/ids";
 // 1"): dose (a viability plate whose export carries its layout), dose-paint (the same plate to
 // mark by hand), bradford-plate (standards, blanks and samples listed by well), knockdown (two
 // groups), groups (four, long format), growth-reps (a growth curve in triplicate), cells (200
-// cell sizes), pendulum (not biology) and saved-dose (the worked example, saved).
+// cell sizes), pendulum (not biology) and saved-dose (the worked example, saved). Round 2: grid
+// (viability of four cell lines by day) and runs (the first of three flask runs; the third failed).
 const View = z
   .enum([
     "new",
@@ -44,6 +45,8 @@ const View = z
     "cells",
     "pendulum",
     "saved-dose",
+    "grid",
+    "runs",
   ])
   .catch("new");
 
@@ -62,6 +65,8 @@ const NEW: Partial<Record<z.infer<typeof View>, Sha256>> = {
   "growth-reps": GROWTH,
   cells: CELLS,
   pendulum: PENDULUM,
+  grid: LINES,
+  runs: FLASK1,
 };
 const SAVED: Partial<Record<z.infer<typeof View>, number>> = { saved: 1, sec: 2, "sec-cond": 4, growth: 5, plate: 6, lines: 7, "plate-read": 8, broken: 9, "saved-dose": 10 };
 

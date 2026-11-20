@@ -43,7 +43,7 @@ function render(element: ReactElement): string {
 }
 
 // The figure at an export size, before it's turned into markup.
-export function exportFigure(spec: ChartSpec, table: DataTable, title: string, size: ExportSize = "slides", tables: readonly DataTable[] = [table]): { element: ReactElement; width: number; height: number; mm: ChartFile["mm"] } {
+export function exportFigure(spec: ChartSpec, table: DataTable, title: string, size: ExportSize = "slides", tables: readonly DataTable[] = [table], muted?: ReadonlySet<string>): { element: ReactElement; width: number; height: number; mm: ChartFile["mm"] } {
   const box = EXPORT_SIZES[size];
   const frame = { width: box.width, height: box.height };
   const sized = (element: ReactElement, width: number, height: number) => ({
@@ -57,7 +57,7 @@ export function exportFigure(spec: ChartSpec, table: DataTable, title: string, s
     return sized(<PlateSvg plot={plot} ink={EXPORT_INK} gradientId="scale" label={title} />, plot.width, plot.height);
   }
   if (isXY(spec)) {
-    const plot = plotChart(spec, table, frame, { title });
+    const plot = plotChart(spec, table, frame, { title, muted });
     return sized(<ChartSvg plot={plot} ink={EXPORT_INK} clipId="plot" label={title} />, plot.width, plot.height);
   }
   // The test, the fit and what the bars show go on the figure itself, under the chart.
@@ -74,8 +74,8 @@ export function figureMarkup(figure: ReturnType<typeof exportFigure>, toMarkup: 
   return { markup: `<?xml version="1.0" encoding="UTF-8"?>\n${markup}`, width: figure.width, height: figure.height, mm };
 }
 
-export function chartMarkup(spec: ChartSpec, table: DataTable, title: string, size: ExportSize = "slides", tables: readonly DataTable[] = [table]): ChartFile {
-  return figureMarkup(exportFigure(spec, table, title, size, tables), render);
+export function chartMarkup(spec: ChartSpec, table: DataTable, title: string, size: ExportSize = "slides", tables: readonly DataTable[] = [table], muted?: ReadonlySet<string>): ChartFile {
+  return figureMarkup(exportFigure(spec, table, title, size, tables, muted), render);
 }
 
 // A PDF page's size in points for the figure.

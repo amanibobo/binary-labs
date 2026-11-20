@@ -6,7 +6,7 @@ import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "rea
 import { toast } from "sonner";
 import { cn } from "@/lib/cn";
 import { labelText, rename, type LabelTarget } from "@/lib/chart-edits";
-import { chartWarnings, describeChart, startChart, suggestionsFor, switchKind } from "@/lib/chart-guide";
+import { chartWarnings, describeChart, describeRuns, startChart, suggestionsFor, switchKind } from "@/lib/chart-guide";
 import { chartHref, chartTrouble, checkSpec, isSummary, isXY, repairSpec, specProblem, titleFromName, type ChartSpec, type GridSpec, type HeatmapSpec, type SavedChart, type XYSpec } from "@/lib/charts";
 import { mainTable, type DataTable, type DataTables } from "@/lib/data-tables";
 import type { LocationId, ProtocolId, Sha256 } from "@/lib/ids";
@@ -14,6 +14,7 @@ import { describeLayout, layoutChoices, layoutFromFile, type SavedLayout } from 
 import { plateLayout } from "@/lib/plates";
 import { protocolHref } from "@/lib/protocols";
 import { kindOf, type ChartData, type ChartKind, type PlateMap } from "@/lib/summary-guide";
+import { runName } from "@/lib/runs";
 import { AlertIcon, CheckIcon, ChevronDownIcon } from "../icons/base-web";
 import { DownloadIcon, PencilIcon, RedoIcon, UndoIcon } from "../icons/drawn";
 import { useLabApi } from "../lab-api";
@@ -28,6 +29,7 @@ import { ChartPanel, SeriesEditor, type PanelEdit } from "./chart-panel";
 import { ChartQuestion } from "./chart-question";
 import { fileChartsKey } from "./file-charts";
 import { LayoutPainter } from "./layout-painter";
+import { RunsPanel, useRuns } from "./runs-panel";
 import { useHistory } from "./use-history";
 
 const POLL_MS = 2_000;
@@ -214,8 +216,17 @@ function Builder({
     JSON.stringify({ sheet: saved.sheet, title: saved.title, spec: saved.spec, protocolId: saved.protocolId }) !== JSON.stringify(draft);
   // A saved chart whose file was read again and no longer fits says why, until it's fixed.
   const broken = saved !== null && !dirty ? chartTrouble(saved, doc.tables) : null;
-  const sentence = useMemo(() => (spec === null || problem !== null ? "" : describeChart(spec, table, doc.tables)), [spec, problem, table, doc.tables]);
-  const warnings = useMemo(() => (spec === null || problem !== null ? [] : chartWarnings(spec, table, doc.tables)), [spec, problem, table, doc.tables]);
+  const runs = useRuns(file, spec !== null && isXY(spec) && spec.type !== "bar" ? spec : null, table);
+  // What's drawn: the chart, or with other runs every run's columns side by side.
+  const drawn = runs.combined ?? { spec, table, muted: undefined, notes: [] };
+  const sentence = useMemo(
+    () => (drawn.spec === null || problem !== null ? "" : runs.combined !== null ? describeRuns(runs.combined) : describeChart(drawn.spec, drawn.table, doc.tables)),
+    [drawn.spec, problem, drawn.table, doc.tables, runs.combined],
+  );
+  const warnings = useMemo(
+    () => (drawn.spec === null || problem !== null ? [] : [...chartWarnings(drawn.spec, drawn.table, doc.tables), ...drawn.notes]),
+    [drawn.spec, problem, drawn.table, doc.tables, drawn.notes],
+  );
   const [size, setSize] = useState<ExportSize>("column");
 
   useEffect(() => {
@@ -266,9 +277,10 @@ function Builder({
   };
 
   const figureEdit: FigureEdit = {
-    rename: (target: LabelTarget, text: string) => editSpec((s) => rename(s, table, target, text)),
+    rename: (target: LabelTarget, text: string) => (runs.combined !== null && target.kind === "series" ? undefined : editSpec((s) => rename(s, table, target, text))),
     textOf: (target: LabelTarget) => (spec === null ? "" : labelText(spec, target)),
-    seriesEditor: (column, close) => (spec === null || !isXY(spec) ? null : <SeriesEditor spec={spec} column={column} table={table} edit={edit} onDone={close} />),
+    seriesFixed: runs.combined !== null,
+    seriesEditor: (column, close) => (spec === null || !isXY(spec) || runs.combined !== null ? null : <SeriesEditor spec={spec} column={column} table={table} edit={edit} onDone={close} />),
   };
 
   // The question's answer starts the chart; it isn't a step to undo back past.
@@ -320,17 +332,21 @@ function Builder({
     }
   }
 
-  const provenance = useMemo(() => provenanceLines({ file, sheet: draft.sheet, spec, protocols, protocolId: draft.protocolId, made: mode.kind === "edit" ? mode.provenance : undefined }), [file, draft.sheet, spec, protocols, draft.protocolId, mode]);
+  const otherRuns = useMemo(() => (runs.states ?? []).filter((s) => s.run.sha256 !== file.sha256).map((s) => runName(s.run)), [runs.states, file.sha256]);
+  const provenance = useMemo(
+    () => [...provenanceLines({ file, sheet: draft.sheet, spec, protocols, protocolId: draft.protocolId, made: mode.kind === "edit" ? mode.provenance : undefined }), ...(otherRuns.length === 0 ? [] : [{ text: `With ${otherRuns.length === 1 ? "1 other run" : `${otherRuns.length} other runs`}: ${otherRuns.join(", ")}`, href: null, link: null }])],
+    [file, draft.sheet, spec, protocols, draft.protocolId, mode, otherRuns],
+  );
 
   async function exportAs(kind: ExportKind) {
     if (spec === null || problem !== null) return;
     const title = draft.title.trim() || "Chart";
     try {
       if (kind === "csv") {
-        saveText(chartCsv(spec, table, title, provenance.map((p) => p.text), doc.tables), fileName(title, "csv"), "text/csv");
+        saveText(chartCsv(drawn.spec ?? spec, drawn.table, title, provenance.map((p) => p.text), doc.tables), fileName(title, "csv"), "text/csv");
         return;
       }
-      const figure = chartMarkup(spec, table, title, size, doc.tables);
+      const figure = chartMarkup(drawn.spec ?? spec, drawn.table, title, size, doc.tables, drawn.muted);
       if (kind === "svg") downloadSvg(figure, title);
       else if (kind === "pdf") await downloadPdf(figure, title);
       else await downloadPng(figure, title);
@@ -407,6 +423,8 @@ function Builder({
       "Point at a well to read it. Click the scale's title to rename it."
     ) : spec.type === "grid" ? (
       "Point at a square to read it. Click the scale's title to rename it."
+    ) : runs.combined !== null ? (
+      "Point at a line to read it. Click an axis title to rename it."
     ) : isXY(spec) ? (
       `Click a title, a name or a ${MARK_WORD[spec.type]} to change it.`
     ) : (
@@ -462,8 +480,9 @@ function Builder({
               </div>
             ) : (
               <ChartFigure
-                spec={spec}
-                table={table}
+                spec={drawn.spec ?? spec}
+                table={drawn.table}
+                muted={drawn.muted}
                 tables={doc.tables}
                 label={draft.title || "Chart"}
                 edit={figureEdit}
@@ -494,6 +513,7 @@ function Builder({
               protocolId={draft.protocolId}
               edit={edit}
               footer={saved === null ? undefined : <DeleteChart chart={saved} file={file} />}
+              runs={runs.states === null || spec === null || !isXY(spec) ? undefined : <RunsPanel sha={file.sha256} states={runs.states} onChange={(next) => edit.xy((s) => ({ ...s, runs: next.length === 0 ? undefined : next }))} />}
             />
           )}
         </aside>

@@ -67,6 +67,7 @@ export function ChartPanel({
   protocolId,
   edit,
   footer,
+  runs,
 }: {
   doc: DataTables;
   data: ChartData;
@@ -77,6 +78,8 @@ export function ChartPanel({
   protocolId: ProtocolId | null;
   edit: PanelEdit;
   footer?: ReactNode;
+  // The other runs a line or scatter chart draws (runs-panel.tsx).
+  runs?: ReactNode;
 }) {
   const linked = protocols.find((p) => p.id === protocolId);
   return (
@@ -90,7 +93,10 @@ export function ChartPanel({
       ) : isGrid(spec) ? (
         <GridData spec={spec} table={table} edit={edit} />
       ) : isXY(spec) ? (
-        <XYData spec={spec} table={table} edit={edit} />
+        <>
+          <XYData spec={spec} table={table} edit={edit} />
+          {runs}
+        </>
       ) : (
         <SummaryData spec={spec} data={data} edit={edit.summary} onMarkWells={edit.markWells} />
       )}

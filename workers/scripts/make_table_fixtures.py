@@ -48,6 +48,8 @@ For charts round 2:
 
 - viability_lines_by_day.csv: viability of four cell lines on days 1, 2, 3 and 5, three wells
   each, one row per well (Cell line, Day, Rep, Viability), for a heatmap of line by day.
+- growth_flask_run1.csv to growth_flask_run3.csv: OD600 of one E. coli flask every half hour
+  for 12 h, three runs; run 3 never grew (its label says failed), for runs on one chart.
 """
 
 from __future__ import annotations
@@ -436,8 +438,21 @@ def lines_by_day() -> bytes:
     return samples.csv_text(rows)
 
 
+def flask_run(seed: int, rate: float, grew: bool) -> bytes:
+    rng = random.Random(seed)
+    rows = [["Time (h)", "OD600", "Temperature (°C)"]]
+    for step in range(25):
+        hours = step * 0.5
+        od = 0.05 + (1.8 / (1 + math.exp(-(hours - 6.0) * rate)) if grew else 0.02 * hours / 12)
+        rows.append([f"{hours:.1f}", f"{od * (1 + rng.gauss(0, 0.02)):.3f}", f"{37.0 + rng.gauss(0, 0.08):.2f}"])
+    return samples.csv_text(rows)
+
+
 FILES: dict[str, Callable[[], bytes]] = {
     "viability_lines_by_day.csv": lines_by_day,
+    "growth_flask_run1.csv": lambda: flask_run(1, 0.9, True),
+    "growth_flask_run2.csv": lambda: flask_run(2, 0.8, True),
+    "growth_flask_run3.csv": lambda: flask_run(3, 0.8, False),
     "viability_drugA_layout.csv": lambda: viability(True),
     "viability_drugA.csv": lambda: viability(False),
     "Bradford_plate_2026-11-05.csv": bradford_plate,

@@ -112,7 +112,8 @@ function layOut(
   const below = 20 + BAR_HEIGHT + 6 + TICK_FONT + (scaleTitle ? TICK_FONT + 10 : 0);
   const rowTexts = grid.rowNames.map(clip);
   const columnTexts = grid.columnNames.map(clip);
-  const labelLeft = Math.max(textWidth("P", TICK_FONT), ...rowTexts.map((t) => textWidth(t, TICK_FONT))) + 12;
+  // textWidth is an average; capitals and digits run wider, so names get a fifth more room.
+  const labelLeft = Math.max(textWidth("P", TICK_FONT), ...rowTexts.map((t) => textWidth(t, TICK_FONT) * 1.2)) + 12;
   const widest = Math.max(0, ...columnTexts.map((t) => textWidth(t, TICK_FONT)));
   const fit = (head: number) => Math.max(8, Math.min(PITCH_MAX, (size.width - labelLeft - 4) / columns, (size.height - top - head - below) / rows));
   // Column names wider than their column go on a slant, which needs room above the cells.
