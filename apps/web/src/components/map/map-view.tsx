@@ -3,12 +3,12 @@
 import { useQueries, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useId, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { cn } from "@/lib/cn";
 import {
-  ALL_KINDS,
   describe,
   fileNodeId,
+  FILTER_KINDS,
   filesText,
   findNodes,
   globalGraph,
@@ -16,11 +16,12 @@ import {
   listSections,
   localGraph,
   localMapHref,
-  NODE_KINDS,
   nodeName,
   openHref,
   openLabel,
+  openStill,
   type Depth,
+  type FilterKind,
   type Filters,
   type Graph,
   type HubFiles,
@@ -28,55 +29,120 @@ import {
   type LocalView,
   type MapNode,
   type MapNodeId,
+  type MapViewSave,
   type NamedNode,
   type NodeKind,
+  type SavedCamera,
+  type SavedMapView,
 } from "@/lib/map";
 import { useDebounced } from "@/lib/use-debounced";
 import { SearchOutlineIcon } from "../icons/drawn";
-import { useLabApi } from "../lab-api";
+import { useLabApi, type LabApi } from "../lab-api";
 import { buttonVariants } from "../ui/button";
 import { MapCanvas } from "./map-canvas";
 
-// `open` and `similar` are where the map starts: hubs already showing their files, and
-// similar-in-meaning edges on.
+// Both maps open as the member left them (`saved`, from map_views); `view` was loaded with the
+// saved switches.
 export type MapMode =
-  | { kind: "global"; view: HubView; open?: readonly MapNodeId[]; similar?: boolean }
-  | { kind: "local"; view: LocalView; centerName: string; similar?: boolean };
+  | { kind: "global"; view: HubView; saved: SavedMapView }
+  | { kind: "local"; view: LocalView; centerName: string; saved: SavedMapView };
 
 export function MapView({ mode }: { mode: MapMode }) {
   return mode.kind === "global" ? (
-    <GlobalMap view={mode.view} initialOpen={mode.open ?? []} initialSimilar={mode.similar ?? false} />
+    <GlobalMap initialView={mode.view} saved={mode.saved} />
   ) : (
-    <LocalMap initial={mode.view} centerName={mode.centerName} initialSimilar={mode.similar ?? false} />
+    <LocalMap initial={mode.view} centerName={mode.centerName} saved={mode.saved} />
   );
 }
 
-function useFilters(initialSimilar: boolean) {
-  const [kinds, setKinds] = useState<ReadonlySet<NodeKind>>(ALL_KINDS);
-  const [similar, setSimilar] = useState(initialSimilar);
-  const toggleKind = (kind: NodeKind) =>
+function useFilters(saved: SavedMapView) {
+  const [kinds, setKinds] = useState<ReadonlySet<FilterKind>>(() => new Set(FILTER_KINDS.filter((k) => !saved.hidden.includes(k))));
+  const [similar, setSimilar] = useState(saved.similar);
+  const [tags, setTags] = useState(saved.tags);
+  const toggleKind = (kind: FilterKind) =>
     setKinds((current) => {
       const next = new Set(current);
       if (next.has(kind)) next.delete(kind);
       else next.add(kind);
       return next;
     });
-  const filters: Filters = useMemo(() => ({ kinds, similar }), [kinds, similar]);
-  return { filters, toggleKind, setSimilar };
+  const filters: Filters = useMemo(() => ({ kinds, similar, tags }), [kinds, similar, tags]);
+  return { filters, toggleKind, setSimilar, setTags };
+}
+
+const hiddenOf = (filters: Filters): FilterKind[] => FILTER_KINDS.filter((k) => !filters.kinds.has(k));
+
+// Saves the member's view a moment after it last changed, and at once when they leave the page
+// (opening a dot leaves it). A view equal to the last one saved isn't sent.
+function useRemember(api: LabApi, initial: MapViewSave): (save: MapViewSave) => void {
+  const last = useRef(JSON.stringify(initial));
+  const pending = useRef<{ timer: ReturnType<typeof setTimeout>; save: MapViewSave } | null>(null);
+  const saveMapView = useRef(api.saveMapView);
+  useEffect(() => {
+    saveMapView.current = api.saveMapView;
+  });
+  const send = useCallback(() => {
+    const p = pending.current;
+    if (p === null) return;
+    clearTimeout(p.timer);
+    pending.current = null;
+    last.current = JSON.stringify(p.save);
+    saveMapView.current(p.save).catch(() => undefined);
+  }, []);
+  useEffect(() => {
+    window.addEventListener("pagehide", send);
+    return () => {
+      window.removeEventListener("pagehide", send);
+      send();
+    };
+  }, [send]);
+  return useCallback(
+    (save: MapViewSave) => {
+      if (pending.current !== null) clearTimeout(pending.current.timer);
+      if (JSON.stringify(save) === last.current) {
+        pending.current = null;
+        return;
+      }
+      pending.current = { save, timer: setTimeout(send, 800) };
+    },
+    [send],
+  );
 }
 
 // The lab map: the hubs, and the files of the ones someone opened.
-function GlobalMap({ view, initialOpen, initialSimilar }: { view: HubView; initialOpen: readonly MapNodeId[]; initialSimilar: boolean }) {
+function GlobalMap({ initialView, saved }: { initialView: HubView; saved: SavedMapView }) {
   const api = useLabApi();
   const router = useRouter();
-  const { filters, toggleKind, setSimilar } = useFilters(initialSimilar);
-  const [open, setOpen] = useState<readonly MapNodeId[]>(initialOpen);
+  const { filters, toggleKind, setSimilar, setTags } = useFilters(saved);
+  const [open, setOpen] = useState<readonly MapNodeId[]>(() => openStill(saved, initialView));
+  const camera = useRef<SavedCamera | null>(saved.camera);
+  const saveOf = (): MapViewSave => ({
+    hidden: hiddenOf(filters),
+    similar: filters.similar,
+    tags: filters.tags,
+    place: { camera: camera.current, open: [...open] },
+  });
+  const remember = useRemember(api, { hidden: [...saved.hidden], similar: saved.similar, tags: saved.tags, place: { camera: saved.camera, open: [...saved.open] } });
+  const saveNow = saveOf();
+  const saveKey = JSON.stringify(saveNow);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- saveKey is the whole view
+  useEffect(() => remember(saveNow), [saveKey]);
+
+  const asLoaded = filters.similar === saved.similar && filters.tags === saved.tags;
+  const hubs = useQuery({
+    queryKey: ["map-hubs", filters.similar, filters.tags] as const,
+    queryFn: ({ signal }) => api.mapHubs({ similar: filters.similar, tags: filters.tags }, signal),
+    initialData: asLoaded ? initialView : undefined,
+    placeholderData: (previous) => previous,
+    staleTime: 60_000,
+  });
+  const view = hubs.data ?? initialView;
   const results = useQueries({
     queries: open.map((id) => {
       const others = filters.similar ? open.filter((o) => o !== id) : [];
       return {
-        queryKey: ["map-hub", id, filters.similar, others] as const,
-        queryFn: ({ signal }: { signal: AbortSignal }) => api.mapHub({ id, similar: filters.similar, with: others }, signal),
+        queryKey: ["map-hub", id, filters.similar, others, filters.tags] as const,
+        queryFn: ({ signal }: { signal: AbortSignal }) => api.mapHub({ id, similar: filters.similar, with: others, tags: filters.tags }, signal),
         staleTime: 60_000,
         placeholderData: (previous: HubFiles | undefined) => previous,
       };
@@ -86,8 +152,14 @@ function GlobalMap({ view, initialOpen, initialSimilar }: { view: HubView; initi
   const loadedKey = loaded.map((d) => `${d.hub}:${d.nodes.length}:${d.edges.length}`).join("|");
   // eslint-disable-next-line react-hooks/exhaustive-deps -- rebuilt only when what's loaded changes
   const graph = useMemo(() => globalGraph({ view, open: loaded, filters }), [view, loadedKey, filters]);
-  const loading = results.some((r) => r.isFetching);
+  const loading = hubs.isFetching || results.some((r) => r.isFetching);
   const toggleHub = (id: MapNodeId) => setOpen((o) => (o.includes(id) ? o.filter((x) => x !== id) : [...o, id]));
+  // Turning tags off closes the tags that were open, or their files would stay with nothing
+  // to hang from.
+  const switchTags = (on: boolean) => {
+    setTags(on);
+    if (!on) setOpen((o) => o.filter((id) => !id.startsWith("tag:")));
+  };
 
   const empty = view.hubs.length === 0;
   return (
@@ -97,7 +169,15 @@ function GlobalMap({ view, initialOpen, initialSimilar }: { view: HubView; initi
       filters={filters}
       toggleKind={toggleKind}
       setSimilar={setSimilar}
+      setTags={switchTags}
       loading={loading}
+      camera={{
+        initial: saved.camera,
+        onChange: (c) => {
+          camera.current = c;
+          remember(saveOf());
+        },
+      }}
       onActivate={(node) => {
         if (node.kind === "file" || node.kind === "more") router.push(openHref(node));
         else toggleHub(node.id);
@@ -115,22 +195,28 @@ function GlobalMap({ view, initialOpen, initialSimilar }: { view: HubView; initi
       summary={
         empty
           ? "Nothing to map yet. Files show up here once they're labeled with an experiment, a person or an instrument, or attached to a protocol."
-          : `${filesText(view.files)}, ${view.linked.toLocaleString("en-US")} linked to something. Click an experiment, person, protocol or instrument to show its files.`
+          : `${filesText(view.files)}, ${view.linked.toLocaleString("en-US")} linked to something. Click an experiment, person, protocol${filters.tags ? ", instrument or tag" : " or instrument"} to show its files.`
       }
     />
   );
 }
 
-// The map around one file, protocol, experiment, person or instrument.
-function LocalMap({ initial, centerName, initialSimilar }: { initial: LocalView; centerName: string; initialSimilar: boolean }) {
+// The map around one file, protocol, experiment, person, instrument or tag. It remembers the
+// member's switches and filters, not its camera: each one fits itself to its center.
+function LocalMap({ initial, centerName, saved }: { initial: LocalView; centerName: string; saved: SavedMapView }) {
   const api = useLabApi();
   const router = useRouter();
-  const { filters, toggleKind, setSimilar } = useFilters(initialSimilar);
+  const { filters, toggleKind, setSimilar, setTags } = useFilters(saved);
+  const remember = useRemember(api, { hidden: [...saved.hidden], similar: saved.similar, tags: saved.tags, place: null });
+  const saveNow: MapViewSave = { hidden: hiddenOf(filters), similar: filters.similar, tags: filters.tags, place: null };
+  const saveKey = JSON.stringify(saveNow);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- saveKey is the whole view
+  useEffect(() => remember(saveNow), [saveKey]);
   const [depth, setDepth] = useState<Depth>(initial.depth);
-  const fresh = depth === initial.depth && !filters.similar;
+  const fresh = depth === initial.depth && filters.similar === saved.similar && filters.tags === saved.tags;
   const query = useQuery({
-    queryKey: ["map-local", initial.center, depth, filters.similar] as const,
-    queryFn: ({ signal }) => api.mapLocal({ around: initial.center, depth, similar: filters.similar }, signal),
+    queryKey: ["map-local", initial.center, depth, filters.similar, filters.tags] as const,
+    queryFn: ({ signal }) => api.mapLocal({ around: initial.center, depth, similar: filters.similar, tags: filters.tags }, signal),
     initialData: fresh ? initial : undefined,
     placeholderData: (previous) => previous,
     staleTime: 60_000,
@@ -145,6 +231,7 @@ function LocalMap({ initial, centerName, initialSimilar }: { initial: LocalView;
       filters={filters}
       toggleKind={toggleKind}
       setSimilar={setSimilar}
+      setTags={setTags}
       loading={query.isFetching}
       onActivate={(node) => router.push(openHref(node))}
       onPick={() => undefined}
@@ -161,25 +248,29 @@ function MapFrame({
   filters,
   toggleKind,
   setSimilar,
+  setTags,
   loading,
   onActivate,
   onPick,
   hubActions,
   summary,
   depth,
+  camera,
   initialActive = null,
 }: {
   graph: Graph;
   title: string;
   filters: Filters;
-  toggleKind: (k: NodeKind) => void;
+  toggleKind: (k: FilterKind) => void;
   setSimilar: (v: boolean) => void;
+  setTags: (v: boolean) => void;
   loading: boolean;
   onActivate: (node: MapNode) => void;
   onPick: (node: MapNode) => void;
   hubActions: (node: MapNode) => ReactNode;
   summary: string;
   depth?: { value: Depth; set: (d: Depth) => void };
+  camera?: { initial: SavedCamera | null; onChange: (c: SavedCamera | null) => void };
   initialActive?: MapNodeId | null;
 }) {
   const [active, setActive] = useState<MapNodeId | null>(initialActive);
@@ -216,7 +307,8 @@ function MapFrame({
           <div className="-mx-4 flex items-center gap-1 overflow-x-auto px-4 [scrollbar-width:none] sm:mx-0 sm:px-0">
             <KindFilters graph={graph} kinds={filters.kinds} toggle={toggleKind} />
             <span aria-hidden className="mx-1 h-5 w-px shrink-0 bg-border-opaque" />
-            <Toggle label="Similar in meaning" on={filters.similar} onChange={setSimilar} dashed />
+            <Toggle label="Similar in meaning" on={filters.similar} onChange={setSimilar} glyph="similar" />
+            <Toggle label="Tags" on={filters.tags} onChange={setTags} glyph="tag" />
             {depth === undefined ? null : (
               <>
                 <span aria-hidden className="mx-1 h-5 w-px shrink-0 bg-border-opaque" />
@@ -258,6 +350,7 @@ function MapFrame({
             centerOn={centerOn}
             label={title}
             describedBy={`${helpId} ${stripId}`}
+            camera={camera}
           />
         </>
       )}
@@ -299,8 +392,9 @@ function NodeStrip({ node, graph, actions }: { node: MapNode; graph: Graph; acti
   );
 }
 
-function Dot({ kind, dashed }: { kind: NodeKind | "similar"; dashed?: boolean }) {
-  if (dashed) return <span aria-hidden className="inline-block w-3.5 shrink-0 border-t border-dashed border-content-tertiary" />;
+function Dot({ kind }: { kind: NodeKind | "similar" }) {
+  if (kind === "similar") return <span aria-hidden className="inline-block w-3.5 shrink-0 border-t border-dashed border-content-tertiary" />;
+  if (kind === "tag") return <span aria-hidden className="inline-block size-2 shrink-0" style={{ background: "var(--map-tag)" }} />;
   const ring = kind === "instrument";
   return (
     <span
@@ -312,7 +406,7 @@ function Dot({ kind, dashed }: { kind: NodeKind | "similar"; dashed?: boolean })
 }
 
 // The type filters double as the legend: each names its kind beside its dot.
-function KindFilters({ graph, kinds, toggle }: { graph: Graph; kinds: ReadonlySet<NodeKind>; toggle: (k: NodeKind) => void }) {
+function KindFilters({ graph, kinds, toggle }: { graph: Graph; kinds: ReadonlySet<FilterKind>; toggle: (k: FilterKind) => void }) {
   const counts = new Map<NodeKind, number>();
   for (const n of graph.nodes.values()) {
     const k = n.kind === "more" ? "file" : n.kind;
@@ -320,28 +414,31 @@ function KindFilters({ graph, kinds, toggle }: { graph: Graph; kinds: ReadonlySe
   }
   return (
     <div role="group" aria-label="Show on the map" className="flex shrink-0 items-center gap-1">
-      {NODE_KINDS.map((kind) => (
-        <Toggle key={kind} label={KIND_NAMES[kind].many} on={kinds.has(kind)} onChange={() => toggle(kind)} kind={kind} />
+      {FILTER_KINDS.map((kind) => (
+        <Toggle key={kind} label={KIND_NAMES[kind].many} on={kinds.has(kind)} onChange={() => toggle(kind)} glyph={kind} />
       ))}
       <span className="sr-only">{[...counts].map(([k, n]) => `${n} ${KIND_NAMES[k].many.toLowerCase()}`).join(", ")} shown</span>
     </div>
   );
 }
 
-function Toggle({ label, on, onChange, kind, dashed }: { label: string; on: boolean; onChange: (v: boolean) => void; kind?: NodeKind; dashed?: boolean }) {
+// A kind filter is pressed or not; similar in meaning and tags are switches that ask the
+// server for more.
+function Toggle({ label, on, onChange, glyph }: { label: string; on: boolean; onChange: (v: boolean) => void; glyph: FilterKind | "similar" | "tag" }) {
+  const isSwitch = glyph === "similar" || glyph === "tag";
   return (
     <button
       type="button"
-      role={dashed ? "switch" : undefined}
-      aria-checked={dashed ? on : undefined}
-      aria-pressed={dashed ? undefined : on}
+      role={isSwitch ? "switch" : undefined}
+      aria-checked={isSwitch ? on : undefined}
+      aria-pressed={isSwitch ? undefined : on}
       onClick={() => onChange(!on)}
       className={cn(
         "flex min-h-10 shrink-0 items-center gap-2 rounded-control px-2.5 text-label-small transition-colors duration-150 ease-out sm:min-h-8",
         on ? "bg-background-secondary text-content-primary" : "text-content-tertiary hover:text-content-secondary",
       )}
     >
-      {dashed ? <Dot kind="similar" dashed /> : kind === undefined ? null : <span className={cn("flex", on ? "" : "opacity-40")}><Dot kind={kind} /></span>}
+      {glyph === "similar" ? <Dot kind="similar" /> : <span className={cn("flex", on ? "" : "opacity-40")}><Dot kind={glyph} /></span>}
       {label}
     </button>
   );
@@ -372,7 +469,7 @@ function MapSearch({ graph, onPick }: { graph: Graph; onPick: (node: MapNode) =>
   };
   const hasResults = onMap.length > 0 || files.length > 0;
   return (
-    <div className="relative w-full lg:w-72 lg:shrink-0">
+    <div className="relative w-full lg:w-52 lg:shrink-0">
       <SearchOutlineIcon className="pointer-events-none absolute top-1/2 left-3 size-5 -translate-y-1/2 text-content-tertiary" />
       <input
         type="search"

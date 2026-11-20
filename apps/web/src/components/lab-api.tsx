@@ -35,7 +35,7 @@ import type { SaveChecksRequest } from "@/lib/checks";
 import { FileChecksWire, FlagAnswerWire, FlagMarksWire, type FileChecks, type FlagAnswer, type ReviewRequest } from "@/lib/flags";
 import { TableState } from "@/lib/data-tables";
 import { RunChoicesWire, RunInfos, type RunChoices, type RunInfo } from "@/lib/runs";
-import { HubFiles, LocalView, type HubQuery, type LocalQuery } from "@/lib/map";
+import { HubFiles, HubView, LocalView, type HubQuery, type HubsQuery, type LocalQuery, type MapViewSave } from "@/lib/map";
 import {
   ChartSaveOutcomeWire,
   ChartsWire,
@@ -158,9 +158,12 @@ export type LabApi = {
   saveLayout: (req: SaveLayoutRequest) => Promise<SavedLayout>;
   updateLayout: (id: LayoutId, req: SaveLayoutRequest) => Promise<SavedLayout>;
   deleteLayout: (id: LayoutId) => Promise<void>;
-  // The lab map: one hub's files, and the map around one node.
+  // The lab map: the hubs, one hub's files, the map around one node, and saving the member's
+  // own view of it (kept alive past leaving the page, since opening a dot leaves it).
+  mapHubs: (q: HubsQuery, signal: AbortSignal) => Promise<HubView>;
   mapHub: (q: HubQuery, signal: AbortSignal) => Promise<HubFiles>;
   mapLocal: (q: LocalQuery, signal: AbortSignal) => Promise<LocalView>;
+  saveMapView: (save: MapViewSave) => Promise<void>;
   // A file's checks and open flags; open flags per file for rows on screen.
   fileChecks: (sha: Sha256, signal: AbortSignal) => Promise<FileChecks>;
   flagMarks: (shas: readonly Sha256[], signal: AbortSignal) => Promise<Record<string, number>>;
@@ -374,16 +377,33 @@ export const httpLabApi: LabApi = {
   saveLayout: async (req) => LayoutWire.parse(await postJson("/api/layouts", req)),
   updateLayout: async (id, req) => LayoutWire.parse(await postJson(`/api/layouts/${id}`, req)),
   deleteLayout: async (id) => void (await postJson(`/api/layouts/${id}`, {}, "DELETE")),
+  mapHubs: async (q, signal) => {
+    const params = new URLSearchParams();
+    if (q.similar) params.set("similar", "1");
+    if (q.tags) params.set("tags", "1");
+    return HubView.parse(await getJson(`/api/map?${params}`, signal));
+  },
   mapHub: async (q, signal) => {
     const params = new URLSearchParams({ id: q.id });
     if (q.similar) params.set("similar", "1");
+    if (q.tags) params.set("tags", "1");
     for (const hub of q.with) params.append("with", hub);
     return HubFiles.parse(await getJson(`/api/map/hub?${params}`, signal));
   },
   mapLocal: async (q, signal) => {
     const params = new URLSearchParams({ around: q.around, depth: String(q.depth) });
     if (q.similar) params.set("similar", "1");
+    if (q.tags) params.set("tags", "1");
     return LocalView.parse(await getJson(`/api/map/local?${params}`, signal));
+  },
+  saveMapView: async (save) => {
+    const res = await fetch("/api/map/view", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(save),
+      keepalive: true,
+    });
+    if (!res.ok) throw new Error(`/api/map/view answered ${res.status}`);
   },
   fileChecks: async (sha, signal) => FileChecksWire.parse(await getJson(`/api/flags?${new URLSearchParams({ sha256: sha })}`, signal)),
   flagMarks: async (shas, signal) =>

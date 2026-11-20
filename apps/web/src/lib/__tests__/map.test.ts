@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   ALL_KINDS,
   adjacency,
+  DEFAULT_MAP_VIEW,
+  describe as describeNode,
   findNodes,
+  MapViewSave,
+  openStill,
+  savedViewOf,
   globalGraph,
   HubFiles,
   HubView,
@@ -15,7 +20,7 @@ import {
   openHref,
   type Filters,
   type MapNode,
-  type NodeKind,
+  type FilterKind,
 } from "../map";
 
 const sha = (n: number) => n.toString(16).padStart(64, "0");
@@ -67,7 +72,7 @@ const hubFiles = HubFiles.parse({
   ],
 });
 
-const filters = (kinds: Iterable<NodeKind> = ALL_KINDS, similar = false): Filters => ({ kinds: new Set(kinds), similar });
+const filters = (kinds: Iterable<FilterKind> = ALL_KINDS, similar = false, tags = false): Filters => ({ kinds: new Set(kinds), similar, tags });
 
 describe("parsing what the database answers", () => {
   it("reads a file node's sha256 from its id and refuses ids that aren't node ids", () => {
@@ -183,5 +188,70 @@ describe("words and links", () => {
     expect(files?.items.at(-1)?.node.kind).toBe("more");
     const gel = files?.items.find((i) => i.node.id === F1);
     expect(gel?.links.map((n) => n.id).sort()).toEqual([E, H].sort());
+  });
+});
+
+describe("tags", () => {
+  const T = "tag:triplicate";
+  const tagged = HubView.parse({
+    ...hubView,
+    hubs: [...hubView.hubs, { id: T, kind: "tag", name: "Triplicate", files: 2 }],
+    links: [...hubView.links, { source: T, target: E, kind: "shared", weight: 2 }],
+  });
+  const files = HubFiles.parse({
+    ...hubFiles,
+    edges: [...hubFiles.edges, { source: F1, target: T, kind: "label" }, { source: F2, target: T, kind: "label" }],
+  });
+
+  it("draws tags only with their switch on, whatever kinds are shown", () => {
+    const off = globalGraph({ view: tagged, open: [files], filters: filters() });
+    expect(off.nodes.has(id(T))).toBe(false);
+    expect(off.edges.some((e) => e.source === T || e.target === T)).toBe(false);
+    const on = globalGraph({ view: tagged, open: [files], filters: filters(ALL_KINDS, false, true) });
+    expect(on.nodes.get(id(T))).toMatchObject({ kind: "tag", name: "Triplicate" });
+    expect(on.edges.filter((e) => e.target === T).map((e) => e.source).sort()).toEqual([F1, F2].sort());
+    expect(on.edges.some((e) => e.source === T && e.target === E)).toBe(true);
+  });
+
+  it("keeps a file that only a tag still links when its other hubs are hidden", () => {
+    const g = globalGraph({ view: tagged, open: [files], filters: filters(["file"], false, true) });
+    expect([...g.nodes.keys()].filter((k) => k.startsWith("file:")).sort()).toEqual([F1, F2].sort());
+  });
+
+  it("reads a tag id, describes it and opens its files as a search", () => {
+    expect(MapNodeId.safeParse("tag:pH 7.4").success).toBe(true);
+    expect(MapNodeId.safeParse(`tag:${"x".repeat(121)}`).success).toBe(false);
+    const g = globalGraph({ view: tagged, open: [], filters: filters(ALL_KINDS, false, true) });
+    const tag = g.nodes.get(id(T));
+    if (tag === undefined) throw new Error("no tag");
+    expect(describeNode(tag)).toBe("Tag · 2 files");
+    expect(openHref(tag)).toBe("/?q=Triplicate");
+    expect(listSections(g).map((s) => s.title)).toContain("Tags");
+  });
+});
+
+describe("a member's saved view", () => {
+  const camera = { anchor: E, k: 2, dx: 1.5, dy: -3 };
+  const row = { camera, open_hubs: [E, "tag:triplicate"], hidden_kinds: ["file"], show_similar: true, show_tags: false };
+
+  it("reads a saved row, dropping what it couldn't restore rather than failing", () => {
+    expect(savedViewOf(row)).toEqual({ camera, open: [E, "tag:triplicate"], hidden: ["file"], similar: true, tags: false });
+    const stale = savedViewOf({ ...row, camera: { anchor: E, k: 2 }, open_hubs: [E, "folder:/x", F1], hidden_kinds: ["file", "tag", "gone"] });
+    expect(stale).toEqual({ camera: null, open: [E], hidden: ["file"], similar: true, tags: false });
+    expect(savedViewOf(null)).toEqual(DEFAULT_MAP_VIEW);
+  });
+
+  it("opens only the saved hubs the lab still has", () => {
+    expect(openStill({ ...DEFAULT_MAP_VIEW, open: [id(E), id(`experiment:${uuid(99)}`), id(H)] }, hubView)).toEqual([E, H]);
+  });
+
+  it("takes a save only in shapes the map can restore", () => {
+    const ok = { hidden: ["file"], similar: false, tags: true, place: { camera, open: [E] } };
+    expect(MapViewSave.safeParse(ok).success).toBe(true);
+    expect(MapViewSave.safeParse({ ...ok, place: null }).success).toBe(true);
+    expect(MapViewSave.safeParse({ ...ok, hidden: ["tag"] }).success).toBe(false);
+    expect(MapViewSave.safeParse({ ...ok, place: { camera: { ...camera, k: 9 }, open: [E] } }).success).toBe(false);
+    expect(MapViewSave.safeParse({ ...ok, place: { camera: { ...camera, anchor: F1 }, open: [E] } }).success).toBe(false);
+    expect(MapViewSave.safeParse({ ...ok, place: { camera, open: [F1] } }).success).toBe(false);
   });
 });

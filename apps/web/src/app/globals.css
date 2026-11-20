@@ -81,6 +81,7 @@
   --map-experiment: var(--chart-orange);
   --map-person: var(--chart-aqua);
   --map-instrument: var(--content-secondary);
+  --map-tag: var(--content-secondary);
   --map-file: #9a9aa0;
   --map-edge: #d2d2d6;
   --map-edge-strong: #6f6f75;

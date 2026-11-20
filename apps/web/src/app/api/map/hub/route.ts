@@ -14,6 +14,7 @@ export async function GET(request: NextRequest) {
     id: params.get("id"),
     similar: flag(params.get("similar")),
     with: params.getAll("with"),
+    tags: flag(params.get("tags")),
   });
   if (!q.success) return badRequest(q.error);
   const files = await loadHubFiles(access.member.supabase, access.member.lab.id, q.data);

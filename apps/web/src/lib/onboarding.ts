@@ -496,7 +496,7 @@ export const HELP_ANSWERS: readonly HelpAnswer[] = [
     id: "map",
     group: "find",
     question: "Read the map",
-    answer: "Each dot is a protocol, experiment, person or instrument, bigger when it holds more files, and a line means two share files. Click a dot to show its files, or Show as a list to read the same thing as text.",
+    answer: "Dots are protocols, experiments, people, instruments and, with Tags on, tags. A line means two share files; click a dot to show its files, or Show as a list to read it as text, and the map opens as you left it.",
     clip: "map",
   },
   {

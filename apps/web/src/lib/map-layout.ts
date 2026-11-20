@@ -56,6 +56,9 @@ export function nodeRadius(node: MapNode): number {
       // Grows with the file count, slowly, so a hub of 2,000 files is a big dot, not a disc
       // that hides its neighbors: 3 px for none, 10 for 10 files, 18 for 200, 25 for 2,000.
       return 3 + 2 * Math.log2(1 + node.files);
+    case "tag":
+      // Smaller than a hub of as many files: a tag says less about a file than its experiment.
+      return 2 + 0.9 * Math.log2(1 + node.files);
     default: {
       const _exhaustive: never = node;
       return _exhaustive;
@@ -67,6 +70,10 @@ function isHub(node: MapNode): boolean {
   return node.kind !== "file" && node.kind !== "more";
 }
 
+// Similar in meaning joins two files, or (on the hubs alone) two hubs whose files read alike;
+// those are as loose as two hubs that share files.
+const betweenFiles = (edge: MapEdge) => edge.source.startsWith("file:");
+
 function restLength(edge: MapEdge, r: (id: MapNodeId) => number): number {
   switch (edge.kind) {
     case "uses":
@@ -74,7 +81,7 @@ function restLength(edge: MapEdge, r: (id: MapNodeId) => number): number {
     case "shared":
       return 150;
     case "similar":
-      return 28;
+      return betweenFiles(edge) ? 28 : 150;
     case "label":
     case "attached":
     case "chart":
@@ -95,7 +102,7 @@ function strengthFactor(edge: MapEdge, heaviest: number): number {
     case "shared":
       return 0.04 + 0.4 * Math.sqrt(edge.weight / Math.max(heaviest, 1));
     case "similar":
-      return 0.3;
+      return betweenFiles(edge) ? 0.3 : 0.04;
     case "label":
     case "attached":
     case "chart":

@@ -19,7 +19,7 @@ import { createFixtureVideoUploads, FIXTURE_VIDEO, fixtureVideoSources, pageVide
 import { chartsOf, fixtureRun, fixtureRunChoices, fixtureTable, savedCharts, savedLayouts } from "./charts";
 import { LayoutId } from "@/lib/ids";
 import { SaveLayoutRequest, type SavedLayout } from "@/lib/layouts";
-import { fixtureHubFiles, fixtureLab, fixtureLocal, type LabSize } from "./map";
+import { fixtureHubFiles, fixtureHubView, fixtureLab, fixtureLocal, mapSaves, type LabSize } from "./map";
 import { ChartId, UserId } from "@/lib/ids";
 import { CreateChartRequest, SaveChartRequest } from "@/lib/charts";
 import { ReviewRequest } from "@/lib/flags";
@@ -261,6 +261,11 @@ export function FixtureLabApi({
       return { kind: "saved", chart: { ...chart, sheet, title, spec, protocolId, updatedAt: new Date().toISOString() } };
     },
     deleteChart: async () => wait(150),
+    mapHubs: async (q, signal) => {
+      await wait(150, signal);
+      if (map === null) throw new Error("no fixture map");
+      return fixtureHubView(map, q);
+    },
     mapHub: async (q, signal) => {
       await wait(150, signal);
       if (map === null) throw new Error("no fixture map");
@@ -271,6 +276,10 @@ export function FixtureLabApi({
       const view = map === null ? null : fixtureLocal(map, q);
       if (view === null) throw new Error("no such node in the fixture map");
       return view;
+    },
+    saveMapView: async (save) => {
+      mapSaves.push(save);
+      window.dispatchEvent(new CustomEvent("fixture-map-save", { detail: save }));
     },
     fileChecks: async (sha, signal) => {
       await wait(80, signal);

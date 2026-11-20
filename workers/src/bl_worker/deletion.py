@@ -52,6 +52,7 @@ LAB_TABLES = (
     "calendar_feeds",
     "file_vectors",
     "file_neighbors",
+    "map_views",
     "check_requests",
     "check_results",
     "flags",
