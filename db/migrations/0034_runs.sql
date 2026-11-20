@@ -674,11 +674,17 @@ language sql stable security definer set search_path = public as $$
         'original_name', v.original_name,
         'file_kind', b.file_kind,
         'size', b.size,
-        'location_id', (
+        -- The place that holds this content now, or else the live place whose history
+        -- holds it: a file edited in the lab's folder after the run is still there.
+        'location_id', coalesce((
           select fl.id from file_locations fl
           where fl.lab_id = f.lab_id and fl.sha256 = f.sha256 and fl.deleted_at is null
           order by fl.modified_at desc, fl.id limit 1
-        ),
+        ), (
+          select fl.id from file_versions fv join file_locations fl on fl.id = fv.location_id
+          where fv.lab_id = f.lab_id and fv.sha256 = f.sha256 and fl.deleted_at is null
+          order by fv.seen_at desc, fv.id limit 1
+        )),
         'kept', coalesce(v.kept, false),
         'file_says', l.outcome
       ) order by f.position, f.added_at, f.sha256)

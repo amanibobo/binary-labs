@@ -202,6 +202,16 @@ describe("the run's status is the only truth about a run", () => {
     expect(await count("runs")).toBe(runs);
     await owner("update file_locations set sha256 = $2 where lab_id = $1 and sha256 = $3", [lab, sha(8), sha(30)]);
   });
+
+  it("still finds a run's file in the lab's folder after it's edited there", async () => {
+    const run = await create(ada, lab, [sha(8)]);
+    const before = (await read(ada, run.id))?.files[0]?.locationId;
+    expect(before).not.toBeNull();
+    await owner("insert into blobs (sha256, size, mime, file_kind) values ($1, 10, 'text/csv', 'spreadsheet') on conflict do nothing", [sha(31)]);
+    await owner("update file_locations set sha256 = $2 where lab_id = $1 and sha256 = $3", [lab, sha(31), sha(8)]);
+    expect((await read(ada, run.id))?.files[0]?.locationId).toBe(before);
+    await owner("update file_locations set sha256 = $2 where lab_id = $1 and sha256 = $3", [lab, sha(8), sha(31)]);
+  });
 });
 
 describe("set_run_status", () => {
