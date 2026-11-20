@@ -25,11 +25,11 @@ const extensionOf = (name: string) => (name.includes(".") ? (name.split(".").pop
 const looksLikeText = (file: SourceFile) => TEXT_EXTENSIONS.has(extensionOf(file.originalName)) || file.fileKind === "text" || file.mime.startsWith("text/");
 
 const folderOf = (value: string) => value.trim().replace(/\/+$/, "").toLowerCase();
-const fieldsOut = (source: TaskSource) => new Set(source.exclusions.filter((x) => x.kind === "field").map((x) => x.value));
+const fieldsOut = (source: Pick<TaskSource, "exclusions">) => new Set(source.exclusions.filter((x) => x.kind === "field").map((x) => x.value));
 
 // Which of the run's files go in, before any byte is read: the caller reads only the text
 // files' bytes, and copies the rest from the store unopened.
-export function planEvidence(source: TaskSource): EvidencePlan[] {
+export function planEvidence(source: Pick<TaskSource, "files" | "exclusions">): EvidencePlan[] {
   const out = fieldsOut(source);
   const folders = source.exclusions.filter((x) => x.kind === "folder").map((x) => folderOf(x.value));
   let total = 0;

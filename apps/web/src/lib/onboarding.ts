@@ -427,6 +427,7 @@ export type HelpAnswerId =
   | "invite"
   | "members"
   | "share-run"
+  | "task-folder"
   | "instrument";
 
 // A clip where seeing it helps; a few answers are clear in words alone.
@@ -662,6 +663,13 @@ export const HELP_ANSWERS: readonly HelpAnswer[] = [
     group: "lab",
     question: "Share a run outside the lab",
     answer: "An admin agrees for the lab in Settings, Sharing; then the person who ran a run, or an admin, opens it and chooses Turn sharing on. Nothing leaves the lab unless both are on, and changing a run turns its sharing off again.",
+    clip: null,
+  },
+  {
+    id: "task-folder",
+    group: "lab",
+    question: "Make a task from a failed run",
+    answer: "On a shared run with a confirmed cause, choose Make a task from this run: a second scientist writes the question and rubric, then you read the record with names taken out and build the folder. Download it from the same page.",
     clip: null,
   },
   {

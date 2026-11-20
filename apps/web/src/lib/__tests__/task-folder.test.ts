@@ -51,7 +51,7 @@ describe("which files go in", () => {
     ...over,
   });
   const plan = (files: TaskSource["files"], exclusions: TaskSource["exclusions"] = []) =>
-    planEvidence({ files, exclusions } as TaskSource).map((p) => [p.text, p.leftOut]);
+    planEvidence({ files, exclusions }).map((p) => [p.text, p.leftOut]);
 
   it("reads text files to scrub them, and leaves out one too big to check", () => {
     expect(

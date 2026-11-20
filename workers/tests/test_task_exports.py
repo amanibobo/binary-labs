@@ -120,4 +120,7 @@ def test_a_row_that_names_another_place_deletes_nothing(rt, conn, make_lab):
 
 def test_the_sweep_is_a_periodic_job():
     assert "sweep_withdrawn_folders" in app.tasks
-    assert any(p.task.name == "sweep_withdrawn_folders" for p in app.periodic_registry.periodic_tasks.values())
+    assert any(
+        p.task.name == "sweep_withdrawn_folders"
+        for p in app.periodic_registry.periodic_tasks.values()
+    )

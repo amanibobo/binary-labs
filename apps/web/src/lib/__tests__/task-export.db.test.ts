@@ -18,9 +18,9 @@ import type { FolderStore } from "../task-folder-store";
 vi.mock("server-only", () => ({}));
 
 const db = new Client({ connectionString: process.env.TEST_DATABASE_URL ?? "postgresql://localhost/binary_labs_web_test" });
-const ada = "00000000-0000-4000-8000-0000000e0001";
-const ben = "00000000-0000-4000-8000-0000000e0002";
-const cy = "00000000-0000-4000-8000-0000000e0003";
+const ada = "00000000-0000-4000-8000-0000000e9001";
+const ben = "00000000-0000-4000-8000-0000000e9002";
+const cy = "00000000-0000-4000-8000-0000000e9003";
 const owner = (sql: string, params: unknown[] = []) => db.query(sql, params);
 const count = async (sql: string, params: unknown[] = []) => Number((await owner(`select count(*) as n from ${sql}`, params)).rows[0]?.n);
 const shaOf = (bytes: Uint8Array) => Sha256.parse(createHash("sha256").update(bytes).digest("hex"));
@@ -179,7 +179,7 @@ const blockedLog = async (runId: RunId) =>
 
 beforeAll(async () => {
   await db.connect();
-  await owner("insert into auth.users (id, email) values ($1, 'ada@export.test'), ($2, 'ben@export.test'), ($3, 'cy@export.test')", [ada, ben, cy]);
+  await owner("insert into auth.users (id, email) values ($1, 'ada@task-export.test'), ($2, 'ben@task-export.test'), ($3, 'cy@task-export.test')", [ada, ben, cy]);
   const made = async (userId: string, name: string) => LabId.parse(CreateLabResult.parse((await memberDb(userId).rpc("create_lab", { p_name: name })).data));
   lab = await made(ada, "Okafor Lab");
   otherLab = await made(cy, "Other export lab");

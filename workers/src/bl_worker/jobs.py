@@ -400,7 +400,9 @@ async def sweep_deletions(context: JobContext, timestamp: int) -> None:
 
 
 @app.periodic(cron="* * * * *")
-@app.task(name="sweep_withdrawn_folders", pass_context=True, queueing_lock="sweep_withdrawn_folders")
+@app.task(
+    name="sweep_withdrawn_folders", pass_context=True, queueing_lock="sweep_withdrawn_folders"
+)
 async def sweep_withdrawn_folders(context: JobContext, timestamp: int) -> None:
     """Each minute, takes out of the store the files of task folders whose sharing went off."""
     removed = await asyncio.to_thread(task_exports.remove_withdrawn, _runtime(context))

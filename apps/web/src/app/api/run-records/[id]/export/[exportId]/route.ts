@@ -1,4 +1,3 @@
-import { Readable } from "node:stream";
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { logError } from "@/lib/log";
@@ -29,8 +28,19 @@ export async function GET(_request: NextRequest, ctx: RouteContext<"/api/run-rec
     case "mismatch":
       logError("task.zip_mismatch", { labId: lab.id, runId: access.id, exportId: exportId.data });
       return refuse(500, "The stored folder doesn't match what Binary built, so it wasn't sent.");
-    case "ok":
-      return new Response(Readable.toWeb(Readable.from(opened.body)) as ReadableStream<Uint8Array>, {
+    case "ok": {
+      const chunks = opened.body[Symbol.asyncIterator]();
+      const body = new ReadableStream<Uint8Array>({
+        pull: async (controller) => {
+          const next = await chunks.next();
+          if (next.done === true) controller.close();
+          else controller.enqueue(next.value);
+        },
+        cancel: async () => {
+          await chunks.return?.();
+        },
+      });
+      return new Response(body, {
         headers: {
           "content-type": "application/zip",
           "content-length": String(opened.bytes),
@@ -39,6 +49,7 @@ export async function GET(_request: NextRequest, ctx: RouteContext<"/api/run-rec
           "cache-control": "private, no-store",
         },
       });
+    }
     default: {
       const _exhaustive: never = opened;
       return _exhaustive;

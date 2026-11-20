@@ -114,11 +114,15 @@ describe("no name survives", () => {
     seed = (Math.imul(seed, 1103515245) + 12345) & 0x7fffffff;
     return seed % n;
   };
-  const pick = <T,>(xs: readonly T[]): T => xs[rand(xs.length)] as T;
+  const pick = <T,>(xs: readonly T[]): T => {
+    const x = xs[rand(xs.length)];
+    if (x === undefined) throw new Error("nothing to pick from");
+    return x;
+  };
   const bare = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
 
   const people = FIRST.map((first, i) => {
-    const last = LAST[i] as string;
+    const last = LAST[i] ?? "Unnamed";
     const login = bare(first.charAt(0) + last).replace(/[^a-z]/g, "");
     return { key: `p${i}`, first, last, login, names: [`${first} ${last}`], emails: [`${login}@lab.example`] };
   });
