@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { PersonId, RunId, Sha256 } from "./ids";
-import { ConfirmMethod, FailureTerm, fromRow, runFailure, type FailureFields, type RunFailure } from "./run-record";
+import { FailureTerm, fromRow, runFailure, type ConfirmMethod, type FailureFields, type RunFailure } from "./run-record";
 
 // The failure record (decisions.md, "the run record: the failure record"): the shapes and words
 // slice A adds on top of the run record's.
@@ -33,11 +33,6 @@ export type FailurePart = (typeof FAILURE_PARTS)[number]["part"];
 
 export function termsOf(list: FailureList, prefix: string): FailureTerm[] {
   return list.terms.filter((t) => t.code.startsWith(prefix)).sort((a, b) => a.position - b.position);
-}
-
-export function termLabel(list: FailureList | undefined, code: string | null): string | null {
-  if (code === null) return null;
-  return list?.terms.find((t) => t.code === code)?.label ?? code;
 }
 
 export const METHOD_CHOICES = [

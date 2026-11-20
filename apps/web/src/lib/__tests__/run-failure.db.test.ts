@@ -10,11 +10,11 @@ import { RunJson, RunRowsJson, type RunRecord } from "../run-record";
 // as the named confirmer, as a member of another lab, as someone in no lab and signed out.
 
 const db = new Client({ connectionString: process.env.TEST_DATABASE_URL ?? "postgresql://localhost/binary_labs_web_test" });
-const ada = "00000000-0000-4000-8000-0000000f2001";
-const ben = "00000000-0000-4000-8000-0000000f2002";
-const cy = "00000000-0000-4000-8000-0000000f2003";
-const dee = "00000000-0000-4000-8000-0000000f2004";
-const sha = (n: number) => Sha256.parse(`e${n.toString(16).padStart(63, "0")}`);
+const ada = "00000000-0000-4000-8000-0000000f6001";
+const ben = "00000000-0000-4000-8000-0000000f6002";
+const cy = "00000000-0000-4000-8000-0000000f6003";
+const dee = "00000000-0000-4000-8000-0000000f6004";
+const sha = (n: number) => Sha256.parse(`a7${n.toString(16).padStart(62, "0")}`);
 
 async function asRole<T>(role: "authenticated" | "anon", userId: string | null, fn: () => Promise<T>): Promise<T> {
   await db.query("begin");

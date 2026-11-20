@@ -12,9 +12,9 @@ import type { RunDb } from "../run-record-store";
 vi.mock("server-only", () => ({}));
 
 const db = new Client({ connectionString: process.env.TEST_DATABASE_URL ?? "postgresql://localhost/binary_labs_web_test" });
-const fay = "00000000-0000-4000-8000-0000000f3001";
-const gus = "00000000-0000-4000-8000-0000000f3002";
-const sha = (n: number) => Sha256.parse(`d${n.toString(16).padStart(63, "0")}`);
+const fay = "00000000-0000-4000-8000-0000000f7001";
+const gus = "00000000-0000-4000-8000-0000000f7002";
+const sha = (n: number) => Sha256.parse(`b7${n.toString(16).padStart(62, "0")}`);
 
 function memberDb(userId: string): RunDb {
   return {

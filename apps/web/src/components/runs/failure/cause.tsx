@@ -1,15 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useId, useState } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Caption, Input, Textarea } from "@/components/ui/field";
 import { When } from "@/components/ui/when";
-import { cn } from "@/lib/cn";
 import { formatDay } from "@/lib/format";
 import { RunId, Sha256 } from "@/lib/ids";
 import { attestState, CAUSE_MAX, METHOD_CHOICES, methodWords, NOTE_MAX, type ConfirmDraft, type ConfirmerChoice, type Evidence } from "@/lib/run-failure";
-import { ConfirmMethod, statusLabel, type RunRecord, type RunRef } from "@/lib/run-record";
+import { statusLabel, type ConfirmMethod, type RunRecord, type RunRef } from "@/lib/run-record";
 import { runHref, useRunsApi } from "../runs-api";
 
 // Resolves true once the run the write returned is on screen; a refusal has shown its toast.
@@ -20,7 +19,7 @@ export const quietAction =
 const select =
   "h-8 w-full max-w-md rounded-md border border-border-opaque bg-background-primary px-1.5 text-paragraph-small text-content-primary max-sm:h-11 max-sm:text-paragraph-medium";
 
-function Part({ title, children }: { title: string; children: React.ReactNode }) {
+function Part({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div className="grid gap-1.5">
       <h3 className="text-label-medium text-content-primary">{title}</h3>
@@ -183,7 +182,7 @@ function Attest({ run, state, disabled, write }: { run: RunRecord; state: NonNul
     case "no_account":
       return (
         <Caption className="max-w-prose">
-          {state.name} can&rsquo;t sign in to Binary yet, so they can&rsquo;t say yes. Until they do, nothing about this run can be shared outside the lab.
+          {state.name} isn&rsquo;t linked to a Binary account yet, so they can&rsquo;t say yes here. Until they do, nothing about this run can be shared outside the lab.
         </Caption>
       );
     default: {
@@ -193,21 +192,16 @@ function Attest({ run, state, disabled, write }: { run: RunRecord; state: NonNul
   }
 }
 
-// Today in the reader's own zone, as a calendar day.
-function today(): string {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-}
-
-function dayOf(iso: string): string {
-  const d = new Date(iso);
+// A moment as a calendar day in the reader's own zone.
+function dayOf(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
+const today = () => dayOf(new Date());
 
 // A day picked as when it was confirmed. Today is now; an earlier day is its midday, so the
 // day reads the same wherever it's opened.
 function confirmedAtOf(day: string, kept: string | null): string | null {
-  if (kept !== null && dayOf(kept) === day) return kept;
+  if (kept !== null && dayOf(new Date(kept)) === day) return kept;
   return day === today() ? null : new Date(`${day}T12:00:00`).toISOString();
 }
 
@@ -250,7 +244,7 @@ function ConfirmForm({
   const [cause, setCause] = useState(f.confirmedCause ?? f.suspectedCause ?? "");
   const [personId, setPersonId] = useState<string>(f.confirmedBy?.id ?? "");
   const [picked, setPicked] = useState<Picked>({ method: f.confirmMethod, sha256: f.confirmSha256 ?? "", runId: f.confirmRun?.id ?? "" });
-  const [day, setDay] = useState(f.confirmedAt === null ? today() : dayOf(f.confirmedAt));
+  const [day, setDay] = useState(f.confirmedAt === null ? today() : dayOf(new Date(f.confirmedAt)));
   const [note, setNote] = useState(f.confirmNote ?? "");
   // The runs a repeat most likely is: the one this retried and the ones that retried it.
   const repeats = [...run.retriedIn, ...(run.retryOf === null ? [] : [run.retryOf])];
@@ -310,7 +304,7 @@ function ConfirmForm({
               type="radio"
               name={ids.method}
               checked={picked.method === choice.method}
-              onChange={() => setPicked((p) => ({ ...p, method: ConfirmMethod.parse(choice.method) }))}
+              onChange={() => setPicked((p) => ({ ...p, method: choice.method }))}
               className="mt-1 size-4 shrink-0 accent-[var(--content-primary)]"
             />
             <span>
@@ -368,7 +362,7 @@ function ConfirmForm({
         <Textarea id={ids.note} rows={2} maxLength={NOTE_MAX} value={note} onChange={(e) => setNote(e.target.value)} placeholder="For example: fresh buffer fixed it on the second try." />
       </div>
 
-      <div className={cn("flex flex-wrap gap-2")}>
+      <div className="flex flex-wrap gap-2">
         <Button type="submit" size="compact" disabled={disabled || !ready}>
           Save the confirmed cause
         </Button>
