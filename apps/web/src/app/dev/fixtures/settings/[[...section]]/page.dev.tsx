@@ -11,10 +11,12 @@ import { DropboxNotice, SettingsSection } from "@/app/settings/sections";
 import { SettingsFrame } from "@/app/settings/settings-frame";
 import { UploaderDownloadSection } from "@/app/settings/uploader-download-section";
 import { AppShell } from "@/components/app-shell";
+import { FailureTypesSection } from "@/components/runs/failure/failure-types";
 import { disconnectedSource, experiments, fixtureShell, members, people, scanningSource } from "@/fixtures/data";
 import { FixtureLabApi } from "@/fixtures/fixture-api";
 import { requireFixtures } from "@/fixtures/gate";
 import { fixturePairing, instruments, waitingInstrument } from "@/fixtures/instruments";
+import { fixtureFailureList } from "@/fixtures/runs-failure";
 
 // /dev/fixtures/settings[/<section>]?state=connect|scanning|disconnected&role=admin|member&code=shown|paired&dropbox=<notice>
 // /dev/fixtures/settings/instruments/download[?download=on]
@@ -64,6 +66,8 @@ export default async function SettingsFixture({ params, searchParams }: Props) {
         return <LabListSection kind="experiments" entries={state === "connect" ? [] : experiments} isAdmin={isAdmin} />;
       case "people":
         return <LabListSection kind="people" entries={state === "connect" ? [] : people} isAdmin={isAdmin} />;
+      case "failure-types":
+        return <FailureTypesSection list={fixtureFailureList} />;
       case "account":
         return <AccountSection email={email} labName={LAB} isAdmin={isAdmin} />;
       case "appearance":

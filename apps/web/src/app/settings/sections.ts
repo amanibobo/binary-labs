@@ -2,11 +2,11 @@ import { z } from "zod";
 
 // Each section is its own page at /settings/<section>; /settings is the section list on a phone
 // and General on a desktop.
-export const SettingsSection = z.enum(["general", "members", "dropbox", "instruments", "experiments", "people", "account", "appearance"]);
+export const SettingsSection = z.enum(["general", "members", "dropbox", "instruments", "experiments", "people", "failure-types", "account", "appearance"]);
 export type SettingsSection = z.infer<typeof SettingsSection>;
 
 export const SETTINGS_GROUPS = [
-  { label: "Lab", sections: ["general", "members", "dropbox", "instruments", "experiments", "people"] },
+  { label: "Lab", sections: ["general", "members", "dropbox", "instruments", "experiments", "people", "failure-types"] },
   { label: "You", sections: ["account", "appearance"] },
 ] as const satisfies readonly { label: string; sections: readonly SettingsSection[] }[];
 
@@ -17,6 +17,7 @@ export const SECTION_COPY = {
   instruments: { title: "Instruments", helper: "Instrument PCs that send their new files here by themselves." },
   experiments: { title: "Experiments", helper: "Files are labeled with these. Add the short names people use in file names." },
   people: { title: "People", helper: "Files are labeled with these. Add the initials people use in file names." },
+  "failure-types": { title: "Failure types", helper: "The fixed list a failed run is sorted by, so runs from different labs line up." },
   account: { title: "Account", helper: "The email you sign in with." },
   appearance: { title: "Appearance", helper: "Light, dark, or the same as this device. Saved on this browser." },
 } as const satisfies Record<SettingsSection, { title: string; helper: string }>;
